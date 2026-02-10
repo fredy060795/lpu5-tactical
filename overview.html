@@ -502,6 +502,7 @@
     let currentTool = '';
     let currentUserName = '';
     const pendingLayers = new Map();
+    const serverMarkerLayers = new Map(); // server marker id -> L.marker layer
     const meshtasticMarkers = new Map(); // mesh_id -> { marker, data }
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
@@ -656,14 +657,6 @@
           if (typeof loadOverlays === 'function') loadOverlays();
           break;
 
-        case 'symbol_created':
-          // Handle new symbol from another client
-          if (data.data && data.channel === 'symbols') {
-            console.log('Received symbol_created:', data.data);
-            sync();
-          }
-          break;
-
         case 'symbol_updated':
           // Handle symbol update from another client
           if (data.data && data.channel === 'symbols') {
@@ -678,14 +671,6 @@
             console.log('Received symbol_deleted:', data.data);
             sync();
           }
-          break;
-
-        case 'symbol_placed':
-          // Handle symbol placement broadcast (legacy support)
-          if (data.symbol || (data.data && data.channel === 'markers')) {
-            console.log('Received symbol placement:', data.symbol || data.data);
-          }
-          sync();
           break;
 
         case 'node_update':
@@ -1213,24 +1198,28 @@
         console.warn('Failed to send pending markers:', e);
       });
       try {
-        const res = await fetch('/api/map_markers');
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch('/api/map_markers', { headers });
         if (!res.ok) {
           console.warn('Failed to fetch map markers, status:', res.status);
           renderPendingLayers();
           return;
         }
         const markers = await res.json();
-        // Only remove layers from drawPane, preserve meshtasticPane and other panes
-        map.eachLayer(l => {
-          if (l.options && l.options.pane === 'drawPane') {
-            try {
-              map.removeLayer(l);
-            } catch (e) {
-              console.warn('Failed to remove layer from drawPane', e);
-            }
-          }
-        });
+        // Remove only previously synced server marker layers (preserve GPS, pending, meshtastic)
+        for (const [id, layer] of serverMarkerLayers) {
+          try { map.removeLayer(layer); } catch (e) { }
+        }
+        serverMarkerLayers.clear();
+
+        const serverIds = new Set();
         (markers || []).forEach(m => {
+          // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
+          if (m.type === 'node' || m.created_by === 'import_meshtastic') return;
+
+          serverIds.add(m.id);
           // Robust icon selection: check m.type, then m.name, then fallback to raute
           const iconType = m.type || m.name || 'raute';
           const iconHtml = SYMBOLS[iconType] || SYMBOLS[m.name] || SYMBOLS[m.type] || SYMBOLS.raute;
@@ -1242,6 +1231,7 @@
           });
           const layer = L.marker([m.lat, m.lng], { icon, pane: 'drawPane' }).addTo(map);
           layer._serverId = m.id;
+          serverMarkerLayers.set(m.id, layer);
           layer.on('click touchstart', async (ev) => {
             ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
             if (currentTool === 'trash') {
@@ -1250,6 +1240,7 @@
                 const dres = await fetch(`/api/map_markers/${m.id}`, { method: 'DELETE' });
                 if (dres.ok) {
                   map.removeLayer(layer);
+                  serverMarkerLayers.delete(m.id);
                 } else alert('Delete failed');
               } catch (e) {
                 console.error('Delete marker error:', e);
@@ -1952,7 +1943,7 @@
 
       // Send message to server via API
       const channelId = recipient.value || 'all';
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = 'Bearer ' + token;
       fetch('/api/chat/message', {
@@ -1964,7 +1955,7 @@
 
     function loadChatUsers() {
       // Load users from API for chat recipient dropdown
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       if (!token) return;
 
       fetch('/api/users', {
