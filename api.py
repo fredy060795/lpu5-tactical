@@ -2921,7 +2921,7 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
             # Check and close any persistent connection on this port
             _check_and_close_persistent_connection(port, "preview/import operation")
             
-            # Small delay to allow port release on Windows
+            # Delay to allow OS to release serial port after closing (Windows needs ~0.5s)
             time.sleep(0.5)
         
         # Try various constructor access patterns defensively

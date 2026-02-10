@@ -1446,7 +1446,7 @@
                 // Update existing overlay properties
                 try {
                   if (o.opacity !== undefined) {
-                    const newOpacity = o.opacity <= 1.0 ? o.opacity : o.opacity / 100;
+                    const newOpacity = Math.min(1.0, Math.max(0, o.opacity <= 1.0 ? o.opacity : o.opacity / 100));
                     overlays[idx].overlay.setOpacity(newOpacity);
                     overlays[idx].opacity = newOpacity;
                   }
