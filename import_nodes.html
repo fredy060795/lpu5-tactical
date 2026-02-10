@@ -517,13 +517,13 @@
     let _connectedPort = null;
     
     async function connectMeshtasticGateway(port){
-      if (!port) {
-        showToast('Please select a COM port first', 'error');
+      if (!port || port === '') {
+        showToast('Bitte wähle zuerst einen COM-Port aus der Liste.', 'error');
         return false;
       }
       
       try {
-        showToast(`Connecting to ${port}...`, 'info');
+        showToast(`Verbinde mit Meshtastic auf ${port}...`, 'info');
         const res = await fetch('/api/meshtastic/connect', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -534,8 +534,17 @@
         
         if (!res.ok) {
           const errorMsg = body?.detail || body?.message || 'Unknown error';
-          showToast(`Connection failed: ${errorMsg}`, 'error');
           console.error('Connection error details:', body);
+          
+          // Enhanced error message with troubleshooting suggestions
+          let detailedError = `Verbindung fehlgeschlagen: ${errorMsg}\n\nMögliche Lösungen:\n`;
+          detailedError += `• Überprüfe, ob das Gerät angeschlossen ist\n`;
+          detailedError += `• Stelle sicher, dass der richtige COM-Port ausgewählt ist\n`;
+          detailedError += `• Schließe andere Programme, die den Port verwenden könnten\n`;
+          detailedError += `• Versuche das Gerät erneut anzuschließen\n`;
+          detailedError += `• Versuche es mit Web Bluetooth als Alternative`;
+          
+          showToast(detailedError, 'error');
           _isGatewayConnected = false;
           _connectedPort = null;
           return false;
@@ -543,7 +552,7 @@
         
         _isGatewayConnected = true;
         _connectedPort = port;
-        showToast(`✅ Connected to Meshtastic on ${port}`, 'success');
+        showToast(`✅ Verbunden mit Meshtastic auf ${port}`, 'success');
         
         // Automatically trigger preview after connection
         setTimeout(() => previewNodes(), 500);
@@ -551,7 +560,16 @@
         return true;
       } catch(e){
         console.error('connectMeshtasticGateway error', e);
-        showToast(`Connection error: ${e.message}`, 'error');
+        
+        // Enhanced error message for network/connection errors
+        let detailedError = `Verbindungsfehler: ${e.message}\n\nMögliche Lösungen:\n`;
+        detailedError += `• Überprüfe deine Netzwerkverbindung\n`;
+        detailedError += `• Stelle sicher, dass der Server läuft\n`;
+        detailedError += `• Überprüfe, ob das Meshtastic-Gerät angeschlossen ist\n`;
+        detailedError += `• Versuche einen anderen COM-Port\n`;
+        detailedError += `• Starte das Meshtastic-Gerät neu`;
+        
+        showToast(detailedError, 'error');
         _isGatewayConnected = false;
         _connectedPort = null;
         return false;
