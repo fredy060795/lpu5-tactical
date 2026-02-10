@@ -1808,12 +1808,11 @@
       // Send message to server via API
       const channelId = recipient.value || 'all';
       const token = sessionStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
       fetch('/api/chat/message', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? 'Bearer ' + token : ''
-        },
+        headers: headers,
         body: JSON.stringify({ channel_id: channelId, text: message })
       }).catch(e => console.error('Failed to send chat message:', e));
     }
