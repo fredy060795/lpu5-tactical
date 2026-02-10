@@ -6,7 +6,7 @@ Extracted from main_app.py for API integration
 Parses Meshtastic node objects and extracts standardized data
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 
 def parse_meshtastic_node(node: Dict[str, Any]) -> Dict[str, Any]:
@@ -84,7 +84,7 @@ def parse_meshtastic_node(node: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def validate_node_for_import(parsed_node: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+def validate_node_for_import(parsed_node: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """
     Validate if a parsed node has sufficient data for import.
     
