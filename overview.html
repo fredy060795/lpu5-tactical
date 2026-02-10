@@ -728,10 +728,31 @@
           break;
 
         case 'status_update':
-          // Handle status updates
+          // Handle status updates from server (e.g., when admin changes status in index.html)
           if (data.status && data.channel === 'status') {
-            console.log('Received status update:', data.status);
-            // Update UI status indicators
+            console.log('Received status update:', data);
+            
+            // Check if this update is for the current user
+            const myUnitId = localStorage.getItem('lpu5_unit_id');
+            const myUsername = localStorage.getItem('lpu5_username');
+            
+            // Apply status if it's for this user/unit
+            if (data.unit_id === myUnitId || data.username === myUsername) {
+              // Update the status display
+              const statusEl = document.getElementById('out-status');
+              if (statusEl && data.status) {
+                statusEl.innerText = data.status;
+                
+                // Set color based on status
+                let color = '';
+                if (data.status === 'AKTIV') color = '#28a745';      // Green
+                else if (data.status === 'BASE') color = '#007bff';   // Blue
+                else if (data.status === 'KIA') color = '#dc3545';    // Red
+                statusEl.style.color = color;
+                
+                console.log('Status updated to:', data.status);
+              }
+            }
           }
           break;
 
@@ -1737,6 +1758,83 @@
       }
     }
 
+    // Life Status Update Function
+    // This function is called from the hamburger menu to update unit status
+    // It integrates with server API and broadcasts the change to other tabs
+    async function setLifeStatus(status) {
+      console.log('setLifeStatus called with:', status);
+      
+      // Get unit ID from localStorage
+      const unitId = localStorage.getItem('lpu5_unit_id');
+      if (!unitId) {
+        console.warn('No unit ID found in localStorage');
+        alert('Fehler: Keine Einheiten-ID gefunden. Bitte melde dich erneut an.');
+        return;
+      }
+
+      // Determine color based on status
+      let color = '';
+      if (status === 'AKTIV') color = '#28a745';      // Green
+      else if (status === 'BASE') color = '#007bff';   // Blue
+      else if (status === 'KIA') color = '#dc3545';    // Red
+      
+      try {
+        // 1. Update UI immediately for better UX
+        const el = document.getElementById('out-status');
+        if (el) {
+          el.innerText = status;
+          el.style.color = color;
+        }
+        
+        // 2. Send status update to server API
+        const response = await fetch(`/api/units/${unitId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: status })
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to update status on server:', await response.text());
+          // Don't show error to user as the UI is already updated
+          // The status will be corrected on next sync if needed
+        } else {
+          console.log('Status successfully updated on server');
+        }
+        
+        // 3. Broadcast to other tabs using BroadcastChannel and localStorage fallback
+        const updateData = {
+          type: 'status_change',
+          status: status,
+          color: color,
+          username: currentUserName,
+          timestamp: new Date().toISOString()
+        };
+        
+        // BroadcastChannel (modern browsers)
+        if (statusChannel) {
+          try {
+            statusChannel.postMessage(updateData);
+          } catch (e) {
+            console.warn('BroadcastChannel postMessage failed', e);
+          }
+        }
+        
+        // localStorage fallback for cross-window sync
+        try {
+          localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
+        } catch (e) {
+          console.warn('localStorage not available', e);
+        }
+        
+        // Close the hamburger menu
+        toggleHamburgerMenu();
+        
+      } catch (error) {
+        console.error('Error updating life status:', error);
+        alert('Fehler beim Aktualisieren des Status. Bitte versuche es erneut.');
+      }
+    }
+
     // Health Display Toggle Function
     function toggleHealthDisplay() {
       // This function toggles the visibility of health/life indicators
@@ -2479,7 +2577,7 @@
           if (statusElement) {
             statusElement.textContent = status;
             // Update color based on status
-            if (status === 'ACTIVE') {
+            if (status === 'AKTIV') {
               statusElement.style.color = '#28a745'; // green
             } else if (status === 'BASE') {
               statusElement.style.color = '#007bff'; // blue
@@ -2539,9 +2637,9 @@
         <div style="padding: 12px 20px; border-bottom: 1px solid #282828; margin-bottom: 10px;">
           <h4 style="color: #2ecc71; margin: 0 0 10px 0; font-size: 0.9em;">LEBENSSTATUS</h4>
           <div style="display: flex; gap: 8px; justify-content: space-around;">
-            <button onclick="setLifeStatus('ACTIVE');" style="flex: 1; padding: 10px; background: rgba(40, 167, 69, 0.2); border: 2px solid #28a745; color: #28a745; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; font-family: 'Courier New', monospace;" onmouseover="this.style.background='rgba(40, 167, 69, 0.3)'" onmouseout="this.style.background='rgba(40, 167, 69, 0.2)'">
+            <button onclick="setLifeStatus('AKTIV');" style="flex: 1; padding: 10px; background: rgba(40, 167, 69, 0.2); border: 2px solid #28a745; color: #28a745; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; font-family: 'Courier New', monospace;" onmouseover="this.style.background='rgba(40, 167, 69, 0.3)'" onmouseout="this.style.background='rgba(40, 167, 69, 0.2)'">
               <i class="fas fa-check-circle" style="font-size: 1.5em;"></i>
-              <span style="font-size: 0.75em; font-weight: bold;">ACTIVE</span>
+              <span style="font-size: 0.75em; font-weight: bold;">AKTIV</span>
             </button>
             <button onclick="setLifeStatus('BASE');" style="flex: 1; padding: 10px; background: rgba(0, 123, 255, 0.2); border: 2px solid #007bff; color: #007bff; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; font-family: 'Courier New', monospace;" onmouseover="this.style.background='rgba(0, 123, 255, 0.3)'" onmouseout="this.style.background='rgba(0, 123, 255, 0.2)'">
               <i class="fas fa-home" style="font-size: 1.5em;"></i>

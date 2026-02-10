@@ -247,6 +247,39 @@
         .username-field .btn-clear:hover { background: rgba(255,255,255,0.06); transform: translateY(-1px); }
         .input-username::selection { background: rgba(255,255,255,0.12); color: #fff; }
 
+        /* Password field - reuse username field styles */
+        .password-field {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+        .password-field .fa-lock {
+            position: absolute;
+            left: 12px;
+            color: #9a9a9a;
+            font-size: 0.95rem;
+            pointer-events: none;
+        }
+        .input-password {
+            width: 100%;
+            padding: 10px 44px 10px 40px;
+            background: var(--panel-contrast);
+            border: 1px solid #444;
+            color: #fff;
+            font-size: 0.95rem;
+            border-radius: 8px;
+            font-family: inherit;
+            transition: all .15s ease;
+            outline: none;
+            box-shadow: none;
+        }
+        .input-password::placeholder { color: #7a7a7a; font-style: italic; }
+        .input-password:focus { border-color: #888; box-shadow: 0 6px 18px rgba(0,0,0,0.6); transform: translateY(-1px); }
+        .password-field .btn-clear:hover { background: rgba(255,255,255,0.06); transform: translateY(-1px); }
+        .input-password::selection { background: rgba(255,255,255,0.12); color: #fff; }
+
         /* Role badges */
         .role-badge {
             display: inline-block;
@@ -390,6 +423,17 @@
                 <i class="fas fa-user"></i>
                 <input id="qrUsername" class="input-username" placeholder="Optional - blank for registration" autocomplete="username">
                 <button type="button" class="btn-clear" title="Clear input" onclick="document.getElementById('qrUsername').value='';">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label class="small">Password (optional - leave blank for registration only)</label>
+            <div class="password-field">
+                <i class="fas fa-lock"></i>
+                <input id="qrPassword" type="password" class="input-password" placeholder="Optional - blank for registration" autocomplete="new-password">
+                <button type="button" class="btn-clear" title="Clear input" onclick="document.getElementById('qrPassword').value='';">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
