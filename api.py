@@ -660,7 +660,9 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 marker.lat = float(lat)
                 marker.lng = float(lng)
                 marker.name = f"{n.hardware_model or ''} = {name}"
-                marker.created_at = datetime.utcnow()
+                marker_data = marker.data if isinstance(marker.data, dict) else {}
+                marker_data["updated_at"] = datetime.utcnow().isoformat()
+                marker.data = marker_data
                 updated += 1
             else:
                 new_marker = MapMarker(
