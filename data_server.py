@@ -21,6 +21,11 @@ import signal
 import sys
 from datetime import datetime
 from typing import Dict, Set, Any, Optional
+
+# Fix Windows asyncio ProactorEventLoop issue
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
