@@ -537,12 +537,14 @@
           console.error('Connection error details:', body);
           
           // Enhanced error message with troubleshooting suggestions
-          let detailedError = `Verbindung fehlgeschlagen: ${errorMsg}\n\nMögliche Lösungen:\n`;
-          detailedError += `• Überprüfe, ob das Gerät angeschlossen ist\n`;
-          detailedError += `• Stelle sicher, dass der richtige COM-Port ausgewählt ist\n`;
-          detailedError += `• Schließe andere Programme, die den Port verwenden könnten\n`;
-          detailedError += `• Versuche das Gerät erneut anzuschließen\n`;
-          detailedError += `• Versuche es mit Web Bluetooth als Alternative`;
+          const detailedError = `Verbindung fehlgeschlagen: ${errorMsg}
+
+Mögliche Lösungen:
+• Überprüfe, ob das Gerät angeschlossen ist
+• Stelle sicher, dass der richtige COM-Port ausgewählt ist
+• Schließe andere Programme, die den Port verwenden könnten
+• Versuche das Gerät erneut anzuschließen
+• Versuche es mit Web Bluetooth als Alternative`;
           
           showToast(detailedError, 'error');
           _isGatewayConnected = false;
@@ -562,12 +564,14 @@
         console.error('connectMeshtasticGateway error', e);
         
         // Enhanced error message for network/connection errors
-        let detailedError = `Verbindungsfehler: ${e.message}\n\nMögliche Lösungen:\n`;
-        detailedError += `• Überprüfe deine Netzwerkverbindung\n`;
-        detailedError += `• Stelle sicher, dass der Server läuft\n`;
-        detailedError += `• Überprüfe, ob das Meshtastic-Gerät angeschlossen ist\n`;
-        detailedError += `• Versuche einen anderen COM-Port\n`;
-        detailedError += `• Starte das Meshtastic-Gerät neu`;
+        const detailedError = `Verbindungsfehler: ${e.message}
+
+Mögliche Lösungen:
+• Überprüfe deine Netzwerkverbindung
+• Stelle sicher, dass der Server läuft
+• Überprüfe, ob das Meshtastic-Gerät angeschlossen ist
+• Versuche einen anderen COM-Port
+• Starte das Meshtastic-Gerät neu`;
         
         showToast(detailedError, 'error');
         _isGatewayConnected = false;
