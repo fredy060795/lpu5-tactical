@@ -436,8 +436,8 @@
         <path d="M23 7l-7 5 7 5V7z" />
         <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
       </svg></div>
-    <div class="tool-btn" id="s-chat" ontouchstart="handleToolInteraction(() => TacticalChat.toggleChat(), event)"
-      onclick="handleToolInteraction(() => TacticalChat.toggleChat(), event)" title="Chat">
+    <div class="tool-btn" id="s-chat" ontouchstart="handleToolInteraction(() => openChatWindow(), event)"
+      onclick="handleToolInteraction(() => openChatWindow(), event)" title="Chat">
       <svg viewBox="0 0 24 24" fill="#2ecc71" stroke="white" stroke-width="1.5">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
@@ -724,9 +724,26 @@
 
         case 'chat_message':
           // Handle chat messages
-          if (data.message && data.channel === 'messages') {
-            console.log('Received chat message:', data.message);
-            // Chat UI would handle this
+          if (data.data && data.channel === 'messages') {
+            const msg = data.data;
+            const messagesDiv = document.getElementById('chat-messages');
+            if (messagesDiv) {
+              // Clear placeholder if present
+              if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
+                messagesDiv.innerHTML = '';
+              }
+              const messageEl = document.createElement('div');
+              messageEl.className = 'chat-message';
+              messageEl.innerHTML = `
+                <div class="chat-message-sender">
+                  ${msg.username || 'Unknown'}
+                  <span class="chat-message-time">${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}</span>
+                </div>
+                <div class="chat-message-text">${msg.text || msg.message || ''}</div>
+              `;
+              messagesDiv.appendChild(messageEl);
+              messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
           }
           break;
 
@@ -1788,9 +1805,16 @@
       // Clear input
       input.value = '';
 
-      // TODO: Send message to server via API
-      // For now, just display locally
-      console.log('Sending message to:', recipient.value, 'Message:', message);
+      // Send message to server via API
+      const channelId = recipient.value || 'all';
+      const token = sessionStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      fetch('/api/chat/message', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ channel_id: channelId, text: message })
+      }).catch(e => console.error('Failed to send chat message:', e));
     }
 
     function loadChatUsers() {

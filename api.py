@@ -4453,6 +4453,7 @@ def trigger_rules_api(data: Dict = Body(...)):
 
 # Default chat channels
 DEFAULT_CHANNELS = [
+    {"id": "all", "name": "Alle Einheiten", "description": "Broadcast to all units", "color": "#ffffff"},
     {"id": "hq", "name": "HQ", "description": "Headquarters Communication", "color": "#3498db"},
     {"id": "fox", "name": "Fox", "description": "Fox Team Channel", "color": "#e67e22"},
     {"id": "alpha", "name": "Alpha", "description": "Alpha Team Channel", "color": "#2ecc71"},

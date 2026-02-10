@@ -59,6 +59,21 @@
                 newScript.src = script.src;
                 document.body.appendChild(newScript);
             });
+            
+            // Update username from localStorage
+            try {
+                const userJson = localStorage.getItem('lpu5_user');
+                if (userJson) {
+                    const user = JSON.parse(userJson);
+                    const displayName = user.fullname || user.username || user.callsign;
+                    if (displayName) {
+                        const userNameEl = document.getElementById('userName');
+                        if (userNameEl) userNameEl.textContent = displayName;
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to update username in nav:', e);
+            }
         })
         .catch(error => {
             console.error('Error loading global navigation:', error);

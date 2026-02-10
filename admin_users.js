@@ -109,9 +109,9 @@ async function updateUnitTable(users) {
         tdUnit.textContent = user.unit || user.group || '-';
         tr.appendChild(tdUnit);
         
-        // Account Status column (Active/Inactive) - Fixed to show user.active instead of user.status
+        // Account Status column (Active/Inactive)
         const tdStatus = document.createElement('td');
-        const isActive = user.active !== false; // Default to true if not specified
+        const isActive = user.is_active !== false; // Default to true if not specified
         tdStatus.innerHTML = `<span style="color: ${isActive ? 'var(--accent-green)' : '#888'}">${isActive ? '✅ Active' : '❌ Inactive'}</span>`;
         tr.appendChild(tdStatus);
         
@@ -282,7 +282,7 @@ async function openEditModal(username) {
         document.getElementById('editCallsign').value = user.callsign || '';
         document.getElementById('editPassword').value = '';
         document.getElementById('editGroup').value = user.unit || user.group || '';
-        document.getElementById('editStatus').value = user.active === false ? 'false' : 'true';
+        document.getElementById('editStatus').value = user.is_active === false ? 'false' : 'true';
         document.getElementById('editRole').value = user.role || 'user';
         
         // Show modal
@@ -322,7 +322,7 @@ async function saveUserChanges() {
             callsign: callsign || undefined,
             unit: group || undefined,
             group: group || undefined,
-            active: active,
+            is_active: active,
             role: role
         };
         

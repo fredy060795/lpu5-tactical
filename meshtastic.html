@@ -31,6 +31,8 @@
             background:var(--bg-dark);
             color:var(--text-main);
             line-height:1.4;
+            padding-left: 70px;
+            transition: padding-left 0.3s ease;
         }
 
         /* Page layout */
@@ -236,8 +238,8 @@
     <!-- =========================
          GLOBAL NAV (1:1)
          ========================= -->
-    <!-- Global Navigation loaded from _global_nav.html - DISABLED per requirements -->
-    <!-- <script src="load-global-nav.js"></script> -->
+    <!-- Global Navigation loaded from _global_nav.html -->
+    <script src="load-global-nav.js"></script>
 
     <!-- =========================
          APP CONTENT
@@ -423,6 +425,14 @@
 
 
 <script>
+    // Logout function for global nav
+    function logoutUser() {
+        if (confirm('Wirklich abmelden?')) {
+            try { localStorage.removeItem('lpu5_token'); localStorage.removeItem('lpu5_user'); } catch (e) {}
+            window.location.href = '/';
+        }
+    }
+
     // Initialer Namens-Check
     document.addEventListener('DOMContentLoaded', updateUserNameDisplay);
 
