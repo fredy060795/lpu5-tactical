@@ -2924,7 +2924,8 @@
         return;
       }
 
-      const currentStatus = document.getElementById('out-status').innerText;
+      const statusEl = document.getElementById('out-status');
+      const currentStatus = statusEl ? statusEl.innerText : 'BASE';
       const currentInterval = (gpsUpdateInterval / 1000) || 5;
 
       menu.innerHTML = `
