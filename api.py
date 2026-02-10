@@ -3799,7 +3799,10 @@ def api_qr_create(data: dict = Body(...), request: Request = None, db: Session =
     if generate_png and qrcode:
         try:
             local_ip, _ = get_local_ip()
-            qr_url = f"http://{local_ip}:8000/qr/{token}"
+            cert_file = os.path.join(base_path, "cert.pem")
+            key_file = os.path.join(base_path, "key.pem")
+            protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
+            qr_url = f"{protocol}://{local_ip}:8001/qr/{token}"
             qr_img = qrcode.make(qr_url)
             from io import BytesIO
             buf = BytesIO()
@@ -5048,7 +5051,7 @@ if __name__ == "__main__":
         logger.info(f"  *** WLAN IP (192.168.8.x) DETECTED: {local_ip} ***")
         logger.info(f"  *** Use this IP to access from your mobile device! ***")
     
-    logger.info(f"  Server will bind to: 0.0.0.0:8000 (all interfaces)")
+    logger.info(f"  Server will bind to: 0.0.0.0:8001 (all interfaces)")
     
     # SSL/HTTPS Status
     if use_ssl:
