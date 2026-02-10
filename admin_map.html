@@ -2235,7 +2235,7 @@
         renderSettingsList();
       }
 
-      function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); }
+      function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); deleteSymbolFromServer(id); }
 
       async function loadMapSymbols() {
         try {
