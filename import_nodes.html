@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meshtastic Settings</title>
+  <link rel="manifest" href="/manifest.json">
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-dark: #0a0a0a;
+      --panel-bg: #1a1a1a;
+      --border-color: #333;
+      --text-main: #d0d0d0;
+      --accent-blue: #ffffff;
+      --accent-green: #28a745;
+      --accent-red: #dc3545;
+      --tactical-gray: #2d2d2d;
+      --sb-collapsed: 70px;
+      --sb-expanded: 280px;
+      --nav-bg-dark: #121212;
+      --nav-border: #282828;
+      --nav-accent: #2ecc71;
+      --nav-text-dim: #888;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      margin:0;
+      padding-left:var(--sb-collapsed);
+      background:var(--bg-dark);
+      color:var(--text-main);
+      font-family:'Courier New', monospace;
+    }
+
+    /* ---------- end global nav ---------- */
+
+    header {
+      background: linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%);
+      border-bottom: 2px solid var(--accent-blue);
+      padding: 15px 20px 15px calc(var(--sb-collapsed) + 14px);
+      display:flex; align-items:center; gap:12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+      position: relative;
+      z-index: 100;
+    }
+    header img.header-logo { width:48px; height:48px; object-fit:contain; border-radius:6px; }
+    h1 { color:var(--accent-blue); font-size:1.4rem; margin:0; }
+
+    .container { padding:20px; max-width:1000px; margin:0 auto; }
+
+    .form-section {
+      background:var(--panel-bg);
+      border:1px solid var(--border-color);
+      padding:20px; border-radius:8px; margin-bottom:20px;
+    }
+
+    label { display:block; margin-bottom:6px; color:#888; text-transform:uppercase; font-size:0.85rem; font-weight:bold; }
+    select, input, textarea {
+      width:100%; padding:10px; background:#000; color:#fff; border:1px solid #444; border-radius:4px;
+      font-family:'Courier New', monospace; margin-bottom:10px;
+    }
+    select:focus, input:focus, textarea:focus { outline:none; border-color:#666; box-shadow:0 0 8px rgba(0,0,0,0.45); }
+
+    .btn {
+      background: var(--panel-bg);
+      color: var(--text-main);
+      border:1px solid var(--border-color);
+      padding:12px 20px; border-radius:4px; cursor:pointer; font-weight:bold;
+      text-transform:uppercase; display:flex; align-items:center; justify-content:center; gap:10px;
+      width:100%; margin-bottom:10px;
+    }
+    .btn:hover { background:#252525; transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.5); }
+    .btn-success { background:var(--panel-bg); color:var(--text-main); }
+    .btn-success:hover { background:#263626; color:#fff; }
+
+    .port-item {
+      padding:12px; border:1px solid #333; margin-top:8px; cursor:pointer; background:#222; border-radius:4px;
+      display:flex; align-items:center; gap:10px; justify-content:space-between;
+    }
+    .port-item:hover { background:#2a2a2a; transform:translateX(2px); }
+
+    .port-left { display:flex; gap:10px; align-items:center; }
+    .port-meta { color:#aaa; font-size:0.85rem; }
+    .port-device { font-weight:bold; color:#fff; }
+
+    .port-selected { border-left:4px solid var(--accent-blue); background:#111; }
+
+    .node-preview {
+      background:#0a0a0a; padding:12px; margin-bottom:8px; border:1px solid #333; border-radius:4px;
+      display:grid; grid-template-columns: 1fr 260px; gap:12px; align-items:center;
+    }
+    .node-preview .left { color:#ccc; }
+    .node-preview .meta { color:#888; font-size:0.9rem; margin-top:6px; }
+    .node-preview input.friendly { width:100%; padding:8px; border-radius:4px; border:1px solid #444; background:#040404; color:#fff; }
+
+    .empty-state { color:#888; padding:30px 20px; text-align:center; font-size:0.95em; }
+
+    .small-action { background:transparent; border:1px solid #444; color:#bbb; padding:6px 8px; border-radius:4px; cursor:pointer; }
+    .small-action:hover { color:#fff; border-color:#666; }
+
+    .controls { display:flex; gap:10px; align-items:center; }
+    .controls label { margin:0 6px 0 0; color:#aaa; font-size:0.85rem; }
+
+    pre.raw-json {
+      background:#060606;
+      border:1px solid #222;
+      color:#cfcfcf;
+      padding:10px;
+      margin-top:8px;
+      max-height:240px;
+      overflow:auto;
+      font-size:0.78rem;
+      white-space:pre-wrap;
+      word-break:break-word;
+      border-radius:4px;
+    }
+
+    .user-fields { color:#9fd; font-size:0.9rem; margin-top:8px; }
+
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(400px); opacity: 0; }
+    }
+
+    @media (max-width:768px){
+      body { padding-left:56px; }
+      header { padding-left:68px; flex-direction:column; align-items:flex-start; gap:6px; }
+      .node-preview { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Global Navigation loaded from _global_nav.html -->
+  <script src="load-global-nav.js"></script>
+  <!-- end global nav -->
+
+  <header>
+    <img src="/logo.png" alt="LPU5 Logo" class="header-logo" onerror="this.style.display='none'">
+    <h1>Meshtastic Settings</h1>
+  </header>
+
+  <div class="container">
+    <div class="form-section">
+      <h2><i class="fas fa-rocket"></i> Gateway Import</h2>
+      
+      <label for="gatewayFile">Upload JSON File</label>
+      <input type="file" id="gatewayFile" accept=".json" style="margin-bottom:10px;">
+      
+      <label for="gatewayJson">Or Paste JSON Here</label>
+      <textarea id="gatewayJson" rows="8" placeholder="Paste Meshtastic Gateway JSON export here..."></textarea>
+      
+      <button class="btn btn-success" id="gatewayImportBtn">
+        <i class="fas fa-upload"></i> IMPORT FROM GATEWAY
+      </button>
+      
+      <div id="gatewayStatus" style="margin-top:12px; display:none;"></div>
+    </div>
+
+    <div class="form-section">
+      <h2><i class="fas fa-plug"></i> Select COM Port</h2>
+
+      <label for="portSelect">Available Ports</label>
+      <select id="portSelect" aria-label="Select COM Port"><option value="">-- Scan first --</option></select>
+
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn" id="scanBtn" style="flex:1"><i class="fas fa-search"></i> SCAN PORTS</button>
+        <button class="small-action" id="copyPortBtn" title="Copy selected port">Copy</button>
+      </div>
+
+      <div id="portList" style="margin-top:8px;"></div>
+
+      <div style="display:flex; gap:8px; align-items:center; margin-top:12px;">
+        <button class="btn btn-success" id="previewBtn" style="flex:1"><i class="fas fa-eye"></i> PREVIEW</button>
+        <button class="btn" id="importBtn" style="flex:1"><i class="fas fa-check-circle"></i> IMPORT</button>
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+        <label><input type="checkbox" id="autoPreview" /> Live Preview (auto every <input id="autoInterval" value="60" style="width:64px; display:inline-block; text-align:center;" />s)</label>
+        <label style="margin-left:12px;"><input type="checkbox" id="autoImport" /> Auto-Import (uses current friendly names)</label>
+      </div>
+
+      <div style="margin-top:12px;">
+        <button class="btn" id="cleanupBtn" style="background:#2d1a1a; border-color:#660000;">
+          <i class="fas fa-trash-alt"></i> CLEAN DATABASE
+        </button>
+        <div style="margin-top:6px; color:#888; font-size:0.85rem;">
+          ⚠️ Removes all stored mesh nodes and markers (irreversible)
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h2><i class="fas fa-broadcast-tower"></i> Found Nodes (Preview)</h2>
+      <div id="nodesList"></div>
+    </div>
+  </div>
+
+  <!-- sidebar behaviour script from global nav -->
+  <script src="assets/sidebar.js"></script>
+
+  <script>
+    // Hilfsfunktionen
+    async function safeJson(res){ try{ return await res.json(); }catch(e){ return null; } }
+
+    // Show toast notification
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 24px;
+        border-radius: 6px;
+        color: #fff;
+        font-weight: bold;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      `;
+      
+      if (type === 'success') {
+        toast.style.background = 'linear-gradient(135deg, #00aa00 0%, #006600 100%)';
+        toast.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+      } else if (type === 'error') {
+        toast.style.background = 'linear-gradient(135deg, #aa0000 0%, #660000 100%)';
+        toast.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+      } else {
+        toast.style.background = 'linear-gradient(135deg, #666 0%, #444 100%)';
+        toast.innerHTML = `<i class="fas fa-info-circle"></i> ${message}`;
+      }
+      
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Import nodes from Meshtastic Gateway JSON
+    async function importGatewayNodes() {
+      const fileInput = document.getElementById('gatewayFile');
+      const textArea = document.getElementById('gatewayJson');
+      const statusDiv = document.getElementById('gatewayStatus');
+      const importBtn = document.getElementById('gatewayImportBtn');
+      
+      let jsonData = null;
+      
+      // Try to get JSON from file first, then textarea
+      if (fileInput.files && fileInput.files.length > 0) {
+        try {
+          const fileContent = await fileInput.files[0].text();
+          jsonData = JSON.parse(fileContent);
+        } catch (e) {
+          showToast('Invalid JSON file: ' + e.message, 'error');
+          return;
+        }
+      } else if (textArea.value.trim()) {
+        try {
+          jsonData = JSON.parse(textArea.value.trim());
+        } catch (e) {
+          showToast('Invalid JSON format: ' + e.message, 'error');
+          return;
+        }
+      } else {
+        showToast('Please upload a file or paste JSON data', 'error');
+        return;
+      }
+      
+      // Show loading state
+      importBtn.disabled = true;
+      importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> IMPORTING...';
+      statusDiv.style.display = 'block';
+      statusDiv.innerHTML = '<div style="color:#aaa;"><i class="fas fa-spinner fa-spin"></i> Processing gateway data...</div>';
+      
+      try {
+        const formData = new FormData();
+        formData.append('gateway_data', JSON.stringify(jsonData));
+        
+        const res = await fetch('/api/meshtastic/import', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await safeJson(res);
+        
+        if (!res.ok) {
+          const errorMsg = (result && (result.message || result.detail)) || 'Import failed';
+          showToast(errorMsg, 'error');
+          statusDiv.innerHTML = `<div style="color:#e66;padding:12px;background:#2d1a1a;border:1px solid #660000;border-radius:4px;">
+            <strong>❌ Import Failed</strong><br>${escapeHtml(errorMsg)}
+          </div>`;
+          return;
+        }
+        
+        // Show success with details
+        const successCount = result.success_count || 0;
+        const errorCount = result.error_count || 0;
+        const imported = result.imported_nodes || [];
+        
+        let statusHtml = `
+          <div style="padding:12px;background:#003d00;border:1px solid #00aa00;border-radius:4px;color:#0f0;">
+            <strong>✅ Import Successful</strong><br>
+            <div style="margin-top:8px;color:#ccc;">
+              Successfully imported: ${successCount} node(s)<br>
+              ${errorCount > 0 ? `Errors: ${errorCount}<br>` : ''}
+            </div>
+          </div>`;
+        
+        if (imported.length > 0) {
+          statusHtml += `
+            <div style="margin-top:12px;padding:12px;background:#1a1a1a;border:1px solid #333;border-radius:4px;">
+              <strong>Imported Nodes:</strong>
+              <ul style="margin-top:8px;padding-left:20px;color:#aaa;">`;
+          imported.forEach(node => {
+            const name = node.name || node.longName || node.shortName || 'Unknown';
+            const id = node.mesh_id || node.id || '-';
+            statusHtml += `<li>${escapeHtml(name)} (${escapeHtml(id)})</li>`;
+          });
+          statusHtml += `</ul></div>`;
+        }
+        
+        statusDiv.innerHTML = statusHtml;
+        showToast(`Successfully imported ${successCount} node(s) from gateway`, 'success');
+        
+        // Clear inputs
+        fileInput.value = '';
+        textArea.value = '';
+        
+        // Refresh the preview to show imported nodes
+        setTimeout(() => previewNodes(), 1000);
+        
+      } catch (e) {
+        console.error('importGatewayNodes error:', e);
+        showToast('Import error: ' + e.message, 'error');
+        statusDiv.innerHTML = `<div style="color:#e66;padding:12px;background:#2d1a1a;border:1px solid #660000;border-radius:4px;">
+          <strong>❌ Error</strong><br>${escapeHtml(e.message || 'Unknown error')}
+        </div>`;
+      } finally {
+        importBtn.disabled = false;
+        importBtn.innerHTML = '<i class="fas fa-upload"></i> IMPORT FROM GATEWAY';
+      }
+    }
+
+    // Normalisiert einen Port-Eintrag beliebigen Formats in ein Objekt
+    function normalizePortEntry(p){
+      if (!p) return null;
+      if (typeof p === 'string') {
+        return { device: p, description: '' };
+      }
+      // Wenn Objekt: akzeptiere verschiedene Feldnamen
+      return {
+        device: p.device || p.name || p.path || p.port || '',
+        description: p.description || p.friendlyName || p.manufacturer || '',
+        hwid: p.hwid || p.hardwareId || '',
+        manufacturer: p.manufacturer || '',
+        vid: p.vid || p.vendorId || null,
+        pid: p.pid || p.productId || null,
+        raw: p
+      };
+    }
+
+    async function scanPorts(){
+      const select = document.getElementById('portSelect');
+      const list = document.getElementById('portList');
+      select.innerHTML = '<option value="">-- Scanning... --</option>';
+      list.innerHTML = '';
+      
+      showToast('Scanning COM ports...', 'info');
+
+      try {
+        const res = await fetch('/api/scan_ports');
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({}));
+          throw new Error(errorBody.detail || `HTTP ${res.status}: Scan endpoint not available`);
+        }
+        const ports = await res.json();
+        renderPorts(Array.isArray(ports) ? ports : []);
+        
+        // Show success message if ports found
+        if (Array.isArray(ports) && ports.length > 0) {
+          showToast(`Found ${ports.length} COM port(s)`, 'success');
+        } else {
+          showToast('No COM ports found. Please connect a Meshtastic device.', 'info');
+        }
+      } catch(e){
+        console.warn('scanPorts error', e);
+        showToast(`Port scan failed: ${e.message}`, 'error');
+        // Fallback: einige sinnvolle Beispiele
+        const fallback = [
+          { device: '/dev/ttyUSB0', description: 'USB Serial (Fallback)', hwid: '' },
+          { device: 'COM3', description: 'Windows COM (Fallback)', hwid: '' }
+        ];
+        renderPorts(fallback);
+        list.insertAdjacentHTML('beforeend', '<div style="color:#e66;margin-top:6px">Scan error — Fallback ports displayed. Please check if pyserial is installed.</div>');
+      }
+    }
+
+    function renderPorts(rawPorts){
+      const select = document.getElementById('portSelect');
+      const list = document.getElementById('portList');
+      select.innerHTML = '<option value="">-- Select port --</option>';
+      list.innerHTML = '';
+      if (!rawPorts || rawPorts.length === 0){
+        list.innerHTML = '<div class="empty-state"><i class="fas fa-info-circle"></i><br>No ports found</div>';
+        return;
+      }
+
+      // Map & dedupe (device as key)
+      const seen = new Set();
+      const ports = rawPorts.map(normalizePortEntry).filter(p => p && p.device).filter(p => {
+        if (seen.has(p.device)) return false;
+        seen.add(p.device);
+        return true;
+      });
+
+      // Build select options and list
+      ports.forEach((p, idx) => {
+        const opt = document.createElement('option');
+        opt.value = p.device;
+        // readable label: device + description (short)
+        const shortDesc = p.description ? (' — ' + p.description) : '';
+        opt.textContent = `${p.device}${shortDesc}`;
+        select.appendChild(opt);
+
+        const div = document.createElement('div');
+        div.className = 'port-item';
+        div.title = [
+          `Device: ${p.device}`,
+          p.description && `Info: ${p.description}`,
+          p.manufacturer && `Manufacturer: ${p.manufacturer}`,
+          p.hwid && `HWID: ${p.hwid}`,
+          (p.vid || p.pid) && `VID: ${p.vid || '-'} PID: ${p.pid || '-'}`
+        ].filter(Boolean).join(' | ');
+
+        // left column with device & meta
+        const left = document.createElement('div');
+        left.className = 'port-left';
+        left.innerHTML = `<div>
+            <div class="port-device">${escapeHtml(p.device)}</div>
+            <div class="port-meta">${escapeHtml(p.description || p.manufacturer || '')}</div>
+          </div>`;
+
+        // right column actions/details
+        const right = document.createElement('div');
+        right.style.display = 'flex';
+        right.style.gap = '8px';
+        right.style.alignItems = 'center';
+
+        const more = document.createElement('button');
+        more.className = 'small-action';
+        more.textContent = 'Details';
+        more.title = 'Show full port details';
+        more.onclick = (ev) => {
+          ev.stopPropagation();
+          alert(JSON.stringify(p.raw || p, null, 2));
+        };
+
+        right.appendChild(more);
+        div.appendChild(left);
+        div.appendChild(right);
+
+        // click to select
+        div.onclick = () => {
+          // mark selection visually
+          document.querySelectorAll('.port-item').forEach(e=>e.classList.remove('port-selected'));
+          div.classList.add('port-selected');
+          select.value = p.device;
+          // Auto-connect when port is selected
+          connectMeshtasticGateway(p.device);
+        };
+
+        list.appendChild(div);
+
+        // auto-select first entry if none selected
+        if (idx === 0 && !select.value) {
+          select.value = p.device;
+          div.classList.add('port-selected');
+          // Auto-connect to first port
+          setTimeout(() => connectMeshtasticGateway(p.device), 500);
+        }
+      });
+      
+      // Add change listener to select dropdown
+      select.addEventListener('change', (e) => {
+        if (e.target.value) {
+          // Update visual selection in list
+          document.querySelectorAll('.port-item').forEach(item => {
+            const deviceDiv = item.querySelector('.port-device');
+            if (deviceDiv && deviceDiv.textContent === e.target.value) {
+              item.classList.add('port-selected');
+            } else {
+              item.classList.remove('port-selected');
+            }
+          });
+          // Auto-connect when port is selected from dropdown
+          connectMeshtasticGateway(e.target.value);
+        }
+      });
+    }
+
+    // HTML-escape helper
+    function escapeHtml(s){
+      if (!s) return '';
+      return String(s).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]; });
+    }
+
+    // Connect to Meshtastic Gateway
+    let _isGatewayConnected = false;
+    let _connectedPort = null;
+    
+    async function connectMeshtasticGateway(port){
+      if (!port) {
+        showToast('Please select a COM port first', 'error');
+        return false;
+      }
+      
+      try {
+        showToast(`Connecting to ${port}...`, 'info');
+        const res = await fetch('/api/meshtastic/connect', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ port })
+        });
+        
+        const body = await safeJson(res);
+        
+        if (!res.ok) {
+          const errorMsg = body?.detail || body?.message || 'Unknown error';
+          showToast(`Connection failed: ${errorMsg}`, 'error');
+          console.error('Connection error details:', body);
+          _isGatewayConnected = false;
+          _connectedPort = null;
+          return false;
+        }
+        
+        _isGatewayConnected = true;
+        _connectedPort = port;
+        showToast(`✅ Connected to Meshtastic on ${port}`, 'success');
+        
+        // Automatically trigger preview after connection
+        setTimeout(() => previewNodes(), 500);
+        
+        return true;
+      } catch(e){
+        console.error('connectMeshtasticGateway error', e);
+        showToast(`Connection error: ${e.message}`, 'error');
+        _isGatewayConnected = false;
+        _connectedPort = null;
+        return false;
+      }
+    }
+    
+    async function checkConnectionStatus(){
+      try {
+        const res = await fetch('/api/meshtastic/connection_status');
+        if (res.ok) {
+          const data = await res.json();
+          _isGatewayConnected = data.connected;
+          _connectedPort = data.port;
+          return data;
+        }
+      } catch(e){
+        console.error('checkConnectionStatus error', e);
+      }
+      return { connected: false, port: null };
+    }
+
+    // Preview (non-persistent): POST /api/preview_meshtastic { port, friendly_names?, default_name_pattern? }
+    async function previewNodes(){
+      const port = document.getElementById('portSelect').value;
+      const nodesList = document.getElementById('nodesList');
+      
+      if (!port){ 
+        nodesList.innerHTML = '<div class="empty-state"><i class="fas fa-info-circle"></i><br>Please select a COM port first</div>'; 
+        return; 
+      }
+      
+      nodesList.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading preview...</div>';
+      
+      try {
+        showToast(`Loading nodes from ${port}...`, 'info');
+        const res = await fetch('/api/preview_meshtastic', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ port })
+        });
+        
+        const body = await safeJson(res);
+        
+        if (!res.ok){ 
+          const errorMsg = body?.detail || body?.message || `HTTP ${res.status}`;
+          nodesList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-circle"></i><br>Preview error: ${errorMsg}</div>`; 
+          showToast(`Preview failed: ${errorMsg}`, 'error');
+          console.warn('Preview error:', body); 
+          return; 
+        }
+        
+        // Log response for debugging
+        console.log('Preview response:', body);
+        
+        // Show status for both connected and simulation mode
+        const statusDiv = document.createElement('div');
+        statusDiv.style.cssText = `
+          padding: 12px;
+          margin-bottom: 12px;
+          border-radius: 6px;
+          font-weight: bold;
+        `;
+        
+        if (!body.is_simulated && body.node_count > 0) {
+          // Real device connected successfully
+          statusDiv.style.cssText += 'background: #003d00; border: 2px solid #00aa00; color: #00ff00;';
+          statusDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div>✅ Device connected (${body.node_count || 0} nodes found)</div>
+              <div style="color: #888; font-size: 0.85rem; font-weight: normal;">Port: ${escapeHtml(body.port || port)}</div>
+            </div>
+          `;
+        } else {
+          // No device connected or no nodes found
+          statusDiv.style.cssText += 'background: #3d0000; border: 2px solid #aa0000; color: #ff4444;';
+          statusDiv.innerHTML = `
+            <div>❌ No nodes found - Please connect a Meshtastic device</div>
+            <div style="color: #bbb; font-size: 0.85rem; margin-top: 6px; font-weight: normal;">Port: ${escapeHtml(body.port || port)}</div>
+            <div style="color: #bbb; font-size: 0.85rem; margin-top: 6px; font-weight: normal;">
+              Connection to Meshtastic device failed. Please ensure a device is connected and properly configured.
+            </div>
+          `;
+        }
+        
+        nodesList.innerHTML = '';
+        nodesList.appendChild(statusDiv);
+        
+        renderPreviewNodes(body.nodes || [], body.is_simulated);
+      } catch(e){
+        console.error('previewNodes', e);
+        nodesList.innerHTML = '<div class="empty-state">Error loading preview</div>';
+      }
+    }
+
+    // Render preview nodes with editable friendly name inputs + debug raw view
+    function renderPreviewNodes(nodes, isSimulated){
+      const nodesList = document.getElementById('nodesList');
+      if (!nodes || nodes.length === 0){
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.innerHTML = '<i class="fas fa-inbox"></i><br>No nodes found';
+        nodesList.appendChild(emptyDiv);
+        return;
+      }
+      // store last preview in window scope for import use
+      window._lastPreview = nodes;
+      window._lastPreviewIsSimulated = isSimulated;
+      
+      nodes.forEach(n => {
+        const nodeDiv = document.createElement('div');
+        nodeDiv.className = 'node-preview';
+        
+        const left = document.createElement('div');
+        left.className = 'left';
+        const nodeName = n.name || '';
+        const mesh = n.mesh_id || n.id || '';
+        const dev = n.device || '';
+        const coords = (n.lat && n.lng) ? `${Number(n.lat).toFixed(5)}, ${Number(n.lng).toFixed(5)}` : 'keine';
+        const last = n.last_heard ? new Date(n.last_heard*1000).toLocaleString('en-US') : 'Never';
+        
+        left.innerHTML = `<div><strong>${escapeHtml(nodeName)}</strong> <span style="color:#888">(${escapeHtml(mesh)})</span></div>
+                          <div class="meta">
+                            Device: ${escapeHtml(dev)} • Coords: ${escapeHtml(coords)} • Last: ${escapeHtml(last)}
+                          </div>`;
+
+        // Extract potential user fields for debug visibility
+        let userLong = '';
+        let userShort = '';
+        try {
+          // Check top-level first (from backend API)
+          userLong = n.longName || '';
+          userShort = n.shortName || '';
+          
+          // If not available at top-level, check user object and raw
+          if (!userLong || !userShort) {
+            const user = (n.raw && n.raw.user) ? n.raw.user : (n.user ? n.user : {});
+            if (user && typeof user === 'object') {
+              if (!userLong) userLong = user.longName || user.longname || user.long || '';
+              if (!userShort) userShort = user.shortName || user.shortname || user.short || '';
+            }
+            // Some meshtastic versions may put name fields at top-level raw
+            if (!userLong && n.raw && (n.raw.longName || n.raw.longname)) userLong = n.raw.longName || n.raw.longname;
+            if (!userShort && n.raw && (n.raw.shortName || n.raw.shortname)) userShort = n.raw.shortName || n.raw.shortname;
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        const userFieldsHtml = `
+          <div class="user-fields">
+            <div><strong>User.longName:</strong> ${escapeHtml(userLong || '-')}</div>
+            <div><strong>User.shortName:</strong> ${escapeHtml(userShort || '-')}</div>
+          </div>`;
+
+        const right = document.createElement('div');
+        right.className = 'right';
+        // friendly name input
+        const input = document.createElement('input');
+        input.className = 'friendly';
+        input.value = nodeName || '';
+        input.placeholder = 'Friendly name (e.g. OE5FTT/p)';
+        input.oninput = () => {
+          // update in preview storage
+          if (window._lastPreview){
+            const item = window._lastPreview.find(i => (i.mesh_id || i.id) === (n.mesh_id || n.id));
+            if (item) item.name = input.value;
+          }
+        };
+
+        // show mesh id for clarity
+        const meshNote = document.createElement('div');
+        meshNote.style.marginTop = '8px';
+        meshNote.style.color = '#999';
+        meshNote.style.fontSize = '0.85rem';
+        meshNote.innerText = `mesh_id: ${mesh}`;
+
+        // raw JSON pre (hidden by default)
+        const pre = document.createElement('pre');
+        pre.className = 'raw-json';
+        pre.style.display = 'none';
+        try {
+          pre.textContent = JSON.stringify(n, null, 2);
+        } catch (e) {
+          pre.textContent = String(n);
+        }
+
+        const toggleRawBtn = document.createElement('button');
+        toggleRawBtn.className = 'small-action';
+        toggleRawBtn.textContent = 'Raw JSON';
+        toggleRawBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          pre.style.display = (pre.style.display === 'none') ? 'block' : 'none';
+        };
+
+        right.appendChild(input);
+        // debug: show user fields extracted
+        const userDiv = document.createElement('div');
+        userDiv.innerHTML = userFieldsHtml;
+        right.appendChild(userDiv);
+        right.appendChild(meshNote);
+        right.appendChild(toggleRawBtn);
+        right.appendChild(pre);
+
+        nodeDiv.appendChild(left);
+        nodeDiv.appendChild(right);
+        nodesList.appendChild(nodeDiv);
+      });
+    }
+
+    // Collect friendly map from last preview and send import request
+    async function doImport(){
+      const port = document.getElementById('portSelect').value;
+      if (!port){ alert('Please select port'); return; }
+      if (!window._lastPreview || !Array.isArray(window._lastPreview) || window._lastPreview.length === 0){
+        alert('No preview available. Please create preview.');
+        return;
+      }
+      const friendly_names = {};
+      const enriched_nodes = [];
+      
+      window._lastPreview.forEach(n => {
+        const id = n.mesh_id || n.id;
+        if (id) friendly_names[id] = (n.name || '').trim();
+        
+        // Extract longName and shortName - prefer top-level, then user object, then raw
+        let longName = n.longName || '';
+        let shortName = n.shortName || '';
+        
+        if (!longName || !shortName) {
+          try {
+            const user = (n.raw && n.raw.user) ? n.raw.user : (n.user ? n.user : {});
+            if (user && typeof user === 'object') {
+              if (!longName) longName = user.longName || user.longname || user.long || '';
+              if (!shortName) shortName = user.shortName || user.shortname || user.short || '';
+            }
+            // Check top-level raw for name fields
+            if (!longName && n.raw && (n.raw.longName || n.raw.longname)) longName = n.raw.longName || n.raw.longname;
+            if (!shortName && n.raw && (n.raw.shortName || n.raw.shortname)) shortName = n.raw.shortName || n.raw.shortname;
+          } catch (e) {
+            // ignore extraction errors
+          }
+        }
+        
+        // Create enriched node with explicit longName and shortName
+        const enrichedNode = { ...n };
+        if (longName) enrichedNode.longName = longName;
+        if (shortName) enrichedNode.shortName = shortName;
+        enriched_nodes.push(enrichedNode);
+      });
+
+      const importBtn = document.getElementById('importBtn');
+      importBtn.disabled = true;
+      importBtn.innerHTML = 'Importing...';
+      try {
+        const res = await fetch('/api/import_meshtastic', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ port, friendly_names, nodes: enriched_nodes })
+        });
+        const body = await safeJson(res);
+        if (!res.ok){
+          alert('Import failed: ' + (body && (body.message || body.detail) || res.status));
+          return;
+        }
+        alert(`Import successful: ${body.imported || 0} node(s) imported.`);
+        // refresh preview & nodes on success
+        await previewNodes();
+      } catch(e){
+        console.error('doImport', e);
+        alert('Import error: ' + (e.message || e));
+      } finally {
+        importBtn.disabled = false;
+        importBtn.innerHTML = '<i class="fas fa-check-circle"></i> IMPORTIEREN';
+      }
+    }
+
+    // Auto-preview / auto-import handlers
+    let _autoIntervalHandle = null;
+    function startAutoPreview(intervalSec){
+      stopAutoPreview();
+      _autoIntervalHandle = setInterval(async () => {
+        await previewNodes();
+        // if autoImport enabled, perform import with current friendly names
+        if (document.getElementById('autoImport').checked){
+          // automatically commit import silently
+          const port = document.getElementById('portSelect').value;
+          if (port && window._lastPreview && window._lastPreview.length){
+            const friendly_names = {};
+            window._lastPreview.forEach(n => {
+              const id = n.mesh_id || n.id;
+              if (id) friendly_names[id] = (n.name || '').trim();
+            });
+            try {
+              await fetch('/api/import_meshtastic', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ port, friendly_names, nodes: window._lastPreview })
+              });
+              // after import, previewNodes will update on next cycle
+            } catch(e){
+              console.warn('auto-import failed', e);
+            }
+          }
+        }
+      }, Math.max(5, intervalSec) * 1000);
+    }
+    function stopAutoPreview(){
+      if (_autoIntervalHandle) { clearInterval(_autoIntervalHandle); _autoIntervalHandle = null; }
+    }
+
+    // UI wiring
+    async function copySelectedPort(){
+      const select = document.getElementById('portSelect');
+      const val = select.value;
+      if (!val) { alert('No port selected'); return; }
+      try {
+        await navigator.clipboard.writeText(val);
+        alert('Port kopiert: ' + val);
+      } catch(e){
+        const ta = document.createElement('textarea');
+        ta.value = val;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        alert('Port kopiert: ' + val);
+      }
+    }
+
+    // Cleanup mesh databases
+    async function cleanupMeshDatabases(){
+      const confirmed = confirm(
+        '⚠️ WARNING: This action deletes ALL stored mesh nodes and associated map markers.\n\n' +
+        'This is irreversible! Do you want to continue?'
+      );
+      if (!confirmed) return;
+
+      const cleanupBtn = document.getElementById('cleanupBtn');
+      cleanupBtn.disabled = true;
+      cleanupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cleaning...';
+      
+      try {
+        const res = await fetch('/api/cleanup_mesh_databases', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'}
+        });
+        const body = await safeJson(res);
+        
+        if (!res.ok){
+          alert('Cleanup failed: ' + (body && (body.message || body.detail) || res.status));
+          return;
+        }
+        
+        alert(
+          `✅ Cleanup successful!\n\n` +
+          `Removed nodes: ${body.nodes_removed || 0}\n` +
+          `Removed markers: ${body.markers_removed || 0}`
+        );
+        
+        // Refresh the preview to show empty state
+        await previewNodes();
+      } catch(e){
+        console.error('cleanupMeshDatabases', e);
+        alert('Cleanup error: ' + (e.message || e));
+      } finally {
+        cleanupBtn.disabled = false;
+        cleanupBtn.innerHTML = '<i class="fas fa-trash-alt"></i> CLEAN DATABASE';
+      }
+    }
+
+    // Sidebar: dynamic username + class based on login
+    function sanitizeForClass(name) {
+      if (!name) return 'guest';
+      return String(name).toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').substring(0, 40);
+    }
+
+    function updateSidebarUserDisplay() {
+      const elName = document.getElementById('userName');
+      const elStatus = document.getElementById('userStatus');
+      const nav = document.getElementById('globalNav') || document.querySelector('.tactical-sidebar');
+      let displayName = null;
+      try {
+        const raw = localStorage.getItem('lpu5_user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          displayName = u.name || u.fullname || u.username || u.displayName || null;
+        }
+      } catch (e) {
+        console.warn('Failed to parse lpu5_user', e);
+      }
+      if (!displayName) {
+        const token = localStorage.getItem('lpu5_token');
+        if (token && token.indexOf('.') === -1 && token.length < 128) displayName = token;
+      }
+      if (!displayName) {
+        displayName = 'Guest';
+        if (elStatus) elStatus.textContent = 'Not logged in';
+      } else {
+        if (elStatus) elStatus.textContent = 'Online';
+      }
+      if (elName) elName.textContent = displayName;
+
+      if (nav) {
+        const cls = 'user-' + sanitizeForClass(displayName);
+        nav.className = nav.className.split(' ').filter(c => !c.startsWith('user-')).join(' ');
+        nav.classList.add(cls);
+        nav.dataset.user = displayName;
+      }
+    }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'lpu5_user' || e.key === 'lpu5_token') {
+        updateSidebarUserDisplay();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', ()=>{
+      document.getElementById('gatewayImportBtn').addEventListener('click', importGatewayNodes);
+      document.getElementById('scanBtn').addEventListener('click', scanPorts);
+      document.getElementById('previewBtn').addEventListener('click', previewNodes);
+      document.getElementById('importBtn').addEventListener('click', doImport);
+      document.getElementById('copyPortBtn').addEventListener('click', copySelectedPort);
+      document.getElementById('cleanupBtn').addEventListener('click', cleanupMeshDatabases);
+
+      // Auto preview/import toggle
+      document.getElementById('autoPreview').addEventListener('change', (e)=>{
+        const enabled = e.target.checked;
+        const interval = parseInt(document.getElementById('autoInterval').value || '60', 10);
+        if (enabled){
+          startAutoPreview(interval);
+        } else {
+          stopAutoPreview();
+        }
+      });
+      document.getElementById('autoInterval').addEventListener('change', (e)=>{
+        const enabled = document.getElementById('autoPreview').checked;
+        const interval = parseInt(e.target.value || '60', 10);
+        if (enabled){
+          startAutoPreview(interval);
+        }
+      });
+
+      // start initial scan & preview
+      // Run scan first, then preview after scan completes
+      scanPorts().then(() => {
+        // Check if a port was found and selected
+        const portSelect = document.getElementById('portSelect');
+        if (portSelect && portSelect.value) {
+          // Auto-preview if a port is available
+          setTimeout(() => previewNodes(), 500);
+        }
+      }).catch(err => {
+        console.error('Initial scan failed:', err);
+      });
+      updateSidebarUserDisplay();
+    });
+  </script>
+
+</body>
+</html>

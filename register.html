@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Registration — LPU5 Tactical</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root{
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --header-bg: #111;
+            --border-color: #333;
+            --text-main: #d0d0d0;
+            --accent-blue: #007bff;
+            --accent-green: #28a745;
+            --tactical-gray: #2d2d2d;
+        }
+
+        html,body{
+            height:100%;
+            margin:0;
+            background:var(--bg-dark);
+            color:var(--text-main);
+            font-family: "Courier New", monospace;
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+        }
+
+        header{
+            display:flex;
+            align-items:center;
+            gap:16px;
+            padding:12px 20px;
+            background:var(--header-bg);
+            border-bottom:2px solid #444;
+        }
+
+        .logo-img {
+            width:48px;
+            height:48px;
+            object-fit:contain;
+            border-radius:6px;
+            background: rgba(255,255,255,0.02);
+        }
+
+        .title {
+            font-weight:bold;
+            font-size:1.1rem;
+            color:var(--text-main);
+        }
+
+        #clock { margin-left:auto; color:#0f0; font-weight:bold; font-size:1rem; }
+
+        .container {
+            max-width:920px;
+            margin:36px auto;
+            padding:20px;
+        }
+
+        .card {
+            background:var(--panel-bg);
+            border:1px solid var(--border-color);
+            padding:22px;
+            border-radius:6px;
+            box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+        }
+
+        h2 { margin:0 0 14px 0; color:var(--accent-blue); }
+
+        form { display:grid; gap:12px; }
+
+        label { font-size:0.85rem; color:#aaa; display:block; margin-bottom:6px; }
+        input[type="text"],
+        input[type="password"] {
+            width:100%;
+            padding:10px 12px;
+            background:#000;
+            color:#fff;
+            border:1px solid #333;
+            border-radius:4px;
+            box-sizing:border-box;
+            font-family: "Courier New", monospace;
+            font-size:1rem;
+        }
+
+        .row { display:flex; gap:12px; }
+        .row .col { flex:1; }
+
+        .note { font-size:0.85rem; color:#999; margin-top:6px; }
+
+        .btn-primary {
+            background:var(--accent-blue);
+            color:#fff;
+            border:1px solid rgba(0,0,0,0.2);
+            padding:10px 14px;
+            border-radius:4px;
+            cursor:pointer;
+            font-weight:bold;
+            text-transform:uppercase;
+            letter-spacing:0.6px;
+        }
+
+        .btn-secondary {
+            background:var(--tactical-gray);
+            color:#fff;
+            border:1px solid #444;
+            padding:10px 14px;
+            border-radius:4px;
+            cursor:pointer;
+        }
+
+        .status {
+            margin-top:10px;
+            padding:10px;
+            border-radius:4px;
+            font-size:0.95rem;
+        }
+
+        .status.error { background: #2b0b0b; color:#ff8b8b; border:1px solid #5a1a1a; }
+        .status.ok { background: #0b1f0b; color:#a8ffb2; border:1px solid #123b12; }
+
+        .small { font-size:0.82rem; color:#888; }
+
+        @media (max-width:640px){
+            .container { margin:18px 12px; }
+            .row { flex-direction:column; }
+            header { padding:10px 12px; }
+            .logo-img { width:40px; height:40px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <!-- logo.png wie vom API-Endpoint /logo.png bereitgestellt -->
+        <img src="/logo.png" alt="LPU5 Logo" class="logo-img" id="headerLogo">
+        <div class="title">LPU5 TACTICAL — REGISTRATION</div>
+        <div id="clock">00:00:00</div>
+    </header>
+
+    <main class="container">
+        <div class="card" role="region" aria-labelledby="regTitle">
+            <h2 id="regTitle">Register User</h2>
+            <p class="small">You were redirected here via QR code. Please create a username and password. Registration must then be confirmed by an administrator.</p>
+
+            <form id="registerForm" autocomplete="off" novalidate>
+                <div>
+                    <label for="username">Username</label>
+                    <input id="username" name="username" type="text" required placeholder="e.g. max.mustermann" />
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <label for="password">Password</label>
+                        <input id="password" name="password" type="password" required placeholder="At least 6 characters" />
+                    </div>
+                    <div class="col">
+                        <label for="passwordConfirm">Repeat Password</label>
+                        <input id="passwordConfirm" name="passwordConfirm" type="password" required placeholder="Enter password again" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <label for="device">Meshtastic Device Name (optional)</label>
+                        <input id="device" name="device" type="text" placeholder="Name of Meshtastic device" />
+                    </div>
+                    <div class="col">
+                        <label for="callsign">Callsign</label>
+                        <input id="callsign" name="callsign" type="text" required placeholder="Your callsign" />
+                    </div>
+                </div>
+
+                <div class="row" style="align-items:center; margin-top:6px;">
+                    <div style="flex:1;">
+                        <button class="btn-primary" id="submitBtn" type="submit"><i class="fa-solid fa-check"></i> Register</button>
+                    </div>
+                    <div>
+                        <button type="button" id="cancelBtn" class="btn-secondary">Cancel</button>
+                    </div>
+                </div>
+
+                <div id="statusMsg" aria-live="polite"></div>
+
+                <p class="note">Note: After successful registration you will be redirected to the overview page. Login is only active after confirmation by an administrator.</p>
+            </form>
+        </div>
+    </main>
+
+    <!-- Anpassung: Meshtastic-Gerätename wird in Payload als "device" gesendet und zusätzlich als "unit" (Backend erwartet "unit") -->
+    <script>
+    (function(){
+        // Uhr aktualisieren
+        setInterval(() => {
+            const el = document.getElementById('clock');
+            if (el) el.textContent = new Date().toLocaleTimeString('de-DE');
+        }, 1000);
+
+        // safe base64 decode (tries standard and URL-safe variants)
+        function safeBase64Decode(b64) {
+            try {
+                const raw = atob(b64);
+                try { return decodeURIComponent(escape(raw)); } catch(e) { return raw; }
+            } catch (e) {
+                try {
+                    const fixed = b64.replace(/-/g, '+').replace(/_/g, '/');
+                    const pad = fixed.length % 4;
+                    const withPad = fixed + (pad ? '='.repeat(4 - pad) : '');
+                    const raw = atob(withPad);
+                    try { return decodeURIComponent(escape(raw)); } catch(e2) { return raw; }
+                } catch (e2) {
+                    return null;
+                }
+            }
+        }
+
+        function getQueryParams() {
+            return new URLSearchParams(window.location.search);
+        }
+
+        // Extract QR payload: prefer ?d=BASE64 JSON, else check token names or raw data
+        function extractQrData() {
+            const qs = getQueryParams();
+            const result = { rawD: null, payload: null, tokenParam: null };
+
+            result.tokenParam = qs.get('qr_token') || qs.get('token') || qs.get('t') || null;
+
+            const rawD = qs.get('d') || qs.get('data') || qs.get('q') || null;
+            if (rawD) {
+                result.rawD = rawD;
+                const decoded = safeBase64Decode(rawD);
+                if (decoded) {
+                    try {
+                        result.payload = JSON.parse(decoded);
+                    } catch (e) {
+                        result.payload = { raw_text: decoded };
+                    }
+                }
+            }
+            return result;
+        }
+
+        // local pending storage helpers (admin.html reads localStorage.pending_regs as fallback)
+        const PENDING_KEY = 'pending_regs';
+        function readPendingRegs(){ try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch(e){ return []; } }
+        function writePendingRegs(arr){ localStorage.setItem(PENDING_KEY, JSON.stringify(arr || [])); }
+        function addPendingReg(obj){
+            if (!obj || !obj.username) return;
+            const arr = readPendingRegs();
+            // avoid duplicate username
+            const exists = arr.some(r => (r.username||'').toLowerCase() === (obj.username||'').toLowerCase());
+            if (!exists) {
+                arr.push(obj);
+                writePendingRegs(arr);
+            }
+        }
+
+        // UI helper
+        function showStatus(message, type) {
+            const box = document.getElementById('statusMsg');
+            box.innerHTML = '';
+            if (!message) return;
+            const div = document.createElement('div');
+            div.className = 'status ' + (type === 'ok' ? 'ok' : 'error');
+            div.innerText = message;
+            box.appendChild(div);
+        }
+
+        (function initRegistration() {
+            const form = document.getElementById('registerForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+
+            const qr = extractQrData();
+            console.log('QR extracted:', qr);
+
+            if (qr.payload) {
+                // prefer device -> unit mapping if QR provides unit or device
+                if (qr.payload.device) {
+                    try { document.getElementById('device').value = qr.payload.device; } catch(e){}
+                } else if (qr.payload.unit) {
+                    try { document.getElementById('device').value = qr.payload.unit; } catch(e){}
+                }
+                if (qr.payload.user) {
+                    try { document.getElementById('username').value = qr.payload.user; } catch(e){}
+                }
+                if (qr.payload.callsign) {
+                    try { document.getElementById('callsign').value = qr.payload.callsign; } catch(e){}
+                }
+                showStatus('QR data detected (prefilled)', 'ok');
+                setTimeout(()=> { showStatus('', ''); }, 2500);
+            } else {
+                if (!qr.tokenParam) {
+                    showStatus('Warning: No QR token found. Registration may be rejected server-side.', 'error');
+                } else {
+                    showStatus('QR token detected.', 'ok');
+                    setTimeout(()=> { showStatus('', ''); }, 1800);
+                }
+            }
+
+            cancelBtn.addEventListener('click', () => {
+                window.location.href = '/';
+            });
+
+            form.addEventListener('submit', async (ev) => {
+                ev.preventDefault();
+                showStatus('', '');
+
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value;
+                const passwordConfirm = document.getElementById('passwordConfirm').value;
+                const device = document.getElementById('device').value.trim();
+                const callsign = document.getElementById('callsign').value.trim();
+
+                if (!username) { showStatus('Please enter a username.', 'error'); return; }
+                if (!password || password.length < 6) { showStatus('Password must be at least 6 characters.', 'error'); return; }
+                if (password !== passwordConfirm) { showStatus('Passwords do not match.', 'error'); return; }
+                if (!callsign) { showStatus('Please enter a callsign.', 'error'); return; }
+
+                let proof = null;
+                if (qr.rawD) {
+                    proof = { type: 'd', value: qr.rawD };
+                } else if (qr.tokenParam) {
+                    proof = { type: 'token', value: qr.tokenParam };
+                } else if (qr.payload) {
+                    proof = { type: 'payload', value: qr.payload };
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Registering...';
+
+                try {
+                    // Send both "device" and "unit" to keep backend compatibility.
+                    const payload = {
+                        username: username,
+                        password: password,
+                        device: device,
+                        unit: device,        // backend currently validates 'unit' - we set to device
+                        callsign: callsign
+                    };
+                    if (proof) {
+                        if (proof.type === 'd') payload.d = proof.value;
+                        else if (proof.type === 'token') payload.qr_token = proof.value;
+                        else if (proof.type === 'payload') payload.qr_payload = proof.value;
+                    }
+
+                    const res = await fetch('/api/register_user', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+
+                    let body = null;
+                    try { body = await res.json(); } catch(e){ body = null; }
+
+                    if (res.ok) {
+                        // Server accepted registration
+                        showStatus('Registration successfully submitted. Redirecting …', 'ok');
+                        setTimeout(() => { window.location.href = '/overview'; }, 1200);
+                        return;
+                    }
+
+                    // If server responded but not ok: store locally as fallback so admin can import
+                    const reason = body && (body.detail || body.message) ? (body.detail || body.message) : ('Server responded with ' + (res.status || 'error'));
+                    // store fallback (include device)
+                    addPendingReg({
+                        username, device, callsign,
+                        qr_token: payload.qr_token || null,
+                        qr_payload: payload.qr_payload || null,
+                        d: payload.d || null,
+                        created_at: Date.now(),
+                        note: 'fallback_saved_due_to_server_error: ' + reason
+                    });
+                    showStatus('Server reported error — Registration saved locally and available for approval in Admin.', 'ok');
+                    setTimeout(()=> { window.location.href = '/overview'; }, 1200);
+                } catch (err) {
+                    // network error -> local fallback
+                    console.error('Network/register error:', err);
+                    addPendingReg({
+                        username, device, callsign,
+                        qr_token: qr.tokenParam || null,
+                        qr_payload: qr.payload || null,
+                        d: qr.rawD || null,
+                        created_at: Date.now(),
+                        note: 'network_fallback'
+                    });
+                    showStatus('Network error — Registration saved locally. Admin can import this.', 'ok');
+                    setTimeout(()=> { window.location.href = '/overview'; }, 1200);
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> Registrieren';
+                }
+            });
+        })();
+    })();
+    </script>
+    <script>
+    fetch('_global_nav.html')
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('nav-placeholder').innerHTML = data;
+            // Falls JS-Funktionen in der Nav sind, hier re-initialisieren
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+[
+  {
+    "rule_id": "auto-alert-danger-zone",
+    "name": "Alert on Danger Zone Entry",
+    "description": "Automatically alert when any unit enters a danger/exclusion zone",
+    "trigger_type": "geofence",
+    "trigger_config": {
+      "event": "entry",
+      "zone_types": ["exclusion", "alert"]
+    },
+    "conditions": [
+      {
+        "type": "compare",
+        "field": "zone_type",
+        "operator": "in",
+        "value": ["exclusion", "alert"]
+      }
+    ],
+    "actions": [
+      {
+        "type": "log",
+        "message": "ALERT: Unit entered danger zone!",
+        "level": "warning"
+      }
+    ],
+    "enabled": true,
+    "priority": 9,
+    "created_at": "2024-02-07T08:00:00.000Z",
+    "last_triggered": null,
+    "execution_count": 0
+  },
+  {
+    "rule_id": "auto-status-base-return",
+    "name": "Auto-Set Status on Base Entry",
+    "description": "Automatically set unit status to BASE when entering safe zone",
+    "trigger_type": "geofence",
+    "trigger_config": {
+      "event": "entry",
+      "zone_types": ["safe"]
+    },
+    "conditions": [
+      {
+        "type": "compare",
+        "field": "zone_type",
+        "operator": "==",
+        "value": "safe"
+      }
+    ],
+    "actions": [
+      {
+        "type": "set_status",
+        "status": "BASE"
+      },
+      {
+        "type": "log",
+        "message": "Unit returned to base - status updated",
+        "level": "info"
+      }
+    ],
+    "enabled": true,
+    "priority": 7,
+    "created_at": "2024-02-07T08:00:00.000Z",
+    "last_triggered": null,
+    "execution_count": 0
+  },
+  {
+    "rule_id": "auto-status-active-deployment",
+    "name": "Auto-Set Status on Base Exit",
+    "description": "Automatically set unit status to AKTIV when leaving safe zone",
+    "trigger_type": "geofence",
+    "trigger_config": {
+      "event": "exit",
+      "zone_types": ["safe"]
+    },
+    "conditions": [
+      {
+        "type": "compare",
+        "field": "zone_type",
+        "operator": "==",
+        "value": "safe"
+      }
+    ],
+    "actions": [
+      {
+        "type": "set_status",
+        "status": "AKTIV"
+      },
+      {
+        "type": "log",
+        "message": "Unit deployed from base - status updated",
+        "level": "info"
+      }
+    ],
+    "enabled": true,
+    "priority": 7,
+    "created_at": "2024-02-07T08:00:00.000Z",
+    "last_triggered": null,
+    "execution_count": 0
+  },
+  {
+    "rule_id": "daily-morning-report",
+    "name": "Daily Morning Status Report",
+    "description": "Generate automated status report every morning at 08:00",
+    "trigger_type": "time",
+    "trigger_config": {
+      "schedule_type": "daily",
+      "time": "08:00"
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "type": "log",
+        "message": "Daily morning report: All systems operational",
+        "level": "info"
+      }
+    ],
+    "enabled": true,
+    "priority": 5,
+    "created_at": "2024-02-07T08:00:00.000Z",
+    "last_triggered": null,
+    "execution_count": 0
+  },
+  {
+    "rule_id": "hourly-sync-check",
+    "name": "Hourly Meshtastic Sync",
+    "description": "Sync Meshtastic nodes to map markers every hour",
+    "trigger_type": "time",
+    "trigger_config": {
+      "schedule_type": "interval",
+      "interval_seconds": 3600
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "type": "log",
+        "message": "Executing hourly Meshtastic sync",
+        "level": "info"
+      }
+    ],
+    "enabled": true,
+    "priority": 6,
+    "created_at": "2024-02-07T08:00:00.000Z",
+    "last_triggered": null,
+    "execution_count": 0
+  },
+  {
+    "rule_id": "auto-cleanup-stale-data",
+    "name": "Daily Data Cleanup",
+    "description": "Clean up stale data and old sessions every day at midnight",
+    "trigger_type": "time",
+    "trigger_config": {
+      "schedule_type": "daily",
+      "time": "00:00"
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "type": "log",
+        "message": "Executing daily data cleanup",
+        "level": "info"
+      }
+    ],
+    "enabled": true,
+    "priority": 4,
+    "created_at": "2024-02-07T08:00:00.000Z",
+    "last_triggered": null,
+    "execution_count": 0
+  },
+  {
+    "rule_id": "mission-proximity-alert",
+    "name": "Mission Waypoint Proximity Alert",
+    "description": "Alert when unit is within 100m of mission waypoint",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "proximity_meters": 100
+    },
+    "conditions": [
+      {
+        "type": "compare",
+        "field": "distance_to_waypoint",
+        "operator": "<=",
+        "value": 100
+      }
+    ],
+    "actions": [
+      {
+        "type": "log",
+        "message": "Unit approaching mission waypoint",
+        "level": "info"
+      }
+    ],
+    "enabled": false,
+    "priority": 8,
+    "created_at": "2024-02-07T08:00:00.000Z",
+    "last_triggered": null,
+    "execution_count": 0
+  }
+]

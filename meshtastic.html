@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Meshtastic Chat & COT - LPU5</title>
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        /* =========================
+           PAGE: Meshtastic Chat + COT
+           Uses the Global Nav (tactical-sidebar) inline below (1:1)
+           ========================= */
+
+        :root{
+            --bg-dark:#0a0a0a;
+            --panel-bg:#1a1a1a;
+            --border-color:#333;
+            --text-main:#d0d0d0;
+            --accent-green:#28a745;
+            --accent-red:#dc3545;
+        }
+
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%}
+        body{
+            font-family: "Courier New", monospace;
+            background:var(--bg-dark);
+            color:var(--text-main);
+            line-height:1.4;
+        }
+
+        /* Page layout */
+        .app {
+            min-height:100vh;
+            display:flex;
+            flex-direction:column;
+        }
+
+        /* Top header (keeps compact because global nav reserves left) */
+        header.app-header{
+            background: linear-gradient(135deg,#1a1a1a 0%, #2d2d2d 100%);
+            border-bottom: 1px solid #222;
+            padding: 12px 20px;
+            display:flex;
+            align-items:center;
+            gap:12px;
+        }
+        header.app-header h1{
+            color: #ffffff;
+            font-size:1.1rem;
+            margin:0;
+        }
+
+        /* Main content area - content placed to the right of the sidebar */
+        main.app-main{
+            padding:18px;
+            padding-left: 24px; /* small offset inside reserved area */
+            display:flex;
+            gap:18px;
+            align-items:flex-start;
+            width:100%;
+            box-sizing:border-box;
+        }
+
+        /* Left column: Chat window (flex-grow) */
+        .chat-col{
+            flex:1 1 720px;
+            max-width: 920px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border:1px solid var(--border-color);
+            border-radius:8px;
+            padding:12px;
+        }
+
+        /* Chat area - enlarged for comfortable reading */
+        .messages {
+            max-height: 74vh;             /* increased height */
+            overflow:auto;
+            padding:12px;
+            border-radius:8px;
+            background: linear-gradient(#0b0b0b,#0f0f0f);
+            border:1px solid #222;
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+        }
+
+        /* Each message row stretches full width and aligns bubble left or right */
+        .msg-row {
+            display:flex;
+            width:100%;
+            align-items:center; /* vertically center bubble inside row */
+        }
+        .msg-row.incoming { justify-content:flex-start; }
+        .msg-row.outgoing { justify-content:flex-end; }
+
+        /* Bubble */
+        .msg-bubble {
+            max-width: 78%;              /* larger bubble width */
+            min-width: 22%;
+            padding:12px 14px;
+            border-radius:12px;
+            background: #0f0f0f;
+            border:1px solid #222;
+            color:var(--text-main);
+            font-size:1rem;              /* slightly larger text */
+            line-height:1.4;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
+            word-break:break-word;
+        }
+        /* different visual for outgoing */
+        .msg-row.outgoing .msg-bubble {
+            background: #161616;
+            border-color: #2a2a2a;
+        }
+
+        .msg-meta {
+            display:flex;
+            justify-content:space-between;
+            gap:12px;
+            font-size:0.82rem;
+            color:#9a9a9a;
+            margin-bottom:6px;
+        }
+
+        .msg-text { white-space:pre-wrap; color:var(--text-main) }
+
+        .msg-bubble.cot { border-left:4px solid var(--accent-green); }
+
+        /* Composer area */
+        .composer {
+            margin-top:14px;
+            display:grid;
+            grid-template-columns: 1fr 260px;
+            gap:12px;
+            align-items:start;
+        }
+
+        .composer-left {
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+        }
+
+        textarea#messageText {
+            width:100%;
+            min-height:110px;     /* larger composer for comfort */
+            resize:vertical;
+            padding:12px;
+            background:#000;
+            color:#fff;
+            border:1px solid #444;
+            border-radius:8px;
+            font-family: 'Courier New', monospace;
+            font-size:1rem;
+        }
+
+        .controls {
+            display:flex;
+            gap:8px;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+
+        select.input, input.input {
+            width:100%;
+            padding:8px;
+            background:#000;
+            color:#fff;
+            border:1px solid #444;
+            border-radius:6px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .right-panel {
+            width:100%;
+        }
+
+        .setting-row { display:flex; gap:8px; margin-bottom:8px; align-items:center }
+        .setting-row label { min-width:120px; color:#aaa; font-size:0.85em }
+
+        .btn {
+            padding:10px 14px;
+            border-radius:6px;
+            background:var(--panel-bg);
+            color:var(--text-main);
+            border:1px solid var(--border-color);
+            cursor:pointer;
+            font-weight:bold;
+            font-family: 'Courier New', monospace;
+            text-transform:uppercase;
+        }
+
+        .btn-send {
+            background: #071; color:#000;
+            border-color: #063;
+        }
+
+        .btn-cancel { background:#2b2b2b }
+
+        .small { font-size:0.85em; color:#999 }
+
+        /* Right column: settings & history */
+        .side-col{
+            width:360px;
+            flex:0 0 360px;
+        }
+
+        .section-title { color:#bbb; font-weight:bold; font-size:0.95rem; margin-bottom:8px }
+
+        .history-list { max-height:60vh; overflow:auto; margin-top:8px; border-top:1px dashed #222; padding-top:8px }
+        .history-item { padding:8px; border-bottom:1px solid #111; font-size:0.9em; color:#cfcfcf }
+
+        /* Responsive */
+        @media (max-width:1100px){
+            main.app-main{ flex-direction:column; padding:12px }
+            .side-col{ width:100%; order:2 }
+            .chat-col{ order:1; width:100% }
+            .composer { grid-template-columns:1fr; }
+        }
+
+
+    </style>
+</head>
+<body>
+    <!-- Tactical Chat Component -->
+    <script src="assets/tactical-chat.js"></script>
+
+    <!-- =========================
+         GLOBAL NAV (1:1)
+         ========================= -->
+    <!-- Global Navigation loaded from _global_nav.html - DISABLED per requirements -->
+    <!-- <script src="load-global-nav.js"></script> -->
+
+    <!-- =========================
+         APP CONTENT
+         ========================= -->
+    <div class="app">
+        <header class="app-header">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <h1>Meshtastic Chat - COT Integration</h1>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <!-- Life Status Buttons -->
+                    <button id="status-active-btn" onclick="setLifeStatus('ACTIVE')" title="Active Status" style="background: rgba(40, 167, 69, 0.3); border: 1px solid #28a745; color: #28a745; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-family: 'Courier New', monospace;">
+                        <i class="fas fa-check-circle"></i> Active
+                    </button>
+                    <button id="status-base-btn" onclick="setLifeStatus('BASE')" title="Base Status" style="background: rgba(0, 123, 255, 0.3); border: 1px solid #007bff; color: #007bff; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-family: 'Courier New', monospace;">
+                        <i class="fas fa-home"></i> Base
+                    </button>
+                    <button id="status-kia-btn" onclick="setLifeStatus('KIA')" title="KIA Status" style="background: rgba(220, 53, 69, 0.3); border: 1px solid #dc3545; color: #dc3545; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-family: 'Courier New', monospace;">
+                        <i class="fas fa-skull-crossbones"></i> KIA
+                    </button>
+                    
+                    <!-- Hamburger Menu -->
+                    <button onclick="toggleHamburgerMenu()" title="Menu" style="background: rgba(46, 204, 113, 0.3); border: 1px solid #2ecc71; color: #2ecc71; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 1.2rem;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    
+                    <!-- Tactical Chat Button -->
+                    <button onclick="TacticalChat.toggleChat()" title="Tactical Chat" style="background: rgba(46, 204, 113, 0.3); border: 1px solid #2ecc71; color: #2ecc71; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 1.2rem;">
+                        <i class="fas fa-comments"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="app-main" role="main">
+            <section class="chat-col">
+                <div class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <div class="section-title">Chat Window</div>
+                        <div class="small">Bridge: USB (import_nodes) • CoT: supported</div>
+                    </div>
+
+                    <div id="messages" class="messages" aria-live="polite" aria-relevant="additions">
+                        <div class="small empty-state">Loading messages...</div>
+                    </div>
+
+                    <div class="composer">
+                        <div class="composer-left">
+                            <label class="small">Message</label>
+                            <textarea id="messageText" placeholder="Enter your message..."></textarea>
+
+                            <div class="controls">
+                                <select id="unitSelect" class="input" aria-label="Sending unit">
+                                    <option value="">Choose sender unit...</option>
+                                </select>
+
+                                <select id="messageMode" class="input" aria-label="Message mode">
+                                    <option value="text">Text</option>
+                                    <option value="cot">COT (Cursor-On-Target)</option>
+                                </select>
+
+                                <button id="sendBtn" class="btn btn-send"><i class="fas fa-paper-plane"></i> Send</button>
+                            </div>
+                        </div>
+
+                        <aside class="right-panel">
+                            <div class="section-title">Message Parameters</div>
+
+                            <div class="panel" style="margin-bottom:10px">
+                                <div class="setting-row">
+                                    <label>Frequency (MHz)</label>
+                                    <input id="frequency" class="input" type="number" step="0.01" min="0" placeholder="e.g. 433.50" />
+                                </div>
+
+                                <div id="cotSettings" style="display:none; margin-top:6px">
+                                    <div class="small" style="margin-bottom:6px">COT Settings</div>
+
+                                    <div class="setting-row">
+                                        <label>Type</label>
+                                        <select id="cotType" class="input">
+                                            <option value="a-f-G-U-C">a-f-G-U-C</option>
+                                            <option value="b-m-p">b-m-p</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="setting-row">
+                                        <label>How</label>
+                                        <input id="cotHow" class="input" type="text" value="m-g" />
+                                    </div>
+
+                                    <div class="setting-row">
+                                        <label>Coords.</label>
+                                        <input id="cotLat" class="input" type="number" step="0.000001" placeholder="Lat" />
+                                        <input id="cotLon" class="input" type="number" step="0.000001" placeholder="Lon" />
+                                    </div>
+
+                                    <div class="setting-row">
+                                        <label>Remarks</label>
+                                        <input id="cotRemarks" class="input" placeholder="e.g. Target point" />
+                                    </div>
+
+                                    <div class="small" style="margin-top:6px;color:#999">Vorschau: <code id="cotPreview" style="color:#cfcfcf"></code></div>
+                                </div>
+                            </div>
+
+                            <div class="section-title">Send History</div>
+                            <div id="sendHistory" class="history-list panel">
+                                <div class="small">No sent messages</div>
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="side-col">
+                <div class="panel">
+                    <div class="section-title">Meshtastic Connection</div>
+                    <div style="margin-bottom:12px">
+                        <div class="setting-row">
+                            <label>COM Port</label>
+                            <select id="comPortSelect" class="input">
+                                <option value="">Select port...</option>
+                            </select>
+                        </div>
+                        <div class="setting-row">
+                            <button id="scanPortsBtn" class="btn" style="width:100%">
+                                <i class="fas fa-search"></i> Scan Ports
+                            </button>
+                        </div>
+                        <div class="setting-row">
+                            <button id="connectBtn" class="btn btn-send" style="width:100%">
+                                <i class="fas fa-plug"></i> Connect
+                            </button>
+                        </div>
+                        <div id="connectionStatus" class="small" style="margin-top:8px; text-align:center;">
+                            Status: Not connected
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top:12px">
+                    <div class="section-title">Channel Management</div>
+                    <div style="margin-bottom:12px">
+                        <div class="setting-row">
+                            <label>Active Channel</label>
+                            <select id="channelSelect" class="input">
+                                <option value="0">Channel 0 (Default)</option>
+                            </select>
+                        </div>
+                        <div class="setting-row">
+                            <button id="refreshChannelsBtn" class="btn" style="width:100%">
+                                <i class="fas fa-sync"></i> Refresh Channels
+                            </button>
+                        </div>
+                        <div class="setting-row">
+                            <button id="createChannelBtn" class="btn" style="width:100%">
+                                <i class="fas fa-plus"></i> Create New Channel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="panel" style="margin-top:12px">
+                    <div class="section-title">Available Units</div>
+                    <div id="unitsList" class="history-list">
+                        <div class="small">Loading units…</div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top:12px">
+                    <div class="section-title">Incoming CoT / Reports</div>
+                    <div id="cotInbox" class="history-list">
+                        <div class="small">No CoTs yet</div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    
+    
+
+
+
+
+<script>
+    // Initialer Namens-Check
+    document.addEventListener('DOMContentLoaded', updateUserNameDisplay);
+
+    async function updateUserNameDisplay() {
+        const el = document.getElementById('userName');
+        if (!el) return;
+        let displayName = null;
+        try {
+            const rawUser = localStorage.getItem('lpu5_user');
+            if (rawUser) {
+                const userData = JSON.parse(rawUser);
+                displayName = userData.name || userData.fullname || userData.username || userData.displayName;
+            }
+        } catch (e) {}
+        if (!displayName) {
+            const token = localStorage.getItem('lpu5_token');
+            if (token && !token.includes('.') && token.length < 128) displayName = token;
+        }
+        if (!displayName) {
+            try {
+                const resp = await fetch('/api/me');
+                if (resp.ok) {
+                    const me = await resp.json();
+                    displayName = me.name || me.fullname || me.username;
+                }
+            } catch (e) {}
+        }
+        el.textContent = displayName || 'Guest';
+    }
+    window.addEventListener('storage', updateUserNameDisplay);
+    setInterval(updateUserNameDisplay, 3000);
+
+    // Load available meshtastic units into unitSelect dropdown
+    async function loadMeshtasticUnits(){
+      try {
+        // Get authentication token
+        const token = localStorage.getItem('lpu5_token') || sessionStorage.getItem('lpu5_token');
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        // Use the /api/meshtastic/my_nodes endpoint to get user's own nodes
+        const res = await fetch('/api/meshtastic/my_nodes', { headers });
+        if (!res.ok) {
+          console.warn('Failed to load user meshtastic nodes, falling back to all nodes');
+          // Fallback to all nodes if user-specific endpoint fails
+          const fallbackRes = await fetch('/api/meshtastic_nodes');
+          if (!fallbackRes.ok) {
+            console.warn('Failed to load meshtastic nodes');
+            return;
+          }
+          const nodes = await fallbackRes.json();
+          populateUnitSelect(nodes);
+          return;
+        }
+        const nodes = await res.json();
+        populateUnitSelect(nodes);
+      } catch(e) {
+        console.error('loadMeshtasticUnits', e);
+      }
+    }
+    
+    function populateUnitSelect(nodes) {
+      const select = document.getElementById('unitSelect');
+      if (!select) return;
+      
+      select.innerHTML = '<option value="">Choose sender unit...</option>';
+      nodes.forEach(node => {
+        const option = document.createElement('option');
+        option.value = node.id || node.node_id;
+        const label = node.longName || node.shortName || node.name || node.id || 'Unbekannt';
+        option.textContent = label;
+        select.appendChild(option);
+      });
+    }
+
+    // Import mesh nodes from connected device
+    async function importMeshNodes(){
+      if (!confirm('Would you like to import mesh nodes from the connected device?')) return;
+      
+      try {
+        const res = await fetch('/api/meshtastic/import', { method: 'POST' });
+        const body = await res.json().catch(()=>null);
+        
+        if (!res.ok) {
+          const msg = body && (body.message || body.detail) ? (body.message||body.detail) : `Status ${res.status}`;
+          alert('Import failed: ' + msg);
+          return;
+        }
+        
+        const imported = body.imported_count || body.count || 0;
+        alert(`Import successful! ${imported} nodes imported.`);
+        
+        // Reload unit list after import
+        await loadMeshtasticUnits();
+      } catch(e) {
+        console.error('importMeshNodes', e);
+        alert('Import failed: ' + (e.message || e));
+      }
+    }
+
+    // Handle message mode change (show/hide COT settings)
+    function onMessageModeChange(){
+      const mode = document.getElementById('messageMode');
+      const cotSettings = document.getElementById('cotSettings');
+      if (!mode || !cotSettings) return;
+      
+      if (mode.value === 'cot') {
+        cotSettings.style.display = 'block';
+      } else {
+        cotSettings.style.display = 'none';
+      }
+    }
+
+    // Handle send button click
+    async function onSendButtonClick(){
+      const messageText = document.getElementById('messageText');
+      const unitSelect = document.getElementById('unitSelect');
+      const messageMode = document.getElementById('messageMode');
+      
+      if (!messageText || !unitSelect) return;
+      
+      const text = messageText.value.trim();
+      const from = unitSelect.value;
+      
+      if (!text) {
+        alert('Please enter a message.');
+        return;
+      }
+      
+      if (!from) {
+        alert('Please select a sender unit.');
+        return;
+      }
+      
+      // Build message payload
+      let message = text;
+      
+      // Add COT data if in COT mode (for future implementation)
+      if (messageMode && messageMode.value === 'cot') {
+        const cotType = document.getElementById('cotType');
+        const cotLat = document.getElementById('cotLat');
+        const cotLon = document.getElementById('cotLon');
+        const cotHae = document.getElementById('cotHae');
+        const cotCe = document.getElementById('cotCe');
+        const cotLe = document.getElementById('cotLe');
+        
+        // Build COT message format (simple key-value for now)
+        const cotData = {
+          type: cotType ? cotType.value : 'a-f-G-U-C',
+          lat: cotLat ? parseFloat(cotLat.value) || 0 : 0,
+          lon: cotLon ? parseFloat(cotLon.value) || 0 : 0,
+          hae: cotHae ? parseFloat(cotHae.value) || 0 : 0,
+          ce: cotCe ? parseFloat(cotCe.value) || 0 : 0,
+          le: cotLe ? parseFloat(cotLe.value) || 0 : 0
+        };
+        // Append COT info to message text for now (API can be enhanced later to handle structured COT)
+        message = `${text} [COT: ${JSON.stringify(cotData)}]`;
+      }
+      
+      // Send message
+      await sendMeshtasticMessage(from, message);
+      
+      // Clear message text after successful send
+      messageText.value = '';
+    }
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', () => {
+      // Load units
+      loadMeshtasticUnits();
+      
+      // Setup event handlers
+      const sendBtn = document.getElementById('sendBtn');
+      if (sendBtn) sendBtn.addEventListener('click', onSendButtonClick);
+      
+      const messageMode = document.getElementById('messageMode');
+      if (messageMode) messageMode.addEventListener('change', onMessageModeChange);
+      
+      // Initial mode check
+      onMessageModeChange();
+    });
+
+    // sendMeshtasticMessage: posts a message to API and appends to send history
+    async function sendMeshtasticMessage(from, text){
+      if(!text || !text.trim()){ alert('Message empty'); return; }
+      try{
+        const res = await fetch('/api/meshtastic/send', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ from: from, text: text }) });
+        const body = await res.json().catch(()=>null);
+        if(!res.ok){ const msg = body && (body.message||body.detail) ? (body.message||body.detail) : `Status ${res.status}`; alert('Send failed: '+msg); return; }
+        // update UI: prepend to #sendHistory if exists
+        const el = document.getElementById('sendHistory');
+        if (el){ const item = document.createElement('div'); item.className='small'; item.textContent = `${new Date().toLocaleString()}: ${text}`; el.insertBefore(item, el.firstChild); }
+        return body;
+      }catch(e){ console.error('sendMeshtasticMessage', e); alert('Sending error: '+(e.message||e)); }
+    }
+
+    // ========== COM PORT AND CHANNEL MANAGEMENT ==========
+    
+    let isConnected = false;
+    let currentPort = null;
+    
+    // Scan for available COM ports
+    async function scanComPorts() {
+      try {
+        const res = await fetch('/api/scan_ports');
+        if (!res.ok) throw new Error('Port scan failed');
+        const data = await res.json();
+        
+        const select = document.getElementById('comPortSelect');
+        if (!select) return;
+        
+        // Clear existing options except first
+        select.innerHTML = '<option value="">Select port...</option>';
+        
+        // Add detected ports
+        const ports = data.ports || [];
+        if (ports.length === 0) {
+          alert('No COM ports found.\n\nPlease ensure:\n- Meshtastic device is connected via USB\n- Drivers are installed\n- Device is powered on\n\nClick "Scan Ports" to search again.');
+          return;
+        }
+        
+        ports.forEach(port => {
+          const option = document.createElement('option');
+          option.value = port.device || port;
+          option.textContent = `${port.device || port} ${port.description ? '- ' + port.description : ''}`;
+          select.appendChild(option);
+        });
+        
+        alert(`${ports.length} Port(s) gefunden`);
+      } catch (e) {
+        console.error('scanComPorts error', e);
+        alert('Port scan error.\n\nPossible causes:\n- No permission for COM port access\n- API connection problem\n- System driver issues\n\nTechnical details: ' + (e.message || e));
+      }
+    }
+    
+    // Connect to selected COM port
+    async function connectToPort() {
+      const select = document.getElementById('comPortSelect');
+      const statusEl = document.getElementById('connectionStatus');
+      const connectBtn = document.getElementById('connectBtn');
+      
+      if (!select || !select.value) {
+        alert('Please select a COM port first.');
+        return;
+      }
+      
+      try {
+        if (isConnected) {
+          // Disconnect
+          const res = await fetch('/api/meshtastic/disconnect', { method: 'POST' });
+          if (res.ok) {
+            isConnected = false;
+            currentPort = null;
+            if (statusEl) statusEl.textContent = 'Status: Disconnected';
+            if (connectBtn) {
+              connectBtn.innerHTML = '<i class="fas fa-plug"></i> Connect';
+              connectBtn.classList.remove('btn-cancel');
+              connectBtn.classList.add('btn-send');
+            }
+            alert('Connection closed');
+          }
+        } else {
+          // Connect
+          const res = await fetch('/api/meshtastic/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ port: select.value })
+          });
+          
+          if (!res.ok) throw new Error('Connection failed');
+          
+          const data = await res.json();
+          isConnected = true;
+          currentPort = select.value;
+          
+          if (statusEl) statusEl.textContent = `Status: Connected to ${currentPort}`;
+          if (connectBtn) {
+            connectBtn.innerHTML = '<i class="fas fa-unlink"></i> Disconnect';
+            connectBtn.classList.remove('btn-send');
+            connectBtn.classList.add('btn-cancel');
+          }
+          
+          alert('Successfully connected!');
+          
+          // Auto-refresh channels after connection
+          await refreshChannels();
+        }
+      } catch (e) {
+        console.error('connectToPort error', e);
+        alert('Connection error: ' + (e.message || e));
+      }
+    }
+    
+    // Refresh available channels from connected device
+    async function refreshChannels() {
+      try {
+        const res = await fetch('/api/meshtastic/channels');
+        if (!res.ok) throw new Error('Channels could not be loaded');
+        
+        const data = await res.json();
+        const channels = data.channels || [];
+        
+        const select = document.getElementById('channelSelect');
+        if (!select) return;
+        
+        // Save current selection
+        const currentValue = select.value;
+        
+        // Clear and repopulate
+        select.innerHTML = '';
+        
+        if (channels.length === 0) {
+          select.innerHTML = '<option value="0">Channel 0 (Default)</option>';
+        } else {
+          channels.forEach((channel, index) => {
+            const option = document.createElement('option');
+            option.value = channel.index || index;
+            option.textContent = `Channel ${channel.index || index}${channel.name ? ' - ' + channel.name : ''}`;
+            select.appendChild(option);
+          });
+        }
+        
+        // Restore selection if possible
+        if (currentValue) {
+          select.value = currentValue;
+        }
+        
+      } catch (e) {
+        console.error('refreshChannels error', e);
+        alert('Error loading channels: ' + (e.message || e));
+      }
+    }
+    
+    // Create a new channel
+    async function createChannel() {
+      const name = prompt('Channel name:');
+      if (!name) return;
+      
+      const psk = prompt('Pre-Shared Key (PSK) - leave empty for default:', '');
+      
+      try {
+        const res = await fetch('/api/meshtastic/channels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            psk: psk || null
+          })
+        });
+        
+        if (!res.ok) throw new Error('Channel could not be created');
+        
+        const data = await res.json();
+        alert(`Channel "${name}" created successfully!`);
+        
+        // Refresh channel list
+        await refreshChannels();
+      } catch (e) {
+        console.error('createChannel error', e);
+        alert('Error creating channel: ' + (e.message || e));
+      }
+    }
+    
+    // Initialize COM port and channel management
+    document.addEventListener('DOMContentLoaded', () => {
+      // Setup event handlers for new buttons
+      const scanBtn = document.getElementById('scanPortsBtn');
+      if (scanBtn) scanBtn.addEventListener('click', scanComPorts);
+      
+      const connectBtn = document.getElementById('connectBtn');
+      if (connectBtn) connectBtn.addEventListener('click', connectToPort);
+      
+      const refreshBtn = document.getElementById('refreshChannelsBtn');
+      if (refreshBtn) refreshBtn.addEventListener('click', refreshChannels);
+      
+      const createBtn = document.getElementById('createChannelBtn');
+      if (createBtn) createBtn.addEventListener('click', createChannel);
+      
+      // Initial port scan on page load - delayed to ensure DOM is fully rendered
+      // Removed automatic scan to avoid confusion when no device is connected
+      // Users should click "Ports scannen" button manually
+      // setTimeout(scanComPorts, 1000);
+    });
+
+    /* ----------------- LIFE STATUS FUNCTIONS -----------------
+       Functions for setting life status (Active, Base, KIA)
+    */
+    window.setLifeStatus = async function(status) {
+      console.log('Setting life status to:', status);
+      
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          alert('Please login first');
+          return;
+        }
+        
+        // Get current user info
+        const userRes = await fetch('/api/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const userData = await userRes.json();
+        const userId = userData.user?.id || userData.user?.username;
+        
+        if (!userId) {
+          alert('Could not get user information');
+          return;
+        }
+        
+        // Update status via API
+        const statusRes = await fetch(`/api/status/${userId}/${status}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (statusRes.ok) {
+          console.log('Status updated successfully');
+          // Visual feedback - highlight active status button
+          document.querySelectorAll('[id^="status-"]').forEach(btn => {
+            btn.style.opacity = '0.7';
+          });
+          const statusBtn = document.getElementById(`status-${status.toLowerCase()}-btn`);
+          if (statusBtn) statusBtn.style.opacity = '1';
+        } else {
+          alert('Failed to update status');
+        }
+      } catch (error) {
+        console.error('Error setting life status:', error);
+        alert('Error updating status');
+      }
+    };
+
+    /* ----------------- HAMBURGER MENU FUNCTIONS -----------------
+       Functions for hamburger menu navigation
+    */
+    window.toggleHamburgerMenu = function() {
+      console.log('Toggling hamburger menu');
+      
+      // Create menu if it doesn't exist
+      let menu = document.getElementById('hamburgerMenu');
+      if (!menu) {
+        menu = document.createElement('div');
+        menu.id = 'hamburgerMenu';
+        menu.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 280px;
+          height: 100%;
+          background: #121212;
+          border-right: 1px solid #282828;
+          z-index: 9999;
+          transform: translateX(-100%);
+          transition: transform 0.3s ease;
+          overflow-y: auto;
+          font-family: 'Courier New', monospace;
+        `;
+        
+        menu.innerHTML = `
+          <div style="padding: 20px; border-bottom: 1px solid #282828;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="color: #2ecc71; margin: 0;">Menu</h3>
+              <button onclick="toggleHamburgerMenu()" style="background: transparent; border: none; color: #888; cursor: pointer; font-size: 1.5rem;">×</button>
+            </div>
+          </div>
+          <div style="padding: 10px 0;">
+            <a href="index.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-th-large" style="margin-right: 10px;"></i> Dashboard
+            </a>
+            <a href="landing.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-home" style="margin-right: 10px;"></i> Landing
+            </a>
+            <a href="overview.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-eye" style="margin-right: 10px;"></i> Overview (EUD)
+            </a>
+            <a href="admin_map.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-map-marked-alt" style="margin-right: 10px;"></i> Tactical Map
+            </a>
+            <a href="admin.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-user-shield" style="margin-right: 10px;"></i> Admin
+            </a>
+            <a href="mission.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-crosshairs" style="margin-right: 10px;"></i> Mission
+            </a>
+            <a href="meshtastic.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-comments" style="margin-right: 10px;"></i> Meshtastic Chat
+            </a>
+            <a href="stream.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-video" style="margin-right: 10px;"></i> Stream
+            </a>
+            <a href="statistics.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-chart-bar" style="margin-right: 10px;"></i> Statistics
+            </a>
+            <a href="network.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-network-wired" style="margin-right: 10px;"></i> Network
+            </a>
+            <a href="import_nodes.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-tools" style="margin-right: 10px;"></i> Meshtastic Settings
+            </a>
+            <a href="language.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-globe" style="margin-right: 10px;"></i> Language
+            </a>
+          </div>
+          <div style="padding: 20px; border-top: 1px solid #282828;">
+            <a href="landing.html" style="display: block; padding: 12px 20px; color: #e74c3c; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-power-off" style="margin-right: 10px;"></i> Logout
+            </a>
+          </div>
+        `;
+        
+        document.body.appendChild(menu);
+        
+        // Add overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'hamburgerOverlay';
+        overlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 9998;
+          display: none;
+        `;
+        overlay.onclick = toggleHamburgerMenu;
+        document.body.appendChild(overlay);
+      }
+      
+      // Toggle menu
+      const overlay = document.getElementById('hamburgerOverlay');
+      if (menu.style.transform === 'translateX(0px)') {
+        menu.style.transform = 'translateX(-100%)';
+        if (overlay) overlay.style.display = 'none';
+      } else {
+        menu.style.transform = 'translateX(0px)';
+        if (overlay) overlay.style.display = 'block';
+      }
+    };
+
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/map-cache-sw.js')
+        .then(reg => console.log('Service Worker registered for chat', reg))
+        .catch(err => console.warn('Service Worker registration failed', err));
+    }
+</script>
+</body>
+</html>
+<!-- BEGIN: restore sendMeshtasticMessage helper -->
+<script>
+async function sendMeshtasticMessage(to, text){
+  if(!text || !text.trim()){ alert('Nachricht leer'); return; }
+  try{
+    const res = await fetch('/api/meshtastic/send', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ from: to, text: text }) });
+    const body = await res.json().catch(()=>null);
+    if(!res.ok){ const msg = body && (body.message||body.detail) ? (body.message||body.detail) : `Status ${res.status}`; alert('Senden fehlgeschlagen: '+msg); return; }
+    const el = document.getElementById('sendHistory');
+    if (el){ const item = document.createElement('div'); item.className='small'; item.textContent = `${new Date().toLocaleString()}: ${text}`; el.insertBefore(item, el.firstChild); }
+    return body;
+  }catch(e){ console.error('sendMeshtasticMessage', e); alert('Fehler beim Senden: '+(e.message||e)); }
+}
+</script>
+<!-- END: restore sendMeshtasticMessage helper -->

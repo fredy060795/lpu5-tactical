@@ -1,0 +1,1403 @@
+﻿<!-- Rechtsseitige Icon-Leiste mit Flyouts (ersetzt vorherige side-panel + toolbarToggle) -->
+<style>
+/* Icon bar */
+#iconBar {
+  position: fixed;
+  right: 12px;
+  top: 80px;
+  z-index: 2600;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.icon-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: transform .12s ease, background .12s;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+}
+.icon-btn:hover { transform: translateX(-4px); background: rgba(0,0,0,0.75); }
+
+/* flyout panel that appears left of the icon bar */
+.icon-flyout {
+  position: fixed;
+  right: 72px; /* iconBar right + icon width + gap */
+  top: 0; /* positioned dynamically in JS to align with clicked icon */
+  z-index: 2550;
+  width: 320px;
+  max-width: calc(100% - 120px);
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 8px;
+  padding: 12px;
+  color: #ddd;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  transform-origin: right top;
+  transform: scale(.95) translateX(8px);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform .16s ease, opacity .16s ease, visibility .16s;
+  pointer-events: auto;
+}
+/* visible state */
+.icon-flyout.open {
+  transform: scale(1) translateX(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+/* small headings and controls inside flyout */
+.icon-flyout h4 { margin: 0 0 8px 0; font-size: 0.9rem; color: #9ad1ff; text-transform: uppercase; letter-spacing: .6px; }
+.icon-flyout label { font-size: 0.8rem; color: #aaa; display:block; margin:6px 0 4px; }
+.icon-flyout input[type="number"], .icon-flyout input[type="text"], .icon-flyout input[type="color"], .icon-flyout input[type="file"], .icon-flyout select {
+  width:100%; padding:8px; background:#000; color:#fff; border:1px solid #333; border-radius:6px; margin-bottom:8px;
+}
+.icon-flyout .row{ display:flex; gap:8px; }
+.icon-flyout .col{ flex:1; }
+.icon-flyout .btn{ width:100%; padding:8px; border-radius:6px; border:none; cursor:pointer; font-weight:bold; }
+.icon-flyout .btn.primary{ background:#007bff; color:#fff; }
+.icon-flyout .btn.ghost{ background:#222; color:#ddd; border:1px solid #333; }
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+  #iconBar {
+    right: 8px;
+    top: 70px;
+  }
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .icon-flyout {
+    right: 60px;
+    width: 280px;
+    max-width: calc(100vw - 80px);
+  }
+}
+
+@media (max-width: 480px) {
+  .icon-flyout {
+    right: auto;
+    left: 10px;
+    width: calc(100vw - 20px);
+    max-width: none;
+  }
+}
+
+/* ensure flyout doesn't capture map clicks outside (we handle close on outside click) */
+</style>
+
+<div id="iconBar" aria-hidden="false">
+  <!-- GPS -->
+  <div class="icon-btn" data-flyout="fly-gps" title="GPS">
+    <i class="fas fa-location-arrow"></i>
+  </div>
+
+  <!-- Overlay -->
+  <div class="icon-btn" data-flyout="fly-overlay" title="Overlay">
+    <i class="fas fa-image"></i>
+  </div>
+
+  <!-- Draw (lines) -->
+  <div class="icon-btn" data-flyout="fly-draw" title="Zeichnen">
+    <i class="fas fa-pen-nib"></i>
+  </div>
+
+  <!-- Symbols -->
+  <div class="icon-btn" data-flyout="fly-symbols" title="Symbole">
+    <i class="fas fa-map-marker-alt"></i>
+  </div>
+
+  <!-- Camera / Stream -->
+  <div class="icon-btn" data-flyout="fly-camera" title="Kamera Stream">
+    <i class="fas fa-video"></i>
+  </div>
+
+  <!-- Chat / Messages -->
+  <div class="icon-btn" data-flyout="fly-chat" title="Chat / Nachrichten">
+    <i class="fas fa-comments"></i>
+  </div>
+
+  <!-- Settings / Refresh -->
+  <div class="icon-btn" data-flyout="fly-settings" title="Einstellungen">
+    <i class="fas fa-cog"></i>
+  </div>
+</div>
+
+<!-- Flyout: GPS -->
+<div id="fly-gps" class="icon-flyout" role="dialog" aria-hidden="true">
+  <h4>GPS</h4>
+  <label>Farbe Punkt</label>
+  <input type="color" id="gpsColor_fly" value="#ff4444">
+  <div class="row">
+    <div class="col"><button class="btn ghost" onclick="gpsRefresh(); closeFlyout()">Refresh</button></div>
+    <div class="col"><button class="btn primary" onclick="gpsFix(); closeFlyout()">Fixieren</button></div>
+  </div>
+  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="gpsFlyInfo">Kein GPS geladen</div>
+</div>
+
+<!-- Flyout: Overlay -->
+<div id="fly-overlay" class="icon-flyout" role="dialog" aria-hidden="true">
+  <h4>Map Overlay</h4>
+  <label>Bild Import</label>
+  <input type="file" id="ovFile_fly" accept="image/*" onchange="onOverlayFile(event)">
+  <div id="ovFileName_fly" style="font-size:.85rem; color:#bbb; margin-bottom:8px;">Keine ausgewÃ¤hlt</div>
+
+  <label>Winkel: <span id="angleVal_fly">0</span>Â°</label>
+  <input type="range" id="ovR_fly" min="0" max="360" value="0" oninput="document.getElementById('angleVal_fly').innerText=this.value; syncOverlayInputs(); applyRotation();">
+
+  <div class="row">
+    <div class="col">
+      <label>Breite (Kacheln Ã  100m)</label>
+      <input type="number" id="ovW_fly" value="5" step="0.1" oninput="syncOverlayInputs(); applyRotation()">
+    </div>
+    <div class="col">
+      <label>HÃ¶he (Kacheln Ã  100m)</label>
+      <input type="number" id="ovH_fly" value="5" step="0.1" oninput="syncOverlayInputs(); applyRotation()">
+    </div>
+  </div>
+
+  <label>Offset X (m, +Ost / -West)</label>
+  <input type="number" id="ovOffsetX_fly" value="0" step="1" oninput="syncOverlayInputs(); applyRotation()">
+  <label>Offset Y (m, +Nord / -SÃ¼d)</label>
+  <input type="number" id="ovOffsetY_fly" value="0" step="1" oninput="syncOverlayInputs(); applyRotation()">
+
+  <div style="margin-top:8px;">
+    <button class="btn primary" onclick="saveOverlayConfig(); closeFlyout()">FIXIEREN & TEILEN</button>
+    <button class="btn ghost" style="margin-top:8px;" onclick="resetOverlayInputs()">ZurÃ¼cksetzen</button>
+  </div>
+</div>
+
+<!-- Flyout: Draw -->
+<div id="fly-draw" class="icon-flyout" role="dialog" aria-hidden="true">
+  <h4>Zeichnen (Linien)</h4>
+  <label>Zeichnen starten</label>
+  <div class="row">
+    <div class="col"><button class="btn primary" onclick="startDrawing(); openFlyout('fly-draw');">Start</button></div>
+    <div class="col"><button class="btn ghost" onclick="finishDrawing(); closeFlyout()">Fertig</button></div>
+  </div>
+  <div style="margin-top:8px;">
+    <label>Name</label>
+    <input type="text" id="areaName_fly" placeholder="Name...">
+  </div>
+  <div style="margin-top:8px; color:#bbb; font-size:.85rem;">Hinweis: Klicke mehrere Punkte auf der Karte. "Fertig" speichert die Linie.</div>
+</div>
+
+<!-- Flyout: Symbols -->
+<div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
+  <h4>Symbole</h4>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="icon-btn" onclick="selectSymbol('raute', this);"> <i class="fas fa-gem"></i> </button>
+    <button class="icon-btn" onclick="selectSymbol('rechteck', this);"> <i class="fas fa-square"></i> </button>
+    <button class="icon-btn" onclick="selectSymbol('quadrat', this);"> <i class="fas fa-th"></i> </button>
+    <button class="icon-btn" onclick="selectSymbol('blume', this);"> <i class="fas fa-leaf"></i> </button>
+  </div>
+  <div style="margin-top:8px;" class="row">
+    <div class="col"><button class="btn primary" onclick="startSymbolPlace(); closeFlyout()">Symbol setzen</button></div>
+    <div class="col"><button class="btn ghost" onclick="closeFlyout()">Abbrechen</button></div>
+  </div>
+</div>
+
+<!-- Flyout: Settings -->
+<div id="fly-settings" class="icon-flyout" role="dialog" aria-hidden="true">
+  <h4>Einstellungen</h4>
+  <label>Refresh Map</label>
+  <div class="row">
+    <div class="col"><button class="btn ghost" onclick="map.invalidateSize(); closeFlyout()">Neuladen</button></div>
+    <div class="col"><button class="btn ghost" onclick="scheduleReapply(); closeFlyout()">Rotation neu anwenden</button></div>
+  </div>
+  <div style="margin-top:10px;">
+    <label>Sonstiges</label>
+    <button class="btn ghost" onclick="localStorage.clear(); alert('Lokale Daten gelöscht'); closeFlyout()">Lokal löschen</button>
+  </div>
+</div>
+
+<!-- Flyout: Camera Stream -->
+<div id="fly-camera" class="icon-flyout" role="dialog" aria-hidden="true">
+  <h4>Kamera Stream</h4>
+  <label>Stream Kontrolle</label>
+  <div class="row">
+    <div class="col"><button class="btn primary" onclick="openStreamWindow(); closeFlyout()">Stream anzeigen</button></div>
+    <div class="col"><button class="btn ghost" onclick="closeStreamWindow(); closeFlyout()">Schließen</button></div>
+  </div>
+  <div style="margin-top:10px;">
+    <button class="btn ghost" onclick="shareStreamToOverview(); closeFlyout()">An Overview teilen</button>
+  </div>
+  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="cameraFlyInfo">Kein Stream verfügbar</div>
+</div>
+
+<!-- Flyout: Chat -->
+<div id="fly-chat" class="icon-flyout" role="dialog" aria-hidden="true">
+  <h4>Chat / Nachrichten</h4>
+  <label>Chat Kontrolle</label>
+  <div class="row">
+    <div class="col"><button class="btn primary" onclick="openChatWindow(); closeFlyout()">Chat öffnen</button></div>
+    <div class="col"><button class="btn ghost" onclick="closeChatWindow(); closeFlyout()">Schließen</button></div>
+  </div>
+  <div style="margin-top:10px;">
+    <button class="btn ghost" onclick="markAllMessagesRead(); closeFlyout()">Alle als gelesen</button>
+  </div>
+  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">Keine neuen Nachrichten</div>
+</div>
+
+<style>
+/* Floating stream window in lower right corner */
+.stream-window {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 400px;
+  max-width: calc(100vw - 100px);
+  background: #111;
+  border: 2px solid #007bff;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+  z-index: 11100;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.stream-window.active {
+  display: flex;
+}
+
+.stream-window-header {
+  background: #007bff;
+  color: #fff;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: move;
+  user-select: none;
+}
+
+.stream-window-title {
+  font-weight: bold;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stream-window-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.stream-window-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.stream-window-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.stream-window-content {
+  background: #000;
+  min-height: 225px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.stream-window-video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.stream-window-placeholder {
+  color: #666;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.stream-window-footer {
+  background: #0a0a0a;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stream-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #28a745;
+}
+
+.stream-status-badge .pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #28a745;
+  border-radius: 50%;
+  animation: streamPulse 2s infinite;
+}
+
+@keyframes streamPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.stream-status-badge.offline {
+  color: #dc3545;
+}
+
+.stream-status-badge.offline .pulse-dot {
+  background: #dc3545;
+}
+
+.stream-share-btn {
+  background: #28a745;
+  border: none;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.stream-share-btn:hover {
+  background: #218838;
+}
+
+.stream-share-btn:disabled {
+  background: #444;
+  cursor: not-allowed;
+  color: #888;
+}
+
+@media (max-width: 768px) {
+  .stream-window {
+    width: 300px;
+    bottom: 10px;
+    right: 10px;
+  }
+}
+</style>
+
+<!-- Floating Stream Window -->
+<div id="streamWindow" class="stream-window">
+  <div class="stream-window-header" id="streamWindowHeader">
+    <div class="stream-window-title">
+      <i class="fas fa-video"></i>
+      <span>Live Stream</span>
+    </div>
+    <div class="stream-window-controls">
+      <button class="stream-window-btn" onclick="minimizeStreamWindow()" title="Minimieren">
+        <i class="fas fa-minus"></i>
+      </button>
+      <button class="stream-window-btn" onclick="closeStreamWindow()" title="Schließen">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+  <div class="stream-window-content">
+    <video id="streamWindowVideo" class="stream-window-video" autoplay muted></video>
+    <div class="stream-window-placeholder" id="streamWindowPlaceholder">
+      <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
+      <div>Kein Stream</div>
+    </div>
+  </div>
+  <div class="stream-window-footer">
+    <div class="stream-status-badge offline" id="streamWindowStatus">
+      <span class="pulse-dot"></span>
+      <span>Offline</span>
+    </div>
+    <button class="stream-share-btn" id="streamShareBtn" onclick="shareStreamToOverview()" disabled>
+      <i class="fas fa-share-alt"></i> Teilen
+    </button>
+  </div>
+</div>
+
+<!-- Floating Chat Window -->
+<div id="chatWindow" class="chat-window">
+  <div class="chat-window-header" id="chatWindowHeader">
+    <div class="chat-window-title">
+      <i class="fas fa-comments"></i>
+      <span>Chat / COT Nachrichten</span>
+    </div>
+    <div class="chat-window-controls">
+      <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
+        <i class="fas fa-minus"></i>
+      </button>
+      <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+  <div class="chat-window-content">
+    <div class="chat-messages-container" id="chatMessagesContainer">
+      <div class="chat-placeholder" id="chatPlaceholder">
+        <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
+        <div style="color: #666;">Keine Nachrichten</div>
+        <small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small>
+      </div>
+    </div>
+  </div>
+  <div class="chat-window-footer">
+    <div class="chat-input-area">
+      <select id="chatRecipient" class="chat-select">
+        <option value="all">Alle Einheiten</option>
+        <option value="hq">HQ</option>
+      </select>
+      <input type="text" id="chatInput" class="chat-input" placeholder="Nachricht eingeben...">
+      <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+        <i class="fas fa-paper-plane"></i> Senden
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Floating chat window in lower left corner */
+.chat-window {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 420px;
+  max-width: calc(100vw - 100px);
+  height: 500px;
+  max-height: calc(100vh - 100px);
+  background: #111;
+  border: 2px solid #28a745;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+  z-index: 11100;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-window.active {
+  display: flex;
+}
+
+.chat-window-header {
+  background: #28a745;
+  color: #fff;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: move;
+  user-select: none;
+}
+
+.chat-window-title {
+  font-weight: bold;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-window-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-window-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.chat-window-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.chat-window-content {
+  background: #000;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: #666;
+}
+
+.chat-message {
+  padding: 10px 12px;
+  border-radius: 8px;
+  max-width: 85%;
+  word-wrap: break-word;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-message.outgoing {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  align-self: flex-end;
+  border-bottom-right-radius: 3px;
+}
+
+.chat-message.incoming {
+  background: #1a1a1a;
+  color: #d0d0d0;
+  align-self: flex-start;
+  border: 1px solid #333;
+  border-bottom-left-radius: 3px;
+}
+
+.chat-message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+}
+
+.chat-message-sender {
+  font-weight: bold;
+  color: #28a745;
+}
+
+.chat-message.outgoing .chat-message-sender {
+  color: #9ad1ff;
+}
+
+.chat-message-time {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.chat-message-text {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.chat-window-footer {
+  background: #0a0a0a;
+  border-top: 1px solid #333;
+  padding: 12px 15px;
+}
+
+.chat-input-area {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chat-select {
+  padding: 8px 10px;
+  background: #000;
+  border: 1px solid #444;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  max-width: 110px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: #000;
+  border: 1px solid #444;
+  color: #fff;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: #28a745;
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+}
+
+.chat-send-btn {
+  padding: 8px 16px;
+  background: #28a745;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: bold;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-send-btn:hover {
+  background: #218838;
+}
+
+.chat-send-btn:disabled {
+  background: #444;
+  cursor: not-allowed;
+  color: #888;
+}
+
+/* Notification badge on chat icon */
+.icon-btn[data-flyout="fly-chat"] {
+  position: relative;
+}
+
+.chat-notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #dc3545;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  display: none;
+}
+
+.chat-notification-badge.show {
+  display: block;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-window {
+    width: 90%;
+    left: 5%;
+    right: 5%;
+    max-width: none;
+    height: 60%;
+    bottom: 10px;
+  }
+}
+</style>
+
+<script>
+// Stream window functionality
+(function() {
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  let isMinimized = false;
+
+  // Check for shared stream from stream.html on load
+  window.addEventListener('load', function() {
+    checkForSharedStream();
+    // Also check periodically for stream updates
+    setInterval(checkForSharedStream, 2000);
+  });
+
+  function checkForSharedStream() {
+    try {
+      const streamData = localStorage.getItem('lpu5_shared_stream');
+      if (streamData) {
+        const data = JSON.parse(streamData);
+        // Check if it's recent (within last 10 seconds)
+        if (Date.now() - data.timestamp < 10000) {
+          loadStreamIntoWindow(data);
+          // Clear the flag so we don't load it again
+          localStorage.removeItem('lpu5_shared_stream');
+        }
+      }
+    } catch (e) {
+      console.error('Error checking for shared stream:', e);
+    }
+  }
+
+  function loadStreamIntoWindow(data) {
+    const video = document.getElementById('streamWindowVideo');
+    const placeholder = document.getElementById('streamWindowPlaceholder');
+    const statusBadge = document.getElementById('streamWindowStatus');
+    const shareBtn = document.getElementById('streamShareBtn');
+    const flyInfo = document.getElementById('cameraFlyInfo');
+
+    if (data.videoSrc) {
+      video.src = data.videoSrc;
+      video.style.display = 'block';
+      placeholder.style.display = 'none';
+    } else if (data.isCamera) {
+      // Camera stream from stream.html - show placeholder with info
+      placeholder.innerHTML = `
+        <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px; color: #007bff;"></i>
+        <div style="color: #007bff;">Kamera Stream aktiv</div>
+        <small style="color: #888;">Stream auf stream.html</small>
+      `;
+      placeholder.style.display = 'flex';
+      placeholder.style.flexDirection = 'column';
+      placeholder.style.alignItems = 'center';
+      placeholder.style.justifyContent = 'center';
+      video.style.display = 'none';
+    }
+
+    // Update status
+    statusBadge.classList.remove('offline');
+    statusBadge.classList.add('connected');
+    statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Verbunden</span>';
+    
+    shareBtn.disabled = false;
+
+    if (flyInfo) {
+      flyInfo.textContent = `${data.source}: ${data.details}`;
+    }
+
+    // Open the window
+    openStreamWindow();
+  }
+
+  window.openStreamWindow = function() {
+    const streamWindow = document.getElementById('streamWindow');
+    streamWindow.classList.add('active');
+    isMinimized = false;
+  };
+
+  window.closeStreamWindow = function() {
+    const streamWindow = document.getElementById('streamWindow');
+    const video = document.getElementById('streamWindowVideo');
+    
+    streamWindow.classList.remove('active');
+    video.pause();
+    video.src = '';
+    
+    const statusBadge = document.getElementById('streamWindowStatus');
+    const shareBtn = document.getElementById('streamShareBtn');
+    const flyInfo = document.getElementById('cameraFlyInfo');
+    
+    statusBadge.classList.remove('connected');
+    statusBadge.classList.add('offline');
+    statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Offline</span>';
+    shareBtn.disabled = true;
+    
+    if (flyInfo) {
+      flyInfo.textContent = 'Kein Stream verfügbar';
+    }
+  };
+
+  window.minimizeStreamWindow = function() {
+    const streamWindow = document.getElementById('streamWindow');
+    const content = streamWindow.querySelector('.stream-window-content');
+    const footer = streamWindow.querySelector('.stream-window-footer');
+    
+    if (isMinimized) {
+      content.style.display = 'flex';
+      footer.style.display = 'flex';
+      isMinimized = false;
+    } else {
+      content.style.display = 'none';
+      footer.style.display = 'none';
+      isMinimized = true;
+    }
+  };
+
+  window.shareStreamToOverview = function() {
+    const video = document.getElementById('streamWindowVideo');
+    const streamData = {
+      videoSrc: video.src,
+      timestamp: Date.now(),
+      source: 'admin_map'
+    };
+    
+    localStorage.setItem('lpu5_overview_stream', JSON.stringify(streamData));
+    
+    // Show notification
+    if (typeof showToast === 'function') {
+      showToast('Stream wurde an Overview gesendet!', 'success');
+    } else {
+      alert('Stream wurde an Overview gesendet!');
+    }
+  };
+
+  // Make window draggable
+  const header = document.getElementById('streamWindowHeader');
+  if (header) {
+    header.addEventListener('mousedown', function(e) {
+      if (e.target.closest('.stream-window-btn')) return;
+      
+      isDragging = true;
+      const streamWindow = document.getElementById('streamWindow');
+      const rect = streamWindow.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+      
+      streamWindow.style.transition = 'none';
+    });
+  }
+
+  document.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    
+    const streamWindow = document.getElementById('streamWindow');
+    let newX = e.clientX - dragOffset.x;
+    let newY = e.clientY - dragOffset.y;
+    
+    // Keep window in bounds
+    const maxX = window.innerWidth - streamWindow.offsetWidth;
+    const maxY = window.innerHeight - streamWindow.offsetHeight;
+    
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+    
+    streamWindow.style.right = 'auto';
+    streamWindow.style.bottom = 'auto';
+    streamWindow.style.left = newX + 'px';
+    streamWindow.style.top = newY + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (isDragging) {
+      isDragging = false;
+      const streamWindow = document.getElementById('streamWindow');
+      streamWindow.style.transition = '';
+    }
+  });
+})();
+</script>
+
+<script>
+// Chat window functionality
+(function() {
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  let isMinimized = false;
+  let unreadCount = 0;
+
+  // HTML escape function to prevent XSS
+  function escapeHtml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // Check for incoming messages periodically
+  window.addEventListener('load', function() {
+    checkForIncomingMessages();
+    // Also check periodically for new messages
+    setInterval(checkForIncomingMessages, 3000);
+  });
+
+  function checkForIncomingMessages() {
+    try {
+      // Check localStorage for shared messages from other pages
+      const sharedMessage = localStorage.getItem('lpu5_shared_chat_message');
+      if (sharedMessage) {
+        const data = JSON.parse(sharedMessage);
+        // Check if it's recent (within last 10 seconds)
+        if (Date.now() - data.timestamp < 10000) {
+          displayIncomingMessage(data);
+          // Clear the flag
+          localStorage.removeItem('lpu5_shared_chat_message');
+        }
+      }
+
+      // Fetch messages from API
+      fetchMessagesFromAPI();
+    } catch (e) {
+      console.error('Error checking for incoming messages:', e);
+    }
+  }
+
+  async function fetchMessagesFromAPI() {
+    try {
+      const response = await fetch('/api/meshtastic/messages?limit=10');
+      if (response.ok) {
+        const messages = await response.json();
+        // Display new messages (implement filtering for already displayed)
+        // For now, we'll just update the info
+        updateChatInfo(messages.length);
+      }
+    } catch (e) {
+      console.error('Error fetching messages:', e);
+    }
+  }
+
+  function displayIncomingMessage(data) {
+    const messagesContainer = document.getElementById('chatMessagesContainer');
+    const placeholder = document.getElementById('chatPlaceholder');
+    
+    if (!messagesContainer) return;
+
+    // Hide placeholder if visible
+    if (placeholder && placeholder.style.display !== 'none') {
+      placeholder.style.display = 'none';
+    }
+
+    // Create message element
+    const messageEl = document.createElement('div');
+    messageEl.className = 'chat-message incoming';
+    
+    const sender = data.sender || data.from || 'Unknown';
+    const text = data.text || data.message || '';
+    const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    messageEl.innerHTML = `
+      <div class="chat-message-header">
+        <span class="chat-message-sender">${escapeHtml(sender)}</span>
+        <span class="chat-message-time">${escapeHtml(time)}</span>
+      </div>
+      <div class="chat-message-text">${escapeHtml(text)}</div>
+    `;
+
+    messagesContainer.appendChild(messageEl);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    // Update unread count if window is not open
+    const chatWindow = document.getElementById('chatWindow');
+    if (!chatWindow.classList.contains('active')) {
+      unreadCount++;
+      updateNotificationBadge();
+      updateChatInfo(`${unreadCount} neue Nachricht${unreadCount > 1 ? 'en' : ''}`);
+    }
+  }
+
+  function updateNotificationBadge() {
+    const chatIcon = document.querySelector('[data-flyout="fly-chat"]');
+    if (!chatIcon) return;
+
+    let badge = chatIcon.querySelector('.chat-notification-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.className = 'chat-notification-badge';
+      chatIcon.style.position = 'relative';
+      chatIcon.appendChild(badge);
+    }
+
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+      badge.classList.add('show');
+    } else {
+      badge.classList.remove('show');
+    }
+  }
+
+  function updateChatInfo(info) {
+    const flyInfo = document.getElementById('chatFlyInfo');
+    if (flyInfo) {
+      flyInfo.textContent = typeof info === 'string' ? info : `${info} Nachricht${info !== 1 ? 'en' : ''} verfügbar`;
+    }
+  }
+
+  window.openChatWindow = function() {
+    const chatWindow = document.getElementById('chatWindow');
+    chatWindow.classList.add('active');
+    isMinimized = false;
+    
+    // Reset unread count when opening
+    unreadCount = 0;
+    updateNotificationBadge();
+    updateChatInfo('Keine neuen Nachrichten');
+
+    // Focus input
+    const input = document.getElementById('chatInput');
+    if (input) {
+      setTimeout(() => input.focus(), 100);
+    }
+
+    // Load available users for dropdown
+    loadChatUsers();
+  };
+
+  window.closeChatWindow = function() {
+    const chatWindow = document.getElementById('chatWindow');
+    chatWindow.classList.remove('active');
+  };
+
+  window.minimizeChatWindow = function() {
+    const chatWindow = document.getElementById('chatWindow');
+    const content = chatWindow.querySelector('.chat-window-content');
+    const footer = chatWindow.querySelector('.chat-window-footer');
+    
+    if (isMinimized) {
+      content.style.display = 'flex';
+      footer.style.display = 'block';
+      isMinimized = false;
+    } else {
+      content.style.display = 'none';
+      footer.style.display = 'none';
+      isMinimized = true;
+    }
+  };
+
+  window.sendChatMessage = function() {
+    const input = document.getElementById('chatInput');
+    const recipient = document.getElementById('chatRecipient');
+    const messagesContainer = document.getElementById('chatMessagesContainer');
+    const placeholder = document.getElementById('chatPlaceholder');
+
+    if (!input || !recipient || !messagesContainer) return;
+
+    const message = input.value.trim();
+    if (!message) return;
+
+    // Hide placeholder if visible
+    if (placeholder && placeholder.style.display !== 'none') {
+      placeholder.style.display = 'none';
+    }
+
+    // Create message element
+    const messageEl = document.createElement('div');
+    messageEl.className = 'chat-message outgoing';
+    
+    const currentUser = sessionStorage.getItem('currentUser') || 'Me';
+    const time = new Date().toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    messageEl.innerHTML = `
+      <div class="chat-message-header">
+        <span class="chat-message-sender">${escapeHtml(currentUser)}</span>
+        <span class="chat-message-time">${escapeHtml(time)}</span>
+      </div>
+      <div class="chat-message-text">${escapeHtml(message)}</div>
+    `;
+
+    messagesContainer.appendChild(messageEl);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    // Clear input
+    input.value = '';
+
+    // Send message to API
+    sendMessageToAPI(message, recipient.value);
+
+    // Share to other pages via localStorage
+    shareMessageToOtherPages(message);
+  };
+
+  async function sendMessageToAPI(message, recipient) {
+    try {
+      const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+      
+      const response = await fetch('/api/meshtastic/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: currentUser,
+          text: message,
+          to: recipient
+        })
+      });
+
+      if (response.ok) {
+        console.log('Message sent successfully');
+      } else {
+        console.error('Failed to send message');
+      }
+    } catch (e) {
+      console.error('Error sending message:', e);
+    }
+  }
+
+  function shareMessageToOtherPages(message) {
+    const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+    const messageData = {
+      sender: currentUser,
+      text: message,
+      timestamp: Date.now(),
+      source: 'admin_map'
+    };
+    
+    // Store in localStorage for other pages to pick up
+    localStorage.setItem('lpu5_broadcast_message', JSON.stringify(messageData));
+    
+    // Also trigger storage event manually for same-tab detection
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'lpu5_broadcast_message',
+      newValue: JSON.stringify(messageData)
+    }));
+  }
+
+  async function loadChatUsers() {
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/users', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+
+      if (response.ok) {
+        const users = await response.json();
+        const select = document.getElementById('chatRecipient');
+        if (!select) return;
+
+        // Keep "all" option, add individual users
+        select.innerHTML = '<option value="all">Alle Einheiten</option>';
+        users.forEach(user => {
+          const opt = document.createElement('option');
+          opt.value = user.id;
+          opt.textContent = user.username || user.unit || user.id;
+          select.appendChild(opt);
+        });
+      }
+    } catch (e) {
+      console.error('Error loading chat users:', e);
+    }
+  }
+
+  window.markAllMessagesRead = function() {
+    unreadCount = 0;
+    updateNotificationBadge();
+    updateChatInfo('Keine neuen Nachrichten');
+  };
+
+  // Allow Enter key to send message
+  document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('chatInput');
+    if (input) {
+      input.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendChatMessage();
+        }
+      });
+    }
+  });
+
+  // Make window draggable
+  const header = document.getElementById('chatWindowHeader');
+  if (header) {
+    header.addEventListener('mousedown', function(e) {
+      if (e.target.closest('.chat-window-btn')) return;
+      
+      isDragging = true;
+      const chatWindow = document.getElementById('chatWindow');
+      const rect = chatWindow.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+      
+      chatWindow.style.transition = 'none';
+    });
+  }
+
+  document.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    
+    const chatWindow = document.getElementById('chatWindow');
+    let newX = e.clientX - dragOffset.x;
+    let newY = e.clientY - dragOffset.y;
+    
+    // Keep window in bounds
+    const maxX = window.innerWidth - chatWindow.offsetWidth;
+    const maxY = window.innerHeight - chatWindow.offsetHeight;
+    
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+    
+    chatWindow.style.left = newX + 'px';
+    chatWindow.style.bottom = 'auto';
+    chatWindow.style.top = newY + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (isDragging) {
+      isDragging = false;
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.transition = '';
+    }
+  });
+
+  // Listen for messages from other tabs
+  window.addEventListener('storage', function(e) {
+    if (e.key === 'lpu5_broadcast_message' && e.newValue) {
+      try {
+        const data = JSON.parse(e.newValue);
+        // Only display if not from this page
+        if (data.source !== 'admin_map') {
+          displayIncomingMessage(data);
+        }
+      } catch (err) {
+        console.error('Error processing broadcast message:', err);
+      }
+    }
+  });
+})();
+</script>
+
+<script>
+// Toggle flyouts: clicking an icon opens corresponding flyout, clicking outside closes
+(function(){
+  const icons = document.querySelectorAll('#iconBar .icon-btn');
+  let openId = null;
+
+  function closeOpen(){ if(openId){ const el = document.getElementById(openId); if(el) el.classList.remove('open'); openId = null; } }
+
+  function openFlyoutId(id, alignY){
+    closeOpen();
+    const f = document.getElementById(id);
+    if(!f) return;
+    // align vertical position with clicked icon's center (if alignY provided)
+    if(typeof alignY === 'number'){
+      // ensure flyout stays in viewport
+      const top = Math.max(12, Math.min(window.innerHeight - f.offsetHeight - 12, alignY - (f.offsetHeight/2)));
+      f.style.top = top + 'px';
+    } else {
+      // default: center near top of icons
+      const defaultTop = 120; f.style.top = defaultTop + 'px';
+    }
+    f.classList.add('open');
+    f.setAttribute('aria-hidden','false');
+    openId = id;
+  }
+
+  icons.forEach(ic => {
+    ic.addEventListener('click', (ev) => {
+      const id = ic.getAttribute('data-flyout');
+      if(!id) return;
+      // compute icon center Y for alignment
+      const rect = ic.getBoundingClientRect();
+      const centerY = rect.top + rect.height/2;
+      if(openId === id){ closeOpen(); return; } // toggle
+      openFlyoutId(id, centerY);
+    });
+  });
+
+  // close on outside click
+  document.addEventListener('click', (e) => {
+    // if click inside any flyout or on icon -> ignore
+    if(e.target.closest('.icon-flyout') || e.target.closest('#iconBar')) return;
+    closeOpen();
+  });
+
+  // convenience functions for other scripts:
+  window.closeFlyout = function(){ closeOpen(); };
+  window.openFlyout = function(id){ 
+    const el = document.getElementById(id);
+    if(!el) return;
+    // align with icon that opened it (try to find icon with data-flyout)
+    const icon = document.querySelector(`#iconBar .icon-btn[data-flyout="${id}"]`);
+    const rect = icon ? icon.getBoundingClientRect() : null;
+    const centerY = rect ? (rect.top + rect.height/2) : (window.innerHeight/2);
+    openFlyoutId(id, centerY);
+  };
+
+  // helper: sync overlay flyout inputs with main inputs (if your functions read main ids)
+  window.syncOverlayInputs = function(){
+    // copy flyout values into main controls (if you use global ids in applyRotation)
+    const mappings = [
+      ['ovR_fly','ovR'], ['ovW_fly','ovW'], ['ovH_fly','ovH'],
+      ['ovOffsetX_fly','ovOffsetX'], ['ovOffsetY_fly','ovOffsetY']
+    ];
+    mappings.forEach(pair => {
+      const a = document.getElementById(pair[0]); const b = document.getElementById(pair[1]);
+      if(a && b) b.value = a.value;
+    });
+    // angle display sync
+    const av = document.getElementById('angleVal_fly'); if(av){ av.innerText = document.getElementById('ovR_fly').value; }
+  };
+
+  // map overlay file UI: show filename in flyout and also forward the File to the existing handler
+  document.getElementById('ovFile_fly').addEventListener('change', function(e){
+    const f = e.target.files && e.target.files[0];
+    const nameEl = document.getElementById('ovFileName_fly');
+    if(f){ nameEl.textContent = f.name; } else { nameEl.textContent = 'Keine ausgewÃ¤hlt'; }
+    // call global handler (onOverlayFile) that exists in main script
+    if(typeof onOverlayFile === 'function') onOverlayFile(e);
+  });
+
+  // copy changes from flyout to main controls when flyout inputs change (two-way)
+  ['ovR_fly','ovW_fly','ovH_fly','ovOffsetX_fly','ovOffsetY_fly'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', () => { syncOverlayInputs(); });
+  });
+
+  // when GPS color changed in flyout, mirror into main gpsColor if exists
+  const gpsFly = document.getElementById('gpsColor_fly');
+  if(gpsFly){
+    gpsFly.addEventListener('input', ()=> {
+      const main = document.getElementById('gpsColor');
+      if(main) main.value = gpsFly.value;
+    });
+  }
+})();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+

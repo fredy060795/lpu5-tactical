@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream - LPU5 Tactical</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --sb-collapsed: 70px;
+            --sb-expanded: 280px;
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --panel-input-bg: #0f0f0f;
+            --accent-blue: #007bff;
+            --accent-green: #28a745;
+            --accent-red: #dc3545;
+            --text-main: #d0d0d0;
+            --border-color: #333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            padding-left: var(--sb-collapsed);
+            min-height: 100vh;
+            transition: padding-left 0.3s ease;
+        }
+
+        /* Main container */
+        .stream-container {
+            padding: 40px 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--accent-blue);
+            margin-bottom: 30px;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Source selection panel */
+        .source-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .source-panel h2 {
+            color: var(--accent-green);
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .source-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .source-tab {
+            padding: 10px 20px;
+            background: var(--panel-input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-main);
+        }
+
+        .source-tab:hover {
+            background: #1a1a1a;
+        }
+
+        .source-tab.active {
+            background: var(--accent-blue);
+            color: #fff;
+            border-color: var(--accent-blue);
+        }
+
+        .source-content {
+            display: none;
+        }
+
+        .source-content.active {
+            display: block;
+        }
+
+        /* Form elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--accent-blue);
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="url"],
+        .form-group input[type="password"],
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            background: var(--panel-input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            text-transform: uppercase;
+            transition: all 0.3s;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+        }
+
+        .btn-success {
+            background: var(--accent-green);
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        /* Video player */
+        .video-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .video-panel h2 {
+            color: var(--accent-green);
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #videoPlayer {
+            width: 100%;
+            height: auto;
+            display: none;
+        }
+
+        .video-placeholder {
+            color: #666;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+
+        .video-placeholder i {
+            font-size: 4rem;
+            display: block;
+            margin-bottom: 20px;
+        }
+
+        /* Status indicator */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-top: 15px;
+        }
+
+        .status-indicator.offline {
+            background: rgba(220, 53, 69, 0.2);
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+
+        .status-indicator.connected {
+            background: rgba(40, 167, 69, 0.2);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+
+        .status-indicator .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.offline .status-dot {
+            background: var(--accent-red);
+        }
+
+        .status-indicator.connected .status-dot {
+            background: var(--accent-green);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Stream info */
+        .stream-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .info-card {
+            background: var(--panel-input-bg);
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .info-card label {
+            display: block;
+            color: #888;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .info-card .value {
+            color: var(--text-main);
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        /* Active streams list */
+        .streams-list {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+        }
+
+        .streams-list h2 {
+            color: var(--accent-green);
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+
+        .stream-item {
+            background: var(--panel-input-bg);
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .stream-item-info {
+            flex-grow: 1;
+        }
+
+        .stream-item-info h3 {
+            color: var(--accent-blue);
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+
+        .stream-item-info p {
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .stream-item-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: var(--panel-input-bg);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .icon-btn:hover {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #fff;
+        }
+
+        .icon-btn.active {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            color: #fff;
+        }
+
+        .no-streams {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .no-streams i {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 15px;
+        }
+
+        /* Helper text */
+        .helper-text {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--panel-bg);
+            border: 2px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 15px 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+            min-width: 300px;
+        }
+
+        .toast.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.success {
+            border-color: var(--accent-green);
+        }
+
+        .toast.error {
+            border-color: var(--accent-red);
+        }
+    </style>
+</head>
+<body>
+    <!-- Global Navigation -->
+    <div id="global-nav-placeholder"></div>
+
+    <div class="stream-container">
+        <h1><i class="fas fa-video"></i> Video Stream</h1>
+
+        <!-- Source Selection Panel -->
+        <div class="source-panel">
+            <h2><i class="fas fa-broadcast-tower"></i> Videoquelle auswählen</h2>
+            
+            <div class="source-tabs">
+                <div class="source-tab active" data-source="url">
+                    <i class="fas fa-link"></i> URL Stream
+                </div>
+                <div class="source-tab" data-source="camera">
+                    <i class="fas fa-camera"></i> Device Camera
+                </div>
+                <div class="source-tab" data-source="ssh">
+                    <i class="fas fa-server"></i> SSH/Remote
+                </div>
+            </div>
+
+            <!-- URL Stream Source -->
+            <div class="source-content active" id="source-url">
+                <div class="form-group">
+                    <label><i class="fas fa-link"></i> Stream URL</label>
+                    <input type="url" id="urlInput" placeholder="https://example.com/stream.m3u8">
+                    <p class="helper-text">Unterstützte Formate: HLS (.m3u8), HTTP/HTTPS streams</p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="connectUrlStream()">
+                        <i class="fas fa-play"></i> Stream starten
+                    </button>
+                </div>
+            </div>
+
+            <!-- Device Camera Source -->
+            <div class="source-content" id="source-camera">
+                <div class="form-group">
+                    <label><i class="fas fa-camera"></i> Select Camera</label>
+                    <select id="cameraSelect">
+                        <option value="">Loading camera...</option>
+                    </select>
+                    <p class="helper-text">Select your device's camera for local streaming</p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="connectCamera()">
+                        <i class="fas fa-video"></i> Activate Camera
+                    </button>
+                    <button class="btn btn-danger" onclick="stopCamera()">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- SSH/Remote Source -->
+            <div class="source-content" id="source-ssh">
+                <div class="form-group">
+                    <label><i class="fas fa-server"></i> SSH Server</label>
+                    <input type="text" id="sshHost" placeholder="192.168.1.100">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-network-wired"></i> Port</label>
+                    <input type="text" id="sshPort" placeholder="22" value="22">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> Username</label>
+                    <input type="text" id="sshUser" placeholder="username">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-key"></i> Passwort</label>
+                    <input type="password" id="sshPassword" placeholder="password">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-video"></i> Remote Stream Path</label>
+                    <input type="text" id="sshStreamPath" placeholder="/dev/video0 oder Stream-URL">
+                    <p class="helper-text">Hinweis: SSH-Funktion erfordert Backend-Integration (in Entwicklung)</p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="connectSSHStream()">
+                        <i class="fas fa-plug"></i> Verbinden
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Player Panel -->
+        <div class="video-panel">
+            <h2><i class="fas fa-desktop"></i> Live Vorschau</h2>
+            
+            <div class="video-wrapper" id="videoWrapper">
+                <video id="videoPlayer" controls muted playsinline></video>
+                <div class="video-placeholder" id="videoPlaceholder">
+                    <i class="fas fa-video-slash"></i>
+                    <div>Keine aktive Verbindung</div>
+                    <small>Wählen Sie eine Videoquelle aus, um zu starten</small>
+                </div>
+            </div>
+
+            <div class="status-indicator offline" id="streamStatus">
+                <span class="status-dot"></span>
+                <span>Offline</span>
+            </div>
+
+            <div class="stream-info">
+                <div class="info-card">
+                    <label>Quelle</label>
+                    <div class="value" id="infoSource">-</div>
+                </div>
+                <div class="info-card">
+                    <label>Status</label>
+                    <div class="value" id="infoStatus">Not connected</div>
+                </div>
+                <div class="info-card">
+                    <label>Qualität</label>
+                    <div class="value" id="infoQuality">-</div>
+                </div>
+                <div class="info-card">
+                    <label>Verbindungszeit</label>
+                    <div class="value" id="infoUptime">-</div>
+                </div>
+            </div>
+
+            <div class="btn-group" style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="shareToAdminMap()" id="shareToAdminMapBtn" disabled>
+                    <i class="fas fa-map-marked-alt"></i> An Admin Map senden
+                </button>
+                <button class="btn btn-danger" onclick="stopStream()">
+                    <i class="fas fa-stop-circle"></i> Stream beenden
+                </button>
+            </div>
+        </div>
+
+        <!-- Active Streams List -->
+        <div class="streams-list">
+            <h2><i class="fas fa-list"></i> Active Streams</h2>
+            <div id="streamsListContainer">
+                <div class="no-streams">
+                    <i class="fas fa-inbox"></i>
+                    <div>Keine aktiven Streams</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast">
+        <div id="toastMessage"></div>
+    </div>
+
+    <script src="load-global-nav.js"></script>
+    <script>
+        // Global state
+        let currentStream = null;
+        let activeStreams = [];
+        let mediaStream = null;
+        let uptimeInterval = null;
+        let streamStartTime = null;
+        let ws = null;
+        let frameCapture = null;
+        let isSharing = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're on a secure context
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                showToast('⚠️ Warnung: Kamera-Zugriff erfordert HTTPS. Verwenden Sie https:// oder localhost', 'error');
+            }
+            
+            initializeCameras();
+            setupSourceTabs();
+            loadActiveStreams();
+            connectWebSocket();
+        });
+
+        // Setup source tabs
+        function setupSourceTabs() {
+            const tabs = document.querySelectorAll('.source-tab');
+            const contents = document.querySelectorAll('.source-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const source = tab.getAttribute('data-source');
+                    
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    // Update active content
+                    contents.forEach(c => c.classList.remove('active'));
+                    document.getElementById(`source-${source}`).classList.add('active');
+                });
+            });
+        }
+
+        // Initialize cameras
+        async function initializeCameras() {
+            try {
+                // Check if we're in a secure context (HTTPS, localhost, or 127.0.0.1)
+                const isSecureContext = window.isSecureContext || 
+                                        window.location.protocol === 'https:' || 
+                                        window.location.hostname === 'localhost' ||
+                                        window.location.hostname === '127.0.0.1';
+                
+                // Check if mediaDevices API is available
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    const select = document.getElementById('cameraSelect');
+                    if (!isSecureContext) {
+                        select.innerHTML = '<option value="">Camera requires HTTPS (secure connection)</option>';
+                        showToast('Camera access requires HTTPS or localhost. Please use a secure connection.', 'error');
+                    } else {
+                        select.innerHTML = '<option value="">Camera API not available in this browser</option>';
+                        showToast('Camera API not available in this browser', 'error');
+                    }
+                    return;
+                }
+
+                // First, request permission to access camera to get device labels
+                // Without this, enumerateDevices may return devices without labels
+                let permissionGranted = false;
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    // Stop the stream immediately, we just needed it for permissions
+                    stream.getTracks().forEach(track => track.stop());
+                    permissionGranted = true;
+                } catch (permError) {
+                    console.warn('Camera permission not granted yet:', permError);
+                    // Check if it's a permission denial or no camera available
+                    if (permError.name === 'NotAllowedError') {
+                        showToast('Camera permission denied. Please allow access.', 'error');
+                    } else if (permError.name === 'NotFoundError') {
+                        showToast('No camera found', 'error');
+                    }
+                    // Continue anyway, we'll list cameras without labels
+                }
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                const select = document.getElementById('cameraSelect');
+                select.innerHTML = '';
+
+                if (videoDevices.length === 0) {
+                    // Provide clearer message based on permission status
+                    const message = permissionGranted 
+                        ? 'No camera found' 
+                        : 'No camera found - permission required';
+                    select.innerHTML = `<option value="">${message}</option>`;
+                    return;
+                }
+
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Kamera ${index + 1}`;
+                    select.appendChild(option);
+                });
+                
+                console.log(`${videoDevices.length} camera(s) found`);
+            } catch (error) {
+                console.error('Error enumerating devices:', error);
+                const select = document.getElementById('cameraSelect');
+                select.innerHTML = '<option value="">Error loading cameras</option>';
+                showToast('Error loading cameras: ' + error.message, 'error');
+            }
+        }
+
+        // Connect URL stream
+        function connectUrlStream() {
+            const url = document.getElementById('urlInput').value.trim();
+            
+            if (!url) {
+                showToast('Please enter a stream URL', 'error');
+                return;
+            }
+            
+            // Check for mixed content issues (HTTPS page loading HTTP stream)
+            if (window.location.protocol === 'https:' && url.startsWith('http:')) {
+                showToast('Warning: Loading HTTP stream on HTTPS page may fail due to mixed content policy. Use HTTPS streams when possible.', 'warning');
+            }
+
+            const video = document.getElementById('videoPlayer');
+            
+            // Clean up any existing event listeners by cloning the video element
+            const newVideo = video.cloneNode(true);
+            video.parentNode.replaceChild(newVideo, video);
+            
+            // Get reference to the new video element
+            const videoElement = document.getElementById('videoPlayer');
+            
+            // Set up one-time event listeners (using {once: true} auto-removes after firing)
+            videoElement.addEventListener('loadeddata', () => {
+                // Enable share button and save stream regardless of autoplay success
+                document.getElementById('shareToAdminMapBtn').disabled = false;
+                saveActiveStream('url', url);
+                
+                // Explicitly play the video after data is loaded
+                videoElement.play().then(() => {
+                    showToast('Stream connected successfully!', 'success');
+                }).catch(error => {
+                    console.error('Autoplay error:', error);
+                    showToast('Stream loaded, but autoplay blocked. Please click Play.', 'warning');
+                });
+            }, { once: true });
+            
+            videoElement.addEventListener('error', (e) => {
+                console.error('Stream error:', e, videoElement.error);
+                let errorMessage = 'Error loading stream';
+                
+                if (videoElement.error) {
+                    switch (videoElement.error.code) {
+                        case MediaError.MEDIA_ERR_ABORTED:
+                            errorMessage = 'Stream was aborted. Please try again.';
+                            break;
+                        case MediaError.MEDIA_ERR_NETWORK:
+                            errorMessage = 'Network error loading stream. Check URL and internet connection. Note: CORS policy may block cross-origin streams.';
+                            break;
+                        case MediaError.MEDIA_ERR_DECODE:
+                            errorMessage = 'Stream format not supported. Use a compatible format (e.g., MP4, WebM).';
+                            break;
+                        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                            errorMessage = 'Stream source not supported. Check URL and format. For HLS (.m3u8), you may need HLS.js library.';
+                            break;
+                    }
+                }
+                
+                showToast(errorMessage, 'error');
+                stopStream();
+            }, { once: true });
+            
+            videoElement.src = url;
+            videoElement.style.display = 'block';
+            document.getElementById('videoPlaceholder').style.display = 'none';
+
+            updateStreamStatus(true, 'URL Stream', url);
+            showToast('Loading stream...', 'success');
+        }
+
+        // Connect to device camera
+        async function connectCamera() {
+            const select = document.getElementById('cameraSelect');
+            const deviceId = select.value;
+
+            if (!deviceId) {
+                showToast('Please select a camera', 'error');
+                return;
+            }
+
+            try {
+                // Stop any existing media stream first
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+
+                const constraints = {
+                    video: {
+                        deviceId: deviceId ? { exact: deviceId } : undefined,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false  // Changed to false to avoid audio permission issues
+                };
+
+                showToast('Activating camera...', 'success');
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const video = document.getElementById('videoPlayer');
+                video.srcObject = mediaStream;
+                video.style.display = 'block';
+                document.getElementById('videoPlaceholder').style.display = 'none';
+
+                // Wait for video to actually load with proper cleanup
+                await new Promise((resolve, reject) => {
+                    const onLoadedMetadata = () => {
+                        video.play().then(resolve).catch(reject);
+                    };
+                    const onError = reject;
+                    
+                    video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+                    video.addEventListener('error', onError, { once: true });
+                });
+
+                updateStreamStatus(true, 'Device Camera', select.options[select.selectedIndex].text);
+                showToast('Camera successfully activated!', 'success');
+                document.getElementById('shareToAdminMapBtn').disabled = false;
+                
+                saveActiveStream('camera', select.options[select.selectedIndex].text);
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                let errorMessage = 'Error accessing camera';
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = 'Camera permission denied. Please allow access in your browser settings.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = 'Camera not found or already in use.';
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = 'Camera is already in use by another application.';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMessage = 'Camera does not support the requested settings.';
+                } else if (error.name === 'SecurityError') {
+                    errorMessage = 'Security error: HTTPS connection required (except localhost).';
+                }
+                
+                showToast(errorMessage, 'error');
+                
+                // Clean up on error
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+                stopStream();
+            }
+        }
+
+        // Stop camera
+        function stopCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            stopStream();
+        }
+
+        // Connect SSH stream
+        function connectSSHStream() {
+            const host = document.getElementById('sshHost').value.trim();
+            const port = document.getElementById('sshPort').value.trim();
+            const user = document.getElementById('sshUser').value.trim();
+            const password = document.getElementById('sshPassword').value.trim();
+            const streamPath = document.getElementById('sshStreamPath').value.trim();
+
+            if (!host || !user || !password || !streamPath) {
+                showToast('Bitte füllen Sie alle Felder aus', 'error');
+                return;
+            }
+
+            // In a real implementation, this would connect to a backend API
+            // that handles SSH connection and stream forwarding
+            showToast('SSH-Verbindung wird hergestellt...', 'success');
+
+            // Simulate connection (in production, call backend API)
+            setTimeout(() => {
+                const streamUrl = `rtsp://${host}:${port}${streamPath}`;
+                document.getElementById('urlInput').value = streamUrl;
+                connectUrlStream();
+                
+                updateStreamStatus(true, 'SSH Stream', `${user}@${host}`);
+                saveActiveStream('ssh', `${user}@${host}:${streamPath}`);
+            }, 1500);
+        }
+
+        // Update stream status
+        function updateStreamStatus(connected, source, details) {
+            const statusEl = document.getElementById('streamStatus');
+            const infoSource = document.getElementById('infoSource');
+            const infoStatus = document.getElementById('infoStatus');
+            const infoQuality = document.getElementById('infoQuality');
+
+            if (connected) {
+                statusEl.classList.remove('offline');
+                statusEl.classList.add('connected');
+                statusEl.innerHTML = '<span class="status-dot"></span><span>Verbunden</span>';
+                
+                infoSource.textContent = source;
+                infoStatus.textContent = 'Active';
+                infoQuality.textContent = 'HD (1080p)';
+
+                streamStartTime = Date.now();
+                startUptimeCounter();
+            } else {
+                statusEl.classList.remove('connected');
+                statusEl.classList.add('offline');
+                statusEl.innerHTML = '<span class="status-dot"></span><span>Offline</span>';
+                
+                infoSource.textContent = '-';
+                infoStatus.textContent = 'Not connected';
+                infoQuality.textContent = '-';
+                document.getElementById('infoUptime').textContent = '-';
+                
+                stopUptimeCounter();
+            }
+
+            currentStream = connected ? { source, details } : null;
+        }
+
+        // Start uptime counter
+        function startUptimeCounter() {
+            stopUptimeCounter();
+            uptimeInterval = setInterval(() => {
+                if (streamStartTime) {
+                    const elapsed = Date.now() - streamStartTime;
+                    const seconds = Math.floor(elapsed / 1000);
+                    const minutes = Math.floor(seconds / 60);
+                    const hours = Math.floor(minutes / 60);
+
+                    const display = `${hours.toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+                    document.getElementById('infoUptime').textContent = display;
+                }
+            }, 1000);
+        }
+
+        // Stop uptime counter
+        function stopUptimeCounter() {
+            if (uptimeInterval) {
+                clearInterval(uptimeInterval);
+                uptimeInterval = null;
+            }
+        }
+
+        // Stop stream
+        function stopStream() {
+            const video = document.getElementById('videoPlayer');
+            
+            // Stop frame capture if sharing
+            stopFrameCapture();
+            
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+
+            video.pause();
+            video.src = '';
+            video.srcObject = null;
+            video.style.display = 'none';
+            document.getElementById('videoPlaceholder').style.display = 'flex';
+
+            updateStreamStatus(false);
+            document.getElementById('shareToAdminMapBtn').disabled = true;
+            showToast('Stream beendet', 'success');
+        }
+
+        // Share to admin map
+        function shareToAdminMap() {
+            if (!currentStream) {
+                showToast('Kein aktiver Stream zum Teilen', 'error');
+                return;
+            }
+
+            if (isSharing) {
+                stopFrameCapture();
+                // Clear shared stream reference
+                window.sharedStream = null;
+                showToast('Streaming beendet', 'success');
+                return;
+            }
+
+            // Store stream reference globally for same-origin access
+            if (mediaStream) {
+                window.sharedStream = mediaStream;
+            }
+
+            // Store stream data in localStorage for admin_map to access (fallback)
+            const streamData = {
+                source: currentStream.source,
+                details: currentStream.details,
+                timestamp: Date.now(),
+                videoSrc: document.getElementById('videoPlayer').src || null,
+                isCamera: mediaStream !== null,
+                active: true
+            };
+
+            localStorage.setItem('lpu5_shared_stream', JSON.stringify(streamData));
+            
+            // Send WebSocket notification
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Sending stream_share message via WebSocket:', {
+                    streamId: 'camera_main',
+                    active: true,
+                    isCamera: mediaStream !== null
+                });
+                
+                ws.send(JSON.stringify({
+                    type: 'stream_share',
+                    streamId: 'camera_main',
+                    active: true,
+                    isCamera: mediaStream !== null,
+                    source: currentStream.source,
+                    details: currentStream.details,
+                    timestamp: Date.now()
+                }));
+                
+                // Start frame capture for cameras (fallback for devices that don't support shared streams)
+                if (mediaStream) {
+                    console.log('Starting frame capture for camera stream');
+                    startFrameCapture();
+                }
+                
+                showToast('Stream wird an alle Clients gesendet!', 'success');
+            } else {
+                console.warn('WebSocket not connected, stream sharing may not work globally');
+                showToast('⚠️ WebSocket nicht verbunden - Stream nur lokal verfügbar', 'error');
+            }
+        }
+
+        // Save active stream
+        function saveActiveStream(type, details) {
+            const stream = {
+                id: Date.now(),
+                type: type,
+                details: details,
+                timestamp: new Date().toISOString()
+            };
+
+            activeStreams.push(stream);
+            updateStreamsList();
+        }
+
+        // Load active streams
+        function loadActiveStreams() {
+            // In production, this would load from server/localStorage
+            updateStreamsList();
+        }
+
+        // Update streams list
+        function updateStreamsList() {
+            const container = document.getElementById('streamsListContainer');
+            
+            if (activeStreams.length === 0) {
+                container.innerHTML = `
+                    <div class="no-streams">
+                        <i class="fas fa-inbox"></i>
+                        <div>Keine aktiven Streams</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = activeStreams.map(stream => `
+                <div class="stream-item">
+                    <div class="stream-item-info">
+                        <h3><i class="fas fa-${getStreamIcon(stream.type)}"></i> ${stream.details}</h3>
+                        <p>${new Date(stream.timestamp).toLocaleString('de-DE')}</p>
+                    </div>
+                    <div class="stream-item-actions">
+                        <button class="icon-btn" onclick="viewStream(${stream.id})" title="Anzeigen">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="icon-btn" onclick="removeStream(${stream.id})" title="Entfernen">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Get stream icon
+        function getStreamIcon(type) {
+            switch(type) {
+                case 'url': return 'link';
+                case 'camera': return 'camera';
+                case 'ssh': return 'server';
+                default: return 'video';
+            }
+        }
+
+        // View stream
+        function viewStream(id) {
+            showToast('Stream wird geladen...', 'success');
+        }
+
+        // Remove stream
+        function removeStream(id) {
+            activeStreams = activeStreams.filter(s => s.id !== id);
+            updateStreamsList();
+            showToast('Stream entfernt', 'success');
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toast.className = `toast ${type}`;
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    ws = null;
+                    setTimeout(connectWebSocket, 3000);
+                };
+            } catch (e) {
+                console.error('WebSocket connection failed:', e);
+            }
+        }
+
+        // Start frame capture
+        function startFrameCapture() {
+            const video = document.getElementById('videoPlayer');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            isSharing = true;
+            document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-stop"></i> Streaming beenden';
+            
+            console.log('Frame capture started - broadcasting at 10fps');
+            
+            frameCapture = setInterval(() => {
+                if (!mediaStream) {
+                    stopFrameCapture();
+                    return;
+                }
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                
+                const frame = canvas.toDataURL('image/jpeg', 0.7);
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'camera_frame',
+                        frame: frame
+                    }));
+                } else {
+                    console.warn('WebSocket disconnected during frame capture');
+                    stopFrameCapture();
+                }
+            }, 100);
+        }
+
+        // Stop frame capture
+        function stopFrameCapture() {
+            if (frameCapture) {
+                clearInterval(frameCapture);
+                frameCapture = null;
+                isSharing = false;
+                document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-map-marked-alt"></i> An Admin Map senden';
+                
+                // Clear shared stream reference
+                window.sharedStream = null;
+                
+                // Clear localStorage
+                localStorage.removeItem('lpu5_shared_stream');
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'stream_share',
+                        streamId: 'camera_main',
+                        active: false,
+                        timestamp: Date.now()
+                    }));
+                }
+            }
+        }
+    </script>
+</body>
+</html>

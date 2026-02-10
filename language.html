@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Selection - LPU5 Tactical</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --sb-collapsed: 70px;
+            --sb-expanded: 280px;
+            --bg-dark: #121212;
+            --bg-card: #1e1e1e;
+            --border: #282828;
+            --accent: #2ecc71;
+            --text-dim: #888;
+            --text-primary: #fff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            padding-left: calc(var(--sb-collapsed) + 20px);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: padding-left 0.3s ease;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            color: var(--accent);
+            margin-left: 15px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .intro-text {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .intro-text p {
+            line-height: 1.6;
+            color: var(--text-dim);
+        }
+
+        .current-language {
+            background: var(--bg-card);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .current-language-flag {
+            font-size: 2rem;
+        }
+
+        .current-language-info h3 {
+            color: var(--accent);
+            margin-bottom: 5px;
+        }
+
+        .current-language-info p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .language-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .language-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .language-card:hover {
+            background: #252525;
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .language-card.active {
+            background: #1a2a1a;
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(46, 204, 113, 0.2);
+        }
+
+        .language-card.active .language-name {
+            color: var(--accent);
+        }
+
+        .language-flag {
+            font-size: 1.5rem;
+            min-width: 30px;
+        }
+
+        .language-info {
+            flex: 1;
+        }
+
+        .language-name {
+            font-weight: bold;
+            margin-bottom: 3px;
+            color: var(--text-primary);
+        }
+
+        .language-code {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .check-icon {
+            color: var(--accent);
+            font-size: 1.2rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .language-card.active .check-icon {
+            opacity: 1;
+        }
+
+        .search-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-box i {
+            color: var(--text-dim);
+        }
+
+        .search-box input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .status-message {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent);
+            color: var(--bg-dark);
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .status-message.show {
+            display: flex;
+        }
+
+        .status-message.error {
+            background: #e74c3c;
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .section-title {
+            color: var(--text-dim);
+            margin-bottom: 15px;
+            padding-left: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+        }
+
+        .save-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--accent);
+            color: var(--bg-dark);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(46, 204, 113, 0.4);
+            transition: all 0.2s;
+            z-index: 1001;
+        }
+
+        .save-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(46, 204, 113, 0.6);
+        }
+
+        .save-button:active {
+            transform: translateY(0);
+        }
+
+        .save-button.saved {
+            background: #27ae60;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <i class="fas fa-language" style="font-size: 2rem; color: var(--accent);"></i>
+        <h1>Language Selection</h1>
+    </div>
+
+    <div class="container">
+        <div class="intro-text">
+            <p><strong>Choose your preferred language</strong></p>
+            <p>The selected language will be saved for your user account and automatically applied on every login.</p>
+        </div>
+
+        <div class="current-language" id="currentLanguageDisplay">
+            <span class="current-language-flag" id="currentFlag">🇬🇧</span>
+            <div class="current-language-info">
+                <h3 id="currentLangName">English</h3>
+                <p>Current Language</p>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="languageSearch" placeholder="Search language...">
+        </div>
+
+        <div class="section-title">Available Languages</div>
+
+        <div class="language-grid" id="languageGrid">
+            <!-- Languages will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <div class="status-message" id="statusMessage">
+        <i class="fas fa-check-circle"></i>
+        <span id="statusText">Language saved</span>
+    </div>
+
+    <button class="save-button" id="saveButton" onclick="saveLanguage()">
+        <i class="fas fa-save"></i> Save Language
+    </button>
+
+    <script>
+        // Language configuration
+        const languages = [
+            { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+            { code: 'en', name: 'English', flag: '🇬🇧' },
+            { code: 'fr', name: 'Français', flag: '🇫🇷' },
+            { code: 'es', name: 'Español', flag: '🇪🇸' },
+            { code: 'cs', name: 'Čeština', flag: '🇨🇿' },
+            { code: 'sk', name: 'Slovenčina', flag: '🇸🇰' },
+            { code: 'pl', name: 'Polski', flag: '🇵🇱' },
+            { code: 'hu', name: 'Magyar', flag: '🇭🇺' },
+            { code: 'nl', name: 'Nederlands', flag: '🇳🇱' },
+            { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+            { code: 'uk', name: 'Українська', flag: '🇺🇦' },
+            { code: 'ru', name: 'Русский', flag: '🇷🇺' },
+            { code: 'zh', name: '中文', flag: '🇨🇳' },
+            { code: 'ja', name: '日本語', flag: '🇯🇵' },
+            { code: 'ko', name: '한국어', flag: '🇰🇷' },
+            { code: 'pt', name: 'Português', flag: '🇵🇹' },
+            { code: 'ro', name: 'Română', flag: '🇷🇴' },
+            { code: 'bg', name: 'Български', flag: '🇧🇬' },
+            { code: 'hr', name: 'Hrvatski', flag: '🇭🇷' },
+            { code: 'sr', name: 'Српски', flag: '🇷🇸' },
+            { code: 'sl', name: 'Slovenščina', flag: '🇸🇮' },
+            { code: 'el', name: 'Ελληνικά', flag: '🇬🇷' },
+            { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
+            { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+            { code: 'he', name: 'עברית', flag: '🇮🇱' },
+            { code: 'sv', name: 'Svenska', flag: '🇸🇪' },
+            { code: 'da', name: 'Dansk', flag: '🇩🇰' },
+            { code: 'no', name: 'Norsk', flag: '🇳🇴' },
+            { code: 'fi', name: 'Suomi', flag: '🇫🇮' },
+            { code: 'et', name: 'Eesti', flag: '🇪🇪' },
+            { code: 'lv', name: 'Latviešu', flag: '🇱🇻' },
+            { code: 'lt', name: 'Lietuvių', flag: '🇱🇹' },
+            { code: 'hi', name: 'हिन्दी', flag: '🇮🇳' },
+            { code: 'vi', name: 'Tiếng Việt', flag: '🇻🇳' }
+        ];
+
+        let currentLanguage = 'en';
+        let currentUserId = null;
+
+        // Get current language from sessionStorage
+        function getCurrentLanguage() {
+            return sessionStorage.getItem('lpu5_session_language') || 'en';
+        }
+
+        // Set current language
+        async function setCurrentLanguage(langCode) {
+            currentLanguage = langCode;
+            sessionStorage.setItem('lpu5_session_language', langCode);
+            
+            // Update display
+            updateCurrentLanguageDisplay();
+            updateActiveLanguage();
+
+            // Save to database if user is logged in
+            if (currentUserId) {
+                try {
+                    const token = localStorage.getItem('lpu5_token');
+                    if (token) {
+                        const response = await fetch(`/api/users/${currentUserId}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ language: langCode })
+                        });
+                        
+                        if (response.ok) {
+                            showStatus('Language saved', 'success');
+                            console.log('Language preference saved:', langCode);
+                        } else {
+                            showStatus('Error saving', 'error');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error saving language preference:', error);
+                    showStatus('Error saving', 'error');
+                }
+            }
+
+            // Trigger language change event
+            window.dispatchEvent(new CustomEvent('languageChanged', { 
+                detail: { language: langCode } 
+            }));
+        }
+
+        // Update current language display
+        function updateCurrentLanguageDisplay() {
+            const lang = languages.find(l => l.code === currentLanguage);
+            if (lang) {
+                document.getElementById('currentFlag').textContent = lang.flag;
+                document.getElementById('currentLangName').textContent = lang.name;
+            }
+        }
+
+        // Update active state in grid
+        function updateActiveLanguage() {
+            document.querySelectorAll('.language-card').forEach(card => {
+                if (card.dataset.langCode === currentLanguage) {
+                    card.classList.add('active');
+                } else {
+                    card.classList.remove('active');
+                }
+            });
+        }
+
+        // Show status message
+        function showStatus(message, type = 'success') {
+            const statusEl = document.getElementById('statusMessage');
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = message;
+            statusEl.className = 'status-message show ' + (type === 'error' ? 'error' : '');
+            
+            setTimeout(() => {
+                statusEl.classList.remove('show');
+            }, 3000);
+        }
+
+        // Save language button handler
+        async function saveLanguage() {
+            const saveBtn = document.getElementById('saveButton');
+            const token = localStorage.getItem('lpu5_token');
+            
+            if (!token) {
+                showStatus('Please login first', 'error');
+                return;
+            }
+
+            if (!currentUserId) {
+                showStatus('User not loaded', 'error');
+                return;
+            }
+
+            try {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                
+                const response = await fetch(`/api/users/${currentUserId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ language: currentLanguage })
+                });
+                
+                if (response.ok) {
+                    showStatus('Language saved successfully!', 'success');
+                    saveBtn.classList.add('saved');
+                    saveBtn.innerHTML = '<i class="fas fa-check"></i> Saved!';
+                    
+                    setTimeout(() => {
+                        saveBtn.classList.remove('saved');
+                        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Language';
+                        saveBtn.disabled = false;
+                    }, 2000);
+                } else {
+                    throw new Error('Save failed');
+                }
+            } catch (error) {
+                console.error('Error saving language:', error);
+                showStatus('Error saving language', 'error');
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Language';
+                saveBtn.disabled = false;
+            }
+        }
+
+        // Render language grid
+        function renderLanguages(filterText = '') {
+            const grid = document.getElementById('languageGrid');
+            grid.innerHTML = '';
+
+            const filtered = languages.filter(lang => 
+                lang.name.toLowerCase().includes(filterText.toLowerCase()) ||
+                lang.code.toLowerCase().includes(filterText.toLowerCase())
+            );
+
+            filtered.forEach(lang => {
+                const card = document.createElement('div');
+                card.className = 'language-card';
+                card.dataset.langCode = lang.code;
+                
+                card.innerHTML = `
+                    <span class="language-flag">${lang.flag}</span>
+                    <div class="language-info">
+                        <div class="language-name">${lang.name}</div>
+                        <div class="language-code">${lang.code.toUpperCase()}</div>
+                    </div>
+                    <i class="fas fa-check-circle check-icon"></i>
+                `;
+
+                card.addEventListener('click', () => {
+                    setCurrentLanguage(lang.code);
+                });
+
+                grid.appendChild(card);
+            });
+
+            updateActiveLanguage();
+        }
+
+        // Load user language preference
+        async function loadUserLanguagePreference() {
+            try {
+                const token = localStorage.getItem('lpu5_token');
+                if (token) {
+                    const response = await fetch('/api/me', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        currentUserId = data.id || data.user_id;
+                        
+                        // If user has a saved language preference, use it
+                        if (data.language) {
+                            currentLanguage = data.language;
+                            sessionStorage.setItem('lpu5_session_language', data.language);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading user language preference:', error);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Load user preference
+            await loadUserLanguagePreference();
+            
+            // Set current language from session or user preference
+            currentLanguage = getCurrentLanguage();
+            updateCurrentLanguageDisplay();
+            
+            // Render languages
+            renderLanguages();
+
+            // Search functionality
+            document.getElementById('languageSearch').addEventListener('input', (e) => {
+                renderLanguages(e.target.value);
+            });
+        });
+    </script>
+
+    <!-- Load global navigation -->
+    <script src="load-global-nav.js"></script>
+
+</body>
+</html>

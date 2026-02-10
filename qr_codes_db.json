@@ -1,0 +1,108 @@
+[
+  {
+    "id": "df62ab59-fcc3-4467-a46f-db1013dff2a7",
+    "token": "b6879796-2b85-41ae-ab62-0aaf674b7345",
+    "label": "test_registration",
+    "redirect_url": "http://10.1.0.150:8000/register.html",
+    "max_uses": 1,
+    "uses": 0,
+    "allowed_ips": [],
+    "created_at": "2026-02-07T08:45:08.508246",
+    "expires_at": "2027-02-07T08:45:08.508268",
+    "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAZoAAAGaAQAAAAAefbjOAAAC6UlEQVR4nO2cTY6jMBCFX42RsjTSHCBHgRvMkXKmuQE+Sg4QCZaRjN4sXDame9WT7vy5WCBB+IQtSvXzXI4QXz7Cr68zgEEGGWSQQQYZ9J6Q6NGlmzIuHQCsAmAVGZf8wPiQ4Rl0f2ggSc4AQr8KJ6wCLAciyIEAHEmSe+h+wzPo/tCiDkBO5wNl9BGAj9WDmwd5mTkZ9C1Q6FdB6B1FegDD/GNvMug1oGF2xHDuQJ5FZPRX+aE3GfSUUI4EngAWAOEYwdBDMPx1UbD8JrAAtZL15HMy6BugICIaJs4d5DS7ygJkxJpKjUcNz6B7+4jq84fjVZicwgIwHCO49xBPPyeDboGQqkpNIF0qQTmlMsOxKktLCcrpyedk0C0Q9CvPQCo3hxkpvVTbKM9NgOoWZhHvDGWLYEzffDMQTp7k5EnAk2olZhHNQI7JR4R+FQCOcjp3ABaR5B70hwcNz6B7QTmPoAYMcnZ6WdIKDCyOwnzEu0MaJrbgUH34LGVXGYVZxNtD6iPKGka9oJXziJRl6Mksog0oadckU7qQLmcAWDqI9ICMy8HWPhuASnGhImXWHoAtfmiWQcsjWoCKQlXnk1A1Kpoe0R5U1xqAo5qAj8gpBMkJzvSIVqBSa0TVrksJmk5VEQKYj2gAyhax3fCby0CVPWgdahbx7tAuaviIXYTIynY6mULVBLTXLHPBMSGrlyXH3B42i2gDcgSqDjpXqVYyQg1ExkcNz6B7QVV/xNYGkWuNrEKkI1+aj3hrqKyG6/FBl9pUCG2cMItoA9r2dHEq27lCX0vZqNSKl5iTQbetayQpG5DRXyUXHKsgHLd1MOuPaAGq+yyHXFxocMCnpVCLGg1CZROXnBiBIF1aCMdwtu78FqDu0x0fwdBfOgZxBPxFiKXfteg/+ZwMugX6uKeLob90aRvPMPeSjCD8iZ0ALkvbTz4ng26BdpkCXKU9aHpZ9UfYukYLkNg/kxlkkEEGGWSQQf8J/QO5hYz5hqfiwQAAAABJRU5ErkJggg==",
+    "qr_url": "http://10.1.0.150:8000/qr/b6879796-2b85-41ae-ab62-0aaf674b7345",
+    "type": "redirect"
+  },
+  {
+    "id": "94d86d6a-55c2-44e1-80fc-d4a9521b24c8",
+    "token": "3699c771-bda0-4b3f-aeba-4d5029f8929f",
+    "label": "registration",
+    "redirect_url": "http://10.1.0.150:8000/register.html",
+    "max_uses": 1,
+    "uses": 0,
+    "allowed_ips": [],
+    "created_at": "2026-02-07T08:47:03.720947",
+    "expires_at": "2027-02-07T08:47:03.720958",
+    "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAZoAAAGaAQAAAAAefbjOAAAC+0lEQVR4nO2cTY6jMBCFX42RsgRpDpCjmBvMkUZzM3yUvoG9jIT1ZuGycbpn05MWSUOxiCD4E7ZSqp/nIkJ8+gg/Ps8ABhlkkEEGGWTQMSHRYwCQBugZsgDIInOqA+anTM+g/SFPkowAwpSF5E1khiOCXAjAkSR5D+03PYP2h5I6APkdAZnTAC53A6vfeM70DNoNGv75bZjcKoBbxcefX/Qkg74H9MEiwpUQjBEEshC4ydc8yaDvBY1kCRM+AvAxC5Au1A8AJNfnTc+gvaEgIiITAKQBQLpQZgAyl/u5lBrPmp5Be0eNTsoOVw0TRNJL3g3YdXoG7Q6hVJU+AnhfZMKxK0vbXS4vviaDHoHUIjCyHhGdPLGVoJplmEUcHUK1A1cdxciaSkZHLiOLo4CP5iPOA8kMQAuONBQr0e+SSHEPYcqmYp8AQh8roiOXki6sQEkcIkqsAMYV5iOOD9U8Ao5cym++gsvIcql2EIEuwTCLODLUZZbw0akrUGNgySPUM9TBZhGHhrqoUeyglBlcm/MAqqOwzPIMUK9HFB+BdraVGVRTsahxfKhFjZo9lDq0OYqljVsAyyNOAKmKHX45AmlYBeNNGIqQ7QjArQhz2RevW10vviaDHoFa1HCtvqxJJWsxuqlW5iOOD3VRo+YRjl37lCqVrQ41izg61OsRbAlku9Q6FL2ebRZxBshHQLtskwhZO2ZkThfC8yadnv1N1mTQA5klgCzwBBCu66CdMcU9ZEHLMcUv+07PoN2hmlmy3/FEMYFxCyLAJkpY1DgBtEnUIlOWrTWCf0REzSJZd/4ZoDuxupUZxR+0MsOX7glTsU8E+bq5Ib+LUukIjDdBmGr8KO/7PWd6Bj1xX2Pb0mj7Wzpy2wV98TUZ9KVQmLLAvw0g3wYgXKuO6d/sTeAzQB/e6fJLHgBkYZjdKhjzQKQJfYv+i6/JoEegrvrUDohYS1BfO2874dKixuGh97VG7Zyq6aWqEPphFnF8SOyfyQwyyCCDDDLIoP+E/gLuiLJVG3QTjAAAAABJRU5ErkJggg==",
+    "qr_url": "http://10.1.0.150:8000/qr/3699c771-bda0-4b3f-aeba-4d5029f8929f",
+    "type": "redirect"
+  },
+  {
+    "id": "cbf7b84e-dcb1-46b2-898f-3374119b632b",
+    "token": "3a1f8dc5-8e79-40f1-9e47-b61c537d9058",
+    "label": "registration",
+    "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAXIAAAFyAQAAAADAX2ykAAACbElEQVR4nO2bQWrkMBBFf40MXsqQA+Qo8s3C3Mw+St9AWgZk/iyq5HYyhEzAcVpDaWEQ/RYFRUm/fqmF+Mpaf30JB5x33nnnnXfe+Y94sTUA67SJfoBNgNJ+my+Mx/mT+USSzABQRgJlANYpEEAgSfIt/93xOH8yX6xC7RMrkHLbigxXx+P8N/Epb4J0G3nM6g/G4/y5/PpMArGCCzbh8tPxOH8KH0nNZcomreSFpMwASNar43H+VH4VEZEJaPqqiSxgU/l8bTzOn8TrFXs0KWMFtDWKFUB8a2A+WvzOf7K0+UkZABD0kLYDOe49U2uSuDxa/M7/Ix+oWU2swCojyZuIzAgE4qv7G33yrX5ZwQWB6nQsgG0VyV6/nfKwvN1tqtj6I8tqbe6W57djPr6KzGUAlyJC3gaITJtqav52/dw7X0a9ZgEEyhyppculjJSXHLQTftz4nf9gtZO3HrYqshCbsE6s8PO5Y17mJq3MyygDyNsAbYJtknRdPM6fxTd/ozxVoDxVrnOoAAgBIFynTKBIs0AeLX7nP1n34a4d1DnscrrC/I3YRLSfz53xx/6XOexOFtpWf/X+qFP+KKgOjzjuBRvt4/XbJb/7z0FTa4ZGBjSrAGzr9dsjv/dHbP7V7mRZa8TjIe357Yw/6CtoajNsyAAASDkc1Zfnt09+v3r1aR3KaFVrN7G/3+iUP85/U9PPzc4Kbwrb6/d/4Ndn0ua/alJWcPH5b6/8309gy1Al5UmQlm0gykhBhPtXffJ7/3u3rmy0b8Kr3b9+PnfJv9fPNjXax0nLYdLv+e2PF/9/t/POO++8885fzv8BAwUdf69oxNwAAAAASUVORK5CYII=",
+    "created_at": "2026-02-07T20:16:14.738746",
+    "type": "redirect"
+  },
+  {
+    "id": "7ebfae9e-63a4-4cbe-a1d4-f97b07cf950e",
+    "token": "b89b8cea-7e9e-4c91-a3c9-8a7d7983a183",
+    "label": "test_registration",
+    "redirect_url": "http://10.1.0.174:8000/register.html",
+    "max_uses": 999,
+    "uses": 1,
+    "allowed_ips": [],
+    "created_at": "2026-02-08T02:29:45.364255",
+    "expires_at": "2027-02-08T02:29:45.364277",
+    "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAZoAAAGaAQAAAAAefbjOAAADFElEQVR4nO2bQW6kQAxFn6eQZglSDpCjFFebI80N4Cg5QCRq2VIhz8JVQDqTRZIZSMAsWk3DUxthfbtslyjvPsYf72fAIYcccsghhxw6JyTlaBDpAFIDYwfSpwbpU72hP8Q8h/aHoqqqTkB8Km4hPbPU24KqqupLaD/zHNofSosAMIsO7U2IE+ivx2y/ikhznHkO7QY1d+c6dgCpQcduemNp+sWfyaHPQPceIbQTRAVIAnH6V//k0PeAqke0CiRQUpPNLSBkGbvnRu3CEeY5tDvENmMkKHH620e9IaqqDl/8mRz6DGQasQqA6cHYBZQ0C7SZoiBHmOfQ7lDRiKh5+2PUjA4AcQqqQ6tFKFwjTg+9iBqtquoUioMUFzCNUJaihHvEqSHKW57AnKG8fTBlsKhBKE7jGnF6aKMRr3xjFYU2Uy64R1wDUtWMtS/6VlWkA9VpFulTg7U5aFWlP8Q8h47JLE0KBoLqQIka1uvANMLziCtA1SMmNnHhlYN4ZnkdqKYGbS6isHwjav0wZ7BFiHvEyaFtPSJOobbEJ0pRYlGQsjZ1jzg7VFcY62ElqUzJHqpGlHq2e8TZocUjStmh5gywlqmKMuAecQWo9j7TgwKzEJ+aDO1zUwuZIUv83dl33ds8h3aH2MYKWBaZtVJporCknJ5HnB56kSmsa057+7W5YZVtzywvAZWoEYdZaugAoQWxbkadolEbqRr2Nc+hw6D0U/XX460MXxdlyFhRu29vItIFn8W+AFSjxlKnHgil4xl1qWJDPfWocXbovh5hOcM6FbHMyWzXoV/8mRz6DGR5RN2pEzKkJusooCSxITtID7lc3dk8h46C1ggR9SZVI0oeUcdmQPpjzHPogMxy3dMVVKQLWkYjmIVRxGZwbfbyuzyTQx+B7nfwAHOjMDeMj9kKl2WJkTpffV4Q0iE1SA+2J5ixC8rYzSJ9m9+C9jPPof8OLd3wbduzlLInWC/Y3d7pOj1UosZoq42A0IZauCRkIXVAexPf5XcR6PWeLsCyyHKqd3d89J8ccsghhxxyyKGzQX8AAeGgpjmLdP0AAAAASUVORK5CYII=",
+    "qr_url": "http://10.1.0.174:8000/qr/b89b8cea-7e9e-4c91-a3c9-8a7d7983a183",
+    "type": "redirect"
+  },
+  {
+    "id": "3c02abee-c0fe-4224-ab79-af0e317ac525",
+    "token": "1f7fc55d-c058-4b49-a712-8dbe75b92212",
+    "label": "registration",
+    "redirect_url": "http://10.1.0.174:8000/register.html",
+    "max_uses": 999,
+    "uses": 0,
+    "allowed_ips": [],
+    "created_at": "2026-02-08T02:31:13.880570",
+    "expires_at": "2027-02-08T02:31:13.880580",
+    "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAZoAAAGaAQAAAAAefbjOAAAC/ElEQVR4nO2cTYrjMBCFX40MWTrQB8hR5BvMkYY+Ut9AOkoOMCAvAzJvFiopSnb9M05ilxfGxvqIRBf180pqIT59xV+fZwCDDDLIIIMMMmibkOg1AJiH8kUmLAJgEZnmOmB6yPQMWh/yJMkEAOOl2AGiHFhugCNJ8hZab3oGrQ/N6gBkmg+UaT4QPvUD1YM8aHoGPRJaBPF0EcRTxp1Z/PAvGfQKUDxlkOcDybOITCWI/I9fMugpoRoJRgKYAfgACgAh4DIwvxGYgV7JevI1GfQDUBQRkSNQag2fHGUCUG9LKTUeNT2D1vYRnQOIpwxgzCDm6+ut1v3kazLoOxBKVakJpCOZHBmgr/DM0LK0lqAMT74mg34EcmRoWaTKE4vwXQaIHAEGaBB5nTUZ9JWrU558AhiKbWSoPxhJ+OSKGzEfsX2oWsTIzg7g640BvdGYRWwfahaRS4WhT8yAJg65G2IWsX2o/pHh1FEwueoexqxjNJxAEwyziD1A40XgzyKIR4BhFoFmmxpTOrN4lTUZ9BWoda8cEU95AMa/wvibtaUxD5nxmIAiYa48PYNWh1ra6DR3DGMurqBEDc0xr08WNTYOqY/wH28gsAwAHAVwWXxawCgAokCf1p6eQatDTbN06ihKrBiLdt0kTFeGWK2xfUhrjf7SXRF3RUg32Cxi+5BM86C7pHQbXd17+efa12jF6GusyaBvK1RVts5gGNVb1J4XoHq2+YitQ13vs5OpAoDazagN0ACLGnuAbrrh1RjIdNsCKxbhzEfsAGqtreYFElR7QNMjAOAqSphFbBq6rzWudWiXR/jmRswidgJdz3QxYBH4tIhMqK1QPefVNle9xJoM+hbkSZIJkKkTIBYB5kM1Cyx2ym8HUJ9Z+tYIv61IdeRYv1jU2BUURbUq8jyUV9Uxz3YSeJeQT4vA8yKIR9dCxwC+n2h5xA6gbmOldrW6JpcqldoXt07XLqCbTKFqUOVDqOc1dNul7bPcBST2n8kMMsgggwwyyKAvQv8AlNmdQZTGBawAAAAASUVORK5CYII=",
+    "qr_url": "http://10.1.0.174:8000/qr/1f7fc55d-c058-4b49-a712-8dbe75b92212",
+    "type": "redirect"
+  },
+  {
+    "id": "de26b4ff-8593-4eee-b2fc-8adfddf36806",
+    "token": "a552b862-8867-4bb9-956c-fb822b7704a5",
+    "label": "registration",
+    "redirect_url": "http://10.1.0.174:8000/mission.html",
+    "max_uses": 999,
+    "uses": 0,
+    "allowed_ips": [],
+    "created_at": "2026-02-08T02:31:46.362958",
+    "expires_at": "2027-02-08T02:31:46.362966",
+    "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAZoAAAGaAQAAAAAefbjOAAADCElEQVR4nO2cwW3jMBBF3ywF+EgBW4BLoTpISalpOxBLcQfk0QCF2QNJW072knUgO9boIEiGHkwik+H/w5FF+fIRf32dAYMMMsgggwwy6DUhaccAsAjkAeK4CLCITLk/MD1keAZtDwVVVU0A+aDgzyLvp4MS5aCAU1VVvYW2G55B20O5JQCZ/FlkysPHB3sGufubDHpu6NNfPopTiccyaBwdEv7lTp98TgbdA32KiPBnFCUfVIIuouTxm77JoJ8B9YjwCmQgjq4I/ixK/q2AK5BhnSuefE4GfQMURURkBEICwumgMgH9tFSr8ajhGbR1jlgnAF9QOFfjqfFYaBnkEcMzaHOI6ipDAprJLOhMuyVoodnSbkF1fvI5GXQPdBMRvvTbXp7owUCLkmAR8eoQ7f8+uRoWNUdck8LsVcGrEpLliB1BcQTwBZHRNdFQ80YW0bkWtZvQ/ClzMuieVaOKhATgtYoJrrKiPtLXFMsRe4BCApl8VxRxdKqzP9fdL5myiOppQKbHDM+gzd1nHB0axRXIIxpOgoJT4ltC8GWQMJdBtx6eQZtDa68R+u6mznWFKP0h38SnrRqvD3VpUG+ctmBI0BxGNaOFfmUR8eJQXTX6FucihIQS3xRgGTQKEAXq1dbDM2hz6OI1gJDcjevAqc79ZPWInUCrCtXqagb6lWsVKqti7wNala1pSaFXrG+L2ldZYRHx0lDrj4gCWnWEgrSuiAGBJiE0vj1geAZtDt24z9S8BvjSZEU99f1QWzV2Bt3GAb5cWvRB3pOrXTQ/a04GffXoOaLZjP5ZqWWqa9WqxYvliFeHutfox9VXXNeKVpxKWETsAFrXI1Y9VP6y95lYrSSmI3YDhVqKAJnyQH2dK6RFiMe2EQ5Yf8QeoI9egyYmLooiuYuOUMsRe4Rqa11q8pJ47LugIS32JvAOoE/vdNWe/LezAE4FBCWP9Bd6th2eQZtDt83XvdU2XBpxZ6+tamXKch/QR6/RPyu0Hc/aGtHqmBYRrw+J/TKZQQYZZJBBBhn0n9Bf0UWNT7ZponUAAAAASUVORK5CYII=",
+    "qr_url": "http://10.1.0.174:8000/qr/a552b862-8867-4bb9-956c-fb822b7704a5",
+    "type": "redirect"
+  },
+  {
+    "id": "a8c233df-29c8-4c76-9934-3728223d208a",
+    "token": "a8e005bf-6a14-49b6-8b38-f16fcddeaf42",
+    "label": "registration",
+    "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAXIAAAFyAQAAAADAX2ykAAACj0lEQVR4nO2bUWrkMAyGP20M8+jAHqBHcW427M3io8wBFuLHAQftg+JMu9vSlmbTBKSHME6+hx80ciRZEeUzln98CgfnnXfeeeedd/4tXhYLyFBEoATIPbY0G3bU4/xWPKqqSlJV1amzS1vCcm9FxqPpd/5jfFkjFNBfPYg8VVuKSNhbj/P/h5ch3oV0E1GdOpXhm/U4vzGf+07JPZAfUfuNepz/Et9cGBUoQBrnAHSVpLMA8LwFcjT9zn+IzyIi0gOUi5ImkKFcFJgtfd5Xj/Mb8Ra/zyM03kUps2juEX357Hj6nX/HHsUPaQKgUx3pFGJtUPT66KS8+beVuRUd7V5dSl/zNOD+PTEvQ7yLDCUgV1UlS0AGgDQt7t5Vj/Nb8S1+VduGHFV1fFx40eLy+D0nn3vQsVxUdZpbrlwCJAvdWXTcU4/zW/OzQKzIQKd2qnDVigzloiJyaZ2sw+p3/lVr/Y0SkHQL9p5VmIPmfgJi9f7GiXnzryQFyU8VpfysUHoEgv1SmNv/4Gj6nf8Iv6RRtwC5n0Wk73R54UZVWIukg+p3/k1bUmdraKgVwZZVJXuAFUmeP5+SX+uj5w2NJZztuB+scHL/npkvARliRa4TmEPz033dqX1/Pim/5FfEGqD0WJFEXB1qhdN6zHA0/c6/Y/rSoO3PpDaJBXTevzoz/5iftOW1da2WJta0sx7nt+JfmZ8Eu4ztVNDzq/PzbX5SBjq1ISyYhdxGN7z/fEr+7xE6G90g/hbSLSydSspFJY176HH+v/Odkm6B1roC7E38XXqc/wL/z/zkOpWjWboqxEmx6mkXPc5vy6/9SWBpMy8fpFh+RazoGOtSR3l+dTJe/Ptu55133nnnnd+d/wP0vbQEjQfg8AAAAABJRU5ErkJggg==",
+    "created_at": "2026-02-08T22:56:44.296892",
+    "type": "redirect"
+  },
+  {
+    "id": "d4481091-8ef4-410a-a167-b3d350ed59f0",
+    "token": "3a1f8dc5-8e79-40f1-9e47-b61c537d9058",
+    "label": "registration",
+    "max_uses": 1,
+    "uses": 0,
+    "created_at": "2026-02-07T20:16:14.727723",
+    "expires_at": "2027-02-07T20:16:14.727737",
+    "type": "registration"
+  },
+  {
+    "id": "1f77e95b-f64c-4873-b8b9-e0245838dec6",
+    "token": "a8e005bf-6a14-49b6-8b38-f16fcddeaf42",
+    "label": "registration",
+    "max_uses": 1,
+    "uses": 0,
+    "created_at": "2026-02-08T22:56:44.284595",
+    "expires_at": "2027-02-08T22:56:44.284609",
+    "type": "registration"
+  }
+]

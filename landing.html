@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LPU5 - Tactical Network Management System</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --header-bg: #111;
+            --border-color: #333;
+            --text-main: #d0d0d0;
+            /* blue text -> white */
+            --accent-blue: #ffffff;
+            --accent-green: #28a745;
+            --tactical-gray: #2d2d2d;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        /* Background with centered subtle glow (removed logo image) */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* neutral subtle tint (no blue emphasis) */
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.01) 0%, transparent 70%),
+                linear-gradient(135deg, rgba(10, 10, 10, 0.9) 0%, rgba(26, 26, 26, 0.9) 100%);
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        /* removed body::after logo background (logo.png removed) */
+
+        /* ===== LOGIN OVERLAY ===== */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .login-overlay.hidden {
+            display: none;
+        }
+
+        .login-box {
+            background: var(--panel-bg);
+            /* border uses white (accent-blue now white) */
+            border: 2px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 40px;
+            max-width: 400px;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.03);
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: rgba(255, 255, 255, 0.01);
+            border-radius: 8px;
+            display: block;
+            filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.04));
+        }
+
+        .login-title {
+            text-align: center;
+            /* blue -> white */
+            color: var(--accent-blue);
+            font-size: 1.8em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.03);
+            font-weight: bold;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 30px;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            color: #888;
+            font-size: 0.9em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input {
+            background: #000;
+            color: white;
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            transition: all 0.2s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            /* keep focus neutral (no blue) */
+            border-color: #666;
+            box-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+        }
+
+        /* Buttons: blue -> panel background color (as requested) */
+        .login-btn {
+            background: var(--panel-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .login-btn:hover {
+            background: #252525;
+            transform: translateY(-2px);
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+        }
+
+        .error-message {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid #dc3545;
+            color: #ff6b6b;
+            padding: 12px;
+            border-radius: 4px;
+            display: none;
+            font-size: 0.9em;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: shake 0.3s ease;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            75% {
+                transform: translateX(5px);
+            }
+        }
+
+        /* Main Content */
+        main {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .welcome-container {
+            max-width: 600px;
+            animation: fadeInUp 1s ease 0.3s both;
+        }
+
+        /* center logo box: will contain the actual logo image */
+        .logo-display {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 40px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 0 18px rgba(255, 255, 255, 0.02);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        .logo-display img {
+            max-width: 85%;
+            max-height: 85%;
+            object-fit: contain;
+            display: block;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            /* blue -> white */
+            color: var(--accent-blue);
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.02);
+            animation: slideInDown 0.8s ease 0.2s both;
+        }
+
+        .subtitle {
+            font-size: 1.5em;
+            color: var(--text-main);
+            margin-bottom: 10px;
+            font-weight: bold;
+            animation: slideInUp 0.8s ease 0.4s both;
+        }
+
+        .description {
+            font-size: 0.95em;
+            color: #999;
+            margin-bottom: 40px;
+            line-height: 1.6;
+            animation: fadeIn 1s ease 0.6s both;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            animation: fadeIn 1s ease 0.8s both;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1em;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-main);
+            background: var(--panel-bg);
+            /* default button uses panel background now */
+        }
+
+        /* Primary buttons: blue -> panel background as requested */
+        .btn-primary {
+            background: var(--panel-bg);
+            color: var(--text-main);
+            border-color: var(--border-color);
+        }
+
+        .btn-primary:hover {
+            background: #252525;
+            border-color: #444;
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+        }
+
+        /* System Status */
+        .system-status {
+            margin-top: 60px;
+            font-size: 0.85em;
+            animation: fadeIn 1s ease 1s both;
+        }
+
+        .status-indicator {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 18px rgba(255, 255, 255, 0.02);
+            }
+
+            50% {
+                box-shadow: 0 0 32px rgba(255, 255, 255, 0.03);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            .subtitle {
+                font-size: 1.2em;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .logo-display {
+                width: 140px;
+                height: 140px;
+            }
+
+            .login-box {
+                width: 90%;
+                max-width: 350px;
+                padding: 30px 20px;
+            }
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 640px) {
+            main {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .logo-display {
+                width: 120px;
+                height: 120px;
+                margin-bottom: 30px;
+            }
+
+            .subtitle {
+                font-size: 1em;
+            }
+
+            .description {
+                font-size: 0.9em;
+            }
+
+            .btn {
+                padding: 12px 30px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+
+    <!-- ===== GLOBAL NAV CSS (1:1 from _global_nav_v2.html) ===== -->
+    <style>
+        .logout-link {
+            color: #e74c3c !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ===== GLOBAL NAV (1:1 eingefügt) ===== -->
+    <!-- Global Navigation loaded from _global_nav.html -->
+    <script src="load-global-nav.js"></script>
+
+    <!-- ===== PAGE CONTENT (Landing) ===== -->
+    <main id="mainContent" style="display: none;">
+        <div class="welcome-container">
+
+            <!-- Centered logo image on start page -->
+            <div class="logo-display" aria-hidden="true">
+                <img src="/logo.png" alt="LPU5 Logo" onerror="this.style.display='none'">
+            </div>
+
+            <!-- Title -->
+            <h1>LPU5 TACTICAL</h1>
+
+            <!-- Subtitle -->
+            <p class="subtitle">Network Management System</p>
+
+            <!-- Description -->
+            <p class="description">
+                Welcome to LPU5 Tactical Network Management System.<br>
+                Real-time operation tracking, mission management and tactical coordination.<br>
+                <strong>Click "Start Dashboard" to continue</strong>
+            </p>
+
+            <!-- CTA Buttons - CENTERED -->
+            <div class="cta-buttons">
+                <a href="admin_map.html" class="btn btn-primary" title="HQ Dashboard for Desktop/Tablet">
+                    <i class="fas fa-tower-broadcast"></i> HQ COMMAND CENTER
+                </a>
+                <a href="overview.html" class="btn btn-primary" title="Touch-optimized Mobile EUD">
+                    <i class="fas fa-mobile-screen-button"></i> FIELD EUD
+                </a>
+                <a href="index.html" class="btn" style="border-style: dashed; padding: 10px 20px;"
+                    title="System Health & Logs">
+                    <i class="fas fa-heartbeat"></i> Status Monitor
+                </a>
+            </div>
+
+            <!-- System Status -->
+            <div class="system-status">
+                <p>System Online API Status: <span id="api-status" class="status-indicator">Connected</span></p>
+            </div>
+        </div>
+    </main>
+
+    <!-- LOGIN OVERLAY -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-box">
+            <div class="login-logo" aria-hidden="true"></div>
+            <div class="login-title">LPU5</div>
+            <div class="login-subtitle">Tactical Network Management</div>
+
+            <div class="login-form">
+                <div class="error-message" id="errorMessage"></div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> Username</label>
+                    <input type="text" id="username" placeholder="administrator" value="administrator" autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="password" placeholder="Password" value="password">
+                </div>
+
+                <button class="login-btn" onclick="login()">
+                    <i class="fas fa-sign-in-alt"></i> LOGIN
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+    <script>
+        // Helper so Global Nav's logout link works
+        function logoutUser() {
+            if (confirm('Really log out?')) {
+                localStorage.removeItem('lpu5_user');
+                localStorage.removeItem('lpu5_token');
+                showLogin();
+            }
+        }
+
+        // ===== LOGIN / PAGE APP SHOW-HIDE =====
+        async function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const errorMsg = document.getElementById('errorMessage');
+
+            if (!username || !password) {
+                errorMsg.textContent = 'Username and password required';
+                errorMsg.classList.add('show');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/login_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    localStorage.setItem('lpu5_user', JSON.stringify(data.user));
+                    localStorage.setItem('lpu5_token', username);
+
+                    // Initialize language from user preference
+                    if (data.user && data.user.language) {
+                        sessionStorage.setItem('lpu5_session_language', data.user.language);
+                    } else {
+                        // Set default language if not specified
+                        sessionStorage.setItem('lpu5_session_language', 'en');
+                    }
+
+                    showApp();
+                } else {
+                    errorMsg.textContent = '⌧ ' + (data.message || data.detail || 'Login failed');
+                    errorMsg.classList.add('show');
+                }
+            } catch (e) {
+                errorMsg.textContent = 'Login error: ' + e.message;
+                errorMsg.classList.add('show');
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('loginOverlay').classList.remove('hidden');
+            document.getElementById('mainContent').style.display = 'none';
+        }
+
+        function showApp() {
+            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('mainContent').style.display = 'flex';
+            checkAPIStatus();
+            // Update user display after showing app
+            updateUserNameDisplay().catch(e => console.warn('updateUserNameDisplay error', e));
+        }
+
+        // ===== API STATUS CHECK =====
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch('/api/health');
+                if (response.ok) {
+                    document.getElementById('api-status').textContent = '✓ Connected';
+                    document.getElementById('api-status').style.color = '#00ff00';
+                } else {
+                    document.getElementById('api-status').textContent = '✗ Error';
+                    document.getElementById('api-status').style.color = '#ff4444';
+                }
+            } catch (e) {
+                document.getElementById('api-status').textContent = '✗ Offline';
+                document.getElementById('api-status').style.color = '#ff4444';
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('lpu5_user');
+            if (saved) {
+                // Initialize language from saved user data if not already in sessionStorage
+                if (!sessionStorage.getItem('lpu5_session_language')) {
+                    try {
+                        const userData = JSON.parse(saved);
+                        if (userData && userData.language) {
+                            sessionStorage.setItem('lpu5_session_language', userData.language);
+                        } else {
+                            sessionStorage.setItem('lpu5_session_language', 'en');
+                        }
+                    } catch (e) {
+                        console.warn('Failed to parse user data for language:', e);
+                        sessionStorage.setItem('lpu5_session_language', 'en');
+                    }
+                }
+                showApp();
+            } else {
+                showLogin();
+            }
+
+            // Enter-Taste zum Anmelden
+            const pwd = document.getElementById('password');
+            if (pwd) {
+                pwd.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') login();
+                });
+            }
+
+            console.log('✅ Landing page initialized');
+        });
+
+        setInterval(checkAPIStatus, 5000);
+    </script>
+
+    <script>
+        /**
+         * Update sidebar user display from login data.
+         * - Reads localStorage.lpu5_user (expected JSON { username, name, fullname, ... })
+         * - Falls nicht vorhanden: liest localStorage.lpu5_token (evtl. username)
+         * - Optional: versucht /api/me wenn weder vorhanden ist (nicht zwingend)
+         * - Reagiert auf 'storage' events (anderes Tab loggt ein/aus)
+         */
+        async function updateUserNameDisplay() {
+            const el = document.getElementById('userName');
+            if (!el) return;
+
+            // default fallback text
+            let displayName = null;
+
+            // 1) try lpu5_user in localStorage
+            try {
+                const raw = localStorage.getItem('lpu5_user');
+                if (raw) {
+                    const u = JSON.parse(raw);
+                    displayName = u.name || u.fullname || u.username || u.displayName || null;
+                    // if you stored object under different shape, adjust above
+                }
+            } catch (e) {
+                console.warn('Failed to parse lpu5_user', e);
+            }
+
+            // 2) fallback to lpu5_token (sometimes username stored there)
+            if (!displayName) {
+                const token = localStorage.getItem('lpu5_token');
+                if (token) {
+                    // if token is a simple username, use it; if JWT, don't parse it here for privacy
+                    // heuristics: if token contains a dot (.) it's probably a JWT -> skip
+                    if (token.indexOf('.') === -1 && token.length < 128) {
+                        displayName = token;
+                    }
+                }
+            }
+
+            // 3) optional: attempt to fetch /api/me if available and still no name
+            if (!displayName) {
+                try {
+                    const resp = await fetch('/api/me', { credentials: 'include' });
+                    if (resp.ok) {
+                        const me = await resp.json();
+                        displayName = me.name || me.fullname || me.username || null;
+                    }
+                } catch (e) {
+                    // ignore; this endpoint might not exist
+                }
+            }
+
+            // 4) final fallback
+            el.textContent = displayName || 'Guest';
+            el.title = displayName || 'Not logged in';
+        }
+
+        // Update immediately
+        updateUserNameDisplay().catch(e => console.warn('updateUserNameDisplay error', e));
+
+        // Listen to storage events (other tab login/logout)
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'lpu5_user' || e.key === 'lpu5_token') {
+                updateUserNameDisplay().catch(err => console.warn(err));
+            }
+        });
+
+        // Optional helper: call this after successful login in your login flow
+        // Example: after you set localStorage.setItem('lpu5_user', JSON.stringify(data.user))
+        // call: updateUserNameDisplay();
+    </script>
+</body>
+
+</html>

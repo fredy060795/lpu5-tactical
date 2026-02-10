@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MISSION ARCHIVE & STATS</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --border-color: #333;
+            --text-main: #d0d0d0;
+            --accent-blue: #007bff;
+            --accent-green: #28a745;
+            --accent-red: #dc3545;
+        }
+
+        body { background: var(--bg-dark); color: var(--text-main); font-family: 'Courier New', monospace; margin: 0; padding: 20px; padding-left: 90px; /* 70px sidebar + 20px margin */ }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .card { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 20px; min-height: 400px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; border-bottom: 2px solid #444; padding: 10px; color: #888; text-transform: uppercase; font-size: 0.8em; }
+        td { padding: 10px; border-bottom: 1px solid #222; font-size: 0.9em; }
+        
+        .clickable-row:hover { background: #252525; cursor: pointer; }
+        .active-row { background: #2d2d2d; border-left: 3px solid var(--accent-blue); }
+
+        .btn { padding: 5px 10px; cursor: pointer; border: 1px solid #444; background: #2d2d2d; color: white; font-family: 'Courier New'; font-size: 0.75em; }
+        .btn-back { margin-bottom: 20px; display: inline-block; text-decoration: none; background: #333; padding: 10px 20px; color: white; border: 1px solid #555; }
+        
+        .status-SUCCESS { color: #00ff00; font-weight: bold; }
+        .status-FAILED { color: #ff4444; font-weight: bold; }
+        .status-ONGOING { color: #ffaa00; font-weight: bold; }
+
+        .unit-block { border:1px solid #222; padding:10px; margin-bottom:8px; background:#121212; }
+        .unit-header { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+        .unit-meta { color:#aaa; font-size:0.85em; }
+        .history-list { margin-top:8px; border-top:1px dashed #222; padding-top:8px; max-height:220px; overflow:auto; }
+        .history-item { display:flex; justify-content:space-between; padding:6px 4px; border-bottom:1px solid #191919; font-size:0.85em; }
+        .history-time { color:#888; font-size:0.8em; min-width:170px; text-align:right; }
+
+        .chart-container { 
+            width: 100%; 
+            max-width: 300px; 
+            margin: 0 auto; 
+            min-height: 300px;
+            position: relative;
+        }
+        #detail-content { margin-top: 15px; }
+        .log-unit { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #222; font-size: 0.85em; }
+
+        /* unit stats table */
+        .unit-stats { width: 100%; margin-top: 12px; border-collapse: collapse; }
+        .unit-stats th, .unit-stats td { padding: 8px; border-bottom: 1px solid #222; font-size: 0.85em; }
+        .small { font-size: 0.8em; color:#aaa; }
+
+        .toggle-btn { background:#222; border:1px solid #444; color:#ddd; padding:6px 8px; cursor:pointer; }
+    </style>
+
+    <style>
+        :root {
+            --sb-collapsed: 70px;
+            --sb-expanded: 280px;
+            --bg-dark: #121212;
+            --border: #282828;
+            --accent: #2ecc71;
+            --text-dim: #888;
+        }
+
+        /* The global nav sets body padding-left to reserve space for the sidebar.
+           This intentionally overrides the page body margin/padding to allow the sidebar to sit fixed. */
+        body {
+            margin: 0;
+            padding-left: var(--sb-collapsed);
+            background: #1e1e1e;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            transition: padding-left 0.3s ease;
+        }
+
+
+    </style>
+</head>
+<body>
+
+<script src="load-global-nav.js"></script>
+
+<script src="assets/sidebar.js"></script>
+
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 20px;">
+    <h1><i class="fa-solid fa-box-archive"></i> MISSION ARCHIVE</h1>
+    <div class="chart-container">
+        <div id="statsChart"></div>
+    </div>
+</div>
+
+<div class="grid" style="padding: 20px;">
+    <div class="card">
+        <h3>MISSION LOG (CLICK TO OPEN)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Objective/AO</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="mission-list"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>UNIT STATUS LOGS (ACTION HISTORY DURING MISSION)</h3>
+        <div id="detail-view">
+            <p style="color:#666; text-align: center; margin-top: 50px;">Select a mission from the list to view the action history per unit during the mission.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Small helper so Global Nav's logout link works
+    function logoutUser() {
+        if (confirm('Really log out?')) {
+            localStorage.removeItem('lpu5_user');
+            localStorage.removeItem('lpu5_token');
+            window.location.href = '/';
+        }
+    }
+
+    // Helper function to get authorization headers
+    function getAuthHeaders() {
+        const token = localStorage.getItem('lpu5_token');
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = 'Bearer ' + token;
+        }
+        return headers;
+    }
+
+    // Helper: safely format possible timestamp values or strings
+    function formatPossibleTime(v) {
+        // if numeric (seconds or ms)
+        if (typeof v === 'number') {
+            // assume seconds if < 1e12
+            const ms = (v < 1e12) ? v * 1000 : v;
+            return new Date(ms).toLocaleString('en-US');
+        }
+        // if string that is ISO or epoch
+        if (typeof v === 'string') {
+            // try ISO
+            const n = Number(v);
+            if (!isNaN(n)) {
+                const ms = (n < 1e12) ? n * 1000 : n;
+                return new Date(ms).toLocaleString('en-US');
+            }
+            const d = new Date(v);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleString('en-US');
+            }
+            return v;
+        }
+        return String(v);
+    }
+
+    async function loadArchive() {
+        try {
+            const res = await fetch('/api/missions', {
+                headers: getAuthHeaders()
+            });
+            const missions = await res.json();
+            const tbody = document.getElementById('mission-list');
+            tbody.innerHTML = '';
+
+            if (!missions || missions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No missions found</td></tr>';
+                updateChart(0,0);
+                return;
+            }
+
+            let success = 0, fail = 0;
+
+            // show newest first
+            const list = missions.slice().reverse();
+            list.forEach(m => {
+                if (m.status === 'SUCCESS') success++;
+                if (m.status === 'FAILED') fail++;
+
+                // ensure id is safely passed as string in onclick
+                const idSafe = (m.id !== undefined && m.id !== null) ? String(m.id).replace(/'/g, "\\'") : '';
+                const tr = document.createElement('tr');
+                tr.className = 'clickable-row';
+                tr.onclick = () => showDetails(idSafe, tr);
+
+                // build actions with quoted id so JS call receives string
+                const actions = (m.status === 'ONGOING')
+                  ? `<button onclick="event.stopPropagation(); terminateMission('${idSafe}', 'SUCCESS')" class="btn" style="border-color:green">WIN</button>
+                     <button onclick="event.stopPropagation(); terminateMission('${idSafe}', 'FAILED')" class="btn" style="border-color:red">FAIL</button>`
+                  : '<i class="fa-solid fa-lock"></i>';
+
+                tr.innerHTML = `
+                    <td>${m.date || formatPossibleTime(m.start_time) || '-'}</td>
+                    <td><strong>${m.objective || '-'}</strong><br><small>${m.location || '-'}</small></td>
+                    <td class="status-${m.status}">${m.status || '-'}</td>
+                    <td>${actions}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            updateChart(success, fail);
+        } catch (e) {
+            console.error('loadArchive error', e);
+            document.getElementById('mission-list').innerHTML = '<tr><td colspan="4" class="empty-state">Error loading</td></tr>';
+            updateChart(0,0);
+        }
+    }
+
+    async function showDetails(id, rowElem) {
+        // UI Update: Selektierte Zeile markieren
+        document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('active-row'));
+        if (rowElem) rowElem.classList.add('active-row');
+
+        // Lade Missions-Metadaten
+        try {
+            const res = await fetch(`/api/mission_details/${encodeURIComponent(id)}`, {
+                headers: getAuthHeaders()
+            });
+            if (!res.ok) {
+                document.getElementById('detail-view').innerHTML = `<div style="color:#888; padding:8px;">Error loading mission details (Status ${res.status})</div>`;
+                return;
+            }
+            const m = await res.json();
+            const detailDiv = document.getElementById('detail-view');
+
+            // Robustly determine start/end fields under various possible API shapes
+            const startCandidates = [m.start_time, m.start, m.window_start, m.start_ts, m.start_at, m.startDate];
+            const endCandidates = [m.deadline, m.end_time, m.end, m.window_end, m.end_ts, m.end_at, m.endDate];
+
+            const pickFirst = (arr) => {
+                for (const v of arr) if (v !== undefined && v !== null && v !== '') return v;
+                return null;
+            };
+
+            const startRaw = pickFirst(startCandidates);
+            const endRaw = pickFirst(endCandidates);
+
+            const startStr = formatPossibleTime(startRaw);
+            const endStr = formatPossibleTime(endRaw);
+
+            // Basic mission info
+            let headerHtml = `
+                <div style="background:#222; padding:12px; border-radius:4px; margin-bottom:12px;">
+                    <div style="color:var(--accent-blue); font-weight:bold; margin-bottom:6px;">MISSION SPECIFICATIONS</div>
+                    <div style="font-size:0.85em;">
+                        AO: ${m.location || '-'}<br>
+                        START: ${startStr} <br>
+                        END: ${endStr} <br>
+                        CREATED: ${m.created_at ? formatPossibleTime(m.created_at) : '-'}<br>
+                        STATUS: <span class="status-${m.status}">${m.status || '-'}</span>
+                    </div>
+                </div>
+            `;
+            detailDiv.innerHTML = headerHtml + `<div id="unit-history-area" style="margin-top:8px;"></div>`;
+
+            // Lade die per-unit Stats + History (nur Einträge innerhalb Missionszeitfenster)
+            await loadMissionUnitStatsAndRender(id);
+        } catch (e) {
+            console.error('showDetails error', e);
+            document.getElementById('detail-view').innerHTML = `<div style="color:#888; padding:8px;">Error loading mission details</div>`;
+        }
+    }
+
+    async function loadMissionUnitStatsAndRender(missionId) {
+        try {
+            const res = await fetch(`/api/mission_unit_stats/${encodeURIComponent(missionId)}`, {
+                headers: getAuthHeaders()
+            });
+            if (!res.ok) {
+                document.getElementById('unit-history-area').innerHTML = `<div style="color:#888; padding:8px;">No details available (Status ${res.status}).</div>`;
+                return;
+            }
+            const data = await res.json();
+            const area = document.getElementById('unit-history-area');
+
+            if (!data || !data.unit_stats) {
+                area.innerHTML = `<div style="color:#888; padding:8px;">No details available.</div>`;
+                return;
+            }
+
+            const stats = data.unit_stats || [];
+            if (stats.length === 0) {
+                area.innerHTML = `<div style="color:#888; padding:8px;">No units in this mission.</div>`;
+                return;
+            }
+
+            let html = '';
+            stats.forEach((u, idx) => {
+                const activeSec = u.durations && u.durations.ACTIVE ? u.durations.ACTIVE : 0;
+                const otherDurations = Object.keys(u.durations || {}).map(k => `${k}: ${u.durations[k]}s`).join(', ');
+                html += `
+                    <div class="unit-block" id="unit-block-${idx}">
+                        <div class="unit-header">
+                            <div>
+                                <div style="font-weight:bold;">${u.name}</div>
+                                <div class="unit-meta">${u.device || '-'} • First: ${u.first_status || '-'} • Last: ${u.last_status || '-'}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div class="small">Changes: ${u.total_changes || 0}</div>
+                                <div class="small">Active: ${formatSeconds(activeSec)}</div>
+                                <button class="toggle-btn" onclick="toggleHistory(${idx})" id="toggle-btn-${idx}">Show History</button>
+                            </div>
+                        </div>
+
+                        <div class="history-list" id="history-${idx}" style="display:none;">
+                `;
+                if (!u.history || u.history.length === 0) {
+                    html += `<div style="color:#888; padding:8px;">No history within mission timeframe.</div>`;
+                } else {
+                    u.history.forEach(h => {
+                        const timeStr = new Date(h.timestamp).toLocaleString('en-US');
+                        html += `
+                            <div class="history-item">
+                                <div style="font-weight:bold;">${h.status}</div>
+                                <div class="history-time">${timeStr}</div>
+                            </div>
+                        `;
+                    });
+                }
+
+                html += `
+                        </div>
+                        <div style="margin-top:8px; color:#888; font-size:0.8em;">Duration overview: ${otherDurations || 'no additional duration info'}</div>
+                    </div>
+                `;
+            });
+
+            area.innerHTML = html;
+        } catch (e) {
+            console.error('loadMissionUnitStatsAndRender error', e);
+            document.getElementById('unit-history-area').innerHTML = `<div style="color:#888; padding:8px;">Error loading unit details.</div>`;
+        }
+    }
+
+    function toggleHistory(idx) {
+        const hist = document.getElementById(`history-${idx}`);
+        const btn = document.getElementById(`toggle-btn-${idx}`);
+        if (hist.style.display === 'block') {
+            hist.style.display = 'none';
+            if (btn) btn.innerText = 'Show History';
+        } else {
+            hist.style.display = 'block';
+            if (btn) btn.innerText = 'Hide History';
+        }
+    }
+
+    async function terminateMission(id, result) {
+        try {
+            // Get authentication token from localStorage
+            const token = localStorage.getItem('lpu5_token');
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = 'Bearer ' + token;
+            }
+            
+            const res = await fetch(`/api/mission_complete/${encodeURIComponent(id)}/${encodeURIComponent(result)}`, {
+                method: 'POST',
+                headers: headers
+            });
+            if (!res.ok) {
+                const body = await res.text().catch(()=>null);
+                alert('Archiving error: ' + (body || ('Status ' + res.status)));
+                return;
+            }
+            const json = await res.json().catch(()=>null);
+            alert('Mission archived' + (json && json.message ? ': '+json.message : '.'));
+            await loadArchive();
+            // clear detail view if the archived mission was selected
+            document.getElementById('detail-view').innerHTML = `<p style="color:#666; text-align: center; margin-top: 50px;">Select a mission from the list to view the action history per unit during the mission.</p>`;
+        } catch (e) {
+            console.error('terminateMission error', e);
+            alert('Network error archiving: ' + e.message);
+        }
+    }
+
+    function updateChart(s, f) {
+        // Simple SVG-based pie chart (no external dependencies)
+        const container = document.getElementById('statsChart');
+        const total = s + f;
+        if (total === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#666;">No data</div>';
+            return;
+        }
+        
+        const successPercent = (s / total) * 100;
+        const failPercent = (f / total) * 100;
+        
+        // Calculate pie chart angles (starting from top, clockwise)
+        const successAngle = (s / total) * 360;
+        
+        // SVG circle circumference = 2 * π * radius = 2 * π * 80 ≈ 502.65
+        const radius = 80;
+        const circumference = 2 * Math.PI * radius;
+        const successArc = (successAngle / 360) * circumference;
+        const failArc = ((360 - successAngle) / 360) * circumference;
+        
+        // SVG pie chart
+        const svg = `
+            <svg viewBox="0 0 200 200" style="width:100%;max-width:300px;margin:0 auto;display:block;">
+                <circle cx="100" cy="100" r="${radius}" fill="none" stroke="#28a745" stroke-width="40" 
+                        stroke-dasharray="${successArc} ${circumference}" 
+                        transform="rotate(-90 100 100)" />
+                <circle cx="100" cy="100" r="${radius}" fill="none" stroke="#dc3545" stroke-width="40" 
+                        stroke-dasharray="${failArc} ${circumference}" 
+                        stroke-dashoffset="${-successArc}"
+                        transform="rotate(-90 100 100)" />
+                <!-- The negative dashoffset positions the fail arc to start after the success arc -->
+                <circle cx="100" cy="100" r="50" fill="var(--bg-dark, #0a0a0a)" />
+                <text x="100" y="95" text-anchor="middle" fill="#28a745" font-size="20" font-weight="bold">${s}</text>
+                <text x="100" y="110" text-anchor="middle" fill="#666" font-size="10">SUCCESS</text>
+                <text x="100" y="130" text-anchor="middle" fill="#dc3545" font-size="20" font-weight="bold">${f}</text>
+                <text x="100" y="145" text-anchor="middle" fill="#666" font-size="10">FAILED</text>
+            </svg>
+            <div style="text-align:center;margin-top:10px;color:#888;font-size:0.85em;">
+                <div><span style="color:#28a745;">●</span> SUCCESS: ${successPercent.toFixed(1)}%</div>
+                <div><span style="color:#dc3545;">●</span> FAILED: ${failPercent.toFixed(1)}%</div>
+            </div>
+        `;
+        
+        container.innerHTML = svg;
+    }
+
+    function formatSeconds(sec) {
+        sec = Number(sec) || 0;
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = Math.floor(sec % 60);
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    }
+
+    // Initial load
+    loadArchive();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,88 @@
+{
+  "symbols": [
+    {
+      "id": "5b243d8c-7ddc-4803-8d30-d9e95b52b8d6",
+      "lat": 52.520008,
+      "lng": 13.404954,
+      "type": "raute",
+      "username": "administrator",
+      "source_page": "admin_map",
+      "timestamp": "2026-02-10T05:23:01.170135",
+      "label": "Test Symbol",
+      "color": "#3498db",
+      "icon": "fa-map-marker"
+    },
+    {
+      "id": "623ca2eb-13ec-49c9-8edd-73aa9e536abd",
+      "lat": 48.8566,
+      "lng": 2.3522,
+      "type": "raute",
+      "username": "administrator",
+      "source_page": "admin_map",
+      "timestamp": "2026-02-10T05:26:01.524027",
+      "label": "Paris HQ",
+      "color": "#ff0000",
+      "icon": "fa-map-marker"
+    },
+    {
+      "id": "33226141-32f2-4d46-bada-2bfab0d7080e",
+      "lat": 51.417284073049636,
+      "lng": 1.886731223850875,
+      "type": "rechteck",
+      "username": "Mutti",
+      "source_page": "overview",
+      "timestamp": "2026-02-10T12:53:09.815948",
+      "label": "",
+      "color": "#3498db",
+      "icon": "fa-map-marker"
+    },
+    {
+      "id": "51188e68-396d-4d72-ac0c-67f05b5895ce",
+      "lat": 54.75160097897653,
+      "lng": 4.55989517153463,
+      "type": "blume",
+      "username": "Mutti",
+      "source_page": "overview",
+      "timestamp": "2026-02-10T12:53:09.894490",
+      "label": "",
+      "color": "#3498db",
+      "icon": "fa-map-marker"
+    },
+    {
+      "id": "5e752456-c5b7-4206-8f2f-da60f74e30a9",
+      "lat": 47.27291230405235,
+      "lng": 0.04129549264686006,
+      "type": "quadrat",
+      "username": "Mutti",
+      "source_page": "overview",
+      "timestamp": "2026-02-10T12:53:09.930850",
+      "label": "",
+      "color": "#3498db",
+      "icon": "fa-map-marker"
+    },
+    {
+      "id": "7ef983af-1964-4014-bf60-22a666214f43",
+      "lat": 54.490444565714796,
+      "lng": 2.1662993335747687,
+      "type": "quadrat",
+      "username": "Mutti",
+      "source_page": "overview",
+      "timestamp": "2026-02-10T12:53:31.153827",
+      "label": "",
+      "color": "#3498db",
+      "icon": "fa-map-marker"
+    },
+    {
+      "id": "b470ed63-aecd-4577-be0d-e88f2737b59f",
+      "lat": 42.04250716734763,
+      "lng": -4.670161857725642,
+      "type": "blume",
+      "username": "Mutti",
+      "source_page": "overview",
+      "timestamp": "2026-02-10T12:53:48.193952",
+      "label": "",
+      "color": "#3498db",
+      "icon": "fa-map-marker"
+    }
+  ]
+}

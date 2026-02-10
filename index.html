@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TACTICAL BATTLE TRACKER</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style id="master-design-fix">
+        body {
+            background-color: #0a0a0a !important;
+            color: #d0d0d0 !important;
+            font-family: 'Courier New', monospace !important;
+            margin: 0;
+            padding-left: 70px;
+            overflow-x: hidden;
+        }
+        header {
+            background: #111;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+        .container { padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid #333; color: #ffffff; }
+        td { padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; }
+        .status-pill { padding: 4px 8px; border-radius: 999px; font-weight:700; font-size:0.9rem; color:#000; display:inline-block; min-width:64px; text-align:center; }
+        .status-AKTIV { background:#28a745; color:#000; }
+        .status-BASE { background:#007bff; color:#fff; }
+        .status-KIA { background:#dc3545; color:#fff; }
+        .status-INAKTIV { background:#666; color:#fff; }
+        .btn-small { padding:6px 10px; border-radius:6px; border:1px solid #333; background:#202020; color:#fff; cursor:pointer; margin-right:6px; }
+        .btn-small.active { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
+        .empty-state { text-align:center; color:#777; padding:18px; }
+        .account-inactive { color:#ffcc00; font-size:0.85rem; margin-left:8px; }
+        select.device-select { background:#0d0d0d; color:#fff; border:1px solid #333; padding:6px 8px; border-radius:6px; font-family:'Courier New', monospace; }
+    </style>
+
+    <style>
+        @media (max-width: 640px) {
+            body { padding-left: 70px; }
+            .tactical-sidebar { position: fixed; left: 0; top: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Global Navigation loaded from _global_nav.html -->
+<script src="load-global-nav.js"></script>
+
+<script src="assets/sidebar.js"></script>
+
+<header>
+    <div class="title">TACTICAL LPU 5 MONITORING</div>
+    <div style="display:flex; align-items:center;">
+        <div id="clock">00:00:00</div>
+        <div style="width:18px"></div>
+        <!-- removed default "BASE"/"SUCCESS" label; will be filled only for ongoing missions -->
+        <div id="missionStatus" style="font-weight:bold; color:#007bff; margin-left:12px;"></div>
+    </div>
+</header>
+
+<div class="container">
+    <table>
+        <thead>
+            <tr>
+                <th>Callsign</th>
+                <th>Device</th>
+                <th>Benutzer</th>
+                <th>Status</th>
+                <th>Timer</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="unit-table"><tr><td colspan="6" class="empty-state">Lädt...</td></tr></tbody>
+    </table>
+</div>
+
+<script>
+/*
+  Persist tactical status and device assignment in localStorage so they survive page changes.
+  Device column and Callsign will display the meshtastic node name (node.name), not mesh_id.
+  Device select uses node.name values for assignment.
+  Update: the mission status label in the header is shown only for ongoing missions (prevents showing "SUCCESS").
+*/
+
+const REFRESH_MS = 5000;
+const TIMER_INTERVAL_MS = 1000;
+const BASE_WINDOW_SEC = 3 * 3600;
+
+let allUsers = [];
+let allMarkers = [];
+let allNodes = [];
+
+// localStorage keys
+const STATUS_LS_KEY = 'lpu5_tactical_status';
+const DEVICE_MAP_LS_KEY = 'lpu5_device_map';
+
+let clientStatusMap = loadClientStatus();
+let deviceAssignmentMap = loadDeviceMap();
+
+function loadClientStatus(){ try { return JSON.parse(localStorage.getItem(STATUS_LS_KEY) || '{}'); } catch(e){ return {}; } }
+function saveClientStatus(){ try { localStorage.setItem(STATUS_LS_KEY, JSON.stringify(clientStatusMap || {})); } catch(e){} }
+function loadDeviceMap(){ try { return JSON.parse(localStorage.getItem(DEVICE_MAP_LS_KEY) || '{}'); } catch(e){ return {}; } }
+function saveDeviceMap(){ try { localStorage.setItem(DEVICE_MAP_LS_KEY, JSON.stringify(deviceAssignmentMap || {})); } catch(e){} }
+
+function esc(s){ if (s==null) return ''; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function nowISO(){ return (new Date()).toISOString(); }
+function formatDuration(sec){ if (!Number.isFinite(sec)) sec = 0; if (sec < 0) sec = 0; const h = String(Math.floor(sec/3600)).padStart(2,'0'); const m = String(Math.floor((sec%3600)/60)).padStart(2,'0'); const s = String(sec%60).padStart(2,'0'); return `${h}:${m}:${s}`; }
+function normalizeStatus(s){ if (!s) return 'BASE'; const t = String(s).toUpperCase(); if (['ACTIVE','AKTIV','ONGOING','ON'].includes(t)) return 'AKTIV'; if (['KIA','DECEASED'].includes(t)) return 'KIA'; if (['INACTIVE','OFF'].includes(t)) return 'INAKTIV'; return t; }
+function statusClass(lbl){ if (lbl==='AKTIV') return 'status-AKTIV'; if (lbl==='KIA') return 'status-KIA'; if (lbl==='INAKTIV') return 'status-INAKTIV'; return 'status-BASE'; }
+async function apiFetch(path, opts){ opts = opts || {}; opts.headers = opts.headers || {}; const token = localStorage.getItem('lpu5_token'); if (token) opts.headers['Authorization'] = 'Bearer ' + token; return fetch(path, opts); }
+
+/* --- Data load --- */
+async function loadData(){
+    try {
+        const [mRes, nRes, uRes] = await Promise.allSettled([
+            apiFetch('/api/map_markers'),
+            apiFetch('/api/meshtastic/nodes'),
+            apiFetch('/api/users')
+        ]);
+
+        if (mRes.status === 'fulfilled' && mRes.value.ok) allMarkers = await mRes.value.json();
+        else { try { const r = await fetch('/map_markers_db.json'); allMarkers = r.ok ? await r.json() : []; } catch(e){ allMarkers = []; } }
+
+        if (nRes.status === 'fulfilled' && nRes.value.ok) allNodes = await nRes.value.json();
+        else { try { const r = await fetch('/meshtastic_nodes_db.json'); allNodes = r.ok ? await r.json() : []; } catch(e){ allNodes = []; } }
+
+        if (uRes.status === 'fulfilled' && uRes.value.ok) allUsers = await uRes.value.json();
+        else { try { const r = await fetch('/users_db.json'); allUsers = r.ok ? await r.json() : []; } catch(e){ allUsers = []; } }
+    } catch(e){
+        console.warn('loadData error', e);
+        allMarkers = allMarkers || []; allNodes = allNodes || []; allUsers = allUsers || [];
+    }
+
+    // apply persisted device assignments to users (local override)
+    for (const u of allUsers){
+        const key = getUserKey(u);
+        if (deviceAssignmentMap[key]) u._assigned_node_name = deviceAssignmentMap[key];
+        else u._assigned_node_name = u.device || u._assigned_node_name || '';
+    }
+
+    renderTable();
+}
+
+/* find node by name / mesh_id / id */
+function findNodeByIdentifier(id){
+    if (!id) return null;
+    const idStr = String(id).toLowerCase();
+    for (const n of (allNodes || [])){
+        if (!n) continue;
+        if ((n.name && String(n.name).toLowerCase() === idStr) ||
+            (n.mesh_id && String(n.mesh_id).toLowerCase() === idStr) ||
+            (n.id && String(n.id).toLowerCase() === idStr)) return n;
+    }
+    return null;
+}
+
+/* find marker for user as before */
+function findMarkerForUser(user){
+    if (!user) return null;
+    const keys = [user.unit, user._assigned_node_name || user.device, user.callsign, user.username].filter(Boolean).map(k=>String(k).toLowerCase());
+    for (const m of (allMarkers||[])){
+        try {
+            if (m.unit_id && keys.includes(String(m.unit_id).toLowerCase())) return m;
+            if (m.name){
+                const nm = String(m.name).toLowerCase();
+                for (const k of keys) if (k && nm.includes(k)) return m;
+            }
+        } catch(e){}
+    }
+    return null;
+}
+
+/* derive tactical status */
+function getUserKey(user){ return (user && (user.id || user.username) ? String(user.id || user.username) : 'anon_' + (user && user.username || Math.random())); }
+function deriveUserStatus(user){
+    const key = getUserKey(user);
+    if (clientStatusMap[key] && clientStatusMap[key].status) return clientStatusMap[key].status;
+    const marker = findMarkerForUser(user);
+    if (marker){
+        if (marker._client_status) return marker._client_status;
+        if (marker.status) return normalizeStatus(marker.status);
+    }
+    // node-based
+    const keys = [user._assigned_node_name || user.device, user.callsign].filter(Boolean).map(k=>String(k).toLowerCase());
+    for (const n of (allNodes||[])){
+        try {
+            if (n.name && keys.includes(String(n.name).toLowerCase())) return normalizeStatus(n.status || n.state || 'BASE');
+            if (n.device && keys.includes(String(n.device).toLowerCase())) return normalizeStatus(n.status || n.state || 'BASE');
+        } catch(e){}
+    }
+    return 'BASE';
+}
+
+/* Render device select (node.name values) */
+function renderDeviceSelect(user){
+    const select = document.createElement('select');
+    select.className = 'device-select';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '--kein Device--';
+    select.appendChild(noneOpt);
+
+    const seen = new Set();
+    (allNodes || []).forEach(n => {
+        const name = n.name || n.mesh_id || (n.id || '');
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        const opt = document.createElement('option');
+        opt.value = name;
+        // label shows node name (device name) — user requested device name visible, not mesh_id
+        opt.textContent = `${name}` + (n.device ? ` — ${n.device}` : '');
+        select.appendChild(opt);
+    });
+
+    // include any assigned node that's not present in latest import
+    const assigned = user._assigned_node_name || '';
+    if (assigned && !seen.has(assigned)){
+        const opt = document.createElement('option');
+        opt.value = assigned;
+        opt.textContent = `${assigned} (local)`;
+        select.appendChild(opt);
+    }
+
+    select.value = assigned || '';
+    select.onchange = async function(){
+        const val = this.value || '';
+        await assignDeviceToUser(user, val);
+    };
+    return select;
+}
+
+/* assign device to user: store locally and try to persist user.device to server */
+async function assignDeviceToUser(user, nodeName){
+    const key = getUserKey(user);
+    // optimistic assign in-memory
+    user._assigned_node_name = nodeName || '';
+    deviceAssignmentMap[key] = nodeName || '';
+    saveDeviceMap();
+    renderTable();
+
+    // attempt persist to server: PUT /api/users/{id} with device = nodeName
+    if (!user || !user.id) return;
+    try {
+        const resp = await fetch(`/api/users/${encodeURIComponent(user.id)}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ device: nodeName })
+        });
+        if (resp.ok){
+            // server accepted — remove local fallback
+            if (deviceAssignmentMap[key]) { delete deviceAssignmentMap[key]; saveDeviceMap(); }
+            await loadData();
+            return;
+        } else {
+            console.warn('Server rejected device assignment', resp.status);
+        }
+    } catch (e){
+        console.warn('Device assignment persist failed', e);
+    }
+    // if persist fails, we keep mapping in localStorage so survives reload
+}
+
+/* Render table — Callsign and Device columns must show meshtastic device name (node.name) when assigned */
+function renderTable(){
+    const tbody = document.getElementById('unit-table');
+    if (!allUsers || allUsers.length === 0){
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Keine Benutzer gefunden</td></tr>';
+        return;
+    }
+    const users = allUsers.slice().sort((a,b)=>String(a.username||a.callsign||'').localeCompare(String(b.username||b.callsign||'')));
+    tbody.innerHTML = '';
+    for (const u of users){
+        // determine assigned node (by name)
+        const assignedName = u._assigned_node_name || '';
+        const assignedNode = assignedName ? findNodeByIdentifier(assignedName) : null;
+        const callsignDisplay = assignedNode ? (assignedNode.name || assignedName) : (u.callsign || '');
+        const deviceDisplay = assignedNode ? (assignedNode.name || assignedName) : (u.device || '');
+        const username = esc(u.username || '');
+        const tacticalStatus = deriveUserStatus(u);
+        const cls = statusClass(tacticalStatus);
+        const timerId = `timer-${u.id || u.username}`;
+        const idEnc = encodeURIComponent(u.id || u.username || '');
+
+        const deviceCell = document.createElement('td');
+        const sel = renderDeviceSelect(u);
+        deviceCell.appendChild(sel);
+
+        const acctInactiveHtml = (u.active === false) ? `<span class="account-inactive">(Account: INAKTIV)</span>` : '';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${esc(callsignDisplay)}</td>
+            <td></td>
+            <td>${username}${acctInactiveHtml}</td>
+            <td><span class="status-pill ${cls}">${esc(tacticalStatus)}</span></td>
+            <td id="${timerId}">--:--:--</td>
+            <td style="white-space:nowrap">
+                <button class="btn-small" data-user="${idEnc}" data-set="AKTIV">AKTIV</button>
+                <button class="btn-small" data-user="${idEnc}" data-set="BASE">BASE</button>
+                <button class="btn-small" data-user="${idEnc}" data-set="KIA">KIA</button>
+            </td>`;
+        tbody.appendChild(tr);
+        const appendedRow = tbody.lastElementChild;
+        if (appendedRow){
+            const tds = appendedRow.querySelectorAll('td');
+            if (tds.length >= 2) tds[1].replaceWith(deviceCell);
+        }
+    }
+
+    // wire action buttons and active class
+    tbody.querySelectorAll('button[data-user]').forEach(btn => {
+        const key = decodeURIComponent(btn.dataset.user);
+        btn.classList.remove('active');
+        if (clientStatusMap[key] && clientStatusMap[key].status === btn.dataset.set) btn.classList.add('active');
+
+        btn.onclick = (ev) => {
+            ev.stopPropagation();
+            const desired = btn.dataset.set;
+            localSetStatus(btn.dataset.user, desired);
+        };
+    });
+
+    updateTimers();
+}
+
+/* apply and save client status */
+function applyClientStatus(key, newStatus, tsISO){
+    clientStatusMap[key] = clientStatusMap[key] || {};
+    clientStatusMap[key].status = newStatus;
+    clientStatusMap[key].ts = tsISO;
+    if (newStatus === 'KIA') clientStatusMap[key].tod = tsISO;
+    else delete clientStatusMap[key].tod;
+    saveClientStatus();
+}
+
+/* status change: update client map and try to persist */
+async function localSetStatus(idEnc, newStatus){
+    const id = decodeURIComponent(idEnc);
+    let user = allUsers.find(u => String(u.id) === String(id) || String(u.username) === String(id));
+    if (!user) user = allUsers.find(u => (u._assigned_node_name && String(u._assigned_node_name) === String(id)));
+
+    const key = getUserKey(user || { id: id, username: id });
+    if (!confirm(`Status für Einheit ${key} auf ${newStatus} setzen?`)) return;
+
+    const ts = nowISO();
+    applyClientStatus(key, newStatus, ts);
+    renderTable();
+
+    // try persist: /api/status -> marker PUT -> user metadata PUT (without toggling account active)
+    try {
+        const resp = await fetch(`/api/status/${encodeURIComponent(id)}/${encodeURIComponent(newStatus)}`, { method:'POST' });
+        if (resp.ok){ await loadData(); return; }
+    } catch(e){}
+
+    const marker = user ? findMarkerForUser(user) : null;
+    if (marker){
+        const payload = { status: newStatus, timestamp: ts };
+        if (newStatus === 'KIA') payload.tod = ts;
+        try {
+            const put = await fetch(`/api/map_markers/${encodeURIComponent(marker.id)}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            if (put.ok){ await loadData(); return; }
+        } catch(e){}
+    }
+
+    if (user && user.id){
+        try {
+            const putu = await fetch(`/api/users/${encodeURIComponent(user.id)}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ updated_at: ts }) });
+            if (putu.ok){ await loadData(); return; }
+        } catch(e){}
+    }
+
+    console.warn('Persistence failed for tactical status; kept locally.');
+}
+
+/* timestamps and timer logic */
+function getTimestampsForKey(key, user){
+    const mapEntry = clientStatusMap[key] || {};
+    const marker = findMarkerForUser(user);
+    const res = { ts: null, tod: null, statusOverride: mapEntry.status || null };
+
+    if (mapEntry.tod) res.tod = new Date(mapEntry.tod);
+    else if (marker && marker._client_tod) res.tod = new Date(marker._client_tod);
+    else if (marker && marker.tod) res.tod = new Date(marker.tod);
+
+    if (mapEntry.ts) res.ts = new Date(mapEntry.ts);
+    else if (marker && marker._client_ts) res.ts = new Date(marker._client_ts);
+    else if (marker && marker.timestamp) try{ res.ts = new Date(marker.timestamp); }catch(e){}
+    else if (user && user.updated_at) try{ res.ts = new Date(user.updated_at); }catch(e){}
+    else if (user && user.last_login) try{ res.ts = new Date(user.last_login); }catch(e){}
+    else if (user && user.created_at) try{ res.ts = new Date(user.created_at); }catch(e){}
+    return res;
+}
+
+function updateTimers(){
+    const now = new Date();
+    for (const u of (allUsers||[])){
+        const key = getUserKey(u);
+        const cell = document.getElementById(`timer-${u.id||u.username}`);
+        if (!cell) continue;
+        const eff = getTimestampsForKey(key, u);
+        let status = (clientStatusMap[key] && clientStatusMap[key].status) ? clientStatusMap[key].status : deriveUserStatus(u);
+        let ts = eff.ts;
+        let tod = eff.tod;
+
+        if (status === 'KIA'){
+            const dt = tod || ts || new Date();
+            cell.innerText = 'TOD: ' + dt.toLocaleTimeString('de-DE');
+            cell.style.color = '#ff6666';
+        } else if (status === 'AKTIV'){
+            const start = ts || new Date();
+            const diff = Math.floor((now - start) / 1000);
+            cell.innerText = formatDuration(diff);
+            cell.style.color = '#00ff00';
+        } else if (status === 'BASE'){
+            const start = ts || new Date();
+            const elapsed = Math.floor((now - start) / 1000);
+            const remain = BASE_WINDOW_SEC - elapsed;
+            if (remain > 0){
+                cell.innerText = 'RST: ' + formatDuration(remain);
+                cell.style.color = '#0088ff';
+            } else {
+                cell.innerText = 'STANDBY';
+                cell.style.color = '#888';
+            }
+        } else {
+            cell.innerText = '--';
+            cell.style.color = '#888';
+        }
+
+        // visual active class on buttons
+        const row = cell.parentElement;
+        if (row){
+            row.querySelectorAll('button[data-set]').forEach(b=>{
+                const desired = b.dataset.set;
+                if (clientStatusMap[key] && clientStatusMap[key].status === desired) b.classList.add('active');
+                else b.classList.remove('active');
+            });
+        }
+    }
+}
+
+/* mission header: show label ONLY for ongoing mission; hide for completed (e.g. SUCCESS) */
+async function updateMissionHeader(){
+    try {
+        const r = await apiFetch('/api/missions');
+        if (!r.ok) { document.getElementById('missionStatus').innerText = ''; return; }
+        const ms = await r.json();
+        if (!Array.isArray(ms) || ms.length===0){ document.getElementById('missionStatus').innerText = ''; return; }
+        // prefer ongoing mission only
+        const ongoing = ms.find(m => (m.status||'').toUpperCase() === 'ONGOING');
+        if (!ongoing) {
+            // don't display final statuses like SUCCESS
+            document.getElementById('missionStatus').innerText = '';
+            return;
+        }
+        const label = normalizeStatus(ongoing.status);
+        const color = label==='AKTIV' ? '#28a745' : (label==='KIA' ? '#dc3545' : '#007bff');
+        document.getElementById('missionStatus').innerText = label;
+        document.getElementById('missionStatus').style.color = color;
+    } catch(e){
+        document.getElementById('missionStatus').innerText = '';
+    }
+}
+
+/* init */
+window.addEventListener('DOMContentLoaded', async () => {
+    setInterval(()=>{ document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE'); }, 1000);
+
+    clientStatusMap = loadClientStatus();
+    deviceAssignmentMap = loadDeviceMap();
+
+    await loadData();
+    updateTimers();
+    updateMissionHeader();
+
+    setInterval(async ()=>{ await loadData(); }, REFRESH_MS);
+    setInterval(updateTimers, TIMER_INTERVAL_MS);
+    setInterval(updateMissionHeader, 15000);
+    
+    // BroadcastChannel for receiving status updates from overview.html
+    let statusChannel;
+    try {
+        statusChannel = new BroadcastChannel('lpu5_status_updates');
+        statusChannel.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data.type === 'status_change') {
+                // Reload data to reflect updated status
+                loadData().catch(e => console.warn('Failed to reload data after status update', e));
+            }
+        });
+        
+        // Cleanup handler: close BroadcastChannel when page unloads
+        window.addEventListener('beforeunload', () => {
+            if (statusChannel) {
+                statusChannel.close();
+            }
+        });
+    } catch (e) {
+        console.warn('BroadcastChannel not supported, using localStorage fallback only', e);
+    }
+    
+    // localStorage listener (fallback for older browsers)
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'lpu5_last_status_update' && e.newValue) {
+            try {
+                const data = JSON.parse(e.newValue);
+                if (data.type === 'status_change') {
+                    // Reload data to reflect updated status
+                    loadData().catch(err => console.warn('Failed to reload data after status update', err));
+                }
+            } catch (err) {
+                console.warn('Failed to parse status update', err);
+            }
+        }
+    });
+});
+
+/* localStorage helpers */
+function loadClientStatus(){ try { return JSON.parse(localStorage.getItem(STATUS_LS_KEY) || '{}'); } catch(e){ return {}; } }
+function saveClientStatus(){ try { localStorage.setItem(STATUS_LS_KEY, JSON.stringify(clientStatusMap || {})); } catch(e){} }
+function loadDeviceMap(){ try { return JSON.parse(localStorage.getItem(DEVICE_MAP_LS_KEY) || '{}'); } catch(e){ return {}; } }
+function saveDeviceMap(){ try { localStorage.setItem(DEVICE_MAP_LS_KEY, JSON.stringify(deviceAssignmentMap || {})); } catch(e){} }
+
+/* logout */
+function logoutUser(){
+    if (!confirm('Wirklich abmelden?')) return;
+    try{ localStorage.removeItem('lpu5_token'); localStorage.removeItem('lpu5_user'); } catch(e){}
+    window.location.href = '/';
+}
+</script>
+
+<!-- sidebar user display updater -->
+<script>
+(async function () {
+  const getNameEl = () => document.getElementById('userName');
+  const getStatusEl = () => document.getElementById('userStatus');
+
+  async function fetchMe() {
+    try {
+      const resp = await fetch('/api/me');
+      if (resp.ok) return await resp.json();
+    } catch (e) {}
+    return null;
+  }
+
+  async function resolveDisplayName() {
+    try {
+      const raw = localStorage.getItem('lpu5_user');
+      if (raw) {
+        const u = JSON.parse(raw);
+        const name = u.name || u.fullname || u.username || u.displayName;
+        if (name) return { name, online: true };
+      }
+    } catch (e) {}
+    try {
+      const token = localStorage.getItem('lpu5_token');
+      if (token && typeof token === 'string' && !token.includes('.') && token.length < 128) {
+        return { name: token, online: true };
+      }
+    } catch (e) {}
+    try {
+      const me = await fetchMe();
+      if (me) {
+        const name = me.name || me.fullname || me.username;
+        if (name) return { name, online: true };
+      }
+    } catch (e) {}
+    return { name: 'Gast', online: false };
+  }
+
+  async function updateSidebarUserDisplay() {
+    const elName = getNameEl();
+    const elStatus = getStatusEl();
+    if (!elName) return;
+    const info = await resolveDisplayName();
+    elName.textContent = info.name || 'Gast';
+    if (elStatus) {
+      elStatus.textContent = info.online ? 'Online' : 'Nicht angemeldet';
+      elStatus.style.color = info.online ? '' : '#999';
+    }
+    try {
+      const nav = document.querySelector('.tactical-sidebar');
+      if (nav) {
+        nav.className = nav.className.split(' ').filter(c => !c.startsWith('user-')).join(' ');
+        const safe = String(info.name || 'guest').toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').substring(0,40);
+        if (safe) nav.classList.add('user-' + safe);
+      }
+    } catch (e) {}
+  }
+
+  updateSidebarUserDisplay().catch(console.warn);
+
+  window.addEventListener('storage', (ev) => {
+    if (!ev.key) return;
+    if (['lpu5_user','lpu5_token','lpu5_tactical_status','lpu5_device_map'].includes(ev.key)) {
+      updateSidebarUserDisplay().catch(console.warn);
+    }
+  });
+
+  window.updateSidebarUserDisplay = updateSidebarUserDisplay;
+})();
+
+/* ----------------- STATUS BROADCAST LISTENER (index.html) -----------------
+   Listens for status changes from overview.html and updates the UI
+*/
+(function() {
+  const CHANNEL = 'lpu5_global_status';
+  let bc = null;
+  
+  try {
+    bc = new BroadcastChannel(CHANNEL);
+    bc.onmessage = (e) => {
+      if (e.data && e.data.type === 'status-change') {
+        updateStatusFromBroadcast(e.data.status);
+      }
+    };
+  } catch(e) {
+    console.warn('BroadcastChannel not available, using storage fallback');
+  }
+
+  // Also listen to storage events for cross-tab communication
+  window.addEventListener('storage', (ev) => {
+    if (ev.key === 'lpu5_status' && ev.newValue) {
+      try {
+        const msg = JSON.parse(ev.newValue);
+        if (msg && msg.type === 'status-change') {
+          updateStatusFromBroadcast(msg.status);
+        }
+      } catch(e) {
+        console.warn('Failed to parse status message', e);
+      }
+    }
+  });
+
+  // Update UI based on received status
+  function updateStatusFromBroadcast(status) {
+    console.log('Received status update:', status);
+    
+    // Update user status indicator if present
+    const statusEl = document.getElementById('userStatus');
+    if (statusEl) {
+      statusEl.innerText = status;
+      
+      // Update color based on status
+      if (status === 'AKTIV') statusEl.style.color = '#28a745';
+      else if (status === 'BASE') statusEl.style.color = '#007bff';
+      else if (status === 'KIA') statusEl.style.color = '#dc3545';
+      else statusEl.style.color = '';
+    }
+    
+    // Force refresh of the main table to show updated status
+    // Delay needed to allow status update to complete before re-rendering
+    if (typeof renderState === 'function') {
+      setTimeout(() => renderState(), 100);
+    }
+  }
+
+  // Initialize from last known status
+  try {
+    const last = JSON.parse(localStorage.getItem('lpu5_status') || 'null');
+    if (last && last.type === 'status-change') {
+      updateStatusFromBroadcast(last.status);
+    }
+  } catch(e) {
+    console.warn('Failed to load initial status', e);
+  }
+})();
+
+// Register service worker for offline support and caching
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/map-cache-sw.js')
+    .then(reg => console.log('Service Worker registered for index', reg))
+    .catch(err => console.warn('Service Worker registration failed', err));
+}
+</script>
+
+</body>
+</html>

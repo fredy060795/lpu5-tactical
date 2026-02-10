@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MISSION MANAGEMENT</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --border-color: #333;
+            --text-main: #d0d0d0;
+            /* Accent blue changed to white per request */
+            --accent-blue: #ffffff;
+            --accent-green: #28a745;
+            --accent-red: #dc3545;
+            --tactical-gray: #2d2d2d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: var(--bg-dark); 
+            color: var(--text-main); 
+            font-family: 'Courier New', monospace; 
+            overflow-x: hidden;
+        }
+
+        /* ===== PAGE STYLES ===== */
+        header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            /* border now uses white */
+            border-bottom: 2px solid var(--accent-blue);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            /* removed colored box-shadow to avoid blue glow */
+            box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+        }
+
+        h1 {
+            /* blue -> white */
+            color: var(--accent-blue);
+            font-size: 1.5em;
+            text-shadow: none;
+            margin: 0;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .form-section {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .form-section:hover {
+            /* hover border uses white (accent-blue now white) but subtle */
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 12px rgba(255,255,255,0.04);
+        }
+
+        .form-section h2 {
+            /* blue -> white */
+            color: var(--accent-blue);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2em;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #888;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            background: #000;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            /* keep focus neutral (no blue) */
+            border-color: #666;
+            box-shadow: 0 0 8px rgba(0,0,0,0.45);
+        }
+
+        /* Buttons: background changed from blue to panel background as requested */
+        .btn {
+            background: var(--panel-bg); /* now matches panel background */
+            color: var(--text-main);     /* readable text color */
+            border: 1px solid var(--border-color);
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.12s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            /* subtle lighter panel on hover */
+            background: #252525;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #0a0a0a;
+            margin-top: 20px;
+        }
+
+        th {
+            background: #222;
+            color: #888;
+            padding: 12px;
+            text-align: left;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            border-bottom: 2px solid #333;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #222;
+        }
+
+        tr:hover {
+            background: #151515;
+            transition: all 0.2s ease;
+        }
+
+        .status-ONGOING { 
+            color: #ffaa00; 
+            font-weight: bold; 
+        }
+
+        .status-SUCCESS { 
+            color: #00ff00; 
+            font-weight: bold; 
+        }
+
+        .status-FAILED { 
+            color: #ff0000; 
+            font-weight: bold; 
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #888;
+            padding: 30px;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            header { 
+                padding-left: 68px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0;
+            }
+            h1 { font-size: 1.2em; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+
+    <!-- ===== GLOBAL NAV CSS (1:1 from _global_nav_v2.html) ===== -->
+    <style>
+    </style>
+</head>
+<body>
+
+<!-- ===== GLOBAL NAV (1:1 eingefügt) ===== -->
+<!-- Global Navigation loaded from _global_nav.html -->
+<script src="load-global-nav.js"></script>
+
+<!-- optional sidebar script (kept identical to _global_nav_v2.html) -->
+<script src="assets/sidebar.js"></script>
+
+<!-- ===== PAGE HEADER & CONTENT (Mission page) ===== -->
+<header>
+    <h1>MISSION MANAGEMENT</h1>
+</header>
+
+<div class="container" style="padding-top:20px;">
+    <!-- CREATE MISSION -->
+    <div class="form-section">
+        <h2><i class="fas fa-bullseye"></i> Create New Mission</h2>
+        
+        <div class="form-grid">
+            <div>
+                <label><i class="fas fa-calendar"></i> Date</label>
+                <input type="date" id="missionDate">
+            </div>
+            <div>
+                <label><i class="fas fa-target"></i> Objective</label>
+                <input type="text" id="missionObjective" placeholder="e.g. Reconnaissance">
+            </div>
+        </div>
+
+        <label><i class="fas fa-location-dot"></i> Area of Operation (AO)</label>
+        <input type="text" id="missionLocation" placeholder="e.g. North Sector">
+
+        <div class="form-grid">
+            <div>
+                <label><i class="fas fa-clock"></i> Start Time</label>
+                <input type="time" id="missionStart">
+            </div>
+            <div>
+                <label><i class="fas fa-clock"></i> End Time</label>
+                <input type="time" id="missionEnd">
+            </div>
+        </div>
+
+        <button class="btn" onclick="createMission()" style="width: 100%;">
+            <i class="fas fa-plus"></i> CREATE MISSION
+        </button>
+    </div>
+
+    <!-- MISSIONS LIST -->
+    <div class="form-section">
+        <h2><i class="fas fa-list"></i> Active Missions</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th><i class="fas fa-calendar"></i> Date</th>
+                    <th><i class="fas fa-target"></i> Objective</th>
+                    <th><i class="fas fa-location-dot"></i> AO</th>
+                    <th><i class="fas fa-circle-check"></i> Status</th>
+                    <th><i class="fas fa-cog"></i> Action</th>
+                </tr>
+            </thead>
+            <tbody id="missionTable">
+                <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+<script>
+    // Helper so Global Nav's logout link works
+    function logoutUser() {
+        if (confirm('Really log out?')) {
+            localStorage.removeItem('lpu5_user');
+            localStorage.removeItem('lpu5_token');
+            window.location.href = '/';
+        }
+    }
+
+    // ===== MISSION FUNCTIONS =====
+    async function createMission() {
+        const data = {
+            date: document.getElementById('missionDate').value,
+            objective: document.getElementById('missionObjective').value,
+            location: document.getElementById('missionLocation').value,
+            start_time: document.getElementById('missionStart').value,
+            deadline: document.getElementById('missionEnd').value
+        };
+
+        if (!data.date || !data.objective || !data.location) {
+            alert('❌ Please fill in all required fields');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/add_mission', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                alert('✅ Mission created successfully');
+                document.getElementById('missionDate').value = '';
+                document.getElementById('missionObjective').value = '';
+                document.getElementById('missionLocation').value = '';
+                document.getElementById('missionStart').value = '';
+                document.getElementById('missionEnd').value = '';
+                loadMissions();
+            } else {
+                alert('❌ Error creating mission');
+            }
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        }
+    }
+
+    async function loadMissions() {
+        try {
+            const res = await fetch('/api/missions');
+            const missions = await res.json();
+            const tbody = document.getElementById('missionTable');
+
+            if (!Array.isArray(missions) || missions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No missions created</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = missions.map(m => `
+                <tr>
+                    <td><strong>${m.date}</strong></td>
+                    <td>${m.objective}</td>
+                    <td>${m.location}</td>
+                    <td class="status-${m.status}">${m.status}</td>
+                    <td>
+                        ${m.status === 'ONGOING' ? `
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75em;" onclick="deleteMission('${m.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : '<i class="fas fa-check" style="color: #00ff00;"></i>'}
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            console.error('Error:', e);
+            document.getElementById('missionTable').innerHTML = '<tr><td colspan="5" class="empty-state">Error loading</td></tr>';
+        }
+    }
+
+    async function deleteMission(id) {
+        if (!confirm('Really delete mission?')) return;
+        try {
+            await fetch(`/api/missions/${id}`, { method: 'DELETE' });
+            alert('✅ Mission deleted');
+            loadMissions();
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadMissions();
+        console.log('✅ Mission page initialized');
+    });
+</script>
+
+<script>
+/**
+ * Update sidebar user display from login data.
+ * - Reads localStorage.lpu5_user (expected JSON { username, name, fullname, ... })
+ * - Falls nicht vorhanden: liest localStorage.lpu5_token (evtl. username)
+ * - Optional: versucht /api/me wenn weder vorhanden ist (nicht zwingend)
+ * - Reagiert auf 'storage' events (anderes Tab loggt ein/aus)
+ */
+async function updateUserNameDisplay() {
+  const el = document.getElementById('userName');
+  if (!el) return;
+
+  // default fallback text
+  let displayName = null;
+
+  // 1) try lpu5_user in localStorage
+  try {
+    const raw = localStorage.getItem('lpu5_user');
+    if (raw) {
+      const u = JSON.parse(raw);
+      displayName = u.name || u.fullname || u.username || u.displayName || null;
+      // if you stored object under different shape, adjust above
+    }
+  } catch (e) {
+    console.warn('Failed to parse lpu5_user', e);
+  }
+
+  // 2) fallback to lpu5_token (sometimes username stored there)
+  if (!displayName) {
+    const token = localStorage.getItem('lpu5_token');
+    if (token) {
+      // if token is a simple username, use it; if JWT, don't parse it here for privacy
+      // heuristics: if token contains a dot (.) it's probably a JWT -> skip
+      if (token.indexOf('.') === -1 && token.length < 128) {
+        displayName = token;
+      }
+    }
+  }
+
+  // 3) optional: attempt to fetch /api/me if available and still no name
+  if (!displayName) {
+    try {
+      const resp = await fetch('/api/me', { credentials: 'include' });
+      if (resp.ok) {
+        const me = await resp.json();
+        displayName = me.name || me.fullname || me.username || null;
+      }
+    } catch (e) {
+      // ignore; this endpoint might not exist
+    }
+  }
+
+  // 4) final fallback
+  el.textContent = displayName || 'Guest';
+  el.title = displayName || 'Not logged in';
+}
+
+// Update immediately
+updateUserNameDisplay().catch(e => console.warn('updateUserNameDisplay error', e));
+
+// Listen to storage events (other tab login/logout)
+window.addEventListener('storage', (e) => {
+  if (e.key === 'lpu5_user' || e.key === 'lpu5_token') {
+    updateUserNameDisplay().catch(err => console.warn(err));
+  }
+});
+
+// Optional helper: call this after successful login in your login flow
+// Example: after you set localStorage.setItem('lpu5_user', JSON.stringify(data.user))
+// call: updateUserNameDisplay();
+</script>
+    <script>
+    fetch('_global_nav.html')
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('nav-placeholder').innerHTML = data;
+            // Falls JS-Funktionen in der Nav sind, hier re-initialisieren
+        });
+    </script>
+</body>
+</html>

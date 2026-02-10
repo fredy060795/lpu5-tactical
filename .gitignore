@@ -1,0 +1,60 @@
+copilot/fix-local-ip-issue
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+install_log.txt
+
+# Temporary files
+*.tmp
+*.bak
+
+# Database backups and archived files
+database_backups/
+*.archived
+
+# SSL Certificates (should be generated locally)
+cert.pem
+key.pem
+*.pem
+
+=======
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+main
+
+# Test scripts and artifacts
+test_sync_functionality.py
+test_browser_sync.py
+test_*.png

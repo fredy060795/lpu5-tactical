@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Settings - LPU5 Tactical</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --sb-collapsed: 70px;
+            --sb-expanded: 280px;
+            --bg-dark: #121212;
+            --panel-bg: #1a1a1a;
+            --border: #282828;
+            --border-color: #333;
+            --accent: #2ecc71;
+            --accent-blue: #3498db;
+            --accent-yellow: #f39c12;
+            --accent-red: #e74c3c;
+            --text-main: #d0d0d0;
+            --text-dim: #888;
+            --muted: #666;
+        }
+
+        body {
+            margin: 0;
+            padding-left: var(--sb-collapsed);
+            background: #0a0a0a;
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            transition: padding-left 0.3s ease;
+        }
+
+        .page-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .page-title i {
+            color: var(--accent-blue);
+            margin-right: 10px;
+        }
+
+        .section {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .section-header {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .section-header i {
+            color: var(--accent-blue);
+            margin-right: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 10px;
+            background: #0a0a0a;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            border-radius: 3px;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .form-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .form-checkbox label {
+            color: var(--text-main);
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid var(--border-color);
+            background: #2d2d2d;
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #3d3d3d;
+            border-color: var(--accent-blue);
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-success {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #27ae60;
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .info-box {
+            padding: 12px;
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+        }
+
+        .info-box i {
+            color: var(--accent-blue);
+            margin-right: 8px;
+        }
+
+        .warning-box {
+            padding: 12px;
+            background: rgba(243, 156, 18, 0.1);
+            border: 1px solid rgba(243, 156, 18, 0.3);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+        }
+
+        .warning-box i {
+            color: var(--accent-yellow);
+            margin-right: 8px;
+        }
+
+        .success-box {
+            padding: 12px;
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+        }
+
+        .success-box i {
+            color: var(--accent);
+            margin-right: 8px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-active {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+
+        .status-inactive {
+            background: var(--muted);
+        }
+
+        .network-info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .network-info-label {
+            color: var(--text-dim);
+        }
+
+        .network-info-value {
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Global Navigation -->
+<script src="load-global-nav.js"></script>
+
+<div class="page-container">
+    <div class="page-header">
+        <div class="page-title">
+            <i class="fas fa-network-wired"></i>
+            Network Settings
+        </div>
+    </div>
+
+    <!-- Network Status Section -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-signal"></i>
+            Network Status
+        </div>
+        <div id="networkStatus">
+            <div class="network-info-item">
+                <span class="network-info-label">Server Status:</span>
+                <span class="network-info-value">
+                    <span class="status-indicator status-active"></span>
+                    Online
+                </span>
+            </div>
+            <div class="network-info-item">
+                <span class="network-info-label">Local IP Address:</span>
+                <span class="network-info-value" id="localIpDisplay">Loading...</span>
+            </div>
+            <div class="network-info-item">
+                <span class="network-info-label">Port:</span>
+                <span class="network-info-value" id="portDisplay">8000</span>
+            </div>
+            <div class="network-info-item">
+                <span class="network-info-label">Server URL:</span>
+                <span class="network-info-value" id="serverUrlDisplay">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <!-- Server Forwarding Section -->
+        <div class="section">
+            <div class="section-header">
+                <i class="fas fa-exchange-alt"></i>
+                Server Forwarding
+            </div>
+            
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                Configure forwarding of actions to external servers (e.g. for backup or central management).
+            </div>
+
+            <div class="form-group">
+                <div class="form-checkbox">
+                    <input type="checkbox" id="enableForwarding">
+                    <label for="enableForwarding">Enable server forwarding</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Target Server URL</label>
+                <input type="text" class="form-input" id="forwardingUrl" placeholder="https://example.com:8000" disabled>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Events to Forward</label>
+                <div class="form-checkbox">
+                    <input type="checkbox" id="forwardRegistrations" disabled>
+                    <label for="forwardRegistrations">User Registrations</label>
+                </div>
+                <div class="form-checkbox">
+                    <input type="checkbox" id="forwardQRCodes" disabled>
+                    <label for="forwardQRCodes">QR Code Creation</label>
+                </div>
+                <div class="form-checkbox">
+                    <input type="checkbox" id="forwardMarkers" disabled>
+                    <label for="forwardMarkers">Map Marker Updates</label>
+                </div>
+                <div class="form-checkbox">
+                    <input type="checkbox" id="forwardMissions" disabled>
+                    <label for="forwardMissions">Mission Updates</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Public IP Configuration Section -->
+        <div class="section">
+            <div class="section-header">
+                <i class="fas fa-globe"></i>
+                Public IP Configuration
+            </div>
+            
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                Configure public IP address for external access (e.g. for QR codes).
+            </div>
+
+            <div class="form-group">
+                <div class="form-checkbox">
+                    <input type="checkbox" id="usePublicIp">
+                    <label for="usePublicIp">Use public IP for QR codes</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Public IP/Domain</label>
+                <input type="text" class="form-input" id="publicIp" placeholder="e.g. 203.0.113.1 or domain.example.com" disabled>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Public Port</label>
+                <input type="number" class="form-input" id="publicPort" placeholder="8000" disabled>
+            </div>
+
+            <div class="warning-box">
+                <i class="fas fa-exclamation-triangle"></i>
+                Ensure port forwarding is configured in your router.
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Security Section -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-shield-alt"></i>
+            Network Security
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <div class="form-group">
+                    <label class="form-label">Allowed IP Ranges (CIDR)</label>
+                    <input type="text" class="form-input" id="allowedIpRanges" placeholder="e.g. 192.168.1.0/24">
+                </div>
+                
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    Restrict access to specific IP ranges. Separate multiple ranges with commas.
+                </div>
+            </div>
+
+            <div>
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="requireAuth">
+                        <label for="requireAuth">Authentication required</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="enableRateLimiting">
+                        <label for="enableRateLimiting">Enable rate limiting</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="logNetworkAccess">
+                        <label for="logNetworkAccess">Log network access</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAK Server Integration Section -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-satellite-dish"></i>
+            TAK Server Integration
+        </div>
+
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Connect this server to a TAK Server for advanced tactical operations (similar to ATAK/WINTAK).
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="enableTakIntegration">
+                        <label for="enableTakIntegration">Enable TAK Server integration</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">TAK Server URL</label>
+                    <input type="text" class="form-input" id="takServerUrl" placeholder="https://takserver.example.com:8089" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Connection Type</label>
+                    <select class="form-select" id="takConnectionType" disabled>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                        <option value="ssl">SSL/TLS</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <div class="form-group">
+                    <label class="form-label">TAK Server Port</label>
+                    <input type="number" class="form-input" id="takServerPort" placeholder="8089" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">SSL Certificate (optional)</label>
+                    <input type="file" class="form-input" id="takSslCert" accept=".pem,.crt,.cer" disabled>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="takAutoReconnect" disabled>
+                        <label for="takAutoReconnect">Reconnect automatically</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CoT (Cursor on Target) Settings -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-crosshairs"></i>
+            CoT (Cursor on Target) Settings
+        </div>
+
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Configure CoT messages for interoperability with ATAK/WINTAK systems.
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="enableCoT">
+                        <label for="enableCoT">Enable CoT support</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">CoT Broadcast Interval (seconds)</label>
+                    <input type="number" class="form-input" id="cotInterval" placeholder="30" value="30" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Default CoT Type</label>
+                    <select class="form-select" id="cotType" disabled>
+                        <option value="a-f-G">Friendly Unit</option>
+                        <option value="a-h-G">Hostile Unit</option>
+                        <option value="a-n-G">Neutral Unit</option>
+                        <option value="a-u-G">Unknown Unit</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="cotIncludeCallsign" disabled>
+                        <label for="cotIncludeCallsign">Include callsign in CoT</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="cotIncludeTeam" disabled>
+                        <label for="cotIncludeTeam">Include team information</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="cotIncludeRemarks" disabled>
+                        <label for="cotIncludeRemarks">Include remarks</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Settings -->
+    <div class="button-group">
+        <button class="btn btn-success" onclick="saveNetworkSettings()">
+            <i class="fas fa-save"></i> Save Settings
+        </button>
+        <button class="btn" onclick="loadNetworkSettings()">
+            <i class="fas fa-sync-alt"></i> Reset
+        </button>
+        <button class="btn" onclick="testConnection()">
+            <i class="fas fa-network-wired"></i> Test Connection
+        </button>
+    </div>
+
+    <div id="saveStatus" style="margin-top: 15px; display: none;"></div>
+</div>
+
+<script>
+// Load server info on page load
+async function loadServerInfo() {
+    try {
+        const response = await fetch('/api/server_info');
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('localIpDisplay').textContent = data.local_ip || 'N/A';
+            document.getElementById('portDisplay').textContent = data.port || '8000';
+            document.getElementById('serverUrlDisplay').textContent = data.base_url || 'N/A';
+        }
+    } catch (error) {
+        console.error('Error loading server info:', error);
+        document.getElementById('localIpDisplay').textContent = 'Error loading';
+        document.getElementById('serverUrlDisplay').textContent = 'Error loading';
+    }
+}
+
+// Load network settings from server
+async function loadNetworkSettings() {
+    try {
+        const response = await fetch('/api/config');
+        if (response.ok) {
+            const config = await response.json();
+            const networkConfig = config.network || {};
+
+            // Server Forwarding
+            document.getElementById('enableForwarding').checked = networkConfig.enableForwarding || false;
+            document.getElementById('forwardingUrl').value = networkConfig.forwardingUrl || '';
+            document.getElementById('forwardRegistrations').checked = networkConfig.forwardRegistrations || false;
+            document.getElementById('forwardQRCodes').checked = networkConfig.forwardQRCodes || false;
+            document.getElementById('forwardMarkers').checked = networkConfig.forwardMarkers || false;
+            document.getElementById('forwardMissions').checked = networkConfig.forwardMissions || false;
+
+            // Public IP
+            document.getElementById('usePublicIp').checked = networkConfig.usePublicIp || false;
+            document.getElementById('publicIp').value = networkConfig.publicIp || '';
+            document.getElementById('publicPort').value = networkConfig.publicPort || '8000';
+
+            // Security
+            document.getElementById('allowedIpRanges').value = networkConfig.allowedIpRanges || '';
+            document.getElementById('requireAuth').checked = networkConfig.requireAuth !== false;
+            document.getElementById('enableRateLimiting').checked = networkConfig.enableRateLimiting || false;
+            document.getElementById('logNetworkAccess').checked = networkConfig.logNetworkAccess !== false;
+
+            // TAK Server
+            document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
+            document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
+            document.getElementById('takConnectionType').value = networkConfig.takConnectionType || 'tcp';
+            document.getElementById('takServerPort').value = networkConfig.takServerPort || '8089';
+            document.getElementById('takAutoReconnect').checked = networkConfig.takAutoReconnect !== false;
+
+            // CoT Settings
+            document.getElementById('enableCoT').checked = networkConfig.enableCoT || false;
+            document.getElementById('cotInterval').value = networkConfig.cotInterval || '30';
+            document.getElementById('cotType').value = networkConfig.cotType || 'a-f-G';
+            document.getElementById('cotIncludeCallsign').checked = networkConfig.cotIncludeCallsign !== false;
+            document.getElementById('cotIncludeTeam').checked = networkConfig.cotIncludeTeam !== false;
+            document.getElementById('cotIncludeRemarks').checked = networkConfig.cotIncludeRemarks || false;
+
+            // Update UI state
+            updateForwardingState();
+            updatePublicIpState();
+            updateTakIntegrationState();
+            updateCoTState();
+        }
+    } catch (error) {
+        console.error('Error loading network settings:', error);
+        showStatus('Error loading settings', 'error');
+    }
+}
+
+// Save network settings to server
+async function saveNetworkSettings() {
+    try {
+        const networkConfig = {
+            network: {
+                // Server Forwarding
+                enableForwarding: document.getElementById('enableForwarding').checked,
+                forwardingUrl: document.getElementById('forwardingUrl').value,
+                forwardRegistrations: document.getElementById('forwardRegistrations').checked,
+                forwardQRCodes: document.getElementById('forwardQRCodes').checked,
+                forwardMarkers: document.getElementById('forwardMarkers').checked,
+                forwardMissions: document.getElementById('forwardMissions').checked,
+
+                // Public IP
+                usePublicIp: document.getElementById('usePublicIp').checked,
+                publicIp: document.getElementById('publicIp').value,
+                publicPort: document.getElementById('publicPort').value,
+
+                // Security
+                allowedIpRanges: document.getElementById('allowedIpRanges').value,
+                requireAuth: document.getElementById('requireAuth').checked,
+                enableRateLimiting: document.getElementById('enableRateLimiting').checked,
+                logNetworkAccess: document.getElementById('logNetworkAccess').checked,
+
+                // TAK Server
+                enableTakIntegration: document.getElementById('enableTakIntegration').checked,
+                takServerUrl: document.getElementById('takServerUrl').value,
+                takConnectionType: document.getElementById('takConnectionType').value,
+                takServerPort: document.getElementById('takServerPort').value,
+                takAutoReconnect: document.getElementById('takAutoReconnect').checked,
+
+                // CoT Settings
+                enableCoT: document.getElementById('enableCoT').checked,
+                cotInterval: document.getElementById('cotInterval').value,
+                cotType: document.getElementById('cotType').value,
+                cotIncludeCallsign: document.getElementById('cotIncludeCallsign').checked,
+                cotIncludeTeam: document.getElementById('cotIncludeTeam').checked,
+                cotIncludeRemarks: document.getElementById('cotIncludeRemarks').checked
+            }
+        };
+
+        const response = await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(networkConfig)
+        });
+
+        if (response.ok) {
+            showStatus('Settings saved successfully', 'success');
+        } else {
+            showStatus('Error saving settings', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving network settings:', error);
+        showStatus('Error saving settings', 'error');
+    }
+}
+
+// Test network connection
+async function testConnection() {
+    showStatus('Testing connection...', 'info');
+    try {
+        const response = await fetch('/api/health');
+        if (response.ok) {
+            showStatus('Connection successful!', 'success');
+        } else {
+            showStatus('Connection failed', 'error');
+        }
+    } catch (error) {
+        console.error('Connection test failed:', error);
+        showStatus('Connection failed: ' + error.message, 'error');
+    }
+}
+
+// Show status message
+function showStatus(message, type) {
+    const statusDiv = document.getElementById('saveStatus');
+    statusDiv.style.display = 'block';
+    
+    let className = 'info-box';
+    let icon = 'fa-info-circle';
+    
+    if (type === 'success') {
+        className = 'success-box';
+        icon = 'fa-check-circle';
+    } else if (type === 'error') {
+        className = 'warning-box';
+        icon = 'fa-exclamation-triangle';
+    }
+    
+    statusDiv.className = className;
+    statusDiv.innerHTML = `<i class="fas ${icon}"></i>${message}`;
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Update forwarding state
+function updateForwardingState() {
+    const enabled = document.getElementById('enableForwarding').checked;
+    document.getElementById('forwardingUrl').disabled = !enabled;
+    document.getElementById('forwardRegistrations').disabled = !enabled;
+    document.getElementById('forwardQRCodes').disabled = !enabled;
+    document.getElementById('forwardMarkers').disabled = !enabled;
+    document.getElementById('forwardMissions').disabled = !enabled;
+}
+
+// Update public IP state
+function updatePublicIpState() {
+    const enabled = document.getElementById('usePublicIp').checked;
+    document.getElementById('publicIp').disabled = !enabled;
+    document.getElementById('publicPort').disabled = !enabled;
+}
+
+// Update TAK integration state
+function updateTakIntegrationState() {
+    const enabled = document.getElementById('enableTakIntegration').checked;
+    document.getElementById('takServerUrl').disabled = !enabled;
+    document.getElementById('takConnectionType').disabled = !enabled;
+    document.getElementById('takServerPort').disabled = !enabled;
+    document.getElementById('takSslCert').disabled = !enabled;
+    document.getElementById('takAutoReconnect').disabled = !enabled;
+}
+
+// Update CoT state
+function updateCoTState() {
+    const enabled = document.getElementById('enableCoT').checked;
+    document.getElementById('cotInterval').disabled = !enabled;
+    document.getElementById('cotType').disabled = !enabled;
+    document.getElementById('cotIncludeCallsign').disabled = !enabled;
+    document.getElementById('cotIncludeTeam').disabled = !enabled;
+    document.getElementById('cotIncludeRemarks').disabled = !enabled;
+}
+
+// Event listeners
+document.getElementById('enableForwarding').addEventListener('change', updateForwardingState);
+document.getElementById('usePublicIp').addEventListener('change', updatePublicIpState);
+document.getElementById('enableTakIntegration').addEventListener('change', updateTakIntegrationState);
+document.getElementById('enableCoT').addEventListener('change', updateCoTState);
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadServerInfo();
+    loadNetworkSettings();
+});
+</script>
+
+<script src="assets/sidebar.js"></script>
+</body>
+</html>

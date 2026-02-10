@@ -1,0 +1,3381 @@
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TACTICAL ADMIN - Unified</title>
+  <link rel="manifest" href="/manifest.json">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+
+  <style>
+    :root {
+      --sb-collapsed: 70px;
+      --sb-expanded: 280px;
+      --nav-bg-dark: #121212;
+      --nav-border: #282828;
+      --nav-accent: #2ecc71;
+      --text-main: #d0d0d0;
+      --accent-blue: #007bff;
+      --accent-green: #28a745;
+      --accent-red: #dc3545;
+      --panel-bg: #1a1a1a;
+      --panel-input-bg: #0f0f0f;
+      --border-color: #333;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0a0a0a;
+      color: var(--text-main);
+      overflow: hidden;
+      padding-left: var(--sb-collapsed);
+      transition: padding-left .25s ease;
+    }
+
+    /* Sidebar styles will be loaded from _global_nav.html */
+
+    /* Map container */
+    #map {
+      position: absolute;
+      left: var(--sb-collapsed);
+      top: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1;
+      background: #000;
+      height: 100vh;
+      min-height: 480px;
+    }
+
+    /* Crosshair for precise placement */
+    #crosshair {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      pointer-events: none;
+      z-index: 11050;
+      display: none;
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: var(--accent-blue);
+    }
+
+    #crosshair::before {
+      left: 0;
+      right: 0;
+      height: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    #crosshair::after {
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #set-btn {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent-green);
+      color: #000;
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: none;
+      z-index: 11051;
+      display: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* toolbar/flyouts usability */
+    #iconBar {
+      position: fixed;
+      right: 12px;
+      top: 80px;
+      z-index: 11000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .icon-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, .6);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, .06);
+      transition: transform .12s, background .12s;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, .5);
+      pointer-events: auto;
+    }
+
+    .icon-btn:hover {
+      transform: translateX(-4px);
+      background: rgba(0, 0, 0, .75);
+    }
+
+    /* Make flyouts scrollable when content is long; hide visual scrollbars but keep scrolling possible */
+    .icon-flyout {
+      position: fixed;
+      right: 72px;
+      top: 120px;
+      z-index: 11001;
+      width: 360px;
+      max-width: calc(100% - 120px);
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 12px;
+      color: #ddd;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .6);
+      transform-origin: right top;
+      transform: scale(.98) translateX(8px);
+      opacity: 0;
+      visibility: hidden;
+      transition: transform .16s, opacity .16s, visibility .16s;
+      pointer-events: auto;
+
+      /* new: cap height relative to viewport and allow scrolling */
+      max-height: calc(100vh - 160px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      /* firefox */
+      -ms-overflow-style: none;
+      /* IE 10+ */
+    }
+
+    .icon-flyout::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* webkit */
+
+    .icon-flyout.open {
+      transform: scale(1) translateX(0);
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .icon-flyout h4 {
+      margin: 0 0 8px 0;
+      font-size: .9rem;
+      color: #9ad1ff;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    /* Dark form controls to match design */
+    .icon-flyout input[type="number"],
+    .icon-flyout input[type="text"],
+    .icon-flyout input[type="color"],
+    .icon-flyout input[type="file"],
+    .icon-flyout input[type="range"],
+    .icon-flyout select {
+      width: 100%;
+      padding: 8px;
+      background: var(--panel-input-bg);
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      pointer-events: auto;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .icon-flyout input[type="number"]::-webkit-inner-spin-button,
+    .icon-flyout input[type="number"]::-webkit-outer-spin-button {
+      opacity: 0.6;
+    }
+
+    .icon-flyout .row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-flyout .col {
+      flex: 1;
+    }
+
+    .icon-flyout .btn {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      pointer-events: auto;
+    }
+
+    .icon-flyout .btn.primary {
+      background: var(--accent-blue);
+      color: #fff;
+    }
+
+    .icon-flyout .btn.ghost {
+      background: #222;
+      color: #ddd;
+      border: 1px solid #333;
+    }
+
+    .fly-sym-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .fly-sym-btn.active {
+      border-color: var(--accent-blue);
+      background: #111;
+    }
+
+    .overlay-list {
+      margin-top: 10px;
+      max-height: 240px;
+      overflow: auto;
+      border-top: 1px dashed #333;
+      padding-top: 8px;
+    }
+
+    .overlay-item,
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      padding: 6px;
+      background: #0b0b0b;
+      border: 1px solid #222;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      color: #ddd;
+      font-size: 0.9rem;
+    }
+
+    .map-status {
+      position: fixed;
+      right: 18px;
+      top: 62px;
+      z-index: 11002;
+      background: rgba(0, 0, 0, .6);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: none;
+    }
+
+    .map-status.error {
+      display: block;
+      background: rgba(160, 30, 30, .9);
+    }
+
+    .save-status {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 11002;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #fff;
+      display: none;
+      font-weight: bold;
+    }
+
+    .save-status.ok {
+      background: rgba(40, 160, 80, .95);
+      display: block;
+    }
+
+    .save-status.fail {
+      background: rgba(200, 60, 60, .95);
+      display: block;
+    }
+
+    /* Meshtastic marker label */
+    .meshtastic-label {
+      background: rgba(0, 123, 255, 0.9);
+      color: white;
+      border: none;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-weight: bold;
+      border-radius: 3px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .meshtastic-marker {
+      z-index: 600;
+    }
+
+    .hidden-inputs {
+      display: none;
+    }
+
+    .btn-zoom {
+      background: #28a745;
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 8px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-delete {
+      background: #dc3545;
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 8px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .fly-sym-btn.trash-active {
+      outline: 2px solid var(--accent-red);
+    }
+
+    /* Overlay editor specific dark styling (applies to dynamically created editor panel) */
+    #overlayEditorPanel {
+      background: #151515;
+      border: 1px solid #222;
+      color: #ddd;
+      max-height: calc(100vh - 160px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #overlayEditorPanel input,
+    #overlayEditorPanel select,
+    #overlayEditorPanel textarea {
+      background: var(--panel-input-bg);
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    #overlayEditorPanel input[type="file"]::file-selector-button {
+      background: #222;
+      color: #fff;
+      border: 1px solid #333;
+      padding: 6px 8px;
+      border-radius: 6px;
+    }
+
+    #overlayEditorPanel .btn {
+      background: #222;
+      color: #ddd;
+      border: 1px solid #333;
+    }
+
+    #overlayEditorPanel .btn.primary {
+      background: var(--accent-blue);
+      color: #fff;
+    }
+
+    #overlayEditorPanel::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Floating stream window styles */
+    .stream-window {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 400px;
+      max-width: calc(100vw - 100px);
+      background: #111;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
+      z-index: 11100;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .stream-window.active {
+      display: flex;
+    }
+
+    .stream-window-header {
+      background: #007bff;
+      color: #fff;
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: move;
+      user-select: none;
+    }
+
+    .stream-window-title {
+      font-weight: bold;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stream-window-controls {
+      display: flex;
+      gap: 8px;
+    }
+
+    .stream-window-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .stream-window-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .stream-window-content {
+      background: #000;
+      min-height: 225px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .stream-window-video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .stream-window-placeholder {
+      color: #666;
+      text-align: center;
+      padding: 40px 20px;
+      flex-direction: column;
+    }
+
+    .stream-window-footer {
+      background: #0a0a0a;
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stream-status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #28a745;
+    }
+
+    .stream-status-badge .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #28a745;
+      border-radius: 50%;
+      animation: streamPulse 2s infinite;
+    }
+
+    @keyframes streamPulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .stream-status-badge.offline {
+      color: #dc3545;
+    }
+
+    .stream-status-badge.offline .pulse-dot {
+      background: #dc3545;
+    }
+
+    .stream-share-btn {
+      background: #28a745;
+      border: none;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .stream-share-btn:hover {
+      background: #218838;
+    }
+
+    .stream-share-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
+      color: #888;
+    }
+
+    /* Chat Window */
+    .chat-window {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      width: 420px;
+      max-width: calc(100vw - 100px);
+      height: 500px;
+      max-height: calc(100vh - 100px);
+      background: #111;
+      border: 2px solid #28a745;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
+      z-index: 11100;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-window.active {
+      display: flex;
+    }
+
+    .chat-window-header {
+      background: #28a745;
+      color: #fff;
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: move;
+      user-select: none;
+    }
+
+    .chat-window-title {
+      font-weight: bold;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-window-controls {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-window-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .chat-window-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .chat-window-content {
+      background: #000;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      color: #666;
+    }
+
+    .chat-message {
+      padding: 10px 12px;
+      border-radius: 8px;
+      max-width: 85%;
+      word-wrap: break-word;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-message.outgoing {
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 3px;
+    }
+
+    .chat-message.incoming {
+      background: #1a1a1a;
+      color: #d0d0d0;
+      align-self: flex-start;
+      border: 1px solid #333;
+      border-bottom-left-radius: 3px;
+    }
+
+    .chat-message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 0.75rem;
+    }
+
+    .chat-message-sender {
+      font-weight: bold;
+      color: #28a745;
+    }
+
+    .chat-message.outgoing .chat-message-sender {
+      color: #9ad1ff;
+    }
+
+    .chat-message-time {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+
+    .chat-message-text {
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .chat-window-footer {
+      background: #0a0a0a;
+      border-top: 1px solid #333;
+      padding: 12px 15px;
+    }
+
+    .chat-input-area {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chat-select {
+      padding: 8px 10px;
+      background: #000;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      max-width: 110px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: #000;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: #28a745;
+      box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+    }
+
+    .chat-send-btn {
+      padding: 8px 16px;
+      background: #28a745;
+      border: none;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: bold;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chat-send-btn:hover {
+      background: #218838;
+    }
+
+    .chat-send-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
+      color: #888;
+    }
+
+    .icon-btn[data-flyout="fly-chat"] {
+      position: relative;
+    }
+
+    .chat-notification-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: #dc3545;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 18px;
+      text-align: center;
+      display: none;
+    }
+
+    .chat-notification-badge.show {
+      display: block;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+      }
+    }
+
+    @media (max-width:768px) {
+      body {
+        padding-left: 56px;
+      }
+
+      #iconBar {
+        right: 8px;
+        top: 70px;
+      }
+
+      .stream-window {
+        width: 300px;
+        bottom: 10px;
+        right: 10px;
+      }
+
+      .chat-window {
+        width: 90%;
+        left: 5%;
+        right: 5%;
+        max-width: none;
+        height: 60%;
+        bottom: 10px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Tactical Chat Component -->
+  <script src="assets/tactical-chat.js"></script>
+
+  <!-- Global Navigation loaded from _global_nav.html -->
+  <script src="load-global-nav.js"></script>
+
+  <div id="map"></div>
+  <div id="crosshair" aria-hidden="true"></div>
+  <button id="set-btn" onclick="placeSymbolFromCrosshair()">PUNKT SETZEN</button>
+
+  <div id="iconBar" aria-hidden="false">
+    <!-- Existing buttons WITHOUT duplicate life status icons -->
+    <div class="icon-btn" data-flyout="fly-gps" title="GPS"><i class="fas fa-location-arrow"></i></div>
+    <div class="icon-btn" data-flyout="fly-overlay" title="Overlay"><i class="fas fa-image"></i></div>
+    <div class="icon-btn" data-flyout="fly-draw" title="Zeichnen"><i class="fas fa-pen-nib"></i></div>
+    <div class="icon-btn" data-flyout="fly-symbols" title="Symbole"><i class="fas fa-map-marker-alt"></i></div>
+    <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
+    <div class="icon-btn" onclick="openChatWindow()" title="Chat / Nachrichten"><i class="fas fa-comments"></i></div>
+    <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
+  </div>
+
+  <!-- Flyouts -->
+  <div id="fly-gps" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>GPS</h4>
+    <label>Farbe Pfeil</label>
+    <input type="color" id="gpsColor_fly" value="#ff4444">
+    <div style="margin-top:6px;">
+      <label><input type="radio" name="gpsMode" value="off" checked> Aus</label><br>
+      <label><input type="radio" name="gpsMode" value="refresh"> Refresh</label><br>
+      <label><input type="radio" name="gpsMode" value="fix"> Fix (Device or Map)</label>
+    </div>
+    <label style="margin-top:6px">Intervall (Fix)</label>
+    <select id="gpsIntervalSelect">
+      <option value="0">Deaktiviert</option>
+      <option value="30">30s</option>
+      <option value="60" selected>60s</option>
+      <option value="120">120s</option>
+    </select>
+    <div class="row" style="margin-top:8px;">
+      <div class="col"><button class="btn ghost" id="gpsDoBtn">AKTIVIEREN</button></div>
+      <div class="col"><button class="btn ghost" id="gpsStopBtn">STOPP</button></div>
+    </div>
+    <div id="gpsFlyInfo" style="margin-top:8px;color:#bbb;font-size:.85rem">No GPS loaded — for Fix: click "ACTIVATE"
+      (Device) or select "Fix" and click on the map.</div>
+  </div>
+
+  <div id="fly-overlay" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Map Overlay</h4>
+    <label>Bild Import (mehrere möglich)</label>
+    <input type="file" id="ovFile_fly" accept="image/*" multiple>
+    <div id="ovFileName_fly" style="font-size:.85rem;color:#bbb;margin-bottom:8px">Keine ausgewählt</div>
+
+    <label>Breite (Meter)</label><input id="ovW_fly" type="number" value="500" step="1">
+    <label>Höhe (Meter)</label><input id="ovH_fly" type="number" value="500" step="1">
+
+    <label style="margin-top:6px">Transparenz (Opacity)</label>
+    <input id="ovOpacity_fly" type="range" min="0" max="100" value="100">
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+      <input id="ovOpacityNum_fly" type="number" value="100" style="width:70px;">
+      <div style="color:#888">%</div>
+    </div>
+
+    <div style="margin-top:8px; display:flex; gap:8px;">
+      <button class="btn primary" id="ovAddBtn">IMPORT & ADD</button>
+      <button class="btn ghost" id="ovResetBtn">Reset</button>
+      <button class="btn ghost" id="ovClearBtn">Remove All</button>
+    </div>
+
+    <div class="overlay-list" id="overlayList">
+      <div style="color:#888">Keine Overlays</div>
+    </div>
+  </div>
+
+  <div id="fly-draw" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Zeichnen (Linien)</h4>
+    <label>Farbe</label>
+    <input id="drawColor_fly" type="color" value="#0088ff">
+    <label>Name</label>
+    <input id="areaName_fly" type="text" placeholder="Name...">
+    <div class="row" style="margin-top:8px;">
+      <div class="col"><button class="btn primary" id="drawStartBtn">Start</button></div>
+      <div class="col"><button class="btn ghost" id="drawFinishBtn">Fertig</button></div>
+    </div>
+    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Created objects are listed in Settings and can be deleted
+      there.</div>
+  </div>
+
+  <div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Symbole</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="fly-sym-btn" data-sym="raute" title="Raute"> <svg viewBox="0 0 100 100" width="18" height="18">
+          <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="2" />
+        </svg></button>
+      <button class="fly-sym-btn" data-sym="rechteck" title="Rechteck"> <svg viewBox="0 0 100 100" width="18"
+          height="18">
+          <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="2" />
+        </svg></button>
+      <button class="fly-sym-btn" data-sym="quadrat" title="Quadrat"> <svg viewBox="0 0 100 100" width="18" height="18">
+          <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="2" />
+        </svg></button>
+      <button class="fly-sym-btn" data-sym="blume" title="Blume"> <svg viewBox="0 0 100 100" width="18" height="18">
+          <path
+            d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
+            fill="#ffff00" stroke="white" stroke-width="2" />
+        </svg></button>
+
+      <button class="fly-sym-btn" id="symStopBtn" title="Stop Placement">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="22" height="22">
+          <polygon points="60,10 140,10 190,60 190,140 140,190 60,190 10,140 10,60" fill="#e63946" stroke="#fff"
+            stroke-width="10" />
+          <text x="100" y="118" font-family="Arial" font-size="48" font-weight="700" fill="#fff"
+            text-anchor="middle">STOP</text>
+        </svg>
+      </button>
+
+      <button class="fly-sym-btn" id="symTrashBtn" title="Löschmodus"><i class="fas fa-trash"
+          style="color:#ff6666"></i></button>
+    </div>
+    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol — click on the map to place. Trash activates
+      delete mode: click symbol to remove. Stop ends placement mode.</div>
+  </div>
+
+  <div id="fly-settings" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Settings</h4>
+
+    <label>Base Map</label>
+    <div style="display:flex; gap:8px; flex-direction:column; margin-bottom:8px;">
+      <label><input type="radio" name="basemap" value="street"> Street (OpenStreetMap)</label>
+      <label><input type="radio" name="basemap" value="sat"> Satellite (Esri World Imagery)</label>
+      <label><input type="radio" name="basemap" value="terrain"> Terrain (OpenTopoMap)</label>
+    </div>
+
+    <label>Created Objects</label>
+    <div id="settingsList">
+      <div style="color:#888">No objects</div>
+    </div>
+
+    <div style="margin-top:8px; display:flex; gap:8px;">
+      <button class="btn ghost" id="settingsRefreshBtn">Refresh</button>
+      <button class="btn ghost" id="settingsClearAllBtn">DELETE ALL</button>
+    </div>
+  </div>
+
+  <!-- Flyout: Chat -->
+  <div id="fly-chat" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Chat / Nachrichten</h4>
+    <label>Chat Kontrolle</label>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button class="btn primary" style="flex:1" onclick="openChatWindow(); closeFlyout()">Chat öffnen</button>
+      <button class="btn ghost" style="flex:1" onclick="closeChatWindow(); closeFlyout()">Schließen</button>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="btn ghost" style="width:100%" onclick="markAllMessagesRead(); closeFlyout()">Alle als
+        gelesen</button>
+    </div>
+    <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">Keine neuen Nachrichten</div>
+  </div>
+
+  <!-- Flyout: Camera Stream -->
+  <div id="fly-camera" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Camera Stream</h4>
+    <label>Stream Control</label>
+    <div class="row" style="margin-top:8px;">
+      <div class="col"><button class="btn primary" onclick="openStreamWindow()">Stream anzeigen</button></div>
+      <div class="col"><button class="btn ghost" onclick="closeStreamWindow()">Schließen</button></div>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="btn ghost" onclick="shareStreamToOverview()">An Overview teilen</button>
+    </div>
+    <div id="cameraFlyInfo" style="margin-top:8px;color:#bbb;font-size:.85rem">Kein Stream verfügbar</div>
+  </div>
+
+  <!-- Floating Stream Window -->
+  <div id="streamWindow" class="stream-window">
+    <div class="stream-window-header" id="streamWindowHeader">
+      <div class="stream-window-title">
+        <i class="fas fa-video"></i>
+        <span>Live Stream</span>
+      </div>
+      <div class="stream-window-controls">
+        <button class="stream-window-btn" onclick="minimizeStreamWindow()" title="Minimieren">
+          <i class="fas fa-minus"></i>
+        </button>
+        <button class="stream-window-btn" onclick="closeStreamWindow()" title="Schließen">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div class="stream-window-content">
+      <video id="streamWindowVideo" class="stream-window-video" autoplay muted></video>
+      <img id="streamWindowImage" class="stream-window-video" style="display:none;" alt="Camera Stream">
+      <div class="stream-window-placeholder" id="streamWindowPlaceholder" style="display:flex;">
+        <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
+        <div>Kein Stream</div>
+      </div>
+    </div>
+    <div class="stream-window-footer">
+      <div class="stream-status-badge offline" id="streamWindowStatus">
+        <span class="pulse-dot"></span>
+        <span>Offline</span>
+      </div>
+      <button class="stream-share-btn" id="streamShareBtn" onclick="shareStreamToOverview()" disabled>
+        <i class="fas fa-share-alt"></i> Teilen
+      </button>
+    </div>
+  </div>
+
+  <!-- Floating Chat Window -->
+  <div id="chatWindow" class="chat-window">
+    <div class="chat-window-header" id="chatWindowHeader">
+      <div class="chat-window-title">
+        <i class="fas fa-comments"></i>
+        <span>Chat / COT Nachrichten</span>
+      </div>
+      <div class="chat-window-controls">
+        <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
+          <i class="fas fa-minus"></i>
+        </button>
+        <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div class="chat-window-content">
+      <div class="chat-messages-container" id="chatMessagesContainer">
+        <div class="chat-placeholder" id="chatPlaceholder">
+          <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
+          <div style="color: #666;">Keine Nachrichten</div>
+          <small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small>
+        </div>
+      </div>
+    </div>
+    <div class="chat-window-footer">
+      <div class="chat-input-area">
+        <select id="chatRecipient" class="chat-select">
+          <option value="all">Alle Einheiten</option>
+          <option value="hq">HQ</option>
+        </select>
+        <input type="text" id="chatInput" class="chat-input" placeholder="Nachricht eingeben...">
+        <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+          <i class="fas fa-paper-plane"></i> Senden
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mapStatus" class="map-status"></div>
+  <div id="saveStatus" class="save-status"></div>
+
+  <div class="hidden-inputs">
+    <input id="ovW" type="number" value="5" />
+    <input id="ovH" type="number" value="5" />
+    <input id="ovOffsetX" type="number" value="0" />
+    <input id="ovOffsetY" type="number" value="0" />
+    <input id="ovFile" type="file" accept="image/*" />
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+  <script src="assets/api-client.js"></script>
+  <script src="assets/ws-client.js"></script>
+
+
+  <script>
+    // Helper: safe DOM ready
+    function onReady(fn) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+
+    onReady(() => {
+      // --- Map init & panes ---
+      const defaultCenter = [51.1657, 10.4515];
+      const defaultZoom = 6;
+
+      const basemaps = {
+        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }),
+        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' }),
+        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap' })
+      };
+
+      const map = L.map('map', { center: defaultCenter, zoom: defaultZoom, layers: [] });
+
+      // ensure proper layer stacking
+      // Order: paneOverlays (450) < paneDrawings (550) < paneMeshtastic (600) < paneSymbols (650)
+      // This places Meshtastic devices above drawings but below user-placed symbols
+      if (!map.getPane('paneOverlays')) { map.createPane('paneOverlays'); map.getPane('paneOverlays').style.zIndex = 450; }
+      if (!map.getPane('paneDrawings')) { map.createPane('paneDrawings'); map.getPane('paneDrawings').style.zIndex = 550; }
+      if (!map.getPane('paneSymbols')) { map.createPane('paneSymbols'); map.getPane('paneSymbols').style.zIndex = 650; }
+      if (!map.getPane('paneMeshtastic')) { map.createPane('paneMeshtastic'); map.getPane('paneMeshtastic').style.zIndex = 600; }
+
+      const savedBase = localStorage.getItem('lpu5_basemap') || 'street';
+      let activeBaseKey = (savedBase in basemaps) ? savedBase : 'street';
+      basemaps[activeBaseKey].addTo(map);
+
+      // ensure map visible (fix blank tiles)
+      function ensureMapVisible() {
+        try { map.invalidateSize(); } catch (e) { console.warn('invalidateSize', e); }
+        try { if (basemaps && basemaps[activeBaseKey] && typeof basemaps[activeBaseKey].redraw === 'function') basemaps[activeBaseKey].redraw(); } catch (e) { }
+        try { const c = map.getCenter(); map.setView(c, map.getZoom(), { animate: false }); } catch (e) { }
+      }
+      ensureMapVisible();
+      setTimeout(ensureMapVisible, 80);
+      setTimeout(ensureMapVisible, 300);
+      setTimeout(ensureMapVisible, 800);
+      map.whenReady(() => { ensureMapVisible(); setTimeout(ensureMapVisible, 200); });
+      window.addEventListener('resize', () => setTimeout(ensureMapVisible, 120));
+
+      // basemap radio wiring
+      document.querySelectorAll('input[name="basemap"]').forEach(r => {
+        r.checked = (r.value === activeBaseKey);
+        r.addEventListener('change', (e) => {
+          if (e.target.checked) {
+            Object.values(basemaps).forEach(l => { try { map.removeLayer(l); } catch (e) { } });
+            basemaps[e.target.value].addTo(map);
+            activeBaseKey = e.target.value;
+            localStorage.setItem('lpu5_basemap', activeBaseKey);
+            ensureMapVisible();
+          }
+        });
+      });
+      map.attributionControl.setPosition('bottomleft');
+
+      // user detection (creator)
+      function getCurrentUsername() {
+        try {
+          const raw = localStorage.getItem('lpu5_user');
+          if (raw) {
+            try { const u = JSON.parse(raw); return u.name || u.fullname || u.username || u.displayName || String(raw); } catch { return raw; }
+          }
+          const token = localStorage.getItem('lpu5_token');
+          if (token && !token.includes('.') && token.length < 128) return token;
+        } catch (e) { }
+        return 'Gast';
+      }
+      const userNameEl = document.getElementById('userName');
+      if (userNameEl) userNameEl.textContent = getCurrentUsername();
+
+      // state containers
+      const overlays = [];   // {id, overlay, name, url, rotation, creator, opacity}
+      const drawings = [];   // {id, layer, name, creator}
+      const symbols = [];    // {id, marker, sym, creator}
+      const markers = [];    // {id, marker, data} - for map markers/units
+
+      // WebSocket connection for real-time updates
+      let ws = null;
+      let wsReconnectAttempts = 0;
+      const wsMaxReconnectAttempts = 5;
+      const wsReconnectDelay = 3000;
+
+      function connectWebSocket() {
+        if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+          return; // Already connecting or connected
+        }
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+        try {
+          ws = new WebSocket(wsUrl);
+
+          ws.onopen = () => {
+            console.log('WebSocket connected');
+            wsReconnectAttempts = 0;
+
+            // Subscribe to relevant channels
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'positions' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'messages' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'status' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'markers' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'nodes' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'drawings' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'overlays' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'symbols' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'geofence' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+          };
+
+          ws.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              handleWebSocketMessage(data);
+            } catch (e) {
+              console.error('WebSocket message parse error:', e);
+            }
+          };
+
+          ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+          };
+
+          ws.onclose = () => {
+            console.log('WebSocket disconnected');
+            ws = null;
+
+            // Attempt reconnection
+            if (wsReconnectAttempts < wsMaxReconnectAttempts) {
+              wsReconnectAttempts++;
+              console.log(`Reconnecting WebSocket in ${wsReconnectDelay}ms (attempt ${wsReconnectAttempts}/${wsMaxReconnectAttempts})`);
+              setTimeout(connectWebSocket, wsReconnectDelay);
+            }
+          };
+        } catch (e) {
+          console.error('WebSocket connection failed:', e);
+        }
+      }
+
+      function handleWebSocketMessage(data) {
+        if (!data || !data.type) return;
+
+        switch (data.type) {
+          case 'connection_established':
+            console.log('WebSocket connection established:', data.connection_id);
+            break;
+
+          case 'marker_created':
+          case 'marker_updated':
+          case 'marker_deleted':
+            if (data.channel === 'markers') {
+              loadMapSymbols();
+            }
+            break;
+
+          case 'symbol_created':
+          case 'symbol_placed':
+            if (data.channel === 'symbols' || data.channel === 'markers') {
+              loadMapSymbols();
+            }
+            break;
+
+          case 'drawing_created':
+            // Handle new drawing from another client
+            if (data.data && data.channel === 'drawings') {
+              console.log('Received drawing_created:', data.data);
+              const d = data.data;
+
+              // Check if drawing already exists
+              if (drawings.find(x => x.id === d.id)) {
+                console.log('Drawing already exists, skipping');
+                break;
+              }
+
+              // Render drawing on map
+              try {
+                let layer;
+                if (d.type === 'polygon' && d.coordinates) {
+                  layer = L.polygon(d.coordinates, {
+                    color: d.color || '#0088ff',
+                    weight: 3,
+                    pane: 'paneDrawings'
+                  }).addTo(map);
+                } else if (d.coordinates) {
+                  layer = L.polyline(d.coordinates, {
+                    color: d.color || '#0088ff',
+                    weight: 3,
+                    pane: 'paneDrawings'
+                  }).addTo(map);
+                } else if (d.points) {
+                  layer = L.polyline(d.points, {
+                    color: d.color || '#0088ff',
+                    weight: 3,
+                    pane: 'paneDrawings'
+                  }).addTo(map);
+                }
+
+                if (layer) {
+                  layer.bindPopup(`<strong>${escapeHtml(d.name || 'Drawing')}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(d.creator || 'unknown')}</div>`);
+                  drawings.push({
+                    id: d.id,
+                    layer: layer,
+                    name: d.name || 'Drawing',
+                    creator: d.creator || 'unknown'
+                  });
+                  renderSettingsList();
+                  saveStateToLocalStorage();
+                }
+              } catch (e) {
+                console.error('Failed to render drawing:', e);
+              }
+            }
+            break;
+
+          case 'drawing_updated':
+            // Handle drawing update from another client
+            if (data.data && data.channel === 'drawings') {
+              console.log('Received drawing_updated:', data.data);
+              const d = data.data;
+              const idx = drawings.findIndex(x => x.id === d.id);
+
+              if (idx !== -1) {
+                // Remove old layer
+                try { map.removeLayer(drawings[idx].layer); } catch (e) { }
+
+                // Add updated layer
+                try {
+                  let layer;
+                  if (d.type === 'polygon' && d.coordinates) {
+                    layer = L.polygon(d.coordinates, {
+                      color: d.color || '#0088ff',
+                      weight: 3,
+                      pane: 'paneDrawings'
+                    }).addTo(map);
+                  } else if (d.coordinates) {
+                    layer = L.polyline(d.coordinates, {
+                      color: d.color || '#0088ff',
+                      weight: 3,
+                      pane: 'paneDrawings'
+                    }).addTo(map);
+                  } else if (d.points) {
+                    layer = L.polyline(d.points, {
+                      color: d.color || '#0088ff',
+                      weight: 3,
+                      pane: 'paneDrawings'
+                    }).addTo(map);
+                  }
+
+                  if (layer) {
+                    layer.bindPopup(`<strong>${escapeHtml(d.name || 'Drawing')}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(d.creator || 'unknown')}</div>`);
+                    drawings[idx] = {
+                      id: d.id,
+                      layer: layer,
+                      name: d.name || 'Drawing',
+                      creator: d.creator || 'unknown'
+                    };
+                    renderSettingsList();
+                    saveStateToLocalStorage();
+                  }
+                } catch (e) {
+                  console.error('Failed to update drawing:', e);
+                }
+              }
+            }
+            break;
+
+          case 'drawing_deleted':
+            // Handle drawing deletion from another client
+            if (data.data && data.channel === 'drawings') {
+              console.log('Received drawing_deleted:', data.data);
+              const idx = drawings.findIndex(x => x.id === data.data.id);
+              if (idx !== -1) {
+                try { map.removeLayer(drawings[idx].layer); } catch (e) { }
+                drawings.splice(idx, 1);
+                renderSettingsList();
+                saveStateToLocalStorage();
+              }
+            }
+            break;
+
+          case 'overlay_created':
+            // Handle new overlay from another client
+            if (data.data && data.channel === 'overlays') {
+              console.log('Received overlay_created:', data.data);
+              const o = data.data;
+
+              // Check if overlay already exists
+              if (overlays.find(x => x.id === o.id)) {
+                console.log('Overlay already exists, skipping');
+                break;
+              }
+
+              // Note: Cannot fully render overlays from other clients without image data
+              // This would require the image URL to be accessible or the image data to be transferred
+              console.log('Overlay created by another client, but image data not available for rendering');
+            }
+            break;
+
+          case 'overlay_updated':
+            // Handle overlay update from another client
+            if (data.data && data.channel === 'overlays') {
+              console.log('Received overlay_updated:', data.data);
+              const o = data.data;
+              const idx = overlays.findIndex(x => x.id === o.id);
+
+              if (idx !== -1 && overlays[idx].overlay) {
+                // Update existing overlay properties
+                try {
+                  if (o.opacity !== undefined) {
+                    overlays[idx].overlay.setOpacity(o.opacity / 100);
+                    overlays[idx].opacity = o.opacity;
+                  }
+                  if (o.name !== undefined) {
+                    overlays[idx].name = o.name;
+                  }
+                  renderSettingsList();
+                  refreshOverlayList();
+                  saveStateToLocalStorage();
+                } catch (e) {
+                  console.error('Failed to update overlay:', e);
+                }
+              }
+            }
+            break;
+
+          case 'overlay_deleted':
+            // Handle overlay deletion from another client
+            if (data.data && data.channel === 'overlays') {
+              console.log('Received overlay_deleted:', data.data);
+              const idx = overlays.findIndex(x => x.id === data.data.id);
+              if (idx !== -1) {
+                try { map.removeLayer(overlays[idx].overlay); } catch (e) { }
+                overlays.splice(idx, 1);
+                renderSettingsList();
+                refreshOverlayList();
+                saveStateToLocalStorage();
+              }
+            }
+            break;
+
+          case 'overlay_shared':
+            // Handle shared overlay from another client (legacy)
+            if (data.overlay && data.channel === 'overlays') {
+              console.log('Received overlay share:', data.overlay);
+            }
+            break;
+
+          case 'symbol_created':
+            // Handle new symbol from another client
+            if (data.data && data.channel === 'symbols') {
+              console.log('Received symbol_created:', data.data);
+              const s = data.data;
+
+              // Check if symbol already exists
+              if (symbols.find(x => x.id === s.id)) {
+                console.log('Symbol already exists, skipping');
+                break;
+              }
+
+              // Render symbol on map
+              try {
+                const latlng = s.latlng || { lat: s.lat, lng: s.lng };
+                const svgHtml = getSymbolSvg(s.symbol || s.sym || 'raute');
+                const icon = L.divIcon({
+                  className: 'custom-sym',
+                  html: svgHtml,
+                  iconSize: [32, 32],
+                  iconAnchor: [16, 32]
+                });
+                const marker = L.marker([latlng.lat, latlng.lng], {
+                  icon: icon,
+                  pane: 'paneSymbols'
+                }).addTo(map);
+
+                marker.on('click', () => {
+                  if (symbolDeleteMode) {
+                    if (!confirm('Delete symbol?')) return;
+                    const idx = symbols.findIndex(x => x.id === s.id);
+                    if (idx !== -1) {
+                      removeSymbol(s.id);
+                      renderSettingsList();
+                    }
+                  }
+                });
+
+                symbols.push({
+                  id: s.id,
+                  marker: marker,
+                  sym: s.symbol || s.sym || 'raute',
+                  creator: s.creator || 'unknown'
+                });
+                renderSettingsList();
+                saveStateToLocalStorage();
+              } catch (e) {
+                console.error('Failed to render symbol:', e);
+              }
+            }
+            break;
+
+          case 'symbol_updated':
+            // Handle symbol update from another client
+            if (data.data && data.channel === 'symbols') {
+              console.log('Received symbol_updated:', data.data);
+              const s = data.data;
+              const idx = symbols.findIndex(x => x.id === s.id);
+
+              if (idx !== -1) {
+                // Remove old marker
+                try { map.removeLayer(symbols[idx].marker); } catch (e) { }
+
+                // Add updated marker
+                try {
+                  const latlng = s.latlng || { lat: s.lat, lng: s.lng };
+                  const svgHtml = getSymbolSvg(s.symbol || s.sym || 'raute');
+                  const icon = L.divIcon({
+                    className: 'custom-sym',
+                    html: svgHtml,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 32]
+                  });
+                  const marker = L.marker([latlng.lat, latlng.lng], {
+                    icon: icon,
+                    pane: 'paneSymbols'
+                  }).addTo(map);
+
+                  marker.on('click', () => {
+                    if (symbolDeleteMode) {
+                      if (!confirm('Delete symbol?')) return;
+                      removeSymbol(s.id);
+                      renderSettingsList();
+                    }
+                  });
+
+                  symbols[idx] = {
+                    id: s.id,
+                    marker: marker,
+                    sym: s.symbol || s.sym || 'raute',
+                    creator: s.creator || 'unknown'
+                  };
+                  renderSettingsList();
+                  saveStateToLocalStorage();
+                } catch (e) {
+                  console.error('Failed to update symbol:', e);
+                }
+              }
+            }
+            break;
+
+          case 'symbol_deleted':
+            // Handle symbol deletion from another client
+            if (data.data && data.channel === 'symbols') {
+              console.log('Received symbol_deleted:', data.data);
+              const idx = symbols.findIndex(x => x.id === data.data.id);
+              if (idx !== -1) {
+                try { map.removeLayer(symbols[idx].marker); } catch (e) { }
+                symbols.splice(idx, 1);
+                renderSettingsList();
+                saveStateToLocalStorage();
+              }
+            }
+            break;
+
+          case 'symbol_placed':
+            // Handle symbol placement from another client (legacy)
+            if (data.symbol && data.channel === 'symbols') {
+              console.log('Received symbol placement:', data.symbol);
+            }
+            break;
+
+          case 'node_update':
+          case 'node_created':
+          case 'node_updated':
+            // Handle Meshtastic node updates from another client
+            if (data.data && data.channel === 'nodes') {
+              console.log('Received node update:', data.data);
+              loadMarkers(); // Refresh markers to show updated node positions
+            }
+            break;
+
+          case 'geofence_created':
+            // Handle new geofence from another client
+            if (data.data && data.channel === 'geofence') {
+              console.log('Received geofence_created:', data.data);
+            }
+            break;
+
+          case 'geofence_updated':
+            // Handle geofence update from another client
+            if (data.data && data.channel === 'geofence') {
+              console.log('Received geofence_updated:', data.data);
+            }
+            break;
+
+          case 'geofence_deleted':
+            // Handle geofence deletion from another client
+            if (data.data && data.channel === 'geofence') {
+              console.log('Received geofence_deleted:', data.data);
+            }
+            break;
+
+          case 'chat_message':
+            // Handle chat messages
+            if (data.message && data.channel === 'messages') {
+              console.log('Received chat message:', data.message);
+              // Chat UI would handle this
+            }
+            break;
+
+          case 'stream_share':
+            // Handle stream share (new unified event)
+            if (data.active) {
+              console.log('Stream shared:', data);
+              showStreamWindow(data);
+            } else {
+              console.log('Stream sharing stopped');
+              hideStreamWindow();
+            }
+            break;
+
+          case 'camera_stream_start':
+            // Handle camera stream start (legacy)
+            if (data.channel === 'camera') {
+              console.log('Camera stream started:', data.cameraInfo);
+              showStreamWindow(data);
+            }
+            break;
+
+          case 'camera_frame':
+            // Handle camera frame
+            if (data.frame && data.channel === 'camera') {
+              updateStreamFrame(data.frame);
+            }
+            break;
+
+          case 'camera_stream_stop':
+            // Handle camera stream stop
+            if (data.channel === 'camera') {
+              console.log('Camera stream stopped');
+              hideStreamWindow();
+            }
+            break;
+
+          case 'error':
+            console.error('WebSocket error:', data.error);
+            break;
+
+          default:
+            console.log('Unknown WebSocket message type:', data.type);
+        }
+      }
+
+      function broadcastOverlay(overlayData) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'overlay_shared',
+            channel: 'overlays',
+            overlay: overlayData
+          }));
+        }
+      }
+
+      async function broadcastSymbol(symbolData) {
+        // Send symbol to API for persistence and broadcasting
+        try {
+          const token = localStorage.getItem('token');
+          const apiSymbolData = {
+            lat: symbolData.lat,
+            lng: symbolData.lng,
+            type: symbolData.sym || 'raute',
+            source_page: 'admin_map',
+            label: '',
+            color: '#3498db',
+            icon: 'fa-map-marker'
+          };
+
+          const res = await fetch('/api/map/symbols', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify(apiSymbolData)
+          });
+
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error('Failed to place symbol:', res.status, errorText);
+          } else {
+            const result = await res.json();
+            console.log('Symbol placed successfully:', result);
+          }
+        } catch (e) {
+          console.error('Error placing symbol:', e);
+        }
+      }
+
+      function broadcastDrawing(drawingData) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'drawing_created',
+            channel: 'symbols',
+            drawing: drawingData
+          }));
+        }
+      }
+
+      // Connect WebSocket on page load
+      connectWebSocket();
+
+      function genId(prefix = 'id') { return prefix + '_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 9999); }
+      function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+
+      // Save drawings and symbols to localStorage
+      // Note: Overlays (image data) cannot be persisted to localStorage because blob URLs don't survive page reloads
+      function saveStateToLocalStorage() {
+        try {
+          const state = {
+            // Overlays are intentionally excluded - blob URLs cannot be persisted
+            drawings: drawings.map(d => ({
+              id: d.id,
+              name: d.name,
+              creator: d.creator,
+              geoJSON: d.layer.toGeoJSON()
+            })),
+            symbols: symbols.map(s => ({
+              id: s.id,
+              sym: s.sym,
+              creator: s.creator,
+              latlng: s.marker.getLatLng()
+            }))
+          };
+          localStorage.setItem('lpu5_map_state', JSON.stringify(state));
+          console.log('Map state saved to localStorage');
+        } catch (e) {
+          console.error('Failed to save map state:', e);
+        }
+      }
+
+      // Load drawings and symbols from localStorage
+      function loadStateFromLocalStorage() {
+        try {
+          const savedState = localStorage.getItem('lpu5_map_state');
+          if (!savedState) return;
+
+          const state = JSON.parse(savedState);
+          console.log('Loading map state from localStorage:', state);
+
+          // Note: Overlays cannot be restored from localStorage because
+          // image data (blob URLs) don't persist. Users will need to re-import images.
+
+          if (state.drawings) {
+            state.drawings.forEach(d => {
+              try {
+                const layer = L.geoJSON(d.geoJSON, {
+                  pane: 'paneDrawings',
+                  style: { color: '#007bff', weight: 3 }
+                }).addTo(map);
+                drawings.push({ id: d.id, layer, name: d.name, creator: d.creator });
+              } catch (e) {
+                console.error('Failed to restore drawing:', e);
+              }
+            });
+          }
+
+          if (state.symbols) {
+            state.symbols.forEach(s => {
+              try {
+                const svgHtml = getSymbolSvg(s.sym);
+                const marker = L.marker([s.latlng.lat, s.latlng.lng], {
+                  icon: L.divIcon({
+                    html: svgHtml,
+                    className: 'custom-sym',
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 32]
+                  }),
+                  pane: 'paneSymbols'
+                }).addTo(map);
+
+                marker.on('click', () => {
+                  if (symbolDeleteMode) {
+                    if (!confirm('Delete symbol?')) return;
+                    removeSymbol(s.id);
+                    renderSettingsList();
+                  }
+                });
+
+                symbols.push({ id: s.id, marker, sym: s.sym, creator: s.creator });
+              } catch (e) {
+                console.error('Failed to restore symbol:', e);
+              }
+            });
+          }
+
+          refreshOverlayList();
+          renderSettingsList();
+        } catch (e) {
+          console.error('Failed to load map state:', e);
+        }
+      }
+
+      // flyout open/close
+      const iconBtns = document.querySelectorAll('.icon-btn');
+      function closeAllFlyouts() { document.querySelectorAll('.icon-flyout.open').forEach(f => { f.classList.remove('open'); f.setAttribute('aria-hidden', 'true'); }); }
+      iconBtns.forEach(btn => btn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const fid = btn.dataset.flyout; const fly = document.getElementById(fid);
+        if (!fly) return;
+        const was = fly.classList.contains('open');
+        closeAllFlyouts();
+        if (!was) { fly.classList.add('open'); fly.setAttribute('aria-hidden', 'false'); }
+      }));
+      document.addEventListener('click', (ev) => { if (!ev.target.closest('.icon-flyout') && !ev.target.closest('.icon-btn')) closeAllFlyouts(); });
+
+      // SETTINGS UI
+      const settingsList = document.getElementById('settingsList');
+      function renderSettingsList() {
+        settingsList.innerHTML = '';
+        const any = overlays.length + drawings.length + symbols.length;
+        if (!any) { settingsList.innerHTML = '<div style="color:#888">Keine Objekte</div>'; return; }
+
+        if (overlays.length) {
+          const h = document.createElement('div'); h.style.color = '#9ad1ff'; h.style.margin = '6px 0 4px'; h.textContent = 'Overlays'; settingsList.appendChild(h);
+          overlays.forEach(o => {
+            const div = document.createElement('div'); div.className = 'setting-item';
+            div.innerHTML = `<div style="flex:1"><strong>${escapeHtml(o.name || o.id)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(o.creator || 'unknown')}</div></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn-zoom" data-id="${o.id}" data-type="overlay">Zoom</button>
+              <button class="btn-delete" data-id="${o.id}" data-type="overlay">Delete</button>
+            </div>`;
+            settingsList.appendChild(div);
+          });
+        }
+
+        if (drawings.length) {
+          const h = document.createElement('div'); h.style.color = '#9ad1ff'; h.style.margin = '6px 0 4px'; h.textContent = 'Zeichnungen'; settingsList.appendChild(h);
+          drawings.forEach(d => {
+            const div = document.createElement('div'); div.className = 'setting-item';
+            div.innerHTML = `<div style="flex:1"><strong>${escapeHtml(d.name || d.id)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(d.creator || 'unknown')}</div></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn-zoom" data-id="${d.id}" data-type="drawing">Zoom</button>
+              <button class="btn-delete" data-id="${d.id}" data-type="drawing">Delete</button>
+            </div>`;
+            settingsList.appendChild(div);
+          });
+        }
+
+        if (symbols.length) {
+          const h = document.createElement('div'); h.style.color = '#9ad1ff'; h.style.margin = '6px 0 4px'; h.textContent = 'Symbole'; settingsList.appendChild(h);
+          symbols.forEach(s => {
+            const div = document.createElement('div'); div.className = 'setting-item';
+            div.innerHTML = `<div style="flex:1"><strong>${escapeHtml(s.sym || s.id)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(s.creator || 'unknown')}</div></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn-zoom" data-id="${s.id}" data-type="symbol">Zoom</button>
+              <button class="btn-delete" data-id="${s.id}" data-type="symbol">Delete</button>
+            </div>`;
+            settingsList.appendChild(div);
+          });
+        }
+
+        settingsList.querySelectorAll('.btn-zoom').forEach(b => b.addEventListener('click', () => {
+          const id = b.dataset.id, type = b.dataset.type;
+          if (type === 'overlay') { const obj = overlays.find(x => x.id === id); if (obj) map.fitBounds(obj.overlay.getBounds()); }
+          if (type === 'drawing') { const obj = drawings.find(x => x.id === id); if (obj) map.fitBounds(obj.layer.getBounds()); }
+          if (type === 'symbol') { const obj = symbols.find(x => x.id === id); if (obj) map.setView(obj.marker.getLatLng(), Math.max(map.getZoom(), 16)); }
+        }));
+        settingsList.querySelectorAll('.btn-delete').forEach(b => b.addEventListener('click', () => {
+          const id = b.dataset.id, type = b.dataset.type;
+          if (!confirm('Really delete?')) return;
+          if (type === 'overlay') removeOverlay(id);
+          if (type === 'drawing') removeDrawing(id);
+          if (type === 'symbol') removeSymbol(id);
+          renderSettingsList();
+        }));
+      }
+
+      document.getElementById('settingsRefreshBtn').addEventListener('click', () => renderSettingsList());
+      document.getElementById('settingsClearAllBtn').addEventListener('click', () => { if (!confirm('Delete all objects (Overlays, Drawings, Symbols)?')) return; overlays.slice().forEach(o => removeOverlay(o.id)); drawings.slice().forEach(d => removeDrawing(d.id)); symbols.slice().forEach(s => removeSymbol(s.id)); refreshOverlayList(); renderSettingsList(); alert('All objects removed.'); });
+
+      // ---------------- Overlays (import with opacity) ----------------
+      const overlayFileInput = document.getElementById('ovFile_fly');
+      const ovFileName = document.getElementById('ovFileName_fly');
+      overlayFileInput.addEventListener('change', (ev) => {
+        const list = ev.target.files;
+        ovFileName.textContent = (list && list.length) ? Array.from(list).map(f => f.name).join(', ') : 'Keine ausgewählt';
+      });
+
+      const ovW = document.getElementById('ovW_fly'), ovH = document.getElementById('ovH_fly');
+      const ovOpacity = document.getElementById('ovOpacity_fly'), ovOpacityNum = document.getElementById('ovOpacityNum_fly');
+      if (ovOpacity && ovOpacityNum) { ovOpacity.addEventListener('input', () => ovOpacityNum.value = ovOpacity.value); ovOpacityNum.addEventListener('change', () => ovOpacity.value = ovOpacityNum.value); }
+
+      function addOverlay(file, w, h, rot, opacity = 1.0) {
+        const url = URL.createObjectURL(file);
+        const center = map.getCenter();
+        const latDelta = (h / 2) / 111320.0;
+        const lonDelta = (w / 2) / (111320.0 * Math.cos(center.lat * Math.PI / 180));
+        const bounds = [[center.lat - latDelta, center.lng - lonDelta], [center.lat + latDelta, center.lng + lonDelta]];
+        const overlay = L.imageOverlay(url, bounds, { pane: 'paneOverlays', interactive: true }).addTo(map);
+        try { overlay.setOpacity(opacity); } catch (e) { }
+        try { overlay.setZIndex(450); } catch (e) { }
+        overlay.once('load', () => {
+          const img = overlay.getElement();
+          if (img) {
+            img.style.transformOrigin = '50% 50%';
+            // rotation intentionally not applied
+            img.style.pointerEvents = 'auto';
+            img.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)';
+          }
+          ensureMapVisible();
+        });
+        const id = genId('ov');
+        overlays.push({ id, overlay, name: file.name, url, rotation: rot, creator: getCurrentUsername(), opacity });
+
+        // Broadcast overlay to other clients
+        try {
+          broadcastOverlay({
+            id,
+            name: file.name,
+            bounds,
+            rotation: rot,
+            opacity,
+            creator: getCurrentUsername()
+          });
+        } catch (e) {
+          console.error('Failed to broadcast overlay:', e);
+        }
+
+        return id;
+      }
+
+      document.getElementById('ovAddBtn').addEventListener('click', () => {
+        const files = overlayFileInput.files;
+        if (!files || files.length === 0) { alert('Bitte mindestens eine Datei auswählen.'); return; }
+        const defaultW = parseFloat(ovW.value) || 500;
+        const defaultH = parseFloat(ovH.value) || 500;
+        const defaultR = 0; // rotation UI hidden; set default 0
+        const defaultOp = (parseFloat(ovOpacity.value) || 100) / 100.0;
+        for (let i = 0; i < files.length; i++) { addOverlay(files[i], defaultW, defaultH, defaultR, defaultOp); }
+        overlayFileInput.value = '';
+        ovFileName.textContent = 'Keine ausgewählt';
+        refreshOverlayList(); renderSettingsList();
+      });
+
+      function refreshOverlayList() {
+        const overlayListEl = document.getElementById('overlayList');
+        overlayListEl.innerHTML = '';
+        if (overlays.length === 0) { overlayListEl.innerHTML = '<div style="color:#888">Keine Overlays</div>'; return; }
+        overlays.forEach(o => {
+          const div = document.createElement('div'); div.className = 'overlay-item';
+          div.innerHTML = `<div style="flex:1"><strong>${escapeHtml(o.name)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(o.creator || 'unknown')}</div></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-zoom" data-id="${o.id}">Zoom</button>
+            <button class="btn-edit" data-id="${o.id}">Edit</button>
+            <button class="btn-delete" data-id="${o.id}">Delete</button>
+          </div>`;
+          overlayListEl.appendChild(div);
+        });
+
+        overlayListEl.querySelectorAll('.btn-zoom').forEach(b => b.addEventListener('click', () => { const id = b.dataset.id; const obj = overlays.find(x => x.id === id); if (obj) map.fitBounds(obj.overlay.getBounds()); }));
+        overlayListEl.querySelectorAll('.btn-edit').forEach(b => b.addEventListener('click', () => openOverlayEditor(b.dataset.id)));
+        overlayListEl.querySelectorAll('.btn-delete').forEach(b => b.addEventListener('click', () => { const id = b.dataset.id; if (!confirm('Delete overlay?')) return; removeOverlay(id); refreshOverlayList(); renderSettingsList(); }));
+      }
+
+      function removeOverlay(id) { const idx = overlays.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(overlays[idx].overlay); } catch (e) { } overlays.splice(idx, 1); renderSettingsList(); ensureMapVisible(); saveStateToLocalStorage(); }
+
+      document.getElementById('ovResetBtn').addEventListener('click', () => { overlayFileInput.value = ''; ovFileName.textContent = 'Keine ausgewählt'; ovW.value = 500; ovH.value = 500; ovOpacity.value = 100; ovOpacityNum.value = 100; });
+
+      document.getElementById('ovClearBtn').addEventListener('click', () => { if (!confirm('Alle Overlays entfernen?')) return; overlays.slice().forEach(o => removeOverlay(o.id)); refreshOverlayList(); renderSettingsList(); saveStateToLocalStorage(); });
+
+      // ---------------- Overlay editor (rotation hidden) ----------------
+      let currentOverlayEdit = null;
+      function openOverlayEditor(id) {
+        closeOverlayEditor();
+        const obj = overlays.find(o => o.id === id);
+        if (!obj) { alert('Overlay nicht gefunden'); return; }
+
+        const panel = document.createElement('div');
+        panel.id = 'overlayEditorPanel';
+        panel.innerHTML = `
+        <h4 style="margin:0 0 8px 0;color:#9ad1ff">Edit Overlay</h4>
+        <div><strong>${escapeHtml(obj.name || obj.id)}</strong></div>
+        <div style="font-size:.85rem;color:#999;margin-bottom:8px">by ${escapeHtml(obj.creator || 'unknown')}</div>
+
+        <label>Move: Click "Move" and click target position on map</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <button id="ovMoveBtn" class="btn ghost">Move</button>
+          <button id="ovCenterBtn" class="btn ghost">Center on Map</button>
+        </div>
+
+        <label>Size (Meters)</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input id="ovEditW" type="number" style="flex:1; padding:6px;" value="" />
+          <input id="ovEditH" type="number" style="flex:1; padding:6px;" value="" />
+        </div>
+
+        <label style="margin-top:8px">Transparenz (Opacity)</label>
+        <input id="ovEditOpacity" type="range" min="0" max="100" value="100" />
+        <input id="ovEditOpacityNum" type="number" value="100" style="width:70px;margin-top:6px;" />
+
+        <label style="margin-top:8px">Datei ersetzen</label>
+        <input id="ovReplaceFile" type="file" accept="image/*" style="margin-bottom:8px;" />
+
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button id="ovSaveBtn" class="btn primary">Save</button>
+          <button id="ovCancelBtn" class="btn ghost">Cancel</button>
+          <button id="ovReenableBtn" class="btn ghost">Beenden</button>
+        </div>
+        <div id="ovEditorMsg" style="margin-top:8px;color:#bbb;font-size:.85rem"></div>
+      `;
+        Object.assign(panel.style, { position: 'fixed', right: '72px', top: '70px', width: '360px', maxHeight: '70vh', overflow: 'auto', background: '#151515', border: '1px solid #222', padding: '12px', color: '#ddd', zIndex: 12000, borderRadius: '8px' });
+        document.body.appendChild(panel);
+
+        const bounds = obj.overlay.getBounds();
+        const center = bounds.getCenter();
+        const latSpan = Math.abs(bounds.getNorth() - bounds.getSouth());
+        const lngSpan = Math.abs(bounds.getEast() - bounds.getWest());
+        const estH = Math.round(latSpan * 111320.0);
+        const estW = Math.round(lngSpan * (111320.0 * Math.cos(center.lat * Math.PI / 180)));
+
+        const wIn = document.getElementById('ovEditW'), hIn = document.getElementById('ovEditH');
+        wIn.value = estW; hIn.value = estH;
+
+        const opRange = document.getElementById('ovEditOpacity'), opNum = document.getElementById('ovEditOpacityNum');
+        opRange.value = Math.round((obj.opacity || 1.0) * 100); opNum.value = opRange.value;
+
+        currentOverlayEdit = { id: obj.id, original: { bounds: obj.overlay.getBounds(), rotation: obj.rotation || 0, url: obj.url, opacity: obj.opacity || 1.0 }, tempBounds: obj.overlay.getBounds(), tempRotation: obj.rotation || 0, tempUrl: obj.url, file: null, tempOpacity: obj.opacity || 1.0 };
+
+        // size preview
+        function applySizePreview() {
+          const o = overlays.find(x => x.id === currentOverlayEdit.id); if (!o) return;
+          const newW = parseFloat(wIn.value) || 0;
+          const newH = parseFloat(hIn.value) || 0;
+          if (newW <= 0 || newH <= 0) return;
+          const center2 = o.overlay.getBounds().getCenter();
+          const latDelta = (newH / 2) / 111320.0;
+          const lonDelta = (newW / 2) / (111320.0 * Math.cos(center2.lat * Math.PI / 180));
+          const newBounds = [[center2.lat - latDelta, center2.lng - lonDelta], [center2.lat + latDelta, center2.lng + lonDelta]];
+          o.overlay.setBounds(newBounds);
+          currentOverlayEdit.tempBounds = newBounds;
+          ensureMapVisible();
+        }
+        wIn.addEventListener('input', applySizePreview); hIn.addEventListener('input', applySizePreview);
+
+        // opacity preview
+        opRange.addEventListener('input', () => {
+          opNum.value = opRange.value;
+          const val = (parseFloat(opRange.value) || 100) / 100.0;
+          const o = overlays.find(x => x.id === currentOverlayEdit.id);
+          if (o) { try { o.overlay.setOpacity(val); } catch (e) { } currentOverlayEdit.tempOpacity = val; }
+        });
+        opNum.addEventListener('change', () => { opRange.value = opNum.value; opRange.dispatchEvent(new Event('input')); });
+
+        document.getElementById('ovReplaceFile').addEventListener('change', (ev) => { const f = ev.target.files && ev.target.files[0]; if (!f) return; currentOverlayEdit.file = f; panel.querySelector('#ovEditorMsg').textContent = `New file: ${f.name} (will be applied on save)`; });
+
+        document.getElementById('ovMoveBtn').addEventListener('click', () => { panel.querySelector('#ovEditorMsg').textContent = 'Now click on the map to move overlay.'; const moveHandler = function (ev) { const o = overlays.find(x => x.id === currentOverlayEdit.id); if (!o) { map.off('click', moveHandler); return; } const oldBounds = o.overlay.getBounds(); const latSpan2 = Math.abs(oldBounds.getNorth() - oldBounds.getSouth()); const lngSpan2 = Math.abs(oldBounds.getEast() - oldBounds.getWest()); const c = ev.latlng; const newBounds = [[c.lat - latSpan2 / 2, c.lng - lngSpan2 / 2], [c.lat + latSpan2 / 2, c.lng + lngSpan2 / 2]]; o.overlay.setBounds(newBounds); currentOverlayEdit.tempBounds = newBounds; panel.querySelector('#ovEditorMsg').textContent = 'Overlay moved (not saved yet).'; map.off('click', moveHandler); ensureMapVisible(); }; map.once('click', moveHandler); });
+
+        document.getElementById('ovCenterBtn').addEventListener('click', () => { const o = overlays.find(x => x.id === currentOverlayEdit.id); if (!o) return; map.setView(o.overlay.getBounds().getCenter(), Math.max(map.getZoom(), 16)); });
+
+        document.getElementById('ovSaveBtn').addEventListener('click', () => {
+          const o = overlays.find(x => x.id === currentOverlayEdit.id);
+          if (!o) { alert('Overlay nicht gefunden'); closeOverlayEditor(); return; }
+
+          o.opacity = currentOverlayEdit.tempOpacity != null ? currentOverlayEdit.tempOpacity : (o.opacity || 1.0);
+          try { o.overlay.setOpacity(o.opacity); } catch (e) { }
+
+          if (currentOverlayEdit.file) {
+            const newUrl = URL.createObjectURL(currentOverlayEdit.file);
+            try {
+              const bounds2 = o.overlay.getBounds();
+              const newOverlay = L.imageOverlay(newUrl, bounds2, { pane: 'paneOverlays', interactive: true }).addTo(map);
+              newOverlay.setOpacity(o.opacity);
+              newOverlay.once('load', () => {
+                const ni = newOverlay.getElement();
+                if (ni) { ni.style.transformOrigin = '50% 50%'; ni.style.pointerEvents = 'auto'; ni.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)'; }
+                try { map.removeLayer(o.overlay); } catch (e) { }
+                o.overlay = newOverlay; o.url = newUrl;
+                refreshOverlayList(); renderSettingsList(); ensureMapVisible();
+              });
+            } catch (e) { console.error('Overlay replace failed', e); alert('Error replacing image'); }
+          } else {
+            refreshOverlayList(); renderSettingsList(); ensureMapVisible();
+          }
+          panel.querySelector('#ovEditorMsg').textContent = 'Änderungen gespeichert.';
+        });
+
+        document.getElementById('ovCancelBtn').addEventListener('click', () => {
+          const o = overlays.find(x => x.id === currentOverlayEdit.id);
+          if (o && currentOverlayEdit && currentOverlayEdit.original) {
+            try {
+              o.overlay.setBounds(currentOverlayEdit.original.bounds);
+              o.opacity = currentOverlayEdit.original.opacity != null ? currentOverlayEdit.original.opacity : 1.0;
+              try { o.overlay.setOpacity(o.opacity); } catch (e) { }
+            } catch (e) { console.warn('Revert failed', e); }
+          }
+          closeOverlayEditor();
+        });
+
+        document.getElementById('ovReenableBtn').addEventListener('click', () => { closeOverlayEditor(); });
+      }
+
+      function closeOverlayEditor() { const ex = document.getElementById('overlayEditorPanel'); if (ex) ex.remove(); currentOverlayEdit = null; }
+
+      // ---------------- Drawing ----------------
+      let drawing = false, drawingPoints = [], drawingLine = null;
+      function startDrawing() { if (drawing) { alert('Zeichnen bereits aktiv'); return; } drawing = true; drawingPoints = []; drawingLine = L.polyline([], { color: document.getElementById('drawColor_fly').value || '#0088ff', pane: 'paneDrawings' }).addTo(map); map.on('click', drawingClickHandler); map.getContainer().style.cursor = 'crosshair'; alert('Zeichnen gestartet: Klickpunkte setzen, dann "Fertig".'); }
+      function drawingClickHandler(ev) { drawingPoints.push([ev.latlng.lat, ev.latlng.lng]); drawingLine.setLatLngs(drawingPoints); }
+      function finishDrawing() {
+        if (!drawing) { alert('Kein aktives Zeichnen'); return; }
+        map.off('click', drawingClickHandler);
+        map.getContainer().style.cursor = '';
+        drawing = false;
+        if (!drawingPoints || drawingPoints.length < 2) {
+          if (drawingLine) map.removeLayer(drawingLine);
+          drawingLine = null;
+          drawingPoints = [];
+          alert('Mindestens 2 Punkte nötig.');
+          return;
+        }
+        const name = (document.getElementById('areaName_fly').value || 'Linie ' + (new Date()).toLocaleTimeString());
+        const id = genId('draw');
+        const creator = getCurrentUsername();
+        drawingLine.bindPopup(`<strong>${escapeHtml(name)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(creator)}</div>`);
+        drawings.push({ id, layer: drawingLine, name, creator });
+
+        // Save state to localStorage
+        saveStateToLocalStorage();
+
+        // Broadcast drawing to other clients
+        try {
+          broadcastDrawing({
+            id,
+            name,
+            points: drawingPoints,
+            color: document.getElementById('drawColor_fly').value || '#0088ff',
+            creator
+          });
+        } catch (e) {
+          console.error('Failed to broadcast drawing:', e);
+        }
+
+        drawingLine = null;
+        drawingPoints = [];
+        renderSettingsList();
+        alert('Line saved and listed in Settings.');
+      }
+      document.getElementById('drawStartBtn').addEventListener('click', startDrawing);
+      document.getElementById('drawFinishBtn').addEventListener('click', finishDrawing);
+      function removeDrawing(id) { const idx = drawings.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(drawings[idx].layer); } catch (e) { } drawings.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); }
+
+      // ---------------- Symbols ----------------
+      let activeSymbol = null; let placingSymbol = false; let symbolDeleteMode = false;
+      function getSymbolSvg(sym) {
+        switch (sym) {
+          case 'raute': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="3"/></svg>`;
+          case 'rechteck': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="3"/></svg>`;
+          case 'quadrat': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="3"/></svg>`;
+          case 'blume': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="white" stroke-width="3"/></svg>`;
+          default: return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="20" fill="#fff"/></svg>`;
+        }
+      }
+
+      document.querySelectorAll('.fly-sym-btn[data-sym]').forEach(b => {
+        b.addEventListener('click', () => {
+          if (symbolDeleteMode) { alert('Beende zuerst Löschmodus'); return; }
+          const sym = b.dataset.sym;
+          const was = b.classList.contains('active');
+          document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active'));
+          if (was) { activeSymbol = null; stopPlacingSymbol(); } else { b.classList.add('active'); activeSymbol = sym; startPlacingSymbol(); }
+        });
+      });
+
+      document.getElementById('symStopBtn').addEventListener('click', () => { stopPlacingSymbol(); document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active')); activeSymbol = null; });
+
+      const trashBtn = document.getElementById('symTrashBtn');
+      trashBtn.addEventListener('click', () => { symbolDeleteMode = !symbolDeleteMode; trashBtn.classList.toggle('trash-active', symbolDeleteMode); if (symbolDeleteMode) { stopPlacingSymbol(); map.getContainer().style.cursor = 'crosshair'; document.getElementById('gpsFlyInfo').textContent = 'Löschmodus aktiv'; } else { map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; } });
+
+      function startPlacingSymbol() {
+        if (!activeSymbol) return;
+        placingSymbol = true; showCrosshair(true); map.getContainer().style.cursor = 'crosshair';
+        if (!map._symbolPlaceHandler) {
+          map._symbolPlaceHandler = async function (ev) { if (!activeSymbol) return; await placeSymbolAt(ev.latlng); };
+          map.on('click', map._symbolPlaceHandler);
+        }
+        document.getElementById('gpsFlyInfo').textContent = 'Placement mode: click map to set symbol.';
+      }
+      function stopPlacingSymbol() { placingSymbol = false; showCrosshair(false); if (map._symbolPlaceHandler) { map.off('click', map._symbolPlaceHandler); map._symbolPlaceHandler = null; } map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; }
+
+      async function placeSymbolAt(latlng) {
+        const svgHtml = getSymbolSvg(activeSymbol || 'raute');
+        const icon = L.divIcon({ className: 'custom-sym', html: svgHtml, iconSize: [32, 32], iconAnchor: [16, 32] });
+        const marker = L.marker(latlng, { icon, pane: 'paneSymbols' }).addTo(map);
+        const id = genId('sym'); const creator = getCurrentUsername();
+        marker.on('click', () => {
+          if (symbolDeleteMode) {
+            if (!confirm('Delete symbol?')) return;
+            const idx = symbols.findIndex(s => s.marker === marker || s.id === id);
+            if (idx !== -1) { removeSymbol(symbols[idx].id); renderSettingsList(); }
+          }
+        });
+        symbols.push({ id, marker, sym: activeSymbol || 'raute', creator });
+
+        // Save state to localStorage
+        saveStateToLocalStorage();
+
+        // Broadcast symbol placement to other clients
+        try {
+          await broadcastSymbol({
+            id,
+            lat: latlng.lat,
+            lng: latlng.lng,
+            sym: activeSymbol || 'raute',
+            creator
+          });
+        } catch (e) {
+          console.error('Failed to broadcast symbol:', e);
+        }
+
+        renderSettingsList();
+      }
+
+      function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); }
+
+      async function loadMapSymbols() {
+        try {
+          const res = await fetch('/api/map/symbols');
+          if (!res.ok) return;
+          const data = await res.json();
+          const serverSymbols = data.symbols || [];
+
+          // Clear current symbols from map
+          symbols.forEach(s => {
+            try { map.removeLayer(s.marker); } catch (e) { }
+          });
+          symbols.length = 0;
+
+          serverSymbols.forEach(s => {
+            const svgHtml = getSymbolSvg(s.type || s.sym || 'raute');
+            const icon = L.divIcon({
+              className: 'custom-sym',
+              html: svgHtml,
+              iconSize: [32, 32],
+              iconAnchor: [16, 32]
+            });
+            const marker = L.marker([s.lat, s.lng], { icon, pane: 'paneSymbols' }).addTo(map);
+            marker.bindPopup(`<strong>${s.label || s.type || 'Symbol'}</strong><div style="font-size:.8rem;color:#999">by ${s.username || 'unknown'}</div>`);
+
+            marker.on('click', () => {
+              if (symbolDeleteMode) {
+                if (!confirm('Symbol löschen?')) return;
+                deleteSymbolFromServer(s.id);
+              }
+            });
+
+            symbols.push({ id: s.id, marker, sym: s.type || s.sym || 'raute', creator: s.username });
+          });
+          renderSettingsList();
+        } catch (e) {
+          console.error('Failed to load symbols:', e);
+        }
+      }
+
+      async function deleteSymbolFromServer(id) {
+        try {
+          const res = await fetch(`/api/map/symbols/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+            loadMapSymbols();
+          } else {
+            const txt = await res.text();
+            console.error('Failed to delete symbol:', txt);
+          }
+        } catch (e) {
+          console.error('Error deleting symbol:', e);
+        }
+      }
+
+      window.placeSymbolFromCrosshair = async function () { if (!activeSymbol) { alert('Wähle zuerst ein Symbol'); return; } const c = map.getCenter(); await placeSymbolAt(c); };
+
+      // Crosshair control
+      function showCrosshair(show) { let ch = document.getElementById('crosshair'); if (!ch) { ch = document.createElement('div'); ch.id = 'crosshair'; Object.assign(ch.style, { position: 'fixed', width: '40px', height: '40px', pointerEvents: 'none', zIndex: 1500, display: 'none' }); ch.innerHTML = `<svg width="40" height="40" viewBox="0 0 40 40"><line x1="0" y1="20" x2="40" y2="20" stroke="#007bff" stroke-width="2"/><line x1="20" y1="0" x2="20" y2="40" stroke="#007bff" stroke-width="2"/></svg>`; document.body.appendChild(ch); } if (show) { ch.style.display = 'block'; const rect = map.getContainer().getBoundingClientRect(); ch.style.left = (rect.left + rect.width / 2 - 20) + 'px'; ch.style.top = (rect.top + rect.height / 2 - 20) + 'px'; document.getElementById('set-btn').style.display = 'block'; } else { ch.style.display = 'none'; document.getElementById('set-btn').style.display = 'none'; } }
+      window.showCrosshair = showCrosshair;
+
+      // ---------------- GPS (controlled) - fix by device OR click-on-map
+      let gpsFixedMarker = null, gpsTempMarker = null, gpsAutoUpdateId = null;
+      let gpsMapClickHandler = null; // <-- handler for "click on map to set fix"
+
+      function createArrowIconHtml(color) { return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`; }
+
+      function putFixedArrow(lat, lon) {
+        const color = document.getElementById('gpsColor_fly')?.value || '#ff4444';
+        if (gpsFixedMarker) {
+          try { gpsFixedMarker.setLatLng([lat, lon]); } catch (e) { }
+        } else {
+          gpsFixedMarker = L.marker([lat, lon], {
+            icon: L.divIcon({
+              className: 'fixed-gps-icon',
+              html: createArrowIconHtml(color),
+              iconSize: [40, 40],
+              iconAnchor: [20, 20]
+            }),
+            pane: 'paneSymbols'
+          }).addTo(map);
+        }
+        document.getElementById('gpsFlyInfo').textContent = `Fixiert: ${lat.toFixed(6)}, ${lon.toFixed(6)} — ${new Date().toLocaleTimeString()}`;
+      }
+
+      function putTempArrow(lat, lon) {
+        const color = document.getElementById('gpsColor_fly')?.value || '#ff4444';
+        if (gpsTempMarker) gpsTempMarker.setLatLng([lat, lon]);
+        else gpsTempMarker = L.marker([lat, lon], {
+          icon: L.divIcon({ className: 'temp-gps-icon', html: createArrowIconHtml(color), iconSize: [40, 40], iconAnchor: [20, 20] }),
+          pane: 'paneSymbols'
+        }).addTo(map);
+        document.getElementById('gpsFlyInfo').textContent = `Refresh: ${lat.toFixed(6)}, ${lon.toFixed(6)} (temporär)`;
+        setTimeout(() => { try { if (gpsTempMarker) { map.removeLayer(gpsTempMarker); gpsTempMarker = null; document.getElementById('gpsFlyInfo').textContent = 'Keine temporäre Position'; } } catch (e) { } }, 30000);
+      }
+
+      function getCurrentPositionPromise(options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }) {
+        return new Promise((resolve, reject) => {
+          if (!navigator.geolocation) return reject(new Error('Geolocation nicht verfügbar'));
+
+          // Check if the page is served over HTTPS or localhost
+          const isSecureContext = window.isSecureContext ||
+            window.location.protocol === 'https:' ||
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
+
+          if (!isSecureContext) {
+            return reject(new Error('GPS requires HTTPS (secure connection). Please use HTTPS or click on the map to set position manually.'));
+          }
+
+          navigator.geolocation.getCurrentPosition(pos => resolve(pos), err => reject(err), options);
+        });
+      }
+
+      // When user changes GPS mode radio buttons, we allow a click-on-map to set a fix:
+      document.querySelectorAll('input[name="gpsMode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const mode = e.target.value;
+          // remove any previous click-handler
+          if (gpsMapClickHandler) {
+            try { map.off('click', gpsMapClickHandler); } catch (e) { }
+            gpsMapClickHandler = null;
+          }
+          if (mode === 'fix') {
+            // install a one-time click handler to let user set fix by clicking map
+            // (also keep device-based "AKTIVIEREN" button behavior)
+            gpsMapClickHandler = function (ev) {
+              // set fixed arrow at clicked position
+              putFixedArrow(ev.latlng.lat, ev.latlng.lng);
+              map.setView([ev.latlng.lat, ev.latlng.lng], Math.max(map.getZoom(), 15));
+              // keep the marker (not removing handler automatically - but we registered as a one-time handler below)
+              document.getElementById('gpsFlyInfo').textContent = `Fixed via map: ${ev.latlng.lat.toFixed(6)}, ${ev.latlng.lng.toFixed(6)}`;
+              // after placing, remove handler (we used map.once below to auto-remove)
+            };
+            // use once so a single click places the fix; if user wants to place again they can reselect 'fix'
+            map.once('click', gpsMapClickHandler);
+            document.getElementById('gpsFlyInfo').textContent = 'Fix mode: click the map to set position or select "ACTIVATE" for device.';
+          } else {
+            document.getElementById('gpsFlyInfo').textContent = (mode === 'refresh') ? 'Refresh-Modus ausgewählt' : 'GPS aus';
+          }
+        });
+      });
+
+      document.getElementById('gpsDoBtn').addEventListener('click', async () => {
+        const mode = document.querySelector('input[name="gpsMode"]:checked')?.value || 'off';
+        const interval = parseInt(document.getElementById('gpsIntervalSelect').value, 10) || 0;
+        if (mode === 'off') { gpsUnfix(); if (gpsTempMarker) { try { map.removeLayer(gpsTempMarker); } catch (e) { } gpsTempMarker = null; } document.getElementById('gpsFlyInfo').textContent = 'GPS aus'; return; }
+        if (mode === 'refresh') { if (gpsFixedMarker) { alert('GPS is fixed. Remove the fix first (UNFIX).'); return; } try { const pos = await getCurrentPositionPromise(); putTempArrow(pos.coords.latitude, pos.coords.longitude); map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15)); } catch (e) { alert('GPS error: ' + (e.message || e)); } return; }
+        if (mode === 'fix') {
+          // prefer device geolocation when "AKTIVIEREN" clicked
+          try {
+            const pos = await getCurrentPositionPromise();
+            putFixedArrow(pos.coords.latitude, pos.coords.longitude);
+            map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15));
+            if (gpsTempMarker) { try { map.removeLayer(gpsTempMarker); } catch (e) { } gpsTempMarker = null; }
+            stopGpsAutoUpdate();
+            if (interval > 0) startGpsAutoUpdate(interval);
+          } catch (e) {
+            // if geolocation fails, inform user they can click the map (we also set one-time map.once handler for convenience)
+            alert('Geolocation not available or denied. Now click on the map to set position.');
+            map.once('click', function (ev) {
+              putFixedArrow(ev.latlng.lat, ev.latlng.lng);
+              map.setView([ev.latlng.lat, ev.latlng.lng], Math.max(map.getZoom(), 15));
+            });
+          }
+        }
+      });
+
+      document.getElementById('gpsStopBtn').addEventListener('click', () => { gpsUnfix(); if (gpsTempMarker) { try { map.removeLayer(gpsTempMarker); } catch (e) { } gpsTempMarker = null; } document.getElementById('gpsFlyInfo').textContent = 'GPS gestoppt'; });
+
+      function startGpsAutoUpdate(intervalSeconds) {
+        stopGpsAutoUpdate();
+        async function updateOnce() { try { const pos = await getCurrentPositionPromise(); if (gpsFixedMarker) putFixedArrow(pos.coords.latitude, pos.coords.longitude); } catch (e) { console.warn('gps auto update failed', e); document.getElementById('gpsFlyInfo').textContent = 'Auto-update error'; } }
+        updateOnce();
+        gpsAutoUpdateId = setInterval(updateOnce, Math.max(10, intervalSeconds) * 1000);
+        document.getElementById('gpsFlyInfo').textContent = 'Auto-Update aktiv (' + intervalSeconds + 's)';
+      }
+      function stopGpsAutoUpdate() { if (gpsAutoUpdateId) { clearInterval(gpsAutoUpdateId); gpsAutoUpdateId = null; } }
+      function gpsUnfix() { if (gpsFixedMarker) { try { map.removeLayer(gpsFixedMarker); } catch (e) { } gpsFixedMarker = null; } stopGpsAutoUpdate(); document.getElementById('gpsFlyInfo').textContent = 'Nicht fixiert'; }
+      window.addEventListener('beforeunload', () => { stopGpsAutoUpdate(); });
+
+      // ensure map resize after sidebar transitions
+      const sidebarEl = document.getElementById('sidebar');
+      if (sidebarEl) {
+        sidebarEl.addEventListener('mouseenter', () => setTimeout(() => { try { map.invalidateSize(); } catch (e) { } }, 320));
+        sidebarEl.addEventListener('mouseleave', () => setTimeout(() => { try { map.invalidateSize(); } catch (e) { } }, 320));
+      }
+
+      // ---------------- Meshtastic Devices ----------------
+      const meshtasticMarkers = new Map(); // mesh_id -> { marker, data }
+
+      async function updateMeshtasticNodes() {
+        try {
+          const resp = await fetch('/api/meshtastic/nodes');
+          if (!resp.ok) {
+            console.warn('meshtastic nodes fetch failed', resp.status);
+            return;
+          }
+          const nodes = await resp.json();
+
+          const seen = new Set();
+          // Collect valid nodes with lat/lng
+          const validNodes = [];
+          for (const n of nodes) {
+            // Get mesh ID from various possible fields
+            const mesh = n.mesh_id || n.id || (n.raw && (n.raw.mesh_id || n.raw.id));
+            if (!mesh) continue; // Skip nodes without valid ID
+
+            const lat = parseFloat(n.lat || (n.raw && n.raw.lat) || 0);
+            const lng = parseFloat(n.lng || (n.raw && n.raw.lng) || 0);
+
+            // Skip nodes without valid coordinates (but allow 0,0 as it's a valid location)
+            if (isNaN(lat) || isNaN(lng)) continue;
+
+            seen.add(mesh);
+            validNodes.push({ ...n, mesh, lat, lng });
+          }
+
+          // Remove markers that no longer exist
+          for (const [mesh, entry] of Array.from(meshtasticMarkers.entries())) {
+            if (!seen.has(mesh)) {
+              try { map.removeLayer(entry.marker); } catch (e) { }
+              meshtasticMarkers.delete(mesh);
+            }
+          }
+
+          // Add or update markers
+          for (const n of validNodes) {
+            const mesh = n.mesh;
+            const lat = n.lat;
+            const lng = n.lng;
+            // Build label from available name fields, falling back to mesh ID
+            const label = n.name || n.long_name || n.short_name || n.callsign || mesh;
+
+            if (meshtasticMarkers.has(mesh)) {
+              // Update existing marker
+              const entry = meshtasticMarkers.get(mesh);
+              try {
+                entry.marker.setLatLng([lat, lng]);
+                entry.marker.getTooltip().setContent(String(label));
+              } catch (e) { }
+              entry.data = n;
+            } else {
+              // Create blue circle icon for Meshtastic device
+              const icon = L.divIcon({
+                className: 'meshtastic-marker',
+                html: `<div style="width:24px;height:24px;background:#007bff;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);"></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+              });
+
+              const marker = L.marker([lat, lng], {
+                icon: icon,
+                pane: 'paneMeshtastic'
+              }).addTo(map);
+
+              marker.bindTooltip(String(label), {
+                permanent: true,
+                direction: 'right',
+                offset: [8, 0],
+                className: 'meshtastic-label'
+              }).openTooltip();
+
+              meshtasticMarkers.set(mesh, { marker, data: n });
+            }
+          }
+        } catch (e) {
+          console.warn('updateMeshtasticNodes error', e);
+        }
+      }
+
+      // Load Meshtastic nodes on init and periodically
+      updateMeshtasticNodes();
+      setInterval(updateMeshtasticNodes, 5000);
+
+      // Load Map Symbols
+      loadMapSymbols();
+      setInterval(loadMapSymbols, 10000);
+
+      // initial render
+      refreshOverlayList();
+      renderSettingsList();
+
+      // Load saved state from localStorage
+      loadStateFromLocalStorage();
+
+      // expose state for debug
+      window.LPU5_state = { overlays, drawings, symbols, map };
+
+      // Register Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('SW registered', reg))
+          .catch(err => console.log('SW registration failed', err));
+      }
+
+    }); // end onReady
+
+    // Logout helper
+    function logoutUser() { if (confirm('Really log out?')) { localStorage.removeItem('lpu5_user'); localStorage.removeItem('lpu5_token'); window.location.href = '/'; } }
+
+    // Stream window functionality
+    (function () {
+      let isDragging = false;
+      let dragOffset = { x: 0, y: 0 };
+      let isMinimized = false;
+
+      // Check for shared stream from stream.html on load
+      window.addEventListener('load', function () {
+        checkForSharedStream();
+        // Also check periodically for stream updates
+        setInterval(checkForSharedStream, 2000);
+      });
+
+      function checkForSharedStream() {
+        try {
+          const streamData = localStorage.getItem('lpu5_shared_stream');
+          if (streamData) {
+            const data = JSON.parse(streamData);
+            // Check if it's recent (within last 10 seconds)
+            if (Date.now() - data.timestamp < 10000) {
+              loadStreamIntoWindow(data);
+              // Clear the flag so we don't load it again
+              localStorage.removeItem('lpu5_shared_stream');
+            }
+          }
+        } catch (e) {
+          console.error('Error checking for shared stream:', e);
+        }
+      }
+
+      function loadStreamIntoWindow(data) {
+        const video = document.getElementById('streamWindowVideo');
+        const placeholder = document.getElementById('streamWindowPlaceholder');
+        const statusBadge = document.getElementById('streamWindowStatus');
+        const shareBtn = document.getElementById('streamShareBtn');
+        const flyInfo = document.getElementById('cameraFlyInfo');
+
+        if (data.videoSrc) {
+          video.src = data.videoSrc;
+          video.style.display = 'block';
+          placeholder.style.display = 'none';
+        } else if (data.isCamera) {
+          // Camera stream from stream.html - embed stream.html in iframe to show actual video
+          const content = document.querySelector('.stream-window-content');
+          if (content) {
+            // Create iframe to display stream_share.html
+            const iframe = document.createElement('iframe');
+            iframe.id = 'streamWindowFrame';
+            iframe.src = '/stream_share.html';
+            iframe.style.cssText = 'width: 100%; height: 100%; border: none; display: block; background: #000; overflow: hidden;';
+            iframe.scrolling = 'no';
+            iframe.allow = 'camera; microphone';
+
+            // Clear content and add iframe
+            content.innerHTML = '';
+            content.appendChild(iframe);
+          }
+        }
+
+        // Update status
+        if (statusBadge) {
+          statusBadge.classList.remove('offline');
+          statusBadge.classList.add('connected');
+          statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Verbunden</span>';
+        }
+
+        if (shareBtn) shareBtn.disabled = false;
+
+        if (flyInfo) {
+          flyInfo.textContent = `${data.source}: ${data.details}`;
+        }
+
+        // Open the window
+        openStreamWindow();
+      }
+
+      window.openStreamWindow = function () {
+        const streamWindow = document.getElementById('streamWindow');
+        if (streamWindow) {
+          streamWindow.classList.add('active');
+          isMinimized = false;
+
+          // Load stream_share.html in iframe if not already loaded
+          const content = streamWindow.querySelector('.stream-window-content');
+          if (content && !content.querySelector('#streamWindowFrame')) {
+            const iframe = document.createElement('iframe');
+            iframe.id = 'streamWindowFrame';
+            iframe.src = '/stream_share.html';
+            iframe.style.cssText = 'width: 100%; height: 100%; border: none; display: block; background: #000; overflow: hidden;';
+            iframe.scrolling = 'no';
+            iframe.allow = 'camera; microphone';
+
+            content.innerHTML = '';
+            content.appendChild(iframe);
+          }
+        }
+      };
+
+      window.closeStreamWindow = function () {
+        const streamWindow = document.getElementById('streamWindow');
+        const video = document.getElementById('streamWindowVideo');
+
+        if (streamWindow) streamWindow.classList.remove('active');
+        if (video) {
+          video.pause();
+          video.src = '';
+        }
+
+        const statusBadge = document.getElementById('streamWindowStatus');
+        const shareBtn = document.getElementById('streamShareBtn');
+        const flyInfo = document.getElementById('cameraFlyInfo');
+
+        if (statusBadge) {
+          statusBadge.classList.add('offline');
+          statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Offline</span>';
+        }
+        if (shareBtn) shareBtn.disabled = true;
+
+        if (flyInfo) {
+          flyInfo.textContent = 'Kein Stream verfügbar';
+        }
+      };
+
+      window.minimizeStreamWindow = function () {
+        const streamWindow = document.getElementById('streamWindow');
+        const content = streamWindow ? streamWindow.querySelector('.stream-window-content') : null;
+        const footer = streamWindow ? streamWindow.querySelector('.stream-window-footer') : null;
+
+        if (!content || !footer) return;
+
+        if (isMinimized) {
+          content.style.display = 'flex';
+          footer.style.display = 'flex';
+          isMinimized = false;
+        } else {
+          content.style.display = 'none';
+          footer.style.display = 'none';
+          isMinimized = true;
+        }
+      };
+
+      window.shareStreamToOverview = function () {
+        const video = document.getElementById('streamWindowVideo');
+        if (!video || !video.src) {
+          alert('Kein aktiver Stream zum Teilen');
+          return;
+        }
+
+        const streamData = {
+          videoSrc: video.src,
+          timestamp: Date.now(),
+          source: 'admin_map'
+        };
+
+        localStorage.setItem('lpu5_overview_stream', JSON.stringify(streamData));
+        alert('Stream wurde an Overview gesendet!');
+      };
+
+      // Camera stream functions
+      function showStreamWindow(streamData) {
+        console.log('📹 Showing stream window in admin_map.html:', streamData);
+
+        const streamWindow = document.getElementById('streamWindow');
+        const img = document.getElementById('streamWindowImage');
+        const video = document.getElementById('streamWindowVideo');
+        const placeholder = document.getElementById('streamWindowPlaceholder');
+        const statusBadge = document.getElementById('streamWindowStatus');
+        const flyInfo = document.getElementById('cameraFlyInfo');
+
+        // Try to get the real MediaStream from the opener/parent window
+        let stream = null;
+        try {
+          stream = window.opener?.sharedStream || window.parent?.sharedStream;
+        } catch (e) {
+          console.log('Could not access sharedStream from opener/parent:', e);
+        }
+
+        if (stream && video) {
+          // We have a real MediaStream - display it directly
+          console.log('✅ Using direct MediaStream');
+          video.srcObject = stream;
+          video.style.display = 'block';
+          if (img) img.style.display = 'none';
+          if (placeholder) placeholder.style.display = 'none';
+          video.play().catch(e => console.error('Error playing stream:', e));
+        } else {
+          // Fallback to image frames via WebSocket
+          console.log('📡 Using WebSocket frame capture mode');
+          if (video) video.style.display = 'none';
+          if (img) img.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+        }
+
+        if (statusBadge) {
+          statusBadge.classList.remove('offline');
+          statusBadge.classList.add('connected');
+          statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Live</span>';
+        }
+
+        if (flyInfo) {
+          flyInfo.textContent = 'Live Camera Stream';
+        }
+
+        if (streamWindow) {
+          streamWindow.classList.add('active');
+          isMinimized = false;
+        }
+      }
+
+      function updateStreamFrame(frameData) {
+        const img = document.getElementById('streamWindowImage');
+        if (img) {
+          img.src = frameData;
+        }
+      }
+
+      function hideStreamWindow() {
+        const img = document.getElementById('streamWindowImage');
+        const placeholder = document.getElementById('streamWindowPlaceholder');
+        const statusBadge = document.getElementById('streamWindowStatus');
+        const flyInfo = document.getElementById('cameraFlyInfo');
+
+        if (img) {
+          img.style.display = 'none';
+          img.src = '';
+        }
+
+        if (placeholder) {
+          placeholder.innerHTML = `
+          <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
+          <div>Kein Stream</div>
+        `;
+          placeholder.style.display = 'flex';
+        }
+
+        if (statusBadge) {
+          statusBadge.classList.add('offline');
+          statusBadge.classList.remove('connected');
+          statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Offline</span>';
+        }
+
+        if (flyInfo) {
+          flyInfo.textContent = 'Kein Stream verfügbar';
+        }
+      }
+
+      // Make window draggable
+      const header = document.getElementById('streamWindowHeader');
+      if (header) {
+        header.addEventListener('mousedown', function (e) {
+          if (e.target.closest('.stream-window-btn')) return;
+
+          isDragging = true;
+          const streamWindow = document.getElementById('streamWindow');
+          if (!streamWindow) return;
+
+          const rect = streamWindow.getBoundingClientRect();
+          dragOffset.x = e.clientX - rect.left;
+          dragOffset.y = e.clientY - rect.top;
+
+          streamWindow.style.transition = 'none';
+        });
+      }
+
+      document.addEventListener('mousemove', function (e) {
+        if (!isDragging) return;
+
+        const streamWindow = document.getElementById('streamWindow');
+        if (!streamWindow) return;
+
+        let newX = e.clientX - dragOffset.x;
+        let newY = e.clientY - dragOffset.y;
+
+        // Keep window in bounds
+        const maxX = window.innerWidth - streamWindow.offsetWidth;
+        const maxY = window.innerHeight - streamWindow.offsetHeight;
+
+        newX = Math.max(0, Math.min(newX, maxX));
+        newY = Math.max(0, Math.min(newY, maxY));
+
+        streamWindow.style.right = 'auto';
+        streamWindow.style.bottom = 'auto';
+        streamWindow.style.left = newX + 'px';
+        streamWindow.style.top = newY + 'px';
+      });
+
+      document.addEventListener('mouseup', function () {
+        if (isDragging) {
+          isDragging = false;
+          const streamWindow = document.getElementById('streamWindow');
+          if (streamWindow) streamWindow.style.transition = '';
+        }
+      });
+    })();
+
+    // Chat window functionality
+    (function () {
+      let isDragging = false;
+      let dragOffset = { x: 0, y: 0 };
+      let isMinimized = false;
+      let unreadCount = 0;
+
+      // HTML escape function to prevent XSS
+      function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Check for incoming messages periodically
+      window.addEventListener('load', function () {
+        checkForIncomingMessages();
+        setInterval(checkForIncomingMessages, 3000);
+      });
+
+      function checkForIncomingMessages() {
+        try {
+          const sharedMessage = localStorage.getItem('lpu5_shared_chat_message');
+          if (sharedMessage) {
+            const data = JSON.parse(sharedMessage);
+            if (Date.now() - data.timestamp < 10000) {
+              displayIncomingMessage(data);
+              localStorage.removeItem('lpu5_shared_chat_message');
+            }
+          }
+          fetchMessagesFromAPI();
+        } catch (e) {
+          console.error('Error checking for incoming messages:', e);
+        }
+      }
+
+      async function fetchMessagesFromAPI() {
+        try {
+          const response = await fetch('/api/meshtastic/messages?limit=10');
+          if (response.ok) {
+            const messages = await response.json();
+            updateChatInfo(messages.length);
+          }
+        } catch (e) {
+          console.error('Error fetching messages:', e);
+        }
+      }
+
+      function displayIncomingMessage(data) {
+        const messagesContainer = document.getElementById('chatMessagesContainer');
+        const placeholder = document.getElementById('chatPlaceholder');
+
+        if (!messagesContainer) return;
+
+        if (placeholder && placeholder.style.display !== 'none') {
+          placeholder.style.display = 'none';
+        }
+
+        const messageEl = document.createElement('div');
+        messageEl.className = 'chat-message incoming';
+
+        const sender = data.sender || data.from || 'Unknown';
+        const text = data.text || data.message || '';
+        const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        messageEl.innerHTML = `
+        <div class="chat-message-header">
+          <span class="chat-message-sender">${escapeHtml(sender)}</span>
+          <span class="chat-message-time">${escapeHtml(time)}</span>
+        </div>
+        <div class="chat-message-text">${escapeHtml(text)}</div>
+      `;
+
+        messagesContainer.appendChild(messageEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        const chatWindow = document.getElementById('chatWindow');
+        if (!chatWindow.classList.contains('active')) {
+          unreadCount++;
+          updateNotificationBadge();
+          updateChatInfo(`${unreadCount} neue Nachricht${unreadCount > 1 ? 'en' : ''}`);
+        }
+      }
+
+      function updateNotificationBadge() {
+        const chatIcon = document.querySelector('[data-flyout="fly-chat"]');
+        if (!chatIcon) return;
+
+        let badge = chatIcon.querySelector('.chat-notification-badge');
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.className = 'chat-notification-badge';
+          chatIcon.style.position = 'relative';
+          chatIcon.appendChild(badge);
+        }
+
+        if (unreadCount > 0) {
+          badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+          badge.classList.add('show');
+        } else {
+          badge.classList.remove('show');
+        }
+      }
+
+      function updateChatInfo(info) {
+        const flyInfo = document.getElementById('chatFlyInfo');
+        if (flyInfo) {
+          flyInfo.textContent = typeof info === 'string' ? info : `${info} Nachricht${info !== 1 ? 'en' : ''} verfügbar`;
+        }
+      }
+
+      window.openChatWindow = function () {
+        const chatWindow = document.getElementById('chatWindow');
+        chatWindow.classList.add('active');
+        isMinimized = false;
+
+        unreadCount = 0;
+        updateNotificationBadge();
+        updateChatInfo('Keine neuen Nachrichten');
+
+        const input = document.getElementById('chatInput');
+        if (input) {
+          setTimeout(() => input.focus(), 100);
+        }
+
+        loadChatUsers();
+      };
+
+      window.closeChatWindow = function () {
+        const chatWindow = document.getElementById('chatWindow');
+        chatWindow.classList.remove('active');
+      };
+
+      window.minimizeChatWindow = function () {
+        const chatWindow = document.getElementById('chatWindow');
+        const content = chatWindow.querySelector('.chat-window-content');
+        const footer = chatWindow.querySelector('.chat-window-footer');
+
+        if (isMinimized) {
+          content.style.display = 'flex';
+          footer.style.display = 'block';
+          isMinimized = false;
+        } else {
+          content.style.display = 'none';
+          footer.style.display = 'none';
+          isMinimized = true;
+        }
+      };
+
+      /* ----------------- LIFE STATUS FUNCTIONS -----------------
+         Functions for setting life status (Active, Base, KIA)
+      */
+
+      /* Life status functionality removed from admin_map.html - use overview.html for life status controls */
+
+      /* ----------------- HAMBURGER MENU FUNCTIONS -----------------
+         Functions for hamburger menu navigation
+      */
+      window.toggleHamburgerMenu = function () {
+        console.log('Toggling hamburger menu');
+
+        // Create menu if it doesn't exist
+        let menu = document.getElementById('hamburgerMenu');
+        if (!menu) {
+          menu = document.createElement('div');
+          menu.id = 'hamburgerMenu';
+          menu.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 280px;
+          height: 100%;
+          background: #121212;
+          border-right: 1px solid #282828;
+          z-index: 9999;
+          transform: translateX(-100%);
+          transition: transform 0.3s ease;
+          overflow-y: auto;
+          font-family: 'Courier New', monospace;
+        `;
+
+          menu.innerHTML = `
+          <div style="padding: 20px; border-bottom: 1px solid #282828;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="color: #2ecc71; margin: 0;">Menu</h3>
+              <button onclick="toggleHamburgerMenu()" style="background: transparent; border: none; color: #888; cursor: pointer; font-size: 1.5rem;">×</button>
+            </div>
+          </div>
+          <div style="padding: 10px 0;">
+            <a href="index.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-th-large" style="margin-right: 10px;"></i> Dashboard
+            </a>
+            <a href="landing.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-home" style="margin-right: 10px;"></i> Landing
+            </a>
+            <a href="overview.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-eye" style="margin-right: 10px;"></i> Overview (EUD)
+            </a>
+            <a href="admin_map.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-map-marked-alt" style="margin-right: 10px;"></i> Tactical Map
+            </a>
+            <a href="admin.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-user-shield" style="margin-right: 10px;"></i> Admin
+            </a>
+            <a href="mission.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-crosshairs" style="margin-right: 10px;"></i> Mission
+            </a>
+            <a href="meshtastic.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-comments" style="margin-right: 10px;"></i> Meshtastic Chat
+            </a>
+            <a href="stream.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-video" style="margin-right: 10px;"></i> Stream
+            </a>
+            <a href="statistics.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-chart-bar" style="margin-right: 10px;"></i> Statistics
+            </a>
+            <a href="network.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-network-wired" style="margin-right: 10px;"></i> Network
+            </a>
+            <a href="import_nodes.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-tools" style="margin-right: 10px;"></i> Meshtastic Settings
+            </a>
+            <a href="language.html" style="display: block; padding: 12px 20px; color: #d0d0d0; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-globe" style="margin-right: 10px;"></i> Language
+            </a>
+          </div>
+          <div style="padding: 20px; border-top: 1px solid #282828;">
+            <a href="landing.html" style="display: block; padding: 12px 20px; color: #e74c3c; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-power-off" style="margin-right: 10px;"></i> Logout
+            </a>
+          </div>
+        `;
+
+          document.body.appendChild(menu);
+
+          // Add overlay
+          const overlay = document.createElement('div');
+          overlay.id = 'hamburgerOverlay';
+          overlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 9998;
+          display: none;
+        `;
+          overlay.onclick = toggleHamburgerMenu;
+          document.body.appendChild(overlay);
+        }
+
+        // Toggle menu
+        const overlay = document.getElementById('hamburgerOverlay');
+        if (menu.style.transform === 'translateX(0px)') {
+          menu.style.transform = 'translateX(-100%)';
+          if (overlay) overlay.style.display = 'none';
+        } else {
+          menu.style.transform = 'translateX(0px)';
+          if (overlay) overlay.style.display = 'block';
+        }
+      };
+
+      window.sendChatMessage = function () {
+        const input = document.getElementById('chatInput');
+        const recipient = document.getElementById('chatRecipient');
+        const messagesContainer = document.getElementById('chatMessagesContainer');
+        const placeholder = document.getElementById('chatPlaceholder');
+
+        if (!input || !recipient || !messagesContainer) return;
+
+        const message = input.value.trim();
+        if (!message) return;
+
+        if (placeholder && placeholder.style.display !== 'none') {
+          placeholder.style.display = 'none';
+        }
+
+        const messageEl = document.createElement('div');
+        messageEl.className = 'chat-message outgoing';
+
+        const currentUser = sessionStorage.getItem('currentUser') || 'Me';
+        const time = new Date().toLocaleTimeString('de-DE', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        messageEl.innerHTML = `
+        <div class="chat-message-header">
+          <span class="chat-message-sender">${escapeHtml(currentUser)}</span>
+          <span class="chat-message-time">${escapeHtml(time)}</span>
+        </div>
+        <div class="chat-message-text">${escapeHtml(message)}</div>
+      `;
+
+        messagesContainer.appendChild(messageEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        input.value = '';
+
+        sendMessageToAPI(message, recipient.value);
+        shareMessageToOtherPages(message);
+      };
+
+      async function sendMessageToAPI(message, recipient) {
+        try {
+          const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+
+          const response = await fetch('/api/meshtastic/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              from: currentUser,
+              text: message,
+              to: recipient
+            })
+          });
+
+          if (response.ok) {
+            console.log('Message sent successfully');
+          } else {
+            console.error('Failed to send message');
+          }
+        } catch (e) {
+          console.error('Error sending message:', e);
+        }
+      }
+
+      function shareMessageToOtherPages(message) {
+        const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+        const messageData = {
+          sender: currentUser,
+          text: message,
+          timestamp: Date.now(),
+          source: 'admin_map'
+        };
+
+        localStorage.setItem('lpu5_broadcast_message', JSON.stringify(messageData));
+
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'lpu5_broadcast_message',
+          newValue: JSON.stringify(messageData)
+        }));
+      }
+
+      async function loadChatUsers() {
+        try {
+          const token = sessionStorage.getItem('token');
+          if (!token) return;
+
+          const response = await fetch('/api/users', {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+
+          if (response.ok) {
+            const users = await response.json();
+            const select = document.getElementById('chatRecipient');
+            if (!select) return;
+
+            select.innerHTML = '<option value="all">Alle Einheiten</option>';
+            users.forEach(user => {
+              const opt = document.createElement('option');
+              opt.value = user.id;
+              opt.textContent = user.username || user.unit || user.id;
+              select.appendChild(opt);
+            });
+          }
+        } catch (e) {
+          console.error('Error loading chat users:', e);
+        }
+      }
+
+      window.markAllMessagesRead = function () {
+        unreadCount = 0;
+        updateNotificationBadge();
+        updateChatInfo('Keine neuen Nachrichten');
+      };
+
+      const chatInput = document.getElementById('chatInput');
+      if (chatInput) {
+        chatInput.addEventListener('keypress', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChatMessage();
+          }
+        });
+      }
+
+      const header = document.getElementById('chatWindowHeader');
+      if (header) {
+        header.addEventListener('mousedown', function (e) {
+          if (e.target.closest('.chat-window-btn')) return;
+
+          isDragging = true;
+          const chatWindow = document.getElementById('chatWindow');
+          const rect = chatWindow.getBoundingClientRect();
+          dragOffset.x = e.clientX - rect.left;
+          dragOffset.y = e.clientY - rect.top;
+
+          chatWindow.style.transition = 'none';
+        });
+      }
+
+      document.addEventListener('mousemove', function (e) {
+        if (!isDragging) return;
+
+        const chatWindow = document.getElementById('chatWindow');
+        let newX = e.clientX - dragOffset.x;
+        let newY = e.clientY - dragOffset.y;
+
+        const maxX = window.innerWidth - chatWindow.offsetWidth;
+        const maxY = window.innerHeight - chatWindow.offsetHeight;
+
+        newX = Math.max(0, Math.min(newX, maxX));
+        newY = Math.max(0, Math.min(newY, maxY));
+
+        chatWindow.style.left = newX + 'px';
+        chatWindow.style.bottom = 'auto';
+        chatWindow.style.top = newY + 'px';
+      });
+
+      document.addEventListener('mouseup', function () {
+        if (isDragging) {
+          isDragging = false;
+          const chatWindow = document.getElementById('chatWindow');
+          chatWindow.style.transition = '';
+        }
+      });
+
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'lpu5_broadcast_message' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            if (data.source !== 'admin_map') {
+              displayIncomingMessage(data);
+            }
+          } catch (err) {
+            console.error('Error processing broadcast message:', err);
+          }
+        }
+      });
+
+      // =========================================
+      // AUTO-SYNC: Upload changes every 2 seconds
+      // =========================================
+      let lastSyncData = null;
+
+      async function autoSyncUpload() {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) {
+            console.log('No token, skipping auto-sync upload');
+            return;
+          }
+
+          // Collect current map/unit data
+          const syncData = {
+            markers: markers || [],
+            drawings: drawings || [],
+            overlays: overlays || [],
+            symbols: symbols || [],
+            messages: [], // Could add chat messages if needed
+            cot_events: [], // Could add COT events if needed
+            timestamp: new Date().toISOString()
+          };
+
+          // Only upload if data has changed (simple check)
+          const dataStr = JSON.stringify(syncData);
+          if (dataStr === lastSyncData) {
+            console.log('No changes detected, skipping auto-sync upload');
+            return;
+          }
+          lastSyncData = dataStr;
+
+          // Upload to server
+          const response = await fetch('/api/sync/upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: dataStr
+          });
+
+          if (!response.ok) {
+            throw new Error(`Sync upload failed: ${response.status}`);
+          }
+
+          const result = await response.json();
+          console.log('Auto-sync upload successful:', result);
+        } catch (error) {
+          console.error('Auto-sync upload error:', error);
+        }
+      }
+
+      // Start auto-sync upload every 2 seconds
+      console.log('Starting auto-sync upload (every 2 seconds)...');
+      setInterval(autoSyncUpload, 2000);
+
+      // Initial sync after 1 second
+      setTimeout(autoSyncUpload, 1000);
+
+    })();
+  </script>
+</body>
+
+</html>
+<!-- BEGIN: restore placeSymbolFromCrosshair handler -->
+<script>
+  function getCrosshairLatLng() {
+    try { if (window.map && typeof window.map.getCenter === 'function') return window.map.getCenter(); } catch (e) { }
+    return null;
+  }
+
+  async function placeSymbolFromCrosshair() {
+    const latlng = getCrosshairLatLng();
+    if (!latlng) { alert('Kein Karten-Mittelpunkt gefunden.'); return; }
+    const name = prompt('Name für Punkt (optional)', '');
+    try {
+      const res = await fetch('/api/map_markers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng, name: (name || 'Punkt'), status: 'BASE', created_by: 'ui' })
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) { const msg = body && (body.message || body.detail) ? (body.message || body.detail) : `Status ${res.status}`; alert('Punktsetzung fehlgeschlagen: ' + msg); return; }
+      try {
+        const layer = window.meshtasticLayer || window.map;
+        if (window.L && layer) {
+          const opts = (typeof createMeshtasticIcon === 'function') ? { icon: createMeshtasticIcon() } : {};
+          const m = L.marker([latlng.lat, latlng.lng], opts);
+          if (window.meshtasticLayer && window.meshtasticLayer.addTo) m.addTo(window.meshtasticLayer); else m.addTo(window.map);
+          m.bindPopup(body && body.marker && body.marker.name ? body.marker.name : (name || 'Punkt'));
+        }
+      } catch (e) { console.warn('Could not add temporary marker', e); }
+      alert('Punkt gesetzt.');
+    } catch (e) { console.error('placeSymbolFromCrosshair', e); alert('Fehler beim Setzen: ' + (e.message || e)); }
+  }
+</script>
+<!-- END: restore placeSymbolFromCrosshair handler -->

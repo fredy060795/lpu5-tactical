@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Stream Viewer - LPU5 Tactical</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #000;
+      color: #d0d0d0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    /* Stream window styles - standalone version */
+    .stream-container {
+      width: 100%;
+      max-width: 800px;
+      background: #111;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .stream-header {
+      background: #007bff;
+      color: #fff;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stream-title {
+      font-weight: bold;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stream-content {
+      background: #000;
+      min-height: 450px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .stream-video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .stream-placeholder {
+      color: #666;
+      text-align: center;
+      padding: 60px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .stream-footer {
+      background: #0a0a0a;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #333;
+    }
+
+    .stream-status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #28a745;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      background: #28a745;
+      border-radius: 50%;
+      animation: streamPulse 2s infinite;
+    }
+
+    @keyframes streamPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .stream-status-badge.offline {
+      color: #dc3545;
+    }
+
+    .stream-status-badge.offline .pulse-dot {
+      background: #dc3545;
+    }
+
+    .stream-info {
+      font-size: 0.85rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Stream Window Component -->
+<div class="stream-container">
+  <div class="stream-header">
+    <div class="stream-title">
+      <i class="fas fa-video"></i>
+      <span>Live Stream</span>
+    </div>
+  </div>
+  
+  <div class="stream-content" id="streamContent">
+    <video id="streamVideo" class="stream-video" autoplay muted controls></video>
+    <img id="streamImage" class="stream-video" style="display:none;" alt="Camera Stream">
+    <div class="stream-placeholder" id="streamPlaceholder" style="display:flex;">
+      <i class="fas fa-video-slash" style="font-size: 3rem; color: #444;"></i>
+      <div style="font-size: 1.2rem;">Kein Stream verfügbar</div>
+      <div class="stream-info">Warten auf Stream-Daten...</div>
+    </div>
+  </div>
+  
+  <div class="stream-footer">
+    <div class="stream-status-badge offline" id="streamStatus">
+      <span class="pulse-dot"></span>
+      <span id="streamStatusText">Offline</span>
+    </div>
+    <div class="stream-info" id="streamInfo">
+      Keine Verbindung
+    </div>
+  </div>
+</div>
+
+<script>
+// Stream viewer functionality
+(function() {
+  'use strict';
+
+  const streamVideo = document.getElementById('streamVideo');
+  const streamImage = document.getElementById('streamImage');
+  const streamPlaceholder = document.getElementById('streamPlaceholder');
+  const streamStatus = document.getElementById('streamStatus');
+  const streamStatusText = document.getElementById('streamStatusText');
+  const streamInfo = document.getElementById('streamInfo');
+
+  // Check for shared stream every 2 seconds
+  function checkForSharedStream() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No token - cannot check for shared stream');
+      return;
+    }
+
+    fetch('/api/stream_share', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.active && data.stream_url) {
+        showStream(data);
+      } else {
+        hideStream();
+      }
+    })
+    .catch(err => {
+      console.error('Error checking for shared stream:', err);
+      hideStream();
+    });
+  }
+
+  function showStream(data) {
+    streamPlaceholder.style.display = 'none';
+    streamStatus.classList.remove('offline');
+    streamStatus.classList.add('online');
+    streamStatusText.textContent = 'Live';
+    streamInfo.textContent = `Shared by ${data.shared_by || 'Unknown'}`;
+
+    if (data.stream_type === 'mjpeg') {
+      // MJPEG stream (image)
+      streamVideo.style.display = 'none';
+      streamImage.style.display = 'block';
+      streamImage.src = data.stream_url;
+    } else {
+      // Video stream
+      streamImage.style.display = 'none';
+      streamVideo.style.display = 'block';
+      if (streamVideo.src !== data.stream_url) {
+        streamVideo.src = data.stream_url;
+        streamVideo.load();
+        streamVideo.play().catch(e => console.warn('Autoplay prevented:', e));
+      }
+    }
+  }
+
+  function hideStream() {
+    streamVideo.style.display = 'none';
+    streamImage.style.display = 'none';
+    streamPlaceholder.style.display = 'flex';
+    streamStatus.classList.add('offline');
+    streamStatus.classList.remove('online');
+    streamStatusText.textContent = 'Offline';
+    streamInfo.textContent = 'Keine Verbindung';
+    
+    if (streamVideo.src) {
+      streamVideo.pause();
+      streamVideo.src = '';
+    }
+    if (streamImage.src) {
+      streamImage.src = '';
+    }
+  }
+
+  // Start checking for stream
+  setInterval(checkForSharedStream, 2000);
+  checkForSharedStream();
+
+  console.log('Stream share viewer initialized');
+})();
+</script>
+
+</body>
+</html>

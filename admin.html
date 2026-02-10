@@ -1,0 +1,908 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ADMIN CONTROL PANEL</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --sb-collapsed: 70px;
+            --sb-expanded: 280px;
+            --bg-dark: #121212;
+            --border: #282828;
+            --accent-green: #28a745;
+            --accent-red: #dc3545;
+            --panel-bg: #1a1a1a;
+            --panel-contrast: #0b0b0b;
+            --muted: #999;
+            --text-main: #fff;
+            --input-border: #444;
+            --input-radius: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding-left: var(--sb-collapsed);
+            background: #0a0a0a;
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            transition: padding-left 0.3s ease;
+        }
+
+        /* SIDEBAR (global nav styles) */
+        /* HEADER / TABS */
+        header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-bottom: 2px solid var(--border);
+            padding: 20px;
+            margin-left: 0;
+        }
+        header h1 { color: var(--text-main); font-size: 1.5rem; letter-spacing: 2px; }
+
+        .tabs { display: flex; gap: 10px; background: var(--panel-bg); padding: 10px 20px; border-bottom: 1px solid var(--border); margin-left: 0; }
+        .tab-btn {
+            background: var(--panel-bg);
+            color: #bbb;
+            border: 1px solid rgba(255,255,255,0.02);
+            padding: 10px 18px;
+            cursor: pointer;
+            border-radius: 8px;
+            display:flex;
+            gap:8px;
+            align-items:center;
+        }
+        .tab-btn.active {
+            background: linear-gradient(180deg, #212121, #161616);
+            color: var(--text-main);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+            border: 1px solid #333;
+        }
+
+        .tab-content { display: none; padding: 25px; }
+        .tab-content.active { display: block; }
+
+        .section { background: var(--panel-bg); padding: 20px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 25px; }
+
+        /* Inputs / selects / textarea */
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            background: var(--panel-contrast);
+            color: var(--text-main);
+            border: 1px solid var(--input-border);
+            padding: 10px 12px;
+            border-radius: var(--input-radius);
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            outline: none;
+            transition: box-shadow .12s ease, border-color .12s ease;
+        }
+        ::placeholder { color: #777; }
+        .select-wrapper { position: relative; }
+        .select-wrapper::after { content: "▾"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #888; font-size: 0.9rem; }
+        select { -webkit-appearance: none; -moz-appearance: none; appearance: none; padding-right: 36px; }
+        input:focus, textarea:focus, select:focus { box-shadow: 0 4px 14px rgba(255,255,255,0.02); border-color: #666; }
+        textarea { min-height: 110px; resize: vertical; }
+
+        /* Buttons */
+        .btn {
+            background: var(--panel-bg);
+            color: var(--text-main);
+            border: 1px solid var(--input-border);
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(0,0,0,0.6); background: #252525; }
+
+        .btn-approve {
+            background: var(--accent-green);
+            color: #000;
+            border: 1px solid #166e1f;
+            padding: 14px 22px;
+            font-size: 1.02rem;
+            min-width: 220px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border-radius: 10px;
+            box-shadow: 0 6px 18px rgba(40,167,69,0.12);
+        }
+        .btn-approve i { font-size: 1.1rem; }
+        .btn-approve:hover { background: #38df60; transform: translateY(-2px); box-shadow: 0 10px 28px rgba(40,167,69,0.16); }
+
+        .btn-reject {
+            background: var(--accent-red);
+            color: #fff;
+            border: 1px solid #a80000;
+            padding: 14px 22px;
+            font-size: 1.02rem;
+            min-width: 220px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border-radius: 10px;
+            box-shadow: 0 6px 18px rgba(220,53,69,0.12);
+        }
+        .btn-reject i { font-size: 1.1rem; }
+        .btn-reject:hover { background: #e04b4b; transform: translateY(-2px); box-shadow: 0 10px 28px rgba(220,53,69,0.16); }
+
+        .btn-cancel {
+            background: #ffcc00;
+            color: #000;
+            border: 1px solid #b38600;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+        }
+        .btn-cancel:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(0,0,0,0.18); background: #ffd633; }
+
+        .btn-small { padding: 6px 10px; font-size: 0.85rem; border-radius: 6px; }
+
+        .btn-icon {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--input-border);
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            margin-right: 6px;
+        }
+        .btn-icon:hover {
+            background: var(--panel-bg);
+            color: var(--accent-green);
+            border-color: var(--accent-green);
+            transform: translateY(-1px);
+        }
+        .btn-icon i { font-size: 1rem; }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { text-align: left; padding: 12px; color: #bbb; border-bottom: 2px solid #333; font-size: 0.85rem; }
+        td { padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; }
+        .empty-state { text-align: center; color: #777; padding: 20px; font-style: italic; }
+
+        /* Modal */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items:center; justify-content:center; z-index:5000; }
+        .modal.active { display:flex; }
+        .modal-content { background: var(--panel-bg); border: 1px solid var(--input-border); padding: 28px; border-radius: 10px; width: 90%; max-width: 680px; box-shadow: 0 12px 40px rgba(0,0,0,0.7); }
+        .modal-content h2 { color: var(--text-main); margin-bottom: 14px; }
+
+        .modal-buttons { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+        .modal-buttons .btn { min-width:120px; padding:8px 10px; box-sizing:border-box; }
+
+        #pendingList > div {
+            display:flex; gap:12px; align-items:center; padding:12px; border-radius:8px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+            margin-bottom:8px;
+            border: 1px solid rgba(255,255,255,0.02);
+        }
+        .pending-checkbox { width:18px; height:18px; accent-color: var(--accent-green); border-radius:4px; }
+        .pending-meta { color:#ddd; font-size:0.95rem; }
+
+        .qr-preview { margin-top:12px; text-align:center; }
+        .qr-preview img { border:1px solid #222; background:#fff; padding:6px; border-radius:8px; }
+
+        .username-field {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+        .username-field .fa-user {
+            position: absolute;
+            left: 12px;
+            color: #9a9a9a;
+            font-size: 0.95rem;
+            pointer-events: none;
+        }
+        .input-username {
+            width: 100%;
+            padding: 10px 44px 10px 40px;
+            background: var(--panel-contrast);
+            color: var(--text-main);
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            transition: box-shadow .12s ease, border-color .12s ease, transform .08s ease;
+            outline: none;
+            box-shadow: none;
+        }
+        .input-username::placeholder { color: #7a7a7a; font-style: italic; }
+        .btn-clear {
+            position: absolute;
+            right: 8px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.03);
+            color: #ddd;
+            height: 28px;
+            width: 28px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            transition: background .12s ease, transform .08s ease;
+        }
+        .btn-clear i { font-size: 0.8rem; }
+        .input-username:focus { border-color: #888; box-shadow: 0 6px 18px rgba(0,0,0,0.6); transform: translateY(-1px); }
+        .username-field .btn-clear:hover { background: rgba(255,255,255,0.06); transform: translateY(-1px); }
+        .input-username::selection { background: rgba(255,255,255,0.12); color: #fff; }
+
+        /* Role badges */
+        .role-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .role-admin {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+        }
+        .role-operator {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+            color: #000;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+        }
+        .role-user {
+            background: linear-gradient(135deg, #28a745, #218838);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+        .role-guest {
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            header { padding-left: 68px; flex-direction: column; align-items: flex-start; gap: 0; }
+            h1 { font-size: 1.2em; }
+            .btn-approve, .btn-reject { min-width: 160px; padding: 12px 16px; font-size: 0.98rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Global Navigation loaded from _global_nav.html -->
+<script src="load-global-nav.js"></script>
+
+<header><h1>ADMIN CONTROL PANEL</h1></header>
+
+<!-- Tabs -->
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab(event, 'users')"><i class="fas fa-users"></i> USERS</button>
+    <button class="tab-btn" onclick="switchTab(event, 'qrcode')"><i class="fas fa-qrcode"></i> CREATE QR CODE</button>
+</div>
+
+<!-- TAB: USERS -->
+<div id="tab-users" class="tab-content active">
+    <div class="section" data-permission="users.create">
+        <h3><i class="fas fa-user-plus"></i> New User</h3>
+        <input type="text" id="newUsername" placeholder="Username">
+        <input type="password" id="newPassword" placeholder="Password">
+        <div class="select-wrapper">
+            <select id="newRole">
+                <option value="user">User (Standard User)</option>
+                <option value="operator">Operator (Tactical Operations)</option>
+                <option value="admin">Admin (Full Access)</option>
+                <option value="guest">Guest (Read-Only)</option>
+            </select>
+        </div>
+        <button class="btn btn-approve" onclick="createUser()" data-permission="users.create"><i class="fas fa-user-plus"></i> Create</button>
+    </div>
+
+    <div class="section">
+        <h3><i class="fas fa-list"></i> All Users & Units</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th><i class="fas fa-user"></i> Name</th>
+                    <th><i class="fas fa-id-badge"></i> Callsign</th>
+                    <th><i class="fas fa-building"></i> Unit/Group</th>
+                    <th><i class="fas fa-signal"></i> Account Status</th>
+                    <th><i class="fas fa-tag"></i> Type</th>
+                    <th><i class="fas fa-cog"></i> Actions</th>
+                </tr>
+            </thead>
+            <tbody id="unitTable">
+                <tr><td colspan="6" class="empty-state"><i class="fas fa-spinner"></i> Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- TAB: CREATE QR CODE -->
+<div id="tab-qrcode" class="tab-content">
+    <div class="section" data-permission="users.approve_registration">
+        <h3><i class="fas fa-user-check"></i> Approve Users (Self-registrations)</h3>
+        <div id="pendingList" style="margin-bottom:12px;">
+            <div class="small">Loading registrations...</div>
+        </div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn-approve" onclick="approveSelected()" data-permission="users.approve_registration"><i class="fas fa-check-circle"></i> Approve Selected Users</button>
+            <button class="btn-reject" onclick="rejectSelected()" data-permission="users.approve_registration"><i class="fas fa-times-circle"></i> Reject Selected Users</button>
+        </div>
+        <div style="margin-top:8px;color:var(--muted);font-size:0.85em;">
+            Note: New registrations have initial status <strong>INACTIVE</strong> and must be activated here.
+        </div>
+    </div>
+
+    <div class="section" data-permission="users.create">
+        <h3><i class="fas fa-qrcode"></i> CREATE QR CODE</h3>
+
+        <div style="margin-bottom:10px;">
+            <label class="small">Select Page</label>
+            <div class="select-wrapper">
+                <select id="pageSelect">
+                    <option value="register.html">register.html</option>
+                    <option value="landing.html">landing.html</option>
+                    <option value="index.html">index.html</option>
+                    <option value="overview.html">overview.html</option>
+                    <option value="admin.html">admin.html</option>
+                    <option value="admin_map.html">admin_map.html</option>
+                    <option value="mission.html">mission.html</option>
+                    <option value="meshtastic.html">meshtastic.html</option>
+                    <option value="stream.html">stream.html</option>
+                    <option value="import_nodes.html">import_nodes.html</option>
+                    <option value="statistics.html">statistics.html</option>
+                    <option value="network.html">network.html</option>
+                    <option value="language.html">language.html</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label class="small">User (optional - for direct login)</label>
+            <div class="select-wrapper">
+                <select id="qrUserSelect">
+                    <option value="">No User</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label class="small">Username (optional - leave blank for registration only)</label>
+            <div class="username-field">
+                <i class="fas fa-user"></i>
+                <input id="qrUsername" class="input-username" placeholder="Optional - blank for registration" autocomplete="username">
+                <button type="button" class="btn-clear" title="Clear input" onclick="document.getElementById('qrUsername').value='';">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <div style="margin-top:10px;">
+            <label for="qrMaxUses" class="small">Maximum Uses</label>
+            <input id="qrMaxUses" type="number" min="1" value="999" placeholder="Default: 999" style="width:150px;">
+            <span style="font-size:0.85em;color:#888;margin-left:10px;">How many times the QR code can be used</span>
+        </div>
+
+        <div style="margin-top:10px; margin-bottom:10px; padding:10px; background:rgba(46,204,113,0.1); border:1px solid rgba(46,204,113,0.3); border-radius:4px; font-size:0.85em;">
+            <i class="fas fa-info-circle" style="color:#2ecc71;"></i>
+            <strong>Note:</strong> For register.html you can leave username blank. The QR code will then enable self-registration with manual admin approval.
+        </div>
+
+        <div id="qrServerInfo" style="margin-top:10px; margin-bottom:10px; padding:10px; background:rgba(52,152,219,0.1); border:1px solid rgba(52,152,219,0.3); border-radius:4px; font-size:0.85em; display:none;">
+            <i class="fas fa-network-wired" style="color:#3498db;"></i>
+            <strong>Server Address:</strong> <span id="qrServerUrl">Loading...</span>
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+            <button class="btn" onclick="createQRCode()" data-permission="users.create"><i class="fas fa-qrcode"></i> Create QR CODE</button>
+            <button class="btn" id="copyDataBtn" onclick="copyQRData()" disabled data-permission="users.create"><i class="fas fa-copy"></i> Copy URL</button>
+        </div>
+
+        <div class="qr-preview" id="qrPreviewArea" style="display:none;">
+            <div style="margin-top:12px;color:#ccc;">QR Preview (PNG)</div>
+            <a id="qrDownloadLink" download="lpu5_qr.png"><img id="qrImage" src="" alt="QR Preview" width="260" height="260"></a>
+            <div style="margin-top:8px;color:var(--muted);font-size:0.85em;">Right-click → Save image to download</div>
+        </div>
+
+        <div style="margin-top:12px;color:var(--muted);font-size:0.85em;">
+            The QR code contains encoded JSON data (Base64). If needed, this can be switched to a server-side token method.
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <h2><i class="fas fa-edit"></i> Edit User</h2>
+        <form id="editForm">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="editUsername" placeholder="Username" readonly>
+            </div>
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="editFullname" placeholder="Full Name">
+            </div>
+            <div class="form-group">
+                <label>Callsign</label>
+                <input type="text" id="editCallsign" placeholder="Callsign">
+            </div>
+            <div class="form-group">
+                <label>Password (blank = no change)</label>
+                <input type="password" id="editPassword" placeholder="New Password">
+            </div>
+            <div class="form-group">
+                <label>Unit/Group</label>
+                <input type="text" id="editGroup" placeholder="e.g. Command">
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select id="editStatus">
+                    <option value="true">✅ Active</option>
+                    <option value="false">❌ Inactive</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select id="editRole">
+                    <option value="admin">👮 Admin (Full Access)</option>
+                    <option value="operator">⚙️ Operator (Tactical Operations)</option>
+                    <option value="user">👤 User (Standard User)</option>
+                    <option value="guest">👁️ Guest (Read-Only)</option>
+                </select>
+            </div>
+            <div class="modal-buttons" style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+                <button type="button" class="btn btn-approve" onclick="saveUserChanges()" data-permission="users.update"><i class="fas fa-save"></i> SAVE</button>
+                <button type="button" class="btn btn-cancel" onclick="closeEditModal()"><i class="fas fa-ban"></i> CANCEL</button>
+                <button type="button" class="btn btn-reject" onclick="deleteUserFromModal()" title="Delete user" data-permission="users.delete"><i class="fas fa-trash"></i> DELETE</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+
+<!-- Einfache Tab-Logik -->
+<script>
+    function switchTab(evt, id) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        evt.currentTarget.classList.add('active');
+        const el = document.getElementById('tab-' + id);
+        if (el) el.classList.add('active');
+    }
+</script>
+
+<!-- Aufgeräumte single updateUserNameDisplay-Implementierung -->
+<script>
+    document.addEventListener('DOMContentLoaded', updateUserNameDisplay);
+
+    async function updateUserNameDisplay() {
+        const el = document.getElementById('userName');
+        if (!el) return;
+        let displayName = null;
+        try {
+            const rawUser = localStorage.getItem('lpu5_user');
+            if (rawUser) {
+                const userData = JSON.parse(rawUser);
+                displayName = userData.name || userData.fullname || userData.username || userData.displayName;
+            }
+        } catch (e) {}
+        if (!displayName) {
+            const token = localStorage.getItem('lpu5_token');
+            if (token && !token.includes('.') && token.length < 128) displayName = token;
+        }
+        if (!displayName) {
+            try {
+                const resp = await fetch('/api/me');
+                if (resp.ok) {
+                    const me = await resp.json();
+                    displayName = me.name || me.fullname || me.username;
+                }
+            } catch (e) {}
+        }
+        el.textContent = displayName || 'Guest';
+    }
+    window.addEventListener('storage', updateUserNameDisplay);
+    setInterval(updateUserNameDisplay, 3000);
+
+    // Logout used by nav
+    function logoutUser() {
+        if (confirm('Wirklich abmelden?')) {
+            try { localStorage.removeItem('lpu5_token'); localStorage.removeItem('lpu5_user'); } catch (e) {}
+            window.location.href = '/';
+        }
+    }
+
+    // Helper function to get authorization headers
+    function getAuthHeaders() {
+        const token = localStorage.getItem('lpu5_token');
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = 'Bearer ' + token;
+        }
+        return headers;
+    }
+
+    // Load user list for QR user selection
+    async function loadQRUsers(){
+      try {
+        const res = await fetch('/api/users', {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) return;
+        const users = await res.json();
+        const select = document.getElementById('qrUserSelect');
+        if (!select) return;
+        select.innerHTML = '<option value="">No User</option>';
+        users.forEach(user => {
+          const option = document.createElement('option');
+          option.value = user.username;
+          option.textContent = user.username + (user.fullname ? ` (${user.fullname})` : '');
+          option.dataset.password = ''; // Don't store actual password
+          select.appendChild(option);
+        });
+      } catch(e) { console.error('loadQRUsers', e); }
+    }
+
+    // Handle QR user selection change
+    function onQRUserChange(){
+      const select = document.getElementById('qrUserSelect');
+      const usernameInput = document.getElementById('qrUsername');
+      const passwordInput = document.getElementById('qrPassword');
+      if (!select || !usernameInput || !passwordInput) return;
+      
+      const selectedUser = select.value;
+      if (selectedUser) {
+        usernameInput.value = selectedUser;
+        // Clear password field - user must enter it manually for security
+        passwordInput.value = '';
+        passwordInput.focus();
+      } else {
+        usernameInput.value = '';
+        passwordInput.value = '';
+      }
+    }
+
+    // Load pending registrations
+    async function loadPendingRegistrations() {
+      const container = document.getElementById('pendingList');
+      if (!container) return;
+      
+      try {
+        // Try to load from API first
+        const res = await fetch('/api/pending_registrations', {
+          headers: getAuthHeaders()
+        });
+        let pending = [];
+        
+        if (res.ok) {
+          pending = await res.json();
+        } else {
+          // Fallback to localStorage
+          try {
+            const stored = localStorage.getItem('pending_regs');
+            if (stored) pending = JSON.parse(stored);
+          } catch(e) {
+            console.warn('Could not load pending registrations from localStorage', e);
+          }
+        }
+        
+        if (!pending || pending.length === 0) {
+          container.innerHTML = '<div class="small">No pending registrations</div>';
+          return;
+        }
+        
+        container.innerHTML = '';
+        pending.forEach(reg => {
+          const div = document.createElement('div');
+          div.style.cssText = 'padding:10px; border:1px solid #333; margin-bottom:8px; background:#1a1a1a; border-radius:6px;';
+          div.innerHTML = `
+            <div style="display:flex; align-items:center; gap:12px;">
+              <input type="checkbox" class="pending-checkbox" data-username="${reg.username || ''}" />
+              <div class="pending-meta" style="flex:1;">
+                <strong>${reg.username || 'N/A'}</strong>
+                ${reg.device ? ` | Device: ${reg.device}` : ''}
+                ${reg.callsign ? ` | Callsign: ${reg.callsign}` : ''}
+                ${reg.created_at ? ` | ${new Date(reg.created_at).toLocaleString('de-DE')}` : ''}
+              </div>
+            </div>
+          `;
+          container.appendChild(div);
+        });
+      } catch(e) {
+        console.error('loadPendingRegistrations error:', e);
+        container.innerHTML = '<div class="small">Error loading registrations</div>';
+      }
+    }
+
+    // Approve selected pending registrations
+    async function approveSelected() {
+      const checkboxes = document.querySelectorAll('.pending-checkbox:checked');
+      if (checkboxes.length === 0) {
+        alert('Please select at least one user.');
+        return;
+      }
+      
+      const usernames = Array.from(checkboxes).map(cb => cb.dataset.username).filter(Boolean);
+      
+      if (usernames.length === 0) {
+        alert('No valid users selected.');
+        return;
+      }
+      
+      if (usernames.length < checkboxes.length) {
+        alert(`Warning: ${checkboxes.length - usernames.length} selection(s) have no username and will be skipped.`);
+      }
+      
+      if (!confirm(`Approve ${usernames.length} users?`)) return;
+      
+      for (const username of usernames) {
+        try {
+          // Try to activate user via API
+          const res = await fetch('/api/users/activate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders()
+            },
+            body: JSON.stringify({ username: username })
+          });
+          
+          if (res.ok) {
+            console.log(`User ${username} approved`);
+          } else {
+            console.warn(`Failed to approve ${username}: ${res.status}`);
+          }
+        } catch(e) {
+          console.error(`Error approving ${username}:`, e);
+        }
+      }
+      
+      // Remove from localStorage pending list
+      try {
+        const stored = localStorage.getItem('pending_regs');
+        if (stored) {
+          let pending = JSON.parse(stored);
+          pending = pending.filter(reg => !usernames.includes(reg.username));
+          localStorage.setItem('pending_regs', JSON.stringify(pending));
+        }
+      } catch(e) {
+        console.warn('Could not update localStorage pending_regs', e);
+      }
+      
+      alert(`${usernames.length} users were approved.`);
+      await loadPendingRegistrations();
+    }
+
+    // Reject selected pending registrations
+    async function rejectSelected() {
+      const checkboxes = document.querySelectorAll('.pending-checkbox:checked');
+      if (checkboxes.length === 0) {
+        alert('Please select at least one user.');
+        return;
+      }
+      
+      const usernames = Array.from(checkboxes).map(cb => cb.dataset.username).filter(Boolean);
+      
+      if (usernames.length === 0) {
+        alert('No valid users selected.');
+        return;
+      }
+      
+      if (usernames.length < checkboxes.length) {
+        alert(`Warning: ${checkboxes.length - usernames.length} selection(s) have no username and will be skipped.`);
+      }
+      
+      if (!confirm(`Reject and delete ${usernames.length} users?`)) return;
+      
+      for (const username of usernames) {
+        try {
+          // Try to delete user via API
+          const res = await fetch(`/api/users/${encodeURIComponent(username)}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+          });
+          
+          if (res.ok) {
+            console.log(`User ${username} rejected and deleted`);
+          } else {
+            console.warn(`Failed to delete ${username}: ${res.status}`);
+          }
+        } catch(e) {
+          console.error(`Error deleting ${username}:`, e);
+        }
+      }
+      
+      // Remove from localStorage pending list
+      try {
+        const stored = localStorage.getItem('pending_regs');
+        if (stored) {
+          let pending = JSON.parse(stored);
+          pending = pending.filter(reg => !usernames.includes(reg.username));
+          localStorage.setItem('pending_regs', JSON.stringify(pending));
+        }
+      } catch(e) {
+        console.warn('Could not update localStorage pending_regs', e);
+      }
+      
+      alert(`${usernames.length} users were rejected.`);
+      await loadPendingRegistrations();
+    }
+
+    // Initialize QR user select on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadQRUsers();
+      loadPendingRegistrations();
+      const select = document.getElementById('qrUserSelect');
+      if (select) select.addEventListener('change', onQRUserChange);
+    });
+
+    // createQRCode: called by onclick on the admin.html "Erstelle QR CODE" button
+    async function createQRCode(){
+      const username = (document.getElementById('qrUsername')||{value:''}).value.trim();
+      const password = (document.getElementById('qrPassword')||{value:''}).value;
+      const pageSelect = document.getElementById('pageSelect');
+      const selectedPage = pageSelect ? pageSelect.value : 'register.html';
+      const maxUsesInput = document.getElementById('qrMaxUses');
+      const maxUses = maxUsesInput ? parseInt(maxUsesInput.value, 10) || 999 : 999;
+      
+      // Allow blank QR codes for registration - don't require username/password
+      try{
+        // First, fetch server info to get the base URL
+        const serverInfoRes = await fetch('/api/server_info');
+        const serverInfo = await serverInfoRes.json().catch(() => null);
+        
+        if (!serverInfo || !serverInfo.base_url) {
+          alert('Konnte Server-Informationen nicht abrufen');
+          return;
+        }
+        
+        // Show server URL to user
+        const qrServerInfo = document.getElementById('qrServerInfo');
+        const qrServerUrl = document.getElementById('qrServerUrl');
+        if (qrServerInfo && qrServerUrl) {
+          qrServerUrl.textContent = serverInfo.base_url;
+          qrServerInfo.style.display = '';
+        }
+        
+        const payload = {
+          redirect_url: `${serverInfo.base_url}/${selectedPage}`,
+          label: 'registration',
+          max_uses: maxUses,
+          expires_days: 365,
+          generate_png: true,
+          // include user data in a 'data' field for potential downstream use (can be empty for blank QR)
+          data: username ? { username } : {}
+        };
+        const res = await fetch('/api/qr/create', {
+          method: 'POST', 
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          }, 
+          body: JSON.stringify(payload)
+        });
+        const body = await res.json().catch(()=>null);
+        if (!res.ok){
+          const msg = body && (body.message || body.detail) ? (body.message||body.detail) : `Status ${res.status}`;
+          alert('QR-Erstellung fehlgeschlagen: ' + msg); return;
+        }
+        // show PNG preview if present
+        const png = body.png_base64 || (body.qr && body.qr.png_base64) || null;
+        const qrUrl = body.qr_url || (body.qr && body.qr.qr_url) || null;
+        const area = document.getElementById('qrPreviewArea');
+        if (area){
+          area.style.display = '';
+          if (png){ 
+            let html = `<img src="data:image/png;base64,${png}" alt="QR">`;
+            if (qrUrl) {
+              html += `<div style="margin-top:8px;color:#3498db;font-size:0.85em;"><i class="fas fa-link"></i> ${qrUrl}</div>`;
+            }
+            area.innerHTML = html;
+          }
+          else { area.innerHTML = '<div class="small">QR erstellt (PNG nicht verfügbar)</div>'; }
+        }
+        // enable copy button and store last response
+        window._lastCreatedQR = body;
+        const copyBtn = document.getElementById('copyDataBtn');
+        if (copyBtn) copyBtn.disabled = false;
+      }catch(e){ console.error('createQRCode', e); alert('QR-Erstellung fehlgeschlagen: ' + (e.message||e)); }
+    }
+
+    function copyQRData(){
+      try{
+        if (!window._lastCreatedQR) return alert('No QR data to copy');
+        // Copy the QR URL which is most useful for sharing
+        const qrUrl = window._lastCreatedQR.qr_url || window._lastCreatedQR.qr?.qr_url;
+        if (!qrUrl) {
+          // Fallback to copying the full JSON if no URL
+          const text = JSON.stringify(window._lastCreatedQR, null, 2);
+          navigator.clipboard.writeText(text).then(()=>{ alert('QR-Daten in Zwischenablage kopiert'); }, (err)=>{ alert('Kopieren fehlgeschlagen: ' + err); });
+          return;
+        }
+        // Copy the QR URL
+        navigator.clipboard.writeText(qrUrl).then(()=>{ 
+          alert('QR-URL in Zwischenablage kopiert: ' + qrUrl); 
+        }, (err)=>{ 
+          // Fallback for browsers that don't support clipboard API
+          console.error('Clipboard API failed', err);
+          alert('Copy failed: ' + err + '\n\nURL: ' + qrUrl); 
+        });
+      }catch(e){ 
+        console.error('copyQRData', e); 
+        alert('Error copying: ' + (e.message || e)); 
+      }
+    }
+</script>
+
+<!-- optional sidebar behavior script (falls vorhanden) -->
+<script src="assets/sidebar.js"></script>
+<!-- permissions.js for RBAC permission checking -->
+<script src="permissions.js"></script>
+<!-- admin_users.js implements loading/creating/updating/deleting users and fills the table -->
+<script src="admin_users.js"></script>
+</body>
+</html><!-- BEGIN: restore createQRCode / copyQRData handlers -->
+<script>
+async function createQRCode(){
+  const username = (document.getElementById('qrUsername')||{value:''}).value.trim();
+  const password = (document.getElementById('qrPassword')||{value:''}).value;
+  if(!username || !password){ alert('Benutzername und Passwort erforderlich.'); return; }
+  try{
+    const payload = {
+      redirect_url: '/',
+      label: 'registration',
+      max_uses: 1,
+      expires_days: 365,
+      generate_png: true,
+      data: { username, password }
+    };
+    const res = await fetch('/api/qr/create', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const body = await res.json().catch(()=>null);
+    if (!res.ok){
+      const msg = body && (body.message || body.detail) ? (body.message||body.detail) : `Status ${res.status}`;
+      alert('QR-Erstellung fehlgeschlagen: ' + msg); return;
+    }
+    const png = body.png_base64 || (body.qr && body.qr.png_base64) || null;
+    const area = document.getElementById('qrPreviewArea');
+    if (area){
+      area.style.display = '';
+      if (png){ area.innerHTML = `<img src="data:image/png;base64,${png}" alt="QR">`; }
+      else { area.innerHTML = '<div class="small">QR erstellt (PNG nicht verfügbar)</div>'; }
+    }
+    window._lastCreatedQR = body;
+    const copyBtn = document.getElementById('copyDataBtn');
+    if (copyBtn) copyBtn.disabled = false;
+  }catch(e){ console.error('createQRCode', e); alert('QR-Erstellung fehlgeschlagen: ' + (e.message||e)); }
+}
+
+function copyQRData(){
+  try{
+    if (!window._lastCreatedQR) return alert('Keine QR-Daten zum kopieren');
+    const text = JSON.stringify(window._lastCreatedQR, null, 2);
+    navigator.clipboard.writeText(text).then(()=>{ alert('QR-Daten in Zwischenablage kopiert'); }, (err)=>{ alert('Kopieren fehlgeschlagen: ' + err); });
+  }catch(e){ console.error('copyQRData', e); alert('Fehler beim Kopieren'); }
+}
+</script>
+<!-- END: restore createQRCode / copyQRData handlers -->

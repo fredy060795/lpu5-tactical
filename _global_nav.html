@@ -1,0 +1,206 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactical Slide-Out Nav</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --sb-collapsed: 70px;
+            --sb-expanded: 280px;
+            --bg-dark: #121212;
+            --border: #282828;
+            --accent: #2ecc71;
+            --text-dim: #888;
+        }
+
+        body {
+            margin: 0;
+            padding-left: var(--sb-collapsed);
+            background: #1e1e1e;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            transition: padding-left 0.3s ease;
+        }
+
+        .tactical-sidebar {
+            width: var(--sb-collapsed);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: var(--bg-dark);
+            border-right: 1px solid var(--border);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+        }
+
+        .tactical-sidebar:hover {
+            width: var(--sb-expanded);
+        }
+
+        /* Logo Bereich (Link zu landing.html) */
+        .logo-section {
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            min-height: 70px;
+            box-sizing: border-box;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .sidebar-logo {
+            min-width: 40px;
+            height: 40px;
+            object-fit: contain;
+        }
+
+        .user-meta-info {
+            margin-left: 15px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            white-space: nowrap;
+        }
+
+        .tactical-sidebar:hover .user-meta-info {
+            opacity: 1;
+        }
+
+        .user-name { font-weight: bold; font-size: 0.9rem; display: block; }
+        .user-status { font-size: 0.75rem; color: var(--accent); }
+
+        /* Navigation & Scrollbar-Hider */
+        .nav-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: none; /* Firefox */
+        }
+
+        .nav-content::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Edge */
+        }
+
+        .nav-group {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .nav-label {
+            padding: 15px 25px 5px;
+            font-size: 0.7rem;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .tactical-sidebar:hover .nav-label {
+            opacity: 1;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            height: 45px;
+            color: var(--text-dim);
+            text-decoration: none;
+            padding: 0 23px;
+            transition: 0.2s;
+        }
+
+        .nav-item i {
+            min-width: 24px;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        .nav-text {
+            margin-left: 20px;
+            opacity: 0;
+            white-space: nowrap;
+            transition: opacity 0.2s;
+        }
+
+        .tactical-sidebar:hover .nav-text {
+            opacity: 1;
+        }
+
+        .nav-item:hover {
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        .nav-footer {
+            border-top: 1px solid var(--border);
+        }
+
+        .logout-link { color: #e74c3c !important; }
+    </style>
+</head>
+<body>
+
+<nav class="tactical-sidebar">
+    <a href="landing.html" class="logo-section">
+        <img src="logo.png" alt="Logo" class="sidebar-logo">
+        <div class="user-meta-info">
+            <span class="user-name" id="userName">John Doe</span>
+            <span class="user-status">Online</span>
+        </div>
+    </a>
+
+    <div class="nav-content">
+        <div class="nav-group">
+            <div class="nav-label">Dashboard</div>
+            <a href="index.html" class="nav-item"><i class="fas fa-th-large"></i> <span class="nav-text">Dashboard</span></a>
+            <a href="mission.html" class="nav-item"><i class="fas fa-crosshairs"></i> <span class="nav-text">Mission</span></a>
+            <a href="statistics.html" class="nav-item"><i class="fas fa-chart-bar"></i> <span class="nav-text">Statistics</span></a>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-label">System</div>
+            <a href="admin.html" class="nav-item"><i class="fas fa-user-shield"></i> <span class="nav-text">Admin</span></a>
+            <a href="admin_map.html" class="nav-item"><i class="fas fa-map-marked-alt"></i> <span class="nav-text">Tactical Map</span></a>
+            <a href="overview.html" class="nav-item"><i class="fas fa-eye"></i> <span class="nav-text">EUD</span></a>
+            <a href="stream.html" class="nav-item"><i class="fas fa-video"></i> <span class="nav-text">Stream</span></a>
+            <a href="meshtastic.html" class="nav-item"><i class="fas fa-comments"></i> <span class="nav-text">Chat</span></a>
+            <a href="import_nodes.html" class="nav-item"><i class="fas fa-tools"></i> <span class="nav-text">Meshtastic Settings</span></a>
+            <a href="network.html" class="nav-item"><i class="fas fa-network-wired"></i> <span class="nav-text">Network</span></a>
+            <a href="language.html" class="nav-item" title="Language Settings">
+                <i class="fas fa-globe"></i> 
+                <span class="nav-text">Language Settings</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="nav-footer">
+        <a href="#" class="nav-item logout-link" onclick="logoutUser()">
+            <i class="fas fa-power-off"></i> <span class="nav-text">Logout</span>
+        </a>
+    </div>
+</nav>
+
+<script src="assets/sidebar.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+

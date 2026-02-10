@@ -1,0 +1,5 @@
+{
+    "tactical_overlay": null,
+    "marker_broadcast_enabled": true,
+    "marker_broadcast_interval_seconds": 60
+}

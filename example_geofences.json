@@ -1,0 +1,87 @@
+[
+  {
+    "zone_id": "base-camp-alpha",
+    "name": "Base Camp Alpha",
+    "center_lat": 48.8566,
+    "center_lon": 2.3522,
+    "radius_meters": 500,
+    "zone_type": "safe",
+    "alert_on_entry": false,
+    "alert_on_exit": true,
+    "enabled": true,
+    "metadata": {
+      "designation": "Primary FOB",
+      "capacity": 50,
+      "resources": ["medical", "ammunition", "fuel", "comms"]
+    },
+    "created_at": "2024-02-07T08:00:00.000Z"
+  },
+  {
+    "zone_id": "danger-zone-north",
+    "name": "Danger Zone North",
+    "center_lat": 48.8700,
+    "center_lon": 2.3700,
+    "radius_meters": 1000,
+    "zone_type": "exclusion",
+    "alert_on_entry": true,
+    "alert_on_exit": false,
+    "enabled": true,
+    "metadata": {
+      "threat_level": "high",
+      "description": "Hostile activity reported",
+      "last_updated": "2024-02-07T08:00:00.000Z"
+    },
+    "created_at": "2024-02-07T08:00:00.000Z"
+  },
+  {
+    "zone_id": "observation-point-1",
+    "name": "Observation Point 1",
+    "center_lat": 48.8600,
+    "center_lon": 2.3600,
+    "radius_meters": 200,
+    "zone_type": "alert",
+    "alert_on_entry": true,
+    "alert_on_exit": true,
+    "enabled": true,
+    "metadata": {
+      "type": "observation_post",
+      "visibility": "excellent",
+      "elevation": 125
+    },
+    "created_at": "2024-02-07T08:00:00.000Z"
+  },
+  {
+    "zone_id": "mission-objective-target",
+    "name": "Mission Objective Target",
+    "center_lat": 48.8650,
+    "center_lon": 2.3650,
+    "radius_meters": 300,
+    "zone_type": "inclusion",
+    "alert_on_entry": true,
+    "alert_on_exit": false,
+    "enabled": true,
+    "metadata": {
+      "mission_id": "ALPHA-2024-001",
+      "objective": "Secure location and establish perimeter",
+      "priority": "high"
+    },
+    "created_at": "2024-02-07T08:00:00.000Z"
+  },
+  {
+    "zone_id": "civilian-area-1",
+    "name": "Civilian Area - Restricted",
+    "center_lat": 48.8550,
+    "center_lon": 2.3450,
+    "radius_meters": 750,
+    "zone_type": "exclusion",
+    "alert_on_entry": true,
+    "alert_on_exit": false,
+    "enabled": true,
+    "metadata": {
+      "restriction_type": "civilian_protection",
+      "population": "high_density",
+      "notes": "Avoid unless absolutely necessary"
+    },
+    "created_at": "2024-02-07T08:00:00.000Z"
+  }
+]
