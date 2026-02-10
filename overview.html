@@ -2568,7 +2568,7 @@
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const userData = await userRes.json();
-        const userId = userData.user?.id || userData.user?.username;
+        const userId = userData.id || userData.username;
 
         if (!userId) {
           alert('Could not get user information');
