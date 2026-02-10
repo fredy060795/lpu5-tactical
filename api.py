@@ -40,6 +40,13 @@ import threading
 import time
 import socket
 import asyncio
+import sys
+
+# Fix Windows asyncio ProactorEventLoop issue that causes
+# "Exception in callback _ProactorBasePipeTransport._call_connection_lost"
+# on shutdown. Use SelectorEventLoop on Windows instead.
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # -------------------------
 # Logging setup - MUST come first before any code that uses logger
@@ -2896,13 +2903,26 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
     # Try meshtastic library if available
     iface = None
     connection_error = None
+    reused_persistent = False
     
     try:
         logger.info(f"[Port:{port}] === Starting Meshtastic port access operation ===")
         logger.info(f"[Port:{port}] Attempting to connect to Meshtastic device")
         
-        # Check and close any persistent connection on this port
-        _check_and_close_persistent_connection(port, "preview/import operation")
+        # Try to reuse existing persistent connection on the same port
+        # This avoids port release timing issues on Windows
+        with _meshtastic_connection_lock:
+            if _active_meshtastic_connection and _active_meshtastic_port == port:
+                logger.info(f"[Port:{port}] Reusing existing persistent connection for node reading")
+                iface = _active_meshtastic_connection
+                reused_persistent = True
+        
+        if not iface:
+            # Check and close any persistent connection on this port
+            _check_and_close_persistent_connection(port, "preview/import operation")
+            
+            # Delay to allow OS to release serial port after closing (Windows needs ~0.5s)
+            time.sleep(0.5)
         
         # Try various constructor access patterns defensively
         try:
@@ -3085,8 +3105,9 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
             
             logger.info(f"[Port:{port}] Successfully extracted {len(nodes_result)} real nodes from device")
             
-            # CRITICAL: Always close the interface
-            _close_meshtastic_interface(iface, port, "node extraction")
+            # Only close the interface if we created a new one (not reusing persistent)
+            if not reused_persistent:
+                _close_meshtastic_interface(iface, port, "node extraction")
             
             if nodes_result:
                 logger.info(f"[Port:{port}] === Operation completed successfully: {len(nodes_result)} nodes ===")
@@ -3107,8 +3128,8 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
         logger.exception(f"[Port:{port}] ✗ Exception during meshtastic connection: {e}")
         logger.error(f"[Port:{port}] Port status: ERROR - {type(e).__name__}: {str(e)}")
         
-        # CRITICAL: Ensure interface is closed on exception
-        if iface:
+        # CRITICAL: Ensure interface is closed on exception (only if not reusing persistent)
+        if iface and not reused_persistent:
             _close_meshtastic_interface(iface, port, "exception cleanup")
         
         logger.info(f"[Port:{port}] === Operation failed with exception ===")
@@ -3675,12 +3696,19 @@ def health():
 def get_server_info():
     """Get server information including local IP address."""
     local_ip, all_ips = get_local_ip()
+    
+    # Detect protocol based on SSL certificate presence
+    cert_file = os.path.join(base_path, "cert.pem")
+    key_file = os.path.join(base_path, "key.pem")
+    use_ssl = os.path.exists(cert_file) and os.path.exists(key_file)
+    protocol = "https" if use_ssl else "http"
+    
     return {
         "status": "ok",
         "local_ip": local_ip,
         "all_detected_ips": all_ips,
-        "port": 8000,
-        "base_url": f"http://{local_ip}:8000",
+        "port": 8001,
+        "base_url": f"{protocol}://{local_ip}:8001",
         "timestamp": datetime.now().isoformat()
     }
 

@@ -512,10 +512,18 @@
 
     // Import mesh nodes from connected device
     async function importMeshNodes(){
+      if (!currentPort) {
+        alert('Please connect to a COM port first.');
+        return;
+      }
       if (!confirm('Would you like to import mesh nodes from the connected device?')) return;
       
       try {
-        const res = await fetch('/api/meshtastic/import', { method: 'POST' });
+        const res = await fetch('/api/import_meshtastic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ port: currentPort })
+        });
         const body = await res.json().catch(()=>null);
         
         if (!res.ok) {
@@ -649,8 +657,8 @@
         // Clear existing options except first
         select.innerHTML = '<option value="">Select port...</option>';
         
-        // Add detected ports
-        const ports = data.ports || [];
+        // API returns a raw list of port objects
+        const ports = Array.isArray(data) ? data : (data.ports || []);
         if (ports.length === 0) {
           alert('No COM ports found.\n\nPlease ensure:\n- Meshtastic device is connected via USB\n- Drivers are installed\n- Device is powered on\n\nClick "Scan Ports" to search again.');
           return;

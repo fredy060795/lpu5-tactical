@@ -624,31 +624,12 @@
           break;
 
         case 'overlay_created':
-          // Handle new overlay from another client
-          if (data.data && data.channel === 'overlays') {
-            console.log('Received overlay_created:', data.data);
-          }
-          break;
-
         case 'overlay_updated':
-          // Handle overlay update from another client
-          if (data.data && data.channel === 'overlays') {
-            console.log('Received overlay_updated:', data.data);
-          }
-          break;
-
         case 'overlay_deleted':
-          // Handle overlay deletion from another client
-          if (data.data && data.channel === 'overlays') {
-            console.log('Received overlay_deleted:', data.data);
-          }
-          break;
-
         case 'overlay_shared':
-          // Handle shared overlay from admin_map
-          if (data.overlay && data.channel === 'overlays') {
-            console.log('Received overlay share:', data.overlay);
-          }
+          // Handle overlay changes from another client - reload from server
+          console.log('Received overlay update:', data.type);
+          if (typeof loadOverlays === 'function') loadOverlays();
           break;
 
         case 'symbol_created':
@@ -679,7 +660,6 @@
           // Handle symbol placement broadcast (legacy support)
           if (data.symbol || (data.data && data.channel === 'markers')) {
             console.log('Received symbol placement:', data.symbol || data.data);
-            // sync() is called below
           }
           sync();
           break;
@@ -974,6 +954,8 @@
       // sync() handles both markers and symbols
       updateMeshtasticNodes(); // Initial load
       setInterval(updateMeshtasticNodes, 5000); // Update every 5 seconds
+      loadOverlays(); // Load overlays from server
+      setInterval(loadOverlays, 10000); // Refresh overlays every 10 seconds
 
       // Connect WebSocket for real-time updates
       connectWebSocket();
@@ -1387,6 +1369,47 @@
         }
       } catch (e) {
         console.warn('updateMeshtasticNodes error', e);
+      }
+    }
+
+    // Overlay state for overview page
+    const _overlayLayers = new Map(); // overlay_id -> L.imageOverlay
+
+    async function loadOverlays() {
+      if (!map) return;
+      try {
+        const resp = await fetch('/api/overlays');
+        if (!resp.ok) return;
+        const serverOverlays = await resp.json();
+
+        const serverIds = new Set();
+        for (const o of serverOverlays) {
+          if (!o.imageUrl && !o.imageurl) continue;
+          serverIds.add(o.id);
+          if (_overlayLayers.has(o.id)) continue;
+
+          try {
+            const imgUrl = o.imageUrl || o.imageurl;
+            const b = o.bounds || {};
+            const leafletBounds = [[b.south, b.west], [b.north, b.east]];
+            const leafletOverlay = L.imageOverlay(imgUrl, leafletBounds, { pane: 'overlayPane', interactive: false }).addTo(map);
+            const ovOpacity = o.opacity != null ? o.opacity : 1.0;
+            try { leafletOverlay.setOpacity(ovOpacity); } catch (e) { }
+            _overlayLayers.set(o.id, leafletOverlay);
+          } catch (e) {
+            console.error('Failed to render overlay:', e);
+          }
+        }
+
+        // Remove overlays no longer on server
+        for (const [id, layer] of _overlayLayers) {
+          if (!serverIds.has(id)) {
+            try { map.removeLayer(layer); } catch (e) { }
+            _overlayLayers.delete(id);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load overlays:', e);
       }
     }
 

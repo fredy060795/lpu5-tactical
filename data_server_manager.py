@@ -108,6 +108,19 @@ class DataServerManager:
                 self.process.wait()
                 logger.info("Data server force killed")
             
+            # Close subprocess pipes to prevent
+            # ProactorBasePipeTransport._call_connection_lost errors on Windows
+            try:
+                if self.process.stdout:
+                    self.process.stdout.close()
+            except Exception:
+                pass
+            try:
+                if self.process.stderr:
+                    self.process.stderr.close()
+            except Exception:
+                pass
+            
             self.process = None
             return True
             

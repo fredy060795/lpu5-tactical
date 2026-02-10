@@ -1408,9 +1408,30 @@
                 break;
               }
 
-              // Note: Cannot fully render overlays from other clients without image data
-              // This would require the image URL to be accessible or the image data to be transferred
-              console.log('Overlay created by another client, but image data not available for rendering');
+              // Render overlay if image data is available (base64 data URL)
+              if (o.imageUrl || o.imageurl) {
+                try {
+                  const imgUrl = o.imageUrl || o.imageurl;
+                  const b = o.bounds || {};
+                  const leafletBounds = [[b.south, b.west], [b.north, b.east]];
+                  const leafletOverlay = L.imageOverlay(imgUrl, leafletBounds, { pane: 'paneOverlays', interactive: true }).addTo(map);
+                  const ovOpacity = o.opacity != null ? o.opacity : 1.0;
+                  try { leafletOverlay.setOpacity(ovOpacity); } catch (e) { }
+                  try { leafletOverlay.setZIndex(450); } catch (e) { }
+                  leafletOverlay.once('load', () => {
+                    const img = leafletOverlay.getElement();
+                    if (img) { img.style.transformOrigin = '50% 50%'; img.style.pointerEvents = 'auto'; img.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)'; }
+                  });
+                  overlays.push({ id: o.id, overlay: leafletOverlay, name: o.name || 'Overlay', url: imgUrl, rotation: o.rotation || 0, creator: o.created_by || 'unknown', opacity: ovOpacity });
+                  refreshOverlayList(); renderSettingsList();
+                  console.log('Overlay rendered from another client:', o.id);
+                } catch (e) {
+                  console.error('Failed to render shared overlay:', e);
+                }
+              } else {
+                // No image data in broadcast, fetch from server
+                if (typeof loadOverlays === 'function') loadOverlays();
+              }
             }
             break;
 
@@ -1425,18 +1446,25 @@
                 // Update existing overlay properties
                 try {
                   if (o.opacity !== undefined) {
-                    overlays[idx].overlay.setOpacity(o.opacity / 100);
-                    overlays[idx].opacity = o.opacity;
+                    const newOpacity = Math.min(1.0, Math.max(0, o.opacity <= 1.0 ? o.opacity : o.opacity / 100));
+                    overlays[idx].overlay.setOpacity(newOpacity);
+                    overlays[idx].opacity = newOpacity;
                   }
                   if (o.name !== undefined) {
                     overlays[idx].name = o.name;
                   }
+                  if (o.bounds) {
+                    const b = o.bounds;
+                    overlays[idx].overlay.setBounds([[b.south, b.west], [b.north, b.east]]);
+                  }
                   renderSettingsList();
                   refreshOverlayList();
-                  saveStateToLocalStorage();
                 } catch (e) {
                   console.error('Failed to update overlay:', e);
                 }
+              } else {
+                // Overlay not found locally, fetch from server
+                if (typeof loadOverlays === 'function') loadOverlays();
               }
             }
             break;
@@ -1451,16 +1479,13 @@
                 overlays.splice(idx, 1);
                 renderSettingsList();
                 refreshOverlayList();
-                saveStateToLocalStorage();
               }
             }
             break;
 
           case 'overlay_shared':
-            // Handle shared overlay from another client (legacy)
-            if (data.overlay && data.channel === 'overlays') {
-              console.log('Received overlay share:', data.overlay);
-            }
+            // Handle shared overlay from another client (legacy) - trigger reload
+            if (typeof loadOverlays === 'function') loadOverlays();
             break;
 
           case 'symbol_created':
@@ -1728,8 +1753,16 @@
       function genId(prefix = 'id') { return prefix + '_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 9999); }
       function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
 
+      function fileToDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
       // Save drawings and symbols to localStorage
-      // Note: Overlays (image data) cannot be persisted to localStorage because blob URLs don't survive page reloads
       function saveStateToLocalStorage() {
         try {
           const state = {
@@ -1906,53 +1939,79 @@
       const ovOpacity = document.getElementById('ovOpacity_fly'), ovOpacityNum = document.getElementById('ovOpacityNum_fly');
       if (ovOpacity && ovOpacityNum) { ovOpacity.addEventListener('input', () => ovOpacityNum.value = ovOpacity.value); ovOpacityNum.addEventListener('change', () => ovOpacity.value = ovOpacityNum.value); }
 
-      function addOverlay(file, w, h, rot, opacity = 1.0) {
-        const url = URL.createObjectURL(file);
+      async function addOverlay(file, w, h, rot, opacity = 1.0) {
+        let url;
+        try {
+          url = await fileToDataUrl(file);
+        } catch (e) {
+          console.error('Failed to convert file to data URL:', e);
+          url = URL.createObjectURL(file);
+        }
         const center = map.getCenter();
         const latDelta = (h / 2) / 111320.0;
         const lonDelta = (w / 2) / (111320.0 * Math.cos(center.lat * Math.PI / 180));
         const bounds = [[center.lat - latDelta, center.lng - lonDelta], [center.lat + latDelta, center.lng + lonDelta]];
-        const overlay = L.imageOverlay(url, bounds, { pane: 'paneOverlays', interactive: true }).addTo(map);
-        try { overlay.setOpacity(opacity); } catch (e) { }
-        try { overlay.setZIndex(450); } catch (e) { }
-        overlay.once('load', () => {
-          const img = overlay.getElement();
+        const leafletOverlay = L.imageOverlay(url, bounds, { pane: 'paneOverlays', interactive: true }).addTo(map);
+        try { leafletOverlay.setOpacity(opacity); } catch (e) { }
+        try { leafletOverlay.setZIndex(450); } catch (e) { }
+        leafletOverlay.once('load', () => {
+          const img = leafletOverlay.getElement();
           if (img) {
             img.style.transformOrigin = '50% 50%';
-            // rotation intentionally not applied
             img.style.pointerEvents = 'auto';
             img.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)';
           }
           ensureMapVisible();
         });
         const id = genId('ov');
-        overlays.push({ id, overlay, name: file.name, url, rotation: rot, creator: getCurrentUsername(), opacity });
+        const creator = getCurrentUsername();
+        overlays.push({ id, overlay: leafletOverlay, name: file.name, url, rotation: rot, creator, opacity });
 
-        // Broadcast overlay to other clients
+        // Save overlay to server API for persistence and sharing
         try {
-          broadcastOverlay({
-            id,
-            name: file.name,
-            bounds,
-            rotation: rot,
-            opacity,
-            creator: getCurrentUsername()
+          const token = localStorage.getItem('token');
+          const apiBounds = { south: bounds[0][0], west: bounds[0][1], north: bounds[1][0], east: bounds[1][1] };
+          const resp = await fetch('/api/overlays', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+              name: file.name,
+              imageUrl: url,
+              bounds: apiBounds,
+              opacity: opacity,
+              rotation: rot,
+              created_by: creator
+            })
           });
+          if (resp.ok) {
+            const result = await resp.json();
+            if (result.overlay && result.overlay.id) {
+              // Update local overlay with server-assigned ID
+              const idx = overlays.findIndex(x => x.id === id);
+              if (idx !== -1) overlays[idx].id = result.overlay.id;
+              console.log('Overlay saved to server:', result.overlay.id);
+            }
+          } else {
+            console.error('Failed to save overlay to server:', resp.status);
+          }
         } catch (e) {
-          console.error('Failed to broadcast overlay:', e);
+          console.error('Failed to save overlay to server:', e);
         }
 
         return id;
       }
 
-      document.getElementById('ovAddBtn').addEventListener('click', () => {
+      document.getElementById('ovAddBtn').addEventListener('click', async () => {
         const files = overlayFileInput.files;
         if (!files || files.length === 0) { alert('Bitte mindestens eine Datei auswählen.'); return; }
         const defaultW = parseFloat(ovW.value) || 500;
         const defaultH = parseFloat(ovH.value) || 500;
         const defaultR = 0; // rotation UI hidden; set default 0
         const defaultOp = (parseFloat(ovOpacity.value) || 100) / 100.0;
-        for (let i = 0; i < files.length; i++) { addOverlay(files[i], defaultW, defaultH, defaultR, defaultOp); }
+        for (let i = 0; i < files.length; i++) { await addOverlay(files[i], defaultW, defaultH, defaultR, defaultOp); }
         overlayFileInput.value = '';
         ovFileName.textContent = 'Keine ausgewählt';
         refreshOverlayList(); renderSettingsList();
@@ -1978,7 +2037,7 @@
         overlayListEl.querySelectorAll('.btn-delete').forEach(b => b.addEventListener('click', () => { const id = b.dataset.id; if (!confirm('Delete overlay?')) return; removeOverlay(id); refreshOverlayList(); renderSettingsList(); }));
       }
 
-      function removeOverlay(id) { const idx = overlays.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(overlays[idx].overlay); } catch (e) { } overlays.splice(idx, 1); renderSettingsList(); ensureMapVisible(); saveStateToLocalStorage(); }
+      function removeOverlay(id) { const idx = overlays.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(overlays[idx].overlay); } catch (e) { } overlays.splice(idx, 1); renderSettingsList(); ensureMapVisible(); saveStateToLocalStorage(); const token = localStorage.getItem('token'); fetch(`/api/overlays/${id}`, { method: 'DELETE', headers: { 'Authorization': token ? `Bearer ${token}` : '' } }).catch(e => console.error('Failed to delete overlay from server:', e)); }
 
       document.getElementById('ovResetBtn').addEventListener('click', () => { overlayFileInput.value = ''; ovFileName.textContent = 'Keine ausgewählt'; ovW.value = 500; ovH.value = 500; ovOpacity.value = 100; ovOpacityNum.value = 100; });
 
@@ -2073,30 +2132,58 @@
 
         document.getElementById('ovCenterBtn').addEventListener('click', () => { const o = overlays.find(x => x.id === currentOverlayEdit.id); if (!o) return; map.setView(o.overlay.getBounds().getCenter(), Math.max(map.getZoom(), 16)); });
 
-        document.getElementById('ovSaveBtn').addEventListener('click', () => {
+        document.getElementById('ovSaveBtn').addEventListener('click', async () => {
           const o = overlays.find(x => x.id === currentOverlayEdit.id);
           if (!o) { alert('Overlay nicht gefunden'); closeOverlayEditor(); return; }
 
           o.opacity = currentOverlayEdit.tempOpacity != null ? currentOverlayEdit.tempOpacity : (o.opacity || 1.0);
           try { o.overlay.setOpacity(o.opacity); } catch (e) { }
 
+          let newImageUrl = null;
           if (currentOverlayEdit.file) {
-            const newUrl = URL.createObjectURL(currentOverlayEdit.file);
+            try {
+              newImageUrl = await fileToDataUrl(currentOverlayEdit.file);
+            } catch (e) {
+              console.error('Failed to convert replacement file:', e);
+              newImageUrl = URL.createObjectURL(currentOverlayEdit.file);
+            }
             try {
               const bounds2 = o.overlay.getBounds();
-              const newOverlay = L.imageOverlay(newUrl, bounds2, { pane: 'paneOverlays', interactive: true }).addTo(map);
+              const newOverlay = L.imageOverlay(newImageUrl, bounds2, { pane: 'paneOverlays', interactive: true }).addTo(map);
               newOverlay.setOpacity(o.opacity);
               newOverlay.once('load', () => {
                 const ni = newOverlay.getElement();
                 if (ni) { ni.style.transformOrigin = '50% 50%'; ni.style.pointerEvents = 'auto'; ni.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)'; }
                 try { map.removeLayer(o.overlay); } catch (e) { }
-                o.overlay = newOverlay; o.url = newUrl;
+                o.overlay = newOverlay; o.url = newImageUrl;
                 refreshOverlayList(); renderSettingsList(); ensureMapVisible();
               });
             } catch (e) { console.error('Overlay replace failed', e); alert('Error replacing image'); }
           } else {
             refreshOverlayList(); renderSettingsList(); ensureMapVisible();
           }
+
+          // Save changes to server API
+          try {
+            const token = localStorage.getItem('token');
+            const bounds3 = o.overlay.getBounds();
+            const updateData = {
+              name: o.name,
+              opacity: o.opacity,
+              rotation: o.rotation || 0,
+              bounds: { south: bounds3.getSouth(), west: bounds3.getWest(), north: bounds3.getNorth(), east: bounds3.getEast() }
+            };
+            if (newImageUrl) updateData.imageUrl = newImageUrl;
+            fetch(`/api/overlays/${o.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+              body: JSON.stringify(updateData)
+            }).then(r => { if (r.ok) console.log('Overlay updated on server'); else console.error('Failed to update overlay on server:', r.status); })
+              .catch(e => console.error('Failed to update overlay on server:', e));
+          } catch (e) {
+            console.error('Failed to save overlay changes to server:', e);
+          }
+
           panel.querySelector('#ovEditorMsg').textContent = 'Änderungen gespeichert.';
         });
 
@@ -2287,6 +2374,49 @@
           }
         } catch (e) {
           console.error('Error deleting symbol:', e);
+        }
+      }
+
+      async function loadOverlays() {
+        try {
+          const resp = await fetch('/api/overlays');
+          if (!resp.ok) return;
+          const serverOverlays = await resp.json();
+
+          for (const o of serverOverlays) {
+            if (!o.imageUrl && !o.imageurl) continue;
+            if (overlays.find(x => x.id === o.id)) continue;
+
+            try {
+              const imgUrl = o.imageUrl || o.imageurl;
+              const b = o.bounds || {};
+              const leafletBounds = [[b.south, b.west], [b.north, b.east]];
+              const leafletOverlay = L.imageOverlay(imgUrl, leafletBounds, { pane: 'paneOverlays', interactive: true }).addTo(map);
+              const ovOpacity = o.opacity != null ? o.opacity : 1.0;
+              try { leafletOverlay.setOpacity(ovOpacity); } catch (e) { }
+              try { leafletOverlay.setZIndex(450); } catch (e) { }
+              leafletOverlay.once('load', () => {
+                const img = leafletOverlay.getElement();
+                if (img) { img.style.transformOrigin = '50% 50%'; img.style.pointerEvents = 'auto'; img.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)'; }
+              });
+              overlays.push({ id: o.id, overlay: leafletOverlay, name: o.name || 'Overlay', url: imgUrl, rotation: o.rotation || 0, creator: o.created_by || 'unknown', opacity: ovOpacity });
+            } catch (e) {
+              console.error('Failed to render overlay from server:', e);
+            }
+          }
+
+          // Remove overlays that no longer exist on server
+          const serverIds = new Set(serverOverlays.map(o => o.id));
+          for (let i = overlays.length - 1; i >= 0; i--) {
+            if (!serverIds.has(overlays[i].id)) {
+              try { map.removeLayer(overlays[i].overlay); } catch (e) { }
+              overlays.splice(i, 1);
+            }
+          }
+
+          refreshOverlayList(); renderSettingsList();
+        } catch (e) {
+          console.error('Failed to load overlays from server:', e);
         }
       }
 
@@ -2512,7 +2642,11 @@
 
       // Load Map Symbols
       loadMapSymbols();
-      setInterval(loadMapSymbols, 10000);
+      setInterval(loadMapSymbols, 5000);
+
+      // Load Overlays from server
+      loadOverlays();
+      setInterval(loadOverlays, 10000);
 
       // initial render
       refreshOverlayList();
