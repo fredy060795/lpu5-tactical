@@ -647,8 +647,8 @@ def sync_meshtastic_nodes_to_map_markers_once():
         updated = 0
 
         for n in nodes:
-            mesh = n.mesh_id or n.id
-            name = n.name or n.callsign or mesh or "node"
+            mesh = n.id
+            name = n.long_name or n.short_name or mesh or "node"
             lat = n.lat if n.lat is not None else 0.0
             lng = n.lng if n.lng is not None else 0.0
 
@@ -659,15 +659,17 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 # update
                 marker.lat = float(lat)
                 marker.lng = float(lng)
-                marker.name = f"{n.device or ''} = {name}"
-                marker.timestamp = datetime.utcnow()
+                marker.name = f"{n.hardware_model or ''} = {name}"
+                marker_data = marker.data if isinstance(marker.data, dict) else {}
+                marker_data["updated_at"] = datetime.utcnow().isoformat()
+                marker.data = marker_data
                 updated += 1
             else:
                 new_marker = MapMarker(
                     id=str(uuid.uuid4()),
                     lat=float(lat),
                     lng=float(lng),
-                    name=f"{n.device or ''} = {name}",
+                    name=f"{n.hardware_model or ''} = {name}",
                     type="node",
                     created_by="import_meshtastic",
                     created_at=datetime.utcnow(),
@@ -730,7 +732,7 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
             overlays = db.query(Overlay).all()
             overlay_list = [
                 {
-                    "id": o.id, "name": o.name, "type": o.type, "data": o.data,
+                    "id": o.id, "name": o.name, "data": o.data,
                     "created_by": o.created_by,
                     "timestamp": o.created_at.isoformat() if o.created_at else datetime.utcnow().isoformat()
                 } for o in overlays
@@ -779,7 +781,7 @@ def on_startup():
                 status = data_server_manager.get_status()
                 if status:
                     logger.info(f"   Data server status: {status.get('status')}")
-                    logger.info(f"   WebSocket: ws://127.0.0.1:8001/ws")
+                    logger.info(f"   WebSocket: ws://127.0.0.1:8002/ws")
             else:
                 logger.warning("⚠️  Failed to start data server, falling back to direct WebSocket")
         except Exception as e:
@@ -1142,7 +1144,7 @@ async def update_user(user_id: str, data: dict = Body(...), authorization: Optio
         payload = verify_token(authorization)
         if payload:
             current_user_id = payload.get("user_id") or payload.get("username") or "system"
-    except:
+    except Exception:
         pass
     
     if "role" in data:
@@ -1450,9 +1452,14 @@ def update_unit_status(unit_id: str = Path(...), new_status: str = Path(...), au
     db.commit()
     
     # Also update map_marker if exists
-    marker = db.query(MapMarker).filter(MapMarker.unit_id == (user.device or user.callsign or user.username)).first()
+    unit_identifier = user.device or user.callsign or user.username
+    markers = db.query(MapMarker).filter(MapMarker.created_by == "import_meshtastic").all()
+    marker = None
+    for m in markers:
+        if isinstance(m.data, dict) and str(m.data.get("unit_id", "")) == str(unit_identifier):
+            marker = m
+            break
     if marker:
-        marker.status = new_status
         marker_data = marker.data if marker.data else {}
         marker_data["status"] = new_status
         marker_data["timestamp"] = ts
@@ -1463,7 +1470,7 @@ def update_unit_status(unit_id: str = Path(...), new_status: str = Path(...), au
         broadcast_websocket_update("markers", "marker_updated", {
             "id": marker.id,
             "status": new_status,
-            "unit_id": marker.unit_id
+            "unit_id": unit_identifier
         })
     
     log_audit("status_update", user.id, {"status": new_status, "unit_id": unit_id})
@@ -4116,161 +4123,6 @@ def api_cleanup_mesh_databases():
         db.rollback()
         logger.exception("cleanup_mesh_databases failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
-    finally:
-        db.close()
-
-# -------------------------
-# Real-time Data Synchronization Endpoints
-# -------------------------
-@app.post("/api/sync/markers")
-async def sync_markers(data: dict = Body(...)):
-    """
-    Broadcast marker changes to all clients via WebSocket and persist to DB.
-    """
-    db = SessionLocal()
-    try:
-        # Broadcast to all connected WebSocket clients
-        await manager.broadcast({
-            "type": "markers_update",
-            "data": data,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        # Persist markers if provided
-        if "markers" in data and isinstance(data["markers"], list):
-            for m_data in data["markers"]:
-                mid = m_data.get("id")
-                if not mid: continue
-                
-                marker = db.query(MapMarker).filter(MapMarker.id == mid).first()
-                if marker:
-                    # Update
-                    marker.lat = float(m_data.get("lat", marker.lat))
-                    marker.lng = float(m_data.get("lng", marker.lng))
-                    marker.name = m_data.get("name", marker.name)
-                    marker.type = m_data.get("type", marker.type)
-                    marker.color = m_data.get("color", marker.color)
-                    marker.icon = m_data.get("icon", marker.icon)
-                    marker.data = m_data # Store the full dict
-                else:
-                    # Create
-                    marker = MapMarker(
-                        id=mid,
-                        lat=float(m_data.get("lat", 0.0)),
-                        lng=float(m_data.get("lng", 0.0)),
-                        name=m_data.get("name", "New Marker"),
-                        type=m_data.get("type", "friendly"),
-                        color=m_data.get("color", "#ffffff"),
-                        icon=m_data.get("icon", "default"),
-                        created_by="sync",
-                        data=m_data
-                    )
-                    db.add(marker)
-            db.commit()
-            logger.info(f"Synced and persisted {len(data['markers'])} markers")
-        
-        return {"status": "ok", "message": "Markers synchronized and persisted"}
-    except Exception as e:
-        db.rollback()
-        logger.exception("sync_markers failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
-    finally:
-        db.close()
-
-@app.post("/api/sync/overlays")
-async def sync_overlays(data: dict = Body(...)):
-    """
-    Broadcast overlay changes to all clients via WebSocket and persist to DB.
-    """
-    db = SessionLocal()
-    try:
-        # Broadcast to all connected WebSocket clients
-        await manager.broadcast({
-            "type": "overlay_update",
-            "data": data,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        if "overlays" in data and isinstance(data["overlays"], list):
-            for o_data in data["overlays"]:
-                oid = o_data.get("id")
-                if not oid: continue
-                
-                overlay = db.query(Overlay).filter(Overlay.id == oid).first()
-                if overlay:
-                    overlay.name = o_data.get("name", overlay.name)
-                    overlay.image_url = o_data.get("imageUrl", overlay.image_url)
-                    overlay.bounds = o_data.get("bounds", overlay.bounds)
-                    overlay.opacity = float(o_data.get("opacity", overlay.opacity))
-                    overlay.rotation = float(o_data.get("rotation", overlay.rotation))
-                else:
-                    overlay = Overlay(
-                        id=oid,
-                        name=o_data.get("name", "New Overlay"),
-                        image_url=o_data.get("imageUrl", ""),
-                        bounds=o_data.get("bounds", {}),
-                        opacity=float(o_data.get("opacity", 1.0)),
-                        rotation=float(o_data.get("rotation", 0.0)),
-                        created_by="sync",
-                        data=o_data
-                    )
-                    db.add(overlay)
-            db.commit()
-            logger.info(f"Synced and persisted {len(data.get('overlays', []))} overlays")
-            
-        return {"status": "ok", "message": "Overlays synchronized and persisted"}
-    except Exception as e:
-        db.rollback()
-        logger.exception("sync_overlays failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
-    finally:
-        db.close()
-
-@app.post("/api/sync/drawings")
-async def sync_drawings(data: dict = Body(...)):
-    """
-    Broadcast drawing changes to all clients via WebSocket and persist to DB.
-    """
-    db = SessionLocal()
-    try:
-        await manager.broadcast({
-            "type": "drawing_update",
-            "data": data,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        if "drawings" in data and isinstance(data["drawings"], list):
-            for d_data in data["drawings"]:
-                did = d_data.get("id")
-                if not did: continue
-                
-                drawing = db.query(Drawing).filter(Drawing.id == did).first()
-                if drawing:
-                    drawing.name = d_data.get("name", drawing.name)
-                    drawing.type = d_data.get("type", drawing.type)
-                    drawing.coordinates = d_data.get("coordinates", drawing.coordinates)
-                    drawing.color = d_data.get("color", drawing.color)
-                    drawing.weight = int(d_data.get("weight", drawing.weight))
-                else:
-                    drawing = Drawing(
-                        id=did,
-                        name=d_data.get("name", "New Drawing"),
-                        type=d_data.get("type", "polyline"),
-                        coordinates=d_data.get("coordinates", []),
-                        color=d_data.get("color", "#3388ff"),
-                        weight=int(d_data.get("weight", 3)),
-                        created_by="sync",
-                        data=d_data
-                    )
-                    db.add(drawing)
-            db.commit()
-            logger.info(f"Synced and persisted {len(data.get('drawings', []))} drawings")
-            
-        return {"status": "ok", "message": "Drawings synchronized and persisted"}
-    except Exception as e:
-        db.rollback()
-        logger.exception("sync_drawings failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
     finally:
         db.close()
 
