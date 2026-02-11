@@ -1741,10 +1741,12 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
 @app.get("/api/map_markers")
 def get_map_markers():
     # markers.read is available to all roles (guest+)
+    _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
     db = SessionLocal()
     try:
         markers = db.query(MapMarker).all()
-        # Convert to dict list for JSON response
+        # Convert to dict list for JSON response, excluding meshtastic-synced markers
+        # (those are rendered exclusively via /api/meshtastic/nodes → updateMeshtasticNodes)
         return [
             {
                 "id": m.id,
@@ -1759,6 +1761,7 @@ def get_map_markers():
                 "created_at": m.created_at.isoformat() if m.created_at else None,
                 "data": m.data
             } for m in markers
+            if m.type != "node" and (not m.created_by or m.created_by not in _MESHTASTIC_CREATED_BY)
         ]
     finally:
         db.close()
@@ -5167,12 +5170,16 @@ def get_symbol_priority(symbol_type: str) -> int:
 @app.get("/api/map/symbols", summary="Get all map symbols")
 def get_map_symbols():
     """Get all placed map symbols (DB-backed)"""
+    _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
     try:
         with SessionLocal() as db:
             symbols = db.query(MapMarker).all()
             # Convert to dict list
             symbol_list = []
             for s in symbols:
+                # Skip meshtastic-synced markers — rendered by updateMeshtasticNodes()
+                if s.type == "node" or (s.created_by and s.created_by in _MESHTASTIC_CREATED_BY):
+                    continue
                 # Basic fields
                 s_dict = {
                     "id": s.id,

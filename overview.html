@@ -1023,8 +1023,8 @@
 
       map.createPane('overlayPane').style.zIndex = 300;
       map.createPane('drawPane').style.zIndex = 600;
-      map.createPane('pendingPane').style.zIndex = 650;
-      map.createPane('meshtasticPane').style.zIndex = 550; // Below pending, above draw
+      map.createPane('meshtasticPane').style.zIndex = 650; // Above draw so blue circles always visible
+      map.createPane('pendingPane').style.zIndex = 700;
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
 
@@ -3024,10 +3024,6 @@
         const menu = document.getElementById('status-menu');
         if (menu) menu.style.display = 'none';
       };
-
-      // Initial sync
-      setTimeout(sync, 1000);
-      setInterval(sync, 30000);
 
     })();
   </script>
