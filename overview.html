@@ -353,8 +353,8 @@
     #status-menu::-webkit-scrollbar {
       display: none; /* Chrome, Safari, Opera */
     }
-    .menu-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-blue); padding-bottom: 10px; margin-bottom: 20px; }
-    .menu-section { margin-bottom: 20px; background: #111; border: 1px solid #333; padding: 15px; border-radius: 8px; }
+    .menu-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-blue); padding-bottom: 10px; margin-bottom: 20px; flex-shrink: 0; }
+    .menu-section { margin-bottom: 20px; background: #111; border: 1px solid #333; padding: 15px; border-radius: 8px; flex-shrink: 0; }
     .menu-section h3 { font-size: 0.9em; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
 
     .status-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
@@ -2611,6 +2611,11 @@
               statusElement.style.color = '#dc3545'; // red
             }
           }
+
+          // Persist status to localStorage for page reload
+          try {
+            localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
+          } catch (e) { }
 
           // Visual feedback on toolbar buttons if they exist
           document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
