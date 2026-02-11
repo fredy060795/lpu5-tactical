@@ -2338,15 +2338,40 @@
           symbols.length = 0;
 
           serverSymbols.forEach(s => {
-            const svgHtml = getSymbolSvg(s.type || s.sym || 'raute');
-            const icon = L.divIcon({
-              className: 'custom-sym',
-              html: svgHtml,
-              iconSize: [32, 32],
-              iconAnchor: [16, 32]
-            });
+            const isGps = (s.type === 'gps_position');
+            let icon;
+            if (isGps) {
+              const color = s.color || '#28a745';
+              icon = L.divIcon({
+                className: 'gps-marker-arrow',
+                html: createArrowIconHtml(color),
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+              });
+            } else {
+              const svgHtml = getSymbolSvg(s.type || s.sym || 'raute');
+              icon = L.divIcon({
+                className: 'custom-sym',
+                html: svgHtml,
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
+              });
+            }
             const marker = L.marker([s.lat, s.lng], { icon, pane: 'paneSymbols' }).addTo(map);
-            marker.bindPopup(`<strong>${s.label || s.type || 'Symbol'}</strong><div style="font-size:.8rem;color:#999">by ${s.username || 'unknown'}</div>`);
+
+            if (isGps) {
+              // GPS positions: show permanent username label
+              const displayName = s.label || s.username || 'GPS';
+              marker.bindTooltip(displayName, {
+                permanent: true,
+                direction: 'right',
+                offset: [12, 0],
+                className: 'meshtastic-label'
+              });
+              marker.bindPopup(`<strong>${displayName}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
+            } else {
+              marker.bindPopup(`<strong>${s.label || s.type || 'Symbol'}</strong><div style="font-size:.8rem;color:#999">by ${s.username || 'unknown'}</div>`);
+            }
 
             marker.on('click', () => {
               if (symbolDeleteMode) {

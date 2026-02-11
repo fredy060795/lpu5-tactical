@@ -141,7 +141,7 @@
       padding: 8px;
       border: 1px solid #444;
       border-radius: 4px;
-      display: none;
+      display: block;
     }
 
     /* Toolbar with proper sizing to cover all icons - removed max-width constraint to ensure full coverage */
@@ -153,12 +153,22 @@
       background: rgba(26, 26, 26, 0.95);
       padding: 8px 12px;
       border-radius: 50px;
-      display: none;
+      display: flex;
       gap: 8px;
       z-index: 6005;
       align-items: center;
       flex-wrap: nowrap;
-      min-width: fit-content;
+      max-width: calc(100vw - 20px);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      touch-action: pan-x;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .bottom-toolbar::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
     }
 
     .tool-btn {
@@ -275,7 +285,7 @@
       width: 100%;
       height: 100%;
       z-index: 1;
-      display: none;
+      display: block;
     }
 
     .tactical-overlay {
@@ -347,6 +357,9 @@
       background: rgba(0,0,0,0.9); z-index: 10001; display: none;
       flex-direction: column; padding: 20px; color: #fff;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
+      overscroll-behavior: contain; /* prevent scroll leak to body */
+      touch-action: pan-y; /* allow vertical touch scroll */
       scrollbar-width: none; /* Firefox */
       -ms-overflow-style: none; /* IE and Edge */
     }
@@ -374,17 +387,6 @@
 </head>
 
 <body>
-
-  <div id="login-screen">
-    <div class="login-container">
-      <h2 style="color:var(--accent-blue); margin-bottom:15px;">OPERATIV PRECISION</h2>
-      <div class="login-form">
-        <input type="text" id="user" placeholder="Rufname" autocomplete="off">
-        <input type="password" id="pass" placeholder="Passwort">
-        <button class="login-btn" onclick="validateLogin()">START</button>
-      </div>
-    </div>
-  </div>
 
   <div id="offline-indicator">
     <i class="fas fa-plane"></i> OFFLINE MODUS
@@ -481,7 +483,7 @@
         <line x1="14" y1="11" x2="14" y2="17"></line>
       </svg>
     </div>
-    <div class="tool-btn" id="s-reload" onclick="location.reload()" title="Seite neu laden">
+    <div class="tool-btn" id="s-reload" onclick="refreshAllData()" title="Seite neu laden">
       <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
       </svg>
@@ -515,6 +517,7 @@
     const pendingLayers = new Map();
     const serverMarkerLayers = new Map(); // server marker id -> L.marker layer
     const meshtasticMarkers = new Map(); // mesh_id -> { marker, data }
+    const symbolLayers = new Map(); // symbol id -> L.marker layer (symbols from /api/map/symbols)
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
 
@@ -907,40 +910,55 @@
 
     // UI & login
     async function validateLogin() {
-      const u = document.getElementById('user').value;
-      const p = document.getElementById('pass').value;
+      const u = document.getElementById('menu-user') ? document.getElementById('menu-user').value : '';
+      const p = document.getElementById('menu-pass') ? document.getElementById('menu-pass').value : '';
+      if (!u || !p) { alert('Bitte Benutzername und Passwort eingeben'); return; }
       try {
         const res = await fetch('/api/login_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
         if (res.ok) {
           const r = await res.json();
           currentUserName = r.user.username;
 
-          // Save token to localStorage for authentication
-          if (r.token) {
-            localStorage.setItem('token', r.token);
-          }
-
-          document.getElementById('login-screen').style.display = 'none';
-          document.getElementById('map').style.display = 'block';
-          document.getElementById('ui-top').style.display = 'block';
-
-          // Ensure toolbar is visible and properly laid out
-          const toolbar = document.getElementById('ui-tools');
-          if (toolbar) {
-            toolbar.style.display = 'flex';
-            // Force a layout recalculation to ensure toolbar appears
-            setTimeout(() => layoutToolbar(), 0);
-          }
+          // Cache credentials and token in localStorage
+          if (r.token) localStorage.setItem('token', r.token);
+          localStorage.setItem('lpu5_cached_user', u);
+          localStorage.setItem('lpu5_cached_pass', p);
 
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
-          initMap();
+          // Close hamburger menu after login
+          const menu = document.getElementById('status-menu');
+          if (menu) menu.style.display = 'none';
         } else {
           alert('Login fehlgeschlagen');
         }
       } catch (e) {
         console.error('Login error:', e);
-        alert('Network error during login: ' + e.message);
+        alert('Netzwerkfehler beim Login: ' + e.message);
       }
+    }
+
+    // Auto-login from cached credentials
+    async function tryAutoLogin() {
+      const cachedUser = localStorage.getItem('lpu5_cached_user');
+      const cachedPass = localStorage.getItem('lpu5_cached_pass');
+      if (!cachedUser || !cachedPass) return false;
+      try {
+        const res = await fetch('/api/login_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: cachedUser, password: cachedPass }) });
+        if (res.ok) {
+          const r = await res.json();
+          currentUserName = r.user.username;
+          if (r.token) localStorage.setItem('token', r.token);
+          document.getElementById('out-name').innerText = currentUserName.toUpperCase();
+          return true;
+        }
+      } catch (e) {
+        // Offline: restore username from cache so UI shows the name
+        console.warn('Auto-login failed (offline?), using cached name', e);
+        currentUserName = cachedUser;
+        document.getElementById('out-name').innerText = cachedUser.toUpperCase();
+        return true;
+      }
+      return false;
     }
 
     // Map init
@@ -992,7 +1010,8 @@
       renderPendingLayers();
       sync();
       setInterval(sync, 3000);
-      // sync() handles both markers and symbols
+      loadMapSymbols(); // Load symbols from server (admin_map + other users' GPS)
+      setInterval(loadMapSymbols, 5000); // Refresh symbols every 5 seconds
       updateMeshtasticNodes(); // Initial load
       setInterval(updateMeshtasticNodes, 5000); // Update every 5 seconds
       loadOverlays(); // Load overlays from server
@@ -1049,9 +1068,22 @@
     }
 
     function crosshairLatLng() {
-      const size = map.getSize();
-      const centerPoint = L.point(size.x / 2, size.y / 2);
-      return map.containerPointToLatLng(centerPoint);
+      // Use actual crosshair element position so the marker always matches
+      // the visible crosshair, even when viewport and map container differ
+      // (mobile browser chrome, notch safe-areas, etc.)
+      const ch = document.getElementById('crosshair');
+      if (!ch) {
+        // Fallback to map center if crosshair element is missing
+        const size = map.getSize();
+        return map.containerPointToLatLng(L.point(size.x / 2, size.y / 2));
+      }
+      const chRect = ch.getBoundingClientRect();
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const containerPoint = L.point(
+        chRect.left + chRect.width / 2 - mapRect.left,
+        chRect.top + chRect.height / 2 - mapRect.top
+      );
+      return map.containerPointToLatLng(containerPoint);
     }
 
     // Helper to prevent double-firing of touch and click events
@@ -1269,6 +1301,88 @@
 
     // Unified sync handles both markers and symbols
 
+    // Load symbols from server (placed by admin_map or other overview clients)
+    async function loadMapSymbols() {
+      if (!map) return;
+      try {
+        const res = await fetch('/api/map/symbols');
+        if (!res.ok) return;
+        const data = await res.json();
+        const serverSymbols = data.symbols || [];
+
+        // Clear previous symbol layers
+        for (const [id, layer] of symbolLayers) {
+          try { map.removeLayer(layer); } catch (e) { }
+        }
+        symbolLayers.clear();
+
+        for (const s of serverSymbols) {
+          // Skip own GPS position marker (already shown locally)
+          if (s.type === 'gps_position' && s.username === currentUserName) continue;
+
+          const isGps = (s.type === 'gps_position');
+          const symType = s.type || s.sym || 'raute';
+          let iconHtml;
+          if (isGps) {
+            const color = s.color || '#28a745';
+            iconHtml = `<i class="fas fa-location-arrow" style="color:${color}; font-size: 28px;"></i>`;
+          } else {
+            iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.raute;
+            iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
+          }
+          const icon = L.divIcon({
+            className: isGps ? 'gps-marker-arrow' : 'server-symbol',
+            html: iconHtml,
+            iconSize: isGps ? [36, 36] : [32, 32],
+            iconAnchor: isGps ? [18, 18] : [16, 16]
+          });
+          const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
+
+          // Show username label for GPS positions, symbol type for others
+          const tooltipText = isGps ? (s.username || s.label || 'GPS') : (s.label || s.type || 'Symbol');
+          marker.bindTooltip(tooltipText, {
+            permanent: isGps,
+            direction: 'right',
+            offset: [10, 0],
+            className: 'symbol-label'
+          });
+
+          if (!isGps) {
+            marker.on('click touchstart', async (ev) => {
+              ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+              if (currentTool === 'trash') {
+                if (!confirm('Symbol löschen?')) return;
+                try {
+                  const token = localStorage.getItem('token');
+                  const dres = await fetch(`/api/map/symbols/${s.id}`, {
+                    method: 'DELETE',
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                  });
+                  if (dres.ok) { map.removeLayer(marker); symbolLayers.delete(s.id); }
+                } catch (e) { console.error('Delete symbol error:', e); }
+              }
+            });
+          }
+
+          symbolLayers.set(s.id, marker);
+        }
+      } catch (e) {
+        console.warn('loadMapSymbols error', e);
+      }
+    }
+
+    // Refresh all data without full page reload (preserves login state)
+    async function refreshAllData() {
+      try {
+        await sync();
+        await loadMapSymbols();
+        await updateMeshtasticNodes();
+        await loadOverlays();
+      } catch (e) {
+        console.warn('refreshAllData error', e);
+      }
+    }
+
     // Meshtastic node synchronization
     async function updateMeshtasticNodes() {
       if (!map) return;
@@ -1470,6 +1584,46 @@
       return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`;
     }
 
+    // Send GPS position to server so admin_map.html can see it
+    let _lastGpsSendId = null; // track the server symbol id for upsert
+    async function sendGpsToServer(lat, lng) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        // Delete previous GPS position marker to avoid duplicates
+        if (_lastGpsSendId) {
+          try {
+            await fetch(`/api/map/symbols/${_lastGpsSendId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+          } catch (e) { }
+        }
+        const res = await fetch('/api/map/symbols', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            lat: lat,
+            lng: lng,
+            type: 'gps_position',
+            source_page: 'overview',
+            label: currentUserName || 'GPS',
+            color: '#28a745',
+            icon: 'fa-location-arrow'
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.symbol && data.symbol.id) _lastGpsSendId = data.symbol.id;
+        }
+      } catch (e) {
+        console.warn('sendGpsToServer failed', e);
+      }
+    }
+
     // GPS Auto-tracking functions
     function startGpsAutoTracking() {
       if (!navigator.geolocation) {
@@ -1508,6 +1662,9 @@
               }
             });
           }
+
+          // Send GPS position to server for admin_map visibility
+          sendGpsToServer(lat, lng);
         },
         (error) => {
           console.warn('GPS auto-tracking error:', error);
@@ -1579,6 +1736,7 @@
         });
 
         map.setView([latNum, lngNum], Math.max(map.getZoom(), 15));
+        sendGpsToServer(latNum, lngNum);
       }
     }
 
@@ -1625,6 +1783,7 @@
 
         map.setView([lat, lng], Math.max(map.getZoom(), 15));
         flashBtn(btn, '#28a745');
+        sendGpsToServer(lat, lng);
       }, async (err) => {
         console.warn('geolocation error', err);
         const msg = (err && err.message) ? err.message : '';
@@ -1687,6 +1846,7 @@
 
           map.setView([lat, lng], Math.max(map.getZoom(), 12));
           flashBtn(btn, '#ffaa00');
+          sendGpsToServer(lat, lng);
           return true;
         } catch (fetchError) {
           // Check if it's an abort error (timeout)
@@ -1740,6 +1900,7 @@
         });
 
         map.setView([lat, lng], Math.max(map.getZoom(), 14));
+        sendGpsToServer(lat, lng);
       } else alert('UngÃ¼ltige Koordinaten.');
     }
 
@@ -2036,7 +2197,13 @@
     layoutToolbar();
 
     // Add Enter key handler for chat input
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', async function () {
+      // Initialize map immediately (no login gate)
+      initMap();
+
+      // Try auto-login from cached credentials
+      await tryAutoLogin();
+
       const chatInput = document.getElementById('chat-input');
       if (chatInput) {
         chatInput.addEventListener('keypress', function (e) {
@@ -2617,6 +2784,21 @@
             localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
           } catch (e) { }
 
+          // Broadcast to other tabs (index.html) via BroadcastChannel and localStorage
+          const updateData = {
+            type: 'status_change',
+            status: status,
+            color: statusElement ? statusElement.style.color : '',
+            username: currentUserName,
+            timestamp: new Date().toISOString()
+          };
+          if (statusChannel) {
+            try { statusChannel.postMessage(updateData); } catch (e) { }
+          }
+          try {
+            localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
+          } catch (e) { }
+
           // Visual feedback on toolbar buttons if they exist
           document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
           const statusBtn = document.getElementById(`s-status-${status.toLowerCase()}`);
@@ -2649,15 +2831,26 @@
         return;
       }
 
+      const isLoggedIn = !!currentUserName;
       const currentStatus = document.getElementById('out-status').innerText;
       const currentInterval = (gpsUpdateInterval / 1000) || 5;
 
-      menu.innerHTML = `
-        <div class="menu-header">
-          <h2 style="color:var(--accent-blue)">COMMAND MENU</h2>
-          <div onclick="toggleHamburgerMenu()" style="font-size:24px; padding:10px; cursor:pointer;">×</div>
+      // Login section (shown only when not logged in)
+      const loginSection = !isLoggedIn ? `
+        <div class="menu-section">
+          <h3>Anmelden</h3>
+          <input type="text" id="menu-user" placeholder="Rufname" autocomplete="off"
+            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+          <input type="password" id="menu-pass" placeholder="Passwort"
+            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+          <button class="menu-btn" style="background:var(--accent-blue);border-color:var(--accent-blue);justify-content:center;font-weight:bold;" onclick="event.stopPropagation(); validateLogin()">
+            <i class="fas fa-sign-in-alt"></i> LOGIN
+          </button>
         </div>
+      ` : '';
 
+      // Main menu sections (shown only when logged in)
+      const mainSections = isLoggedIn ? `
         <div class="menu-section">
           <h3>Lebensstatus</h3>
           <div class="status-grid">
@@ -2696,10 +2889,30 @@
 
         <div class="menu-section">
           <button class="menu-btn" onclick="openBleSettings()"><i class="fab fa-bluetooth-b"></i> BLE Meshtastic</button>
-          <button class="menu-btn logout-btn" onclick="location.reload()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+          <button class="menu-btn logout-btn" onclick="logoutOverview()"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
+      ` : '';
+
+      menu.innerHTML = `
+        <div class="menu-header">
+          <h2 style="color:var(--accent-blue)">COMMAND MENU</h2>
+          <div onclick="toggleHamburgerMenu()" style="font-size:24px; padding:10px; cursor:pointer;">×</div>
+        </div>
+        ${loginSection}
+        ${mainSections}
       `;
       menu.style.display = 'flex';
+    };
+
+    // Logout: clear cached credentials and reload
+    window.logoutOverview = function() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('lpu5_cached_user');
+      localStorage.removeItem('lpu5_cached_pass');
+      currentUserName = '';
+      document.getElementById('out-name').innerText = '---';
+      const menu = document.getElementById('status-menu');
+      if (menu) menu.style.display = 'none';
     };
 
     window.setGpsInterval = function(sec) {
