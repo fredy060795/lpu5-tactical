@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDR Radar - LPU5 Tactical</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --sb-collapsed: 70px;
+            --sb-expanded: 280px;
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --panel-input-bg: #0f0f0f;
+            --border: #282828;
+            --border-color: #333;
+            --accent: #2ecc71;
+            --accent-blue: #3498db;
+            --accent-yellow: #f39c12;
+            --accent-red: #e74c3c;
+            --text-main: #d0d0d0;
+            --text-dim: #888;
+        }
+
+        body {
+            margin: 0;
+            padding-left: var(--sb-collapsed);
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            transition: padding-left 0.3s ease;
+        }
+
+        .page-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .page-title i {
+            color: var(--accent-blue);
+            margin-right: 10px;
+        }
+
+        .page-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 5px;
+        }
+
+        /* Panels */
+        .panel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .panel-title i {
+            color: var(--accent-blue);
+            margin-right: 8px;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .status-online { background: rgba(46,204,113,0.2); color: #2ecc71; }
+        .status-offline { background: rgba(231,76,60,0.2); color: #e74c3c; }
+        .status-waiting { background: rgba(243,156,18,0.2); color: #f39c12; }
+
+        /* Form elements */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--panel-input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: var(--accent-blue); color: #fff; }
+        .btn-success { background: var(--accent); color: #000; }
+        .btn-danger { background: var(--accent-red); color: #fff; }
+        .btn-warning { background: var(--accent-yellow); color: #000; }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        /* Spectrum display */
+        .spectrum-canvas-container {
+            width: 100%;
+            background: #000;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .spectrum-canvas-container canvas {
+            width: 100%;
+            height: 200px;
+            display: block;
+        }
+
+        .spectrum-label {
+            position: absolute;
+            bottom: 5px;
+            left: 10px;
+            font-size: 0.7rem;
+            color: #666;
+        }
+
+        /* Signal meter */
+        .signal-meter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .signal-bar-container {
+            flex: 1;
+            height: 20px;
+            background: #111;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .signal-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #e74c3c, #f39c12, #2ecc71);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .signal-value {
+            min-width: 80px;
+            text-align: right;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        /* Log table */
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .log-container table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .log-container th,
+        .log-container td {
+            padding: 6px 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .log-container th {
+            background: #111;
+            color: var(--text-dim);
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+
+        .log-container tr:hover {
+            background: rgba(52,152,219,0.1);
+        }
+
+        /* Triangulation map placeholder */
+        .map-placeholder {
+            width: 100%;
+            height: 300px;
+            background: #111;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .map-placeholder i {
+            font-size: 2rem;
+            color: #333;
+        }
+
+        /* Info box */
+        .info-box {
+            background: rgba(52,152,219,0.1);
+            border: 1px solid rgba(52,152,219,0.3);
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .info-box i {
+            color: var(--accent-blue);
+            margin-right: 6px;
+        }
+
+        /* MQTT status */
+        .mqtt-peers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .peer-badge {
+            padding: 4px 10px;
+            background: rgba(46,204,113,0.15);
+            border: 1px solid rgba(46,204,113,0.3);
+            border-radius: 12px;
+            font-size: 0.75rem;
+            color: #2ecc71;
+        }
+
+        @media (max-width: 768px) {
+            .panel-grid {
+                grid-template-columns: 1fr;
+            }
+            .page-title {
+                font-size: 1.3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<script src="load-global-nav.js"></script>
+
+<div class="page-container">
+    <!-- Header -->
+    <div class="page-header">
+        <div>
+            <div class="page-title"><i class="fas fa-broadcast-tower"></i> LPU5 SDR Radar</div>
+            <div class="page-subtitle">SDR Frequenzanalyse &middot; Entfernungsmesser &middot; Kreuzpeilung / Triangulation</div>
+        </div>
+        <div>
+            <span class="status-badge status-waiting" id="sdrStatus">
+                <i class="fas fa-circle"></i> Warte auf Verbindung
+            </span>
+        </div>
+    </div>
+
+    <!-- Info box -->
+    <div class="info-box">
+        <i class="fas fa-info-circle"></i>
+        <strong>LPU5 SDR Entfernungsmesser</strong> &ndash;
+        Dieses Modul nutzt RTL-SDR Hardware &uuml;ber COM-Ports zur Frequenz&uuml;berwachung und
+        Signalst&auml;rkeanalyse. Durch Kreuzpeilung mit mehreren Ger&auml;ten (via MQTT) kann
+        die ungef&auml;hre Position einer Signalquelle trianguliert werden.
+        <br><em>Voraussetzungen: RTL-SDR Stick, Raspberry Pi, MQTT Broker (Mosquitto).</em>
+    </div>
+
+    <!-- Top panels -->
+    <div class="panel-grid">
+        <!-- SDR Configuration -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-sliders-h"></i> SDR Konfiguration</div>
+                <span class="status-badge status-offline" id="sdrDeviceStatus">Nicht verbunden</span>
+            </div>
+
+            <div class="form-group">
+                <label>COM-Port / Ger&auml;t</label>
+                <select id="sdrPort">
+                    <option value="">-- Ger&auml;t w&auml;hlen --</option>
+                    <option value="auto">Auto-Detect (rtl_sdr)</option>
+                    <option value="/dev/ttyUSB0">/dev/ttyUSB0</option>
+                    <option value="/dev/ttyUSB1">/dev/ttyUSB1</option>
+                    <option value="COM3">COM3 (Windows)</option>
+                    <option value="COM4">COM4 (Windows)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Frequenz (MHz)</label>
+                <input type="number" id="sdrFrequency" value="433.920" step="0.001" min="24" max="1766">
+            </div>
+
+            <div class="form-group">
+                <label>Modus</label>
+                <select id="sdrMode">
+                    <option value="FM">FM</option>
+                    <option value="AM">AM</option>
+                    <option value="SSB">SSB</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Squelch-Stufe (0&ndash;9)</label>
+                <select id="sdrSquelch">
+                    <option value="0">0 &ndash; Aus (-999 dBm)</option>
+                    <option value="1">1 &ndash; -85 dBm</option>
+                    <option value="2">2 &ndash; -80 dBm</option>
+                    <option value="3">3 &ndash; -75 dBm</option>
+                    <option value="4">4 &ndash; -70 dBm</option>
+                    <option value="5">5 &ndash; -65 dBm</option>
+                    <option value="6">6 &ndash; -60 dBm</option>
+                    <option value="7">7 &ndash; -55 dBm</option>
+                    <option value="8">8 &ndash; -50 dBm</option>
+                    <option value="9">9 &ndash; -45 dBm</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Sende-Leistung Referenz (dBm)</label>
+                <input type="number" id="sdrTxPower" value="20" step="1">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="connectSDR()"><i class="fas fa-plug"></i> Verbinden</button>
+                <button class="btn btn-success" onclick="startMeasurement()"><i class="fas fa-search"></i> Messen</button>
+                <button class="btn btn-warning" onclick="startSyncMeasurement()"><i class="fas fa-sync-alt"></i> Sync-Messung</button>
+            </div>
+        </div>
+
+        <!-- Signal Analysis -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-wave-square"></i> Signalanalyse</div>
+            </div>
+
+            <!-- Spectrum waterfall placeholder -->
+            <div class="spectrum-canvas-container">
+                <canvas id="spectrumCanvas"></canvas>
+                <div class="spectrum-label">Frequenzspektrum (simuliert)</div>
+            </div>
+
+            <!-- Signal meter -->
+            <label style="font-size:0.85rem; color:var(--text-dim);">Signalst&auml;rke</label>
+            <div class="signal-meter">
+                <div class="signal-bar-container">
+                    <div class="signal-bar" id="signalBar"></div>
+                </div>
+                <div class="signal-value" id="signalValue">-- dBm</div>
+            </div>
+
+            <label style="font-size:0.85rem; color:var(--text-dim);">Gesch&auml;tzte Entfernung</label>
+            <div class="signal-meter">
+                <div class="signal-bar-container">
+                    <div class="signal-bar" id="distanceBar" style="background: linear-gradient(90deg, #2ecc71, #f39c12, #e74c3c);"></div>
+                </div>
+                <div class="signal-value" id="distanceValue">-- m</div>
+            </div>
+
+            <div style="margin-top:15px; padding:10px; background:#111; border-radius:4px; font-size:0.8rem; color:var(--text-dim);">
+                <div><strong>Modell:</strong> Log-Distance Path Loss (n=3.0)</div>
+                <div><strong>Kalibrierung:</strong> -2.5 dBm Offset</div>
+                <div><strong>Bandpass:</strong> 10&ndash;30 kHz, Butterworth 4th Order</div>
+                <div><strong>Mittelung:</strong> 5 Messungen</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom panels -->
+    <div class="panel-grid">
+        <!-- MQTT / Triangulation -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-project-diagram"></i> Kreuzpeilung / Triangulation</div>
+                <span class="status-badge status-offline" id="mqttStatus">MQTT Offline</span>
+            </div>
+
+            <div class="form-group">
+                <label>MQTT Broker</label>
+                <input type="text" id="mqttHost" value="localhost" placeholder="z.B. 192.168.8.181">
+            </div>
+
+            <div class="form-group">
+                <label>MQTT Port</label>
+                <input type="number" id="mqttPort" value="1883">
+            </div>
+
+            <div class="form-group">
+                <label>MQTT Topic</label>
+                <input type="text" id="mqttTopic" value="lpu5/signal" placeholder="lpu5/signal">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="connectMQTT()"><i class="fas fa-link"></i> MQTT Verbinden</button>
+                <button class="btn btn-success" onclick="triangulate()"><i class="fas fa-crosshairs"></i> Triangulieren</button>
+            </div>
+
+            <div style="margin-top:15px;">
+                <label style="font-size:0.85rem; color:var(--text-dim);">Verbundene Peers</label>
+                <div class="mqtt-peers" id="mqttPeers">
+                    <span style="color:var(--text-dim); font-size:0.8rem;">Keine Peers verbunden</span>
+                </div>
+            </div>
+
+            <!-- Triangulation map -->
+            <div style="margin-top:15px;">
+                <label style="font-size:0.85rem; color:var(--text-dim);">Triangulations-Karte</label>
+                <div class="map-placeholder" id="triangulationMap">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <span>Karte wird nach Triangulation angezeigt</span>
+                    <span style="font-size:0.75rem;">Mindestens 2 Peers ben&ouml;tigt</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Measurement Log -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-clipboard-list"></i> Messprotokoll</div>
+                <button class="btn btn-danger" onclick="clearLog()" style="font-size:0.75rem; padding:4px 8px;">
+                    <i class="fas fa-trash"></i> L&ouml;schen
+                </button>
+            </div>
+
+            <div class="log-container" id="logContainer">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Zeit</th>
+                            <th>Freq (MHz)</th>
+                            <th>Modus</th>
+                            <th>Signal (dBm)</th>
+                            <th>Entfernung</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logBody">
+                        <tr>
+                            <td colspan="5" style="text-align:center; color:var(--text-dim);">
+                                Noch keine Messungen durchgef&uuml;hrt
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="margin-top:15px;">
+                <button class="btn btn-primary" onclick="exportLog()"><i class="fas fa-download"></i> CSV Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // --- State ---
+    let sdrConnected = false;
+    let mqttConnected = false;
+    const measurementLog = [];
+    const mqttPeers = {};
+    let ws = null;
+
+    // --- Spectrum canvas (simulated waterfall) ---
+    const canvas = document.getElementById('spectrumCanvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+
+    function initSpectrumCanvas() {
+        if (!canvas || !ctx) return;
+        canvas.width = canvas.clientWidth || 600;
+        canvas.height = 200;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawSpectrumGrid();
+    }
+
+    function drawSpectrumGrid() {
+        if (!ctx) return;
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < canvas.width; x += 50) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+        }
+        for (let y = 0; y < canvas.height; y += 40) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+        }
+    }
+
+    function drawSpectrumNoise() {
+        if (!ctx) return;
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawSpectrumGrid();
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#2ecc71';
+        ctx.lineWidth = 1.5;
+        for (let x = 0; x < canvas.width; x++) {
+            const noise = (Math.random() - 0.5) * 30;
+            const baseY = canvas.height * 0.7;
+            const y = baseY + noise;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+
+    // --- WebSocket connection ---
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = protocol + '//' + window.location.host + '/ws';
+        try {
+            ws = new WebSocket(wsUrl);
+            ws.onopen = function() {
+                console.log('SDR WebSocket connected');
+                ws.send(JSON.stringify({ type: 'subscribe', channel: 'sdr' }));
+            };
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'sdr_measurement') {
+                        handleRemoteMeasurement(data);
+                    } else if (data.type === 'sdr_peer_update') {
+                        handlePeerUpdate(data);
+                    }
+                } catch (e) { /* ignore */ }
+            };
+            ws.onclose = function() {
+                ws = null;
+                setTimeout(connectWebSocket, 5000);
+            };
+        } catch (e) {
+            console.error('SDR WebSocket failed:', e);
+        }
+    }
+
+    // --- SDR Connection (placeholder) ---
+    window.connectSDR = function() {
+        const port = document.getElementById('sdrPort').value;
+        if (!port) {
+            alert('Bitte ein SDR Gerät / COM-Port auswählen');
+            return;
+        }
+
+        const statusEl = document.getElementById('sdrDeviceStatus');
+        const mainStatus = document.getElementById('sdrStatus');
+
+        statusEl.textContent = 'Verbinde...';
+        statusEl.className = 'status-badge status-waiting';
+
+        // Simulate connection (in production this calls backend API)
+        setTimeout(function() {
+            sdrConnected = true;
+            statusEl.textContent = 'Verbunden';
+            statusEl.className = 'status-badge status-online';
+            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Aktiv';
+            mainStatus.className = 'status-badge status-online';
+            console.log('SDR connected to:', port);
+        }, 1500);
+    };
+
+    // --- Measurement (placeholder - calls backend in production) ---
+    window.startMeasurement = function() {
+        if (!sdrConnected) {
+            alert('Bitte zuerst SDR Gerät verbinden');
+            return;
+        }
+
+        const freq = parseFloat(document.getElementById('sdrFrequency').value);
+        const mode = document.getElementById('sdrMode').value;
+        const squelch = parseInt(document.getElementById('sdrSquelch').value);
+
+        // Simulate measurement (in production, calls /api/sdr/measure)
+        const simulatedPower = -60 + (Math.random() * 30 - 15);
+        const squelchThresholds = [-999, -85, -80, -75, -70, -65, -60, -55, -50, -45];
+        const threshold = squelchThresholds[Math.min(Math.max(squelch, 0), 9)];
+
+        if (simulatedPower < threshold) {
+            updateSignalDisplay(simulatedPower, null, true);
+            addLogEntry(freq, mode, simulatedPower, 'geblockt');
+            return;
+        }
+
+        const distance = estimateDistance(simulatedPower, freq);
+        updateSignalDisplay(simulatedPower, distance, false);
+        addLogEntry(freq, mode, simulatedPower, distance.toFixed(1) + ' m');
+
+        // Draw spectrum
+        drawSpectrumNoise();
+
+        // Draw signal peak at center
+        if (ctx) {
+            const cx = canvas.width / 2;
+            const peakHeight = Math.max(10, (simulatedPower + 90) * 3);
+            ctx.beginPath();
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.moveTo(cx - 20, canvas.height * 0.7);
+            ctx.lineTo(cx, canvas.height * 0.7 - peakHeight);
+            ctx.lineTo(cx + 20, canvas.height * 0.7);
+            ctx.stroke();
+        }
+    };
+
+    // --- Synchronized measurement ---
+    window.startSyncMeasurement = function() {
+        if (!sdrConnected) {
+            alert('Bitte zuerst SDR Gerät verbinden');
+            return;
+        }
+
+        // Send sync request via WebSocket
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'sdr_sync_request',
+                frequency: parseFloat(document.getElementById('sdrFrequency').value),
+                mode: document.getElementById('sdrMode').value
+            }));
+        }
+
+        // Also perform local measurement
+        window.startMeasurement();
+    };
+
+    // --- MQTT Connection (placeholder) ---
+    window.connectMQTT = function() {
+        const host = document.getElementById('mqttHost').value;
+        const port = document.getElementById('mqttPort').value;
+        const statusEl = document.getElementById('mqttStatus');
+
+        statusEl.textContent = 'Verbinde...';
+        statusEl.className = 'status-badge status-waiting';
+
+        // In production this would connect via backend /api/sdr/mqtt/connect
+        setTimeout(function() {
+            mqttConnected = true;
+            statusEl.textContent = 'MQTT Online';
+            statusEl.className = 'status-badge status-online';
+            console.log('MQTT connected to:', host + ':' + port);
+        }, 1000);
+    };
+
+    // --- Triangulation (placeholder) ---
+    window.triangulate = function() {
+        const peerCount = Object.keys(mqttPeers).length;
+        if (peerCount < 2) {
+            alert('Mindestens 2 verbundene Peers benötigt für Kreuzpeilung.\nAktuell: ' + peerCount + ' Peer(s)');
+            return;
+        }
+
+        // In production this calls /api/sdr/triangulate
+        const mapEl = document.getElementById('triangulationMap');
+        mapEl.innerHTML = '<i class="fas fa-crosshairs" style="color:var(--accent-blue);"></i>' +
+            '<span>Triangulation wird berechnet...</span>';
+
+        setTimeout(function() {
+            mapEl.innerHTML = '<i class="fas fa-map-marked-alt" style="color:var(--accent);"></i>' +
+                '<span>Geschätzte Position berechnet</span>' +
+                '<span style="font-size:0.85rem; color:var(--accent);">Ergebnis auf Tactical Map anzeigen</span>';
+        }, 2000);
+    };
+
+    // --- Helpers ---
+    function estimateDistance(rssiDbm, freqMhz) {
+        var txPower = parseFloat(document.getElementById('sdrTxPower').value) || 20;
+        var pathLossExponent = 3.0;
+        var c = 299792458;
+        var freqHz = freqMhz * 1e6;
+        var refDist = 1;
+        var refRssi = txPower - (20 * Math.log10(4 * Math.PI * refDist * freqHz / c));
+        return Math.pow(10, (refRssi - rssiDbm) / (10 * pathLossExponent));
+    }
+
+    function updateSignalDisplay(power, distance, blocked) {
+        var signalBar = document.getElementById('signalBar');
+        var signalValue = document.getElementById('signalValue');
+        var distBar = document.getElementById('distanceBar');
+        var distValue = document.getElementById('distanceValue');
+
+        var pct = Math.max(0, Math.min(100, (power + 100) * 2));
+        signalBar.style.width = pct + '%';
+        signalValue.textContent = blocked ? (power.toFixed(1) + ' dBm (geblockt)') : (power.toFixed(1) + ' dBm');
+
+        if (distance !== null && !blocked) {
+            var dPct = Math.max(0, Math.min(100, Math.log10(distance + 1) * 25));
+            distBar.style.width = dPct + '%';
+            distValue.textContent = distance.toFixed(1) + ' m';
+        } else {
+            distBar.style.width = '0%';
+            distValue.textContent = '-- kein Signal --';
+        }
+    }
+
+    function addLogEntry(freq, mode, power, distance) {
+        var now = new Date();
+        var ts = now.toLocaleTimeString('de-DE');
+        measurementLog.push({ time: ts, freq: freq, mode: mode, power: power, distance: distance });
+
+        var tbody = document.getElementById('logBody');
+        // Remove placeholder
+        if (measurementLog.length === 1) tbody.innerHTML = '';
+
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + ts + '</td>' +
+            '<td>' + freq.toFixed(3) + '</td>' +
+            '<td>' + mode + '</td>' +
+            '<td>' + (typeof power === 'number' ? power.toFixed(1) : power) + '</td>' +
+            '<td>' + distance + '</td>';
+        tbody.insertBefore(tr, tbody.firstChild);
+    }
+
+    function handleRemoteMeasurement(data) {
+        var sender = data.sender || 'unknown';
+        if (data.distance && data.lat && data.lon) {
+            mqttPeers[sender] = { lat: data.lat, lon: data.lon, distance: data.distance, ts: Date.now() };
+            updatePeerDisplay();
+        }
+    }
+
+    function handlePeerUpdate(data) {
+        if (data.peers) {
+            Object.assign(mqttPeers, data.peers);
+            updatePeerDisplay();
+        }
+    }
+
+    function updatePeerDisplay() {
+        var container = document.getElementById('mqttPeers');
+        var keys = Object.keys(mqttPeers);
+        if (keys.length === 0) {
+            container.innerHTML = '<span style="color:var(--text-dim); font-size:0.8rem;">Keine Peers verbunden</span>';
+            return;
+        }
+        container.innerHTML = '';
+        keys.forEach(function(k) {
+            var span = document.createElement('span');
+            span.className = 'peer-badge';
+            span.textContent = k + ' (' + (mqttPeers[k].distance || '?') + 'm)';
+            container.appendChild(span);
+        });
+    }
+
+    window.clearLog = function() {
+        measurementLog.length = 0;
+        document.getElementById('logBody').innerHTML =
+            '<tr><td colspan="5" style="text-align:center; color:var(--text-dim);">Noch keine Messungen durchgeführt</td></tr>';
+    };
+
+    window.exportLog = function() {
+        if (measurementLog.length === 0) {
+            alert('Keine Messungen zum Exportieren vorhanden.');
+            return;
+        }
+        var csv = 'Zeit,Frequenz_MHz,Modus,Signal_dBm,Entfernung\n';
+        measurementLog.forEach(function(e) {
+            csv += e.time + ',' + e.freq + ',' + e.mode + ',' +
+                (typeof e.power === 'number' ? e.power.toFixed(2) : e.power) + ',' + e.distance + '\n';
+        });
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'sdr_messung_' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.click();
+    };
+
+    // --- Init ---
+    window.addEventListener('DOMContentLoaded', function() {
+        initSpectrumCanvas();
+        connectWebSocket();
+    });
+
+    window.addEventListener('resize', function() {
+        initSpectrumCanvas();
+    });
+})();
+</script>
+
+</body>
+</html>
