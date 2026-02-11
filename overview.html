@@ -347,6 +347,9 @@
       background: rgba(0,0,0,0.9); z-index: 10001; display: none;
       flex-direction: column; padding: 20px; color: #fff;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
+      overscroll-behavior: contain; /* prevent scroll leak to body */
+      touch-action: pan-y; /* allow vertical touch scroll */
       scrollbar-width: none; /* Firefox */
       -ms-overflow-style: none; /* IE and Edge */
     }

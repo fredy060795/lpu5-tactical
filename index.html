@@ -102,6 +102,10 @@ const DEVICE_MAP_LS_KEY = 'lpu5_device_map';
 let clientStatusMap = loadClientStatus();
 let deviceAssignmentMap = loadDeviceMap();
 
+// BroadcastChannel for cross-tab status synchronization
+let statusBroadcast = null;
+try { statusBroadcast = new BroadcastChannel('lpu5_status_updates'); } catch(e){}
+
 function loadClientStatus(){ try { return JSON.parse(localStorage.getItem(STATUS_LS_KEY) || '{}'); } catch(e){ return {}; } }
 function saveClientStatus(){ try { localStorage.setItem(STATUS_LS_KEY, JSON.stringify(clientStatusMap || {})); } catch(e){} }
 function loadDeviceMap(){ try { return JSON.parse(localStorage.getItem(DEVICE_MAP_LS_KEY) || '{}'); } catch(e){ return {}; } }
@@ -355,9 +359,7 @@ async function localSetStatus(idEnc, newStatus){
     const color = newStatus === 'AKTIV' ? '#28a745' : (newStatus === 'KIA' ? '#dc3545' : '#007bff');
     const updateData = { type: 'status_change', status: newStatus, color: color, username: username, timestamp: ts };
     try {
-        const bc = new BroadcastChannel('lpu5_status_updates');
-        bc.postMessage(updateData);
-        bc.close();
+        if (statusBroadcast) statusBroadcast.postMessage(updateData);
     } catch(e){}
     try { localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData)); } catch(e){}
     try { localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: newStatus })); } catch(e){}
@@ -494,10 +496,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     setInterval(updateMissionHeader, 15000);
     
     // BroadcastChannel for receiving status updates from overview.html
-    let statusChannel;
-    try {
-        statusChannel = new BroadcastChannel('lpu5_status_updates');
-        statusChannel.addEventListener('message', (event) => {
+    if (statusBroadcast) {
+        statusBroadcast.addEventListener('message', (event) => {
             const data = event.data;
             if (data.type === 'status_change') {
                 // Reload data to reflect updated status
@@ -507,12 +507,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         
         // Cleanup handler: close BroadcastChannel when page unloads
         window.addEventListener('beforeunload', () => {
-            if (statusChannel) {
-                statusChannel.close();
+            if (statusBroadcast) {
+                statusBroadcast.close();
             }
         });
-    } catch (e) {
-        console.warn('BroadcastChannel not supported, using localStorage fallback only', e);
     }
     
     // localStorage listener (fallback for older browsers)
