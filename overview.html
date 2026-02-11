@@ -1271,6 +1271,49 @@
       }
     }
 
+    /**
+     * Robustly determines if a marker is a Meshtastic node that should be rendered
+     * by updateMeshtasticNodes() rather than the general sync() function.
+     * 
+     * Checks multiple conditions to ensure all Meshtastic nodes are filtered out:
+     * 1. created_by field matches known Meshtastic sources
+     * 2. type field is 'node' (legacy check)
+     * 3. data field contains unit_id or hardware (Meshtastic-specific metadata)
+     * 4. name or description contains 'meshtastic' substring
+     * 
+     * @param {Object} marker - The marker object to check
+     * @returns {boolean} - True if the marker is a Meshtastic node
+     */
+    function isMeshtasticMarker(marker) {
+      if (!marker) return false;
+      
+      // Check 1: created_by field matches known Meshtastic sources
+      if (marker.created_by && MESHTASTIC_SOURCES.includes(marker.created_by)) {
+        return true;
+      }
+      
+      // Check 2: Legacy type='node' check
+      if (marker.type === 'node') {
+        return true;
+      }
+      
+      // Check 3: data field contains Meshtastic-specific metadata (unit_id or hardware)
+      if (marker.data) {
+        if (marker.data.unit_id !== undefined || marker.data.hardware !== undefined) {
+          return true;
+        }
+      }
+      
+      // Check 4: name or description contains 'meshtastic' (case-insensitive)
+      const nameStr = (marker.name || '').toLowerCase();
+      const descStr = (marker.description || '').toLowerCase();
+      if (nameStr.includes('meshtastic') || descStr.includes('meshtastic')) {
+        return true;
+      }
+      
+      return false;
+    }
+
     // sync
     async function sync() {
       if (!map || !isLoggedIn) return;
@@ -1297,7 +1340,8 @@
         const serverIds = new Set();
         (markers || []).forEach(m => {
           // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
-          if (m.type === 'node' || MESHTASTIC_SOURCES.includes(m.created_by)) return;
+          // Use robust filtering to catch all Meshtastic nodes (prevents red diamond fallback icons)
+          if (isMeshtasticMarker(m)) return;
 
           serverIds.add(m.id);
           // Robust icon selection: check m.type, then m.name, then fallback to raute
