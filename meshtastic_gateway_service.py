@@ -62,12 +62,13 @@ class MeshtasticGatewayService:
     Runs independently from the main API server.
     """
     
-    def __init__(self, port: str, base_path: str = None):
+    def __init__(self, port: str, base_path: str = None, broadcast_callback=None):
         self.port = port
         self.base_path = base_path or os.path.dirname(os.path.abspath(__file__))
         self.interface: Optional[object] = None
         self.running = False
         self.sync_thread: Optional[threading.Thread] = None
+        self.broadcast_callback = broadcast_callback  # Optional callback for WebSocket broadcasts
         
         # Database paths
         self.nodes_db_path = os.path.join(self.base_path, "meshtastic_nodes_db.json")
@@ -84,6 +85,14 @@ class MeshtasticGatewayService:
         }
         
         logger.info(f"MeshtasticGatewayService initialized for port: {port}")
+    
+    def _broadcast(self, event_type: str, data: Dict):
+        """Send broadcast via callback if available"""
+        if self.broadcast_callback:
+            try:
+                self.broadcast_callback(event_type, data)
+            except Exception as e:
+                logger.error(f"Broadcast callback error: {e}")
     
     def connect(self) -> bool:
         """Establish connection to Meshtastic hardware"""
@@ -104,6 +113,13 @@ class MeshtasticGatewayService:
             self.stats["uptime_start"] = datetime.utcnow().isoformat()
             logger.info(f"✓ Connected to Meshtastic device on {self.port}")
             
+            # Broadcast connection event
+            self._broadcast("gateway_status", {
+                "status": "connected",
+                "port": self.port,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
             return True
             
         except Exception as e:
@@ -122,6 +138,14 @@ class MeshtasticGatewayService:
                     self.interface.close()
                 
                 logger.info(f"Disconnected from {self.port}")
+                
+                # Broadcast disconnection event
+                self._broadcast("gateway_status", {
+                    "status": "disconnected",
+                    "port": self.port,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                
             except Exception as e:
                 logger.error(f"Error during disconnect: {e}")
             finally:
@@ -222,6 +246,16 @@ class MeshtasticGatewayService:
             
             if has_gps and force_update:
                 logger.info(f"LIVE UPDATE: {callsign} @ {final_lat:.5f}, {final_lon:.5f}")
+                
+                # Broadcast node update
+                self._broadcast("gateway_node_update", {
+                    "id": uid,
+                    "name": callsign,
+                    "lat": final_lat,
+                    "lng": final_lon,
+                    "has_gps": has_gps,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
             
             self.stats["nodes_synced"] = len(nodes_db)
             self.stats["last_sync"] = datetime.utcnow().isoformat()
@@ -271,6 +305,15 @@ class MeshtasticGatewayService:
             self.save_json(self.messages_db_path, messages_db)
             
             logger.info(f"MESSAGE: {sender_name}: {text[:50]}{'...' if len(text) > 50 else ''}")
+            
+            # Broadcast message event
+            self._broadcast("gateway_message", {
+                "direction": "incoming",
+                "from": from_id,
+                "sender_name": sender_name,
+                "text": text,
+                "timestamp": datetime.utcnow().isoformat()
+            })
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -331,7 +374,7 @@ class MeshtasticGatewayService:
         if auto_sync:
             self.sync_thread = threading.Thread(
                 target=self.sync_loop,
-                args=(sync_interval,)
+                args=(sync_interval,),
                 daemon=True,
                 name="MeshtasticSyncThread"
             )
