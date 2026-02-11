@@ -365,29 +365,60 @@
         </section>
 
         <aside class="side-col">
+            <!-- Gateway Connection Panel -->
             <div class="panel">
-                <div class="section-title">Meshtastic Connection</div>
+                <div class="section-title">🔗 Gateway Connection</div>
                 <div class="setting-row">
                     <select id="comPortSelect" class="input">
                         <option value="">Select port...</option>
                     </select>
                 </div>
                 <button id="scanPortsBtn" class="btn" style="width:100%; margin-top:5px;"><i class="fas fa-search"></i> Scan Ports</button>
-                <button id="connectBtn" class="btn btn-send" style="width:100%; margin-top:5px;"><i class="fas fa-plug"></i> Connect</button>
-                <div id="connectionStatus" class="small" style="margin-top:8px; text-align:center;">Status: Not connected</div>
+                <div style="display:flex; gap:5px; margin-top:5px;">
+                    <button id="connectGatewayBtn" class="btn btn-send" style="flex:1;"><i class="fas fa-plug"></i> Connect</button>
+                    <button id="disconnectGatewayBtn" class="btn btn-cancel" style="flex:1; display:none;"><i class="fas fa-times"></i> Disconnect</button>
+                </div>
+                <div id="gatewayStatus" class="small" style="margin-top:8px; padding:8px; background:#0f0f0f; border-radius:4px;">
+                    <div><strong>Status:</strong> <span id="gatewayStatusText">Not connected</span></div>
+                    <div id="gatewayStats" style="display:none; margin-top:4px;">
+                        <div><strong>Nodes:</strong> <span id="gatewayNodesCount">0</span></div>
+                        <div><strong>Messages:</strong> <span id="gatewayMessagesCount">0</span></div>
+                        <div><strong>Uptime:</strong> <span id="gatewayUptime">-</span></div>
+                    </div>
+                </div>
             </div>
 
+            <!-- Gateway Nodes Panel -->
             <div class="panel" style="margin-top:12px">
-                <div class="section-title">Available Units</div>
-                <div id="unitsList" class="history-list"><div class="small">Loading units…</div></div>
+                <div class="section-title">📡 Gateway Nodes</div>
+                <button id="refreshNodesBtn" class="btn" style="width:100%; margin-bottom:5px;"><i class="fas fa-sync"></i> Refresh</button>
+                <div id="gatewayNodesList" class="history-list" style="max-height:30vh;">
+                    <div class="small">No nodes imported</div>
+                </div>
+            </div>
+
+            <!-- Gateway Log Panel -->
+            <div class="panel" style="margin-top:12px">
+                <div class="section-title">📋 Gateway Log</div>
+                <button id="clearLogBtn" class="btn" style="width:100%; margin-bottom:5px;"><i class="fas fa-trash"></i> Clear Log</button>
+                <div id="gatewayLog" class="history-list" style="max-height:20vh; font-size:0.8rem;">
+                    <div class="small">Gateway not started</div>
+                </div>
             </div>
         </aside>
     </main>
 </div>
 
 <script>
-    // Alle Skripte aus der meshtastic.html bleiben hier erhalten
-    document.addEventListener('DOMContentLoaded', updateUserNameDisplay);
+    // ===========================
+    // User Display
+    // ===========================
+    document.addEventListener('DOMContentLoaded', () => {
+        updateUserNameDisplay();
+        initGatewayClient();
+        setupWebSocket();
+        loadGatewayStatus();
+    });
 
     async function updateUserNameDisplay() {
         const el = document.getElementById('userName');
@@ -407,8 +438,408 @@
         el.textContent = displayName || 'Guest';
     }
 
-    // ... Restliche Funktionen (loadMeshtasticUnits, sendMeshtasticMessage, etc.) ...
-    // [Hier folgen die restlichen Scripte aus deiner Original-Datei]
+    // ===========================
+    // Gateway Client
+    // ===========================
+    let gatewayStatusInterval = null;
+    let ws = null;
+
+    function initGatewayClient() {
+        // Event listeners
+        document.getElementById('scanPortsBtn').addEventListener('click', scanPorts);
+        document.getElementById('connectGatewayBtn').addEventListener('click', connectGateway);
+        document.getElementById('disconnectGatewayBtn').addEventListener('click', disconnectGateway);
+        document.getElementById('refreshNodesBtn').addEventListener('click', loadGatewayNodes);
+        document.getElementById('clearLogBtn').addEventListener('click', clearLog);
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        
+        // Load initial data
+        scanPorts();
+    }
+
+    async function scanPorts() {
+        try {
+            const response = await fetch('/api/gateway/ports');
+            const data = await response.json();
+            
+            const select = document.getElementById('comPortSelect');
+            select.innerHTML = '<option value="">Select port...</option>';
+            
+            if (data.ports && data.ports.length > 0) {
+                data.ports.forEach(port => {
+                    const option = document.createElement('option');
+                    option.value = port.device;
+                    option.textContent = `${port.device} - ${port.description}`;
+                    select.appendChild(option);
+                });
+                addLog('info', `Found ${data.ports.length} port(s)`);
+            } else {
+                addLog('warning', 'No ports found');
+            }
+        } catch (error) {
+            console.error('Failed to scan ports:', error);
+            addLog('error', 'Failed to scan ports: ' + error.message);
+        }
+    }
+
+    async function connectGateway() {
+        const port = document.getElementById('comPortSelect').value;
+        if (!port) {
+            alert('Please select a port');
+            return;
+        }
+
+        addLog('info', `Connecting to ${port}...`);
+        
+        try {
+            const response = await fetch('/api/gateway/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    port: port,
+                    auto_sync: true,
+                    sync_interval: 300
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success' || data.status === 'already_running') {
+                addLog('success', `Connected to ${port}`);
+                updateConnectionUI(true);
+                startStatusPolling();
+                loadGatewayNodes();
+                loadGatewayMessages();
+            } else {
+                addLog('error', data.message || 'Connection failed');
+                alert(data.message || 'Failed to connect');
+            }
+        } catch (error) {
+            console.error('Connection error:', error);
+            addLog('error', 'Connection error: ' + error.message);
+            alert('Failed to connect: ' + error.message);
+        }
+    }
+
+    async function disconnectGateway() {
+        addLog('info', 'Disconnecting...');
+        
+        try {
+            const response = await fetch('/api/gateway/stop', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success' || data.status === 'not_running') {
+                addLog('info', 'Disconnected');
+                updateConnectionUI(false);
+                stopStatusPolling();
+            } else {
+                addLog('error', 'Disconnect failed');
+            }
+        } catch (error) {
+            console.error('Disconnect error:', error);
+            addLog('error', 'Disconnect error: ' + error.message);
+        }
+    }
+
+    function updateConnectionUI(connected) {
+        const statusText = document.getElementById('gatewayStatusText');
+        const stats = document.getElementById('gatewayStats');
+        const connectBtn = document.getElementById('connectGatewayBtn');
+        const disconnectBtn = document.getElementById('disconnectGatewayBtn');
+        
+        if (connected) {
+            statusText.textContent = '✓ Connected';
+            statusText.style.color = '#28a745';
+            stats.style.display = 'block';
+            connectBtn.style.display = 'none';
+            disconnectBtn.style.display = 'block';
+        } else {
+            statusText.textContent = 'Not connected';
+            statusText.style.color = '#999';
+            stats.style.display = 'none';
+            connectBtn.style.display = 'block';
+            disconnectBtn.style.display = 'none';
+        }
+    }
+
+    async function loadGatewayStatus() {
+        try {
+            const response = await fetch('/api/gateway/status');
+            const data = await response.json();
+            
+            if (data.running && data.connected) {
+                updateConnectionUI(true);
+                updateStatusDisplay(data);
+                startStatusPolling();
+            } else {
+                updateConnectionUI(false);
+            }
+        } catch (error) {
+            console.error('Failed to load status:', error);
+        }
+    }
+
+    function startStatusPolling() {
+        if (gatewayStatusInterval) return;
+        
+        gatewayStatusInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/api/gateway/status');
+                const data = await response.json();
+                
+                if (data.running && data.connected) {
+                    updateStatusDisplay(data);
+                } else {
+                    updateConnectionUI(false);
+                    stopStatusPolling();
+                }
+            } catch (error) {
+                console.error('Status poll error:', error);
+            }
+        }, 5000);
+    }
+
+    function stopStatusPolling() {
+        if (gatewayStatusInterval) {
+            clearInterval(gatewayStatusInterval);
+            gatewayStatusInterval = null;
+        }
+    }
+
+    function updateStatusDisplay(data) {
+        document.getElementById('gatewayNodesCount').textContent = data.nodes_synced || 0;
+        document.getElementById('gatewayMessagesCount').textContent = data.messages_received || 0;
+        
+        if (data.uptime_seconds) {
+            const hours = Math.floor(data.uptime_seconds / 3600);
+            const minutes = Math.floor((data.uptime_seconds % 3600) / 60);
+            document.getElementById('gatewayUptime').textContent = `${hours}h ${minutes}m`;
+        }
+    }
+
+    async function loadGatewayNodes() {
+        try {
+            const response = await fetch('/api/gateway/nodes');
+            const data = await response.json();
+            
+            const listEl = document.getElementById('gatewayNodesList');
+            
+            if (data.nodes && data.nodes.length > 0) {
+                listEl.innerHTML = data.nodes.map(node => `
+                    <div class="small" style="padding:6px; margin-bottom:4px; background:#0f0f0f; border-radius:4px; border-left:3px solid ${node.has_gps ? '#28a745' : '#666'};">
+                        <div style="font-weight:bold; color:#ddd;">${node.name || node.id}</div>
+                        <div style="color:#999; font-size:0.85em;">
+                            ${node.has_gps ? `📍 ${node.lat.toFixed(5)}, ${node.lng.toFixed(5)}` : '📍 No GPS'}
+                        </div>
+                        <div style="color:#888; font-size:0.8em;">
+                            ${node.hardware} | ${node.battery ? node.battery + '%' : 'No battery'}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                listEl.innerHTML = '<div class="small">No nodes imported</div>';
+            }
+        } catch (error) {
+            console.error('Failed to load nodes:', error);
+            addLog('error', 'Failed to load nodes: ' + error.message);
+        }
+    }
+
+    async function loadGatewayMessages() {
+        try {
+            const response = await fetch('/api/gateway/messages?limit=50');
+            const data = await response.json();
+            
+            const messagesEl = document.getElementById('messages');
+            
+            if (data.messages && data.messages.length > 0) {
+                messagesEl.innerHTML = data.messages.map(msg => `
+                    <div class="msg-row incoming">
+                        <div class="msg-bubble">
+                            <div class="msg-meta">
+                                <span>${msg.sender_name || msg.from}</span>
+                                <span>${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                            </div>
+                            <div class="msg-text">${msg.text}</div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Scroll to bottom
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            } else {
+                messagesEl.innerHTML = '<div class="small empty-state">No messages yet</div>';
+            }
+        } catch (error) {
+            console.error('Failed to load messages:', error);
+        }
+    }
+
+    async function sendMessage() {
+        const text = document.getElementById('messageText').value.trim();
+        if (!text) {
+            alert('Please enter a message');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/gateway/send-message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                addLog('success', 'Message sent: ' + text.substring(0, 30));
+                document.getElementById('messageText').value = '';
+                
+                // Add to messages display
+                const messagesEl = document.getElementById('messages');
+                const msgHtml = `
+                    <div class="msg-row outgoing">
+                        <div class="msg-bubble">
+                            <div class="msg-meta">
+                                <span>You</span>
+                                <span>${new Date().toLocaleTimeString()}</span>
+                            </div>
+                            <div class="msg-text">${text}</div>
+                        </div>
+                    </div>
+                `;
+                messagesEl.insertAdjacentHTML('beforeend', msgHtml);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            } else {
+                addLog('error', 'Failed to send message');
+                alert('Failed to send message: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Send error:', error);
+            addLog('error', 'Send error: ' + error.message);
+            alert('Failed to send message: ' + error.message);
+        }
+    }
+
+    function addLog(type, message) {
+        const logEl = document.getElementById('gatewayLog');
+        const time = new Date().toLocaleTimeString();
+        
+        const colors = {
+            info: '#5bc0de',
+            success: '#28a745',
+            warning: '#ffc107',
+            error: '#dc3545'
+        };
+        
+        const icon = {
+            info: 'ℹ️',
+            success: '✓',
+            warning: '⚠️',
+            error: '✗'
+        };
+        
+        const entry = document.createElement('div');
+        entry.style.padding = '4px';
+        entry.style.borderBottom = '1px solid #222';
+        entry.style.color = colors[type] || '#999';
+        entry.innerHTML = `<span style="color:#666;">[${time}]</span> ${icon[type] || ''} ${message}`;
+        
+        // Remove placeholder
+        if (logEl.querySelector('.small')) {
+            logEl.innerHTML = '';
+        }
+        
+        logEl.appendChild(entry);
+        
+        // Keep only last 50 entries
+        while (logEl.children.length > 50) {
+            logEl.removeChild(logEl.firstChild);
+        }
+        
+        // Auto-scroll
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+        const logEl = document.getElementById('gatewayLog');
+        logEl.innerHTML = '<div class="small">Log cleared</div>';
+    }
+
+    // ===========================
+    // WebSocket for Live Updates
+    // ===========================
+    function setupWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        
+        try {
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                addLog('info', 'WebSocket connected');
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (error) {
+                    console.error('WebSocket message error:', error);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                addLog('warning', 'WebSocket connection issue');
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket closed, reconnecting...');
+                addLog('warning', 'WebSocket disconnected, reconnecting...');
+                setTimeout(setupWebSocket, 5000);
+            };
+        } catch (error) {
+            console.error('WebSocket setup error:', error);
+            setTimeout(setupWebSocket, 5000);
+        }
+    }
+
+    function handleWebSocketMessage(data) {
+        switch (data.type) {
+            case 'gateway_status':
+                addLog('info', `Gateway ${data.status}: ${data.port || ''}`);
+                if (data.status === 'started') {
+                    loadGatewayStatus();
+                    loadGatewayNodes();
+                } else if (data.status === 'stopped') {
+                    updateConnectionUI(false);
+                    stopStatusPolling();
+                }
+                break;
+                
+            case 'gateway_message':
+                if (data.direction === 'incoming') {
+                    addLog('info', `📨 Message: ${data.text.substring(0, 30)}...`);
+                    loadGatewayMessages();
+                }
+                break;
+                
+            case 'gateway_node_update':
+                addLog('info', `📡 Node update: ${data.name || data.id}`);
+                loadGatewayNodes();
+                break;
+                
+            case 'gateway_log':
+                addLog(data.level || 'info', data.message);
+                break;
+        }
+    }
 </script>
+
 </body>
 </html>
