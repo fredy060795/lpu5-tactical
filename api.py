@@ -5319,6 +5319,10 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
 # ===========================
 # Stream Share State (for polling by stream_share.html)
 # ===========================
+# In-memory state tracking the currently active shared video stream.
+# Written by the stream_share WebSocket relay and POST /api/stream_share,
+# read by GET /api/stream_share (polled by stream_share.html iframe).
+# Thread-safe for simple dict replacement (GIL-protected single assignment).
 _active_stream_share: Dict = {"active": False}
 
 @app.get("/api/stream_share", summary="Get current shared stream state")
