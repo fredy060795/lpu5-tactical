@@ -1901,8 +1901,8 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
         if not marker:
             raise HTTPException(status_code=404, detail="Marker not found")
         
-        # Prevent deletion of GPS position markers
-        if marker.type == 'gps_position':
+        # Prevent deletion of GPS position markers (except by the owning user for position updates)
+        if marker.type == 'gps_position' and marker.created_by != current_username:
             raise HTTPException(status_code=403, detail="GPS position markers cannot be deleted")
             
         db.delete(marker)
@@ -5296,18 +5296,19 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
 
 @app.delete("/api/map/symbols/{symbol_id}", summary="Delete a map symbol")
 async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
-    """Delete a map symbol (DB-backed). GPS position markers cannot be deleted."""
+    """Delete a map symbol (DB-backed). GPS position markers cannot be deleted by other users."""
     try:
         # Verify user authentication
-        verify_token(authorization)
+        payload = verify_token(authorization)
+        current_username = payload.get("username", "system") if payload else "system"
         
         with SessionLocal() as db:
             marker = db.query(MapMarker).filter(MapMarker.id == symbol_id).first()
             if not marker:
                 raise HTTPException(status_code=404, detail="Symbol not found")
             
-            # Prevent deletion of GPS position markers
-            if marker.type == 'gps_position':
+            # Prevent deletion of GPS position markers (except by the owning user for position updates)
+            if marker.type == 'gps_position' and marker.created_by != current_username:
                 raise HTTPException(status_code=403, detail="GPS position markers cannot be deleted")
             
             db.delete(marker)

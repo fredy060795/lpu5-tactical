@@ -111,7 +111,7 @@
           } else if (data.type === 'camera_stream_stop') {
             hideStream();
           }
-        } catch (e) { /* ignore parse errors */ }
+        } catch (e) { console.warn('Failed to parse WebSocket message:', e); }
       };
       ws.onclose = function() {
         ws = null;
