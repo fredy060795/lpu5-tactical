@@ -512,6 +512,10 @@
       friendly: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#2ecc71" stroke="white" stroke-width="3"/></svg>'
     };
 
+    // Meshtastic-related created_by values — markers from these sources are rendered
+    // exclusively by updateMeshtasticNodes() as blue circles, not by the general sync().
+    const MESHTASTIC_SOURCES = ['import_meshtastic', 'meshtastic_sync', 'ingest_node'];
+
     let map;
     let currentTool = '';
     let currentUserName = '';
@@ -1293,7 +1297,7 @@
         const serverIds = new Set();
         (markers || []).forEach(m => {
           // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
-          if (m.type === 'node' || m.created_by === 'import_meshtastic') return;
+          if (m.type === 'node' || MESHTASTIC_SOURCES.includes(m.created_by)) return;
 
           serverIds.add(m.id);
           // Robust icon selection: check m.type, then m.name, then fallback to raute
