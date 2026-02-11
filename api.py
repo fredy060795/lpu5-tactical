@@ -652,6 +652,8 @@ def ensure_default_admin():
 # -------------------------
 _MESHTASTIC_SYNC_THREAD = None
 _MESHTASTIC_SYNC_STOP_EVENT = threading.Event()
+# created_by values used by meshtastic code paths — used to filter meshtastic markers from general endpoints
+_MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
 
 def sync_meshtastic_nodes_to_map_markers_once():
     """
@@ -1741,7 +1743,6 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
 @app.get("/api/map_markers")
 def get_map_markers():
     # markers.read is available to all roles (guest+)
-    _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
     db = SessionLocal()
     try:
         markers = db.query(MapMarker).all()
@@ -5170,7 +5171,6 @@ def get_symbol_priority(symbol_type: str) -> int:
 @app.get("/api/map/symbols", summary="Get all map symbols")
 def get_map_symbols():
     """Get all placed map symbols (DB-backed)"""
-    _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
     try:
         with SessionLocal() as db:
             symbols = db.query(MapMarker).all()
