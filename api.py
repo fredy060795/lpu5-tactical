@@ -1481,6 +1481,15 @@ def update_unit_status(unit_id: str = Path(...), new_status: str = Path(...), au
         })
     
     log_audit("status_update", user.id, {"status": new_status, "unit_id": unit_id})
+    
+    # Broadcast status_update to all WebSocket clients (for real-time sync between index.html and overview.html)
+    broadcast_websocket_update("status", "status_update", {
+        "status": new_status,
+        "username": user.username,
+        "unit_id": unit_id,
+        "timestamp": ts
+    })
+    
     return {"status": "success", "user_id": user.id, "new_status": new_status}
 
 # Missions: list, create

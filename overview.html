@@ -2001,10 +2001,9 @@
         }
         
         // 2. Send status update to server API
-        const response = await fetch(`/api/units/${unitId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: status })
+        const response = await fetch(`/api/status/${encodeURIComponent(unitId)}/${encodeURIComponent(status)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
         });
         
         if (!response.ok) {

@@ -106,6 +106,62 @@ let deviceAssignmentMap = loadDeviceMap();
 let statusBroadcast = null;
 try { statusBroadcast = new BroadcastChannel('lpu5_status_updates'); } catch(e){}
 
+// WebSocket connection for real-time status updates (cross-device sync)
+let ws = null;
+let wsReconnectAttempts = 0;
+const wsMaxReconnectAttempts = 5;
+const wsReconnectDelay = 3000;
+
+function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    try {
+        ws = new WebSocket(wsUrl);
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+            wsReconnectAttempts = 0;
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'status' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'markers' }));
+        };
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (!data || !data.type) return;
+                if (data.type === 'status_update' && data.channel === 'status') {
+                    // Real-time status update from server — update local state and re-render
+                    const statusData = data.data || data;
+                    const username = statusData.username || statusData.unit_id;
+                    const newStatus = statusData.status;
+                    if (username && newStatus) {
+                        const user = allUsers.find(u => String(u.username) === String(username) || String(u.id) === String(username));
+                        if (user) {
+                            const key = getUserKey(user);
+                            applyClientStatus(key, normalizeStatus(newStatus), statusData.timestamp || nowISO());
+                            renderTable();
+                        }
+                    }
+                } else if (data.type === 'marker_updated' && data.channel === 'markers') {
+                    loadData().catch(e => console.warn('Failed to reload after marker update', e));
+                }
+            } catch (e) {
+                console.error('WebSocket message parse error:', e);
+            }
+        };
+        ws.onerror = (error) => { console.error('WebSocket error:', error); };
+        ws.onclose = () => {
+            console.log('WebSocket disconnected');
+            ws = null;
+            if (wsReconnectAttempts < wsMaxReconnectAttempts) {
+                wsReconnectAttempts++;
+                setTimeout(connectWebSocket, wsReconnectDelay);
+            }
+        };
+    } catch (e) {
+        console.error('WebSocket connection failed:', e);
+    }
+}
+
 function loadClientStatus(){ try { return JSON.parse(localStorage.getItem(STATUS_LS_KEY) || '{}'); } catch(e){ return {}; } }
 function saveClientStatus(){ try { localStorage.setItem(STATUS_LS_KEY, JSON.stringify(clientStatusMap || {})); } catch(e){} }
 function loadDeviceMap(){ try { return JSON.parse(localStorage.getItem(DEVICE_MAP_LS_KEY) || '{}'); } catch(e){ return {}; } }
@@ -495,6 +551,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     setInterval(updateTimers, TIMER_INTERVAL_MS);
     setInterval(updateMissionHeader, 15000);
     
+    // Connect WebSocket for real-time status updates
+    connectWebSocket();
+    
     // BroadcastChannel for receiving status updates from overview.html
     if (statusBroadcast) {
         statusBroadcast.addEventListener('message', (event) => {
@@ -505,10 +564,13 @@ window.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
-        // Cleanup handler: close BroadcastChannel when page unloads
+        // Cleanup handler: close BroadcastChannel and WebSocket when page unloads
         window.addEventListener('beforeunload', () => {
             if (statusBroadcast) {
                 statusBroadcast.close();
+            }
+            if (ws) {
+                try { ws.close(); } catch(e){}
             }
         });
     }

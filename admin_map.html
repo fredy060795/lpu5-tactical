@@ -1186,6 +1186,24 @@
       const userNameEl = document.getElementById('userName');
       if (userNameEl) userNameEl.textContent = getCurrentUsername();
 
+      // Pending symbols queue (localStorage-first, sync when server available)
+      const PENDING_SYMBOLS_KEY = 'pending_admin_map_symbols_v1';
+
+      function readPendingSymbols() {
+        try { return JSON.parse(localStorage.getItem(PENDING_SYMBOLS_KEY) || '[]'); } catch (e) { return []; }
+      }
+      function writePendingSymbols(arr) { localStorage.setItem(PENDING_SYMBOLS_KEY, JSON.stringify(arr || [])); }
+      function addPendingSymbol(obj) {
+        const arr = readPendingSymbols();
+        arr.push(obj);
+        writePendingSymbols(arr);
+      }
+      function removePendingSymbol(cid) {
+        let arr = readPendingSymbols();
+        arr = arr.filter(x => x._cid !== cid);
+        writePendingSymbols(arr);
+      }
+
       // state containers
       const overlays = [];   // {id, overlay, name, url, rotation, creator, opacity}
       const drawings = [];   // {id, layer, name, creator}
@@ -1728,12 +1746,15 @@
           if (!res.ok) {
             const errorText = await res.text();
             console.error('Failed to place symbol:', res.status, errorText);
+            return false;
           } else {
             const result = await res.json();
             console.log('Symbol placed successfully:', result);
+            return true;
           }
         } catch (e) {
           console.error('Error placing symbol:', e);
+          return false;
         }
       }
 
@@ -2294,6 +2315,7 @@
         const icon = L.divIcon({ className: 'custom-sym', html: svgHtml, iconSize: [32, 32], iconAnchor: [16, 32] });
         const marker = L.marker(latlng, { icon, pane: 'paneSymbols' }).addTo(map);
         const id = genId('sym'); const creator = getCurrentUsername();
+        const cid = 'pending-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
         marker.on('click', () => {
           if (symbolDeleteMode) {
             if (!confirm('Delete symbol?')) return;
@@ -2306,17 +2328,24 @@
         // Save state to localStorage
         saveStateToLocalStorage();
 
-        // Broadcast symbol placement to other clients
-        try {
-          await broadcastSymbol({
-            id,
-            lat: latlng.lat,
-            lng: latlng.lng,
-            sym: activeSymbol || 'raute',
-            creator
-          });
-        } catch (e) {
-          console.error('Failed to broadcast symbol:', e);
+        // Save to pending queue (localStorage-first, like overview.html)
+        const pendingData = {
+          _cid: cid,
+          id,
+          lat: latlng.lat,
+          lng: latlng.lng,
+          sym: activeSymbol || 'raute',
+          creator,
+          ts: Date.now()
+        };
+        addPendingSymbol(pendingData);
+
+        // Try to send to server immediately
+        const success = await broadcastSymbol(pendingData);
+        if (success) {
+          removePendingSymbol(cid);
+        } else {
+          console.warn('Symbol saved locally, will retry sync later');
         }
 
         renderSettingsList();
@@ -2390,7 +2419,11 @@
 
       async function deleteSymbolFromServer(id) {
         try {
-          const res = await fetch(`/api/map/symbols/${id}`, { method: 'DELETE' });
+          const token = localStorage.getItem('token');
+          const res = await fetch(`/api/map/symbols/${id}`, {
+            method: 'DELETE',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
           if (res.ok) {
             loadMapSymbols();
           } else {
@@ -2399,6 +2432,25 @@
           }
         } catch (e) {
           console.error('Error deleting symbol:', e);
+        }
+      }
+
+      // Send pending symbols to server (retry queue, like overview.html)
+      async function sendPendingSymbols() {
+        const pending = readPendingSymbols();
+        if (!pending || pending.length === 0) return;
+        for (const p of pending.slice()) {
+          try {
+            const success = await broadcastSymbol(p);
+            if (success) {
+              removePendingSymbol(p._cid);
+            } else {
+              console.warn('Server rejected pending symbol, will retry later');
+            }
+          } catch (e) {
+            console.warn('Network error sending pending symbol, will retry later', e);
+            return; // Stop trying remaining items on network error
+          }
         }
       }
 
@@ -2668,6 +2720,10 @@
       // Load Map Symbols
       loadMapSymbols();
       setInterval(loadMapSymbols, 5000);
+
+      // Retry sending pending symbols (localStorage queue)
+      sendPendingSymbols();
+      setInterval(sendPendingSymbols, 5000);
 
       // Load Overlays from server
       loadOverlays();
