@@ -2722,136 +2722,7 @@
       }
     };
 
-    /* ----------------- HAMBURGER MENU FUNCTIONS -----------------
-       Functions for hamburger menu navigation
-    */
-    window.toggleHamburgerMenu = function () {
-      console.log('Toggling hamburger menu');
 
-      // Create menu if it doesn't exist
-      let menu = document.getElementById('hamburgerMenu');
-      if (!menu) {
-        menu = document.createElement('div');
-        menu.id = 'hamburgerMenu';
-        menu.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 280px;
-      height: 100%;
-      background: #121212;
-      border-right: 1px solid #282828;
-      z-index: 9999;
-      transform: translateX(-100%);
-      transition: transform 0.3s ease;
-      overflow-y: auto;
-      font-family: 'Courier New', monospace;
-    `;
-
-        menu.innerHTML = `
-      <div style="padding: 20px; border-bottom: 1px solid #282828;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <h3 style="color: #2ecc71; margin: 0;">Menu</h3>
-          <button onclick="toggleHamburgerMenu()" style="background: transparent; border: none; color: #888; cursor: pointer; font-size: 1.5rem;">×</button>
-        </div>
-      </div>
-      <div style="padding: 10px 0;">
-        <!-- Life Status Section -->
-        <div style="padding: 12px 20px; border-bottom: 1px solid #282828; margin-bottom: 10px;">
-          <h4 style="color: #2ecc71; margin: 0 0 10px 0; font-size: 0.9em;">LEBENSSTATUS</h4>
-          <div style="display: flex; gap: 8px; justify-content: space-around;">
-            <button onclick="setLifeStatus('AKTIV');" style="flex: 1; padding: 10px; background: rgba(40, 167, 69, 0.2); border: 2px solid #28a745; color: #28a745; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; font-family: 'Courier New', monospace;" onmouseover="this.style.background='rgba(40, 167, 69, 0.3)'" onmouseout="this.style.background='rgba(40, 167, 69, 0.2)'">
-              <i class="fas fa-check-circle" style="font-size: 1.5em;"></i>
-              <span style="font-size: 0.75em; font-weight: bold;">AKTIV</span>
-            </button>
-            <button onclick="setLifeStatus('BASE');" style="flex: 1; padding: 10px; background: rgba(0, 123, 255, 0.2); border: 2px solid #007bff; color: #007bff; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; font-family: 'Courier New', monospace;" onmouseover="this.style.background='rgba(0, 123, 255, 0.3)'" onmouseout="this.style.background='rgba(0, 123, 255, 0.2)'">
-              <i class="fas fa-home" style="font-size: 1.5em;"></i>
-              <span style="font-size: 0.75em; font-weight: bold;">BASE</span>
-            </button>
-            <button onclick="setLifeStatus('KIA');" style="flex: 1; padding: 10px; background: rgba(220, 53, 69, 0.2); border: 2px solid #dc3545; color: #dc3545; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; font-family: 'Courier New', monospace;" onmouseover="this.style.background='rgba(220, 53, 69, 0.3)'" onmouseout="this.style.background='rgba(220, 53, 69, 0.2)'">
-              <i class="fas fa-skull-crossbones" style="font-size: 1.5em;"></i>
-              <span style="font-size: 0.75em; font-weight: bold;">KIA</span>
-            </button>
-          </div>
-        </div>
-        
-        <!-- GPS Settings Section -->
-        <div style="padding: 12px 20px; border-bottom: 1px solid #282828; margin-bottom: 10px;">
-          <h4 style="color: #2ecc71; margin: 0 0 10px 0; font-size: 0.9em;">GPS EINSTELLUNGEN</h4>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <label style="display: flex; align-items: center; gap: 8px; color: #d0d0d0; cursor: pointer;">
-              <input type="checkbox" id="gps-auto-toggle" onchange="if(this.checked) startGpsAutoTracking(); else stopGpsAutoTracking();" style="width: 18px; height: 18px;">
-              <span style="font-size: 0.85em;">GPS Automatisch aktualisieren</span>
-            </label>
-            <div style="display: flex; align-items: center; gap: 8px; margin-top: 5px;">
-              <label style="color: #d0d0d0; font-size: 0.85em; white-space: nowrap;">Update Zeit:</label>
-              <select id="gps-update-interval" onchange="setGpsUpdateInterval(this.value)" style="flex: 1; padding: 5px; background: #000; border: 1px solid #444; color: #d0d0d0; border-radius: 4px;">
-                <option value="5">5 Sekunden</option>
-                <option value="10">10 Sekunden</option>
-                <option value="30">30 Sekunden</option>
-                <option value="60">60 Sekunden</option>
-              </select>
-            </div>
-            <button onclick="manualSetGpsMarker();" style="padding: 8px; background: rgba(0, 123, 255, 0.2); border: 2px solid #007bff; color: #007bff; border-radius: 6px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85em;" onmouseover="this.style.background='rgba(0, 123, 255, 0.3)'" onmouseout="this.style.background='rgba(0, 123, 255, 0.2)'">
-              <i class="fas fa-map-pin"></i> Manuell GPS setzen
-            </button>
-          </div>
-        </div>
-        
-        <!-- Map Layer Settings Section -->
-        <div style="padding: 12px 20px; border-bottom: 1px solid #282828; margin-bottom: 10px;">
-          <h4 style="color: #2ecc71; margin: 0 0 10px 0; font-size: 0.9em;">KARTEN EINSTELLUNGEN</h4>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button onclick="setMapLayer('satellite');" style="padding: 8px; background: rgba(0, 123, 255, 0.2); border: 2px solid #007bff; color: #007bff; border-radius: 6px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85em; text-align: left;" onmouseover="this.style.background='rgba(0, 123, 255, 0.3)'" onmouseout="this.style.background='rgba(0, 123, 255, 0.2)'">
-              <i class="fas fa-satellite"></i> Satellit
-            </button>
-            <button onclick="setMapLayer('street');" style="padding: 8px; background: rgba(0, 123, 255, 0.2); border: 2px solid #007bff; color: #007bff; border-radius: 6px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85em; text-align: left;" onmouseover="this.style.background='rgba(0, 123, 255, 0.3)'" onmouseout="this.style.background='rgba(0, 123, 255, 0.2)'">
-              <i class="fas fa-road"></i> Straße
-            </button>
-            <button onclick="setMapLayer('terrain');" style="padding: 8px; background: rgba(0, 123, 255, 0.2); border: 2px solid #007bff; color: #007bff; border-radius: 6px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85em; text-align: left;" onmouseover="this.style.background='rgba(0, 123, 255, 0.3)'" onmouseout="this.style.background='rgba(0, 123, 255, 0.2)'">
-              <i class="fas fa-mountain"></i> Gelände
-            </button>
-            <div style="margin-top: 5px; padding: 8px; background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 4px;">
-              <p style="margin: 0; font-size: 0.75em; color: #28a745;">
-                <i class="fas fa-info-circle"></i> Karten werden automatisch im Cache gespeichert
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Navigation links removed - Dashboard, Stream, and Logout per requirements -->
-      </div>
-    `;
-
-        document.body.appendChild(menu);
-
-        // Add overlay
-        const overlay = document.createElement('div');
-        overlay.id = 'hamburgerOverlay';
-        overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 9998;
-      display: none;
-    `;
-        overlay.onclick = toggleHamburgerMenu;
-        document.body.appendChild(overlay);
-      }
-
-      // Toggle menu
-      const overlay = document.getElementById('hamburgerOverlay');
-      if (menu.style.transform === 'translateX(0px)') {
-        menu.style.transform = 'translateX(-100%)';
-        if (overlay) overlay.style.display = 'none';
-      } else {
-        menu.style.transform = 'translateX(0px)';
-        if (overlay) overlay.style.display = 'block';
-      }
-    };
 
     /* ----------------- SERVICE WORKER FOR OFFLINE MAPS -----------------
        Registers service worker for map tile caching
@@ -2937,9 +2808,9 @@
         <div class="menu-section">
           <h3>Lebensstatus</h3>
           <div class="status-grid">
-            <div class="status-btn \${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="setStatus('AKTIV')">AKTIV</div>
-            <div class="status-btn \${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="setStatus('BASE')">BASE</div>
-            <div class="status-btn \${currentStatus === 'KIA' ? 'kia-status' : ''}" onclick="setStatus('KIA')">KIA</div>
+            <div class="status-btn \${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="setLifeStatus('AKTIV')">AKTIV</div>
+            <div class="status-btn \${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="setLifeStatus('BASE')">BASE</div>
+            <div class="status-btn \${currentStatus === 'KIA' ? 'kia-status' : ''}" onclick="setLifeStatus('KIA')">KIA</div>
           </div>
         </div>
 
