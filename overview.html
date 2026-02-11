@@ -1357,6 +1357,9 @@
           // Skip own GPS position marker (already shown locally)
           if (s.type === 'gps_position' && s.username === currentUserName) continue;
 
+          // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
+          if (s.type === 'node' || MESHTASTIC_SOURCES.includes(s.username) || MESHTASTIC_SOURCES.includes(s.created_by)) continue;
+
           const isGps = (s.type === 'gps_position');
           const symType = s.type || s.sym || 'raute';
           let iconHtml;
