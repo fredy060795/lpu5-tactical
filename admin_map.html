@@ -876,7 +876,7 @@
   <div id="fly-gps" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>GPS</h4>
     <label>Farbe Pfeil</label>
-    <input type="color" id="gpsColor_fly" value="#ff4444">
+    <input type="color" id="gpsColor_fly" value="#007bff" disabled>
     <div style="margin-top:6px;">
       <label><input type="radio" name="gpsMode" value="off" checked> Aus</label><br>
       <label><input type="radio" name="gpsMode" value="refresh"> Refresh</label><br>
@@ -2431,7 +2431,7 @@
             const isGps = (s.type === 'gps_position');
             let icon;
             if (isGps) {
-              const color = s.color || '#28a745';
+              const color = '#007bff';
               icon = L.divIcon({
                 className: 'gps-marker-arrow',
                 html: createArrowIconHtml(color),
@@ -2463,12 +2463,14 @@
               marker.bindPopup(`<strong>${s.label || s.type || 'Symbol'}</strong><div style="font-size:.8rem;color:#999">by ${s.username || 'unknown'}</div>`);
             }
 
-            marker.on('click', () => {
-              if (symbolDeleteMode) {
-                if (!confirm('Symbol löschen?')) return;
-                deleteSymbolFromServer(s.id);
-              }
-            });
+            if (!isGps) {
+              marker.on('click', () => {
+                if (symbolDeleteMode) {
+                  if (!confirm('Symbol löschen?')) return;
+                  deleteSymbolFromServer(s.id);
+                }
+              });
+            }
 
             symbols.push({ id: s.id, marker, sym: s.type || s.sym || 'raute', creator: s.username });
           });
@@ -2608,8 +2610,48 @@
 
       function createArrowIconHtml(color) { return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`; }
 
+      // Send GPS position to server for bidirectional sync with overview.html
+      let _lastGpsSendId = null;
+      async function sendGpsToServer(lat, lon) {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return;
+          // Upsert: delete previous GPS symbol first
+          if (_lastGpsSendId) {
+            try {
+              await fetch('/api/map/symbols/' + _lastGpsSendId, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + token }
+              });
+            } catch (e) { }
+          }
+          const res = await fetch('/api/map/symbols', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({
+              lat: lat,
+              lng: lon,
+              type: 'gps_position',
+              source_page: 'admin_map',
+              label: localStorage.getItem('username') || 'GPS',
+              color: '#007bff',
+              icon: 'fa-location-arrow'
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.symbol && data.symbol.id) _lastGpsSendId = data.symbol.id;
+          }
+        } catch (e) {
+          console.warn('sendGpsToServer failed', e);
+        }
+      }
+
       function putFixedArrow(lat, lon) {
-        const color = document.getElementById('gpsColor_fly')?.value || '#ff4444';
+        const color = '#007bff';
         if (gpsFixedMarker) {
           try { gpsFixedMarker.setLatLng([lat, lon]); } catch (e) { }
         } else {
@@ -2624,10 +2666,12 @@
           }).addTo(map);
         }
         document.getElementById('gpsFlyInfo').textContent = `Fixiert: ${lat.toFixed(6)}, ${lon.toFixed(6)} — ${new Date().toLocaleTimeString()}`;
+        // Sync GPS position to server
+        sendGpsToServer(lat, lon);
       }
 
       function putTempArrow(lat, lon) {
-        const color = document.getElementById('gpsColor_fly')?.value || '#ff4444';
+        const color = '#007bff';
         if (gpsTempMarker) gpsTempMarker.setLatLng([lat, lon]);
         else gpsTempMarker = L.marker([lat, lon], {
           icon: L.divIcon({ className: 'temp-gps-icon', html: createArrowIconHtml(color), iconSize: [40, 40], iconAnchor: [20, 20] }),

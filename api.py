@@ -5346,6 +5346,7 @@ async def set_stream_share(data: Dict = Body(...)):
         "active": data.get("active", False),
         "stream_url": data.get("stream_url"),
         "stream_type": data.get("stream_type", "video"),
+        "isCamera": data.get("isCamera", False),
         "source": data.get("source"),
         "timestamp": datetime.now(timezone.utc).isoformat()
     }

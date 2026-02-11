@@ -1430,18 +1430,17 @@
           const symType = s.type || s.sym || 'raute';
           let iconHtml;
           if (isGps) {
-            // Foreign GPS positions shown as red diamond (Raute)
-            iconHtml = SYMBOLS.raute;
-            iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
+            // Foreign GPS positions shown as blue arrow (unified with Meshtastic node blue)
+            iconHtml = `<i class="fas fa-location-arrow" style="color:#007bff; font-size: 28px;"></i>`;
           } else {
             iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.raute;
             iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
           }
           const icon = L.divIcon({
-            className: isGps ? 'gps-marker-diamond' : 'server-symbol',
+            className: isGps ? 'gps-marker-arrow' : 'server-symbol',
             html: iconHtml,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
+            iconSize: isGps ? [36, 36] : [32, 32],
+            iconAnchor: isGps ? [18, 18] : [16, 16]
           });
           const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
 
@@ -1703,7 +1702,7 @@
             type: 'gps_position',
             source_page: 'overview',
             label: currentUserName || 'GPS',
-            color: '#28a745',
+            color: '#007bff',
             icon: 'fa-location-arrow'
           })
         });
@@ -1738,7 +1737,7 @@
             gpsMarker = L.marker([lat, lng], {
               icon: L.divIcon({
                 className: 'gps-marker-arrow',
-                html: createGpsArrowIconHtml('#28a745'),
+                html: createGpsArrowIconHtml('#007bff'),
                 iconSize: [40, 40],
                 iconAnchor: [20, 20]
               }),
@@ -1811,7 +1810,7 @@
         gpsMarker = L.marker([latNum, lngNum], {
           icon: L.divIcon({
             className: 'gps-marker-arrow',
-            html: createGpsArrowIconHtml('#28a745'),
+            html: createGpsArrowIconHtml('#007bff'),
             iconSize: [40, 40],
             iconAnchor: [20, 20]
           }),
@@ -1856,7 +1855,7 @@
         gpsMarker = L.marker([lat, lng], {
           icon: L.divIcon({
             className: 'gps-marker-arrow',
-            html: createGpsArrowIconHtml('#28a745'),
+            html: createGpsArrowIconHtml('#007bff'),
             iconSize: [40, 40],
             iconAnchor: [20, 20]
           }),

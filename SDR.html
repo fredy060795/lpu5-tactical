@@ -354,14 +354,14 @@
             </div>
 
             <div class="form-group">
-                <label>COM-Port / Ger&auml;t</label>
+                <label>COM-Port / Ger&auml;t
+                    <button class="btn btn-primary" onclick="loadComPorts()" style="font-size:0.7rem; padding:2px 8px; margin-left:8px;">
+                        <i class="fas fa-sync-alt"></i> Ports laden
+                    </button>
+                </label>
                 <select id="sdrPort">
                     <option value="">-- Ger&auml;t w&auml;hlen --</option>
                     <option value="auto">Auto-Detect (rtl_sdr)</option>
-                    <option value="/dev/ttyUSB0">/dev/ttyUSB0</option>
-                    <option value="/dev/ttyUSB1">/dev/ttyUSB1</option>
-                    <option value="COM3">COM3 (Windows)</option>
-                    <option value="COM4">COM4 (Windows)</option>
                 </select>
             </div>
 
@@ -416,7 +416,7 @@
             <!-- Spectrum waterfall placeholder -->
             <div class="spectrum-canvas-container">
                 <canvas id="spectrumCanvas"></canvas>
-                <div class="spectrum-label">Frequenzspektrum (simuliert)</div>
+                <div class="spectrum-label" id="spectrumLabel">Frequenzspektrum (simuliert)</div>
             </div>
 
             <!-- Signal meter -->
@@ -510,11 +510,12 @@
                             <th>Modus</th>
                             <th>Signal (dBm)</th>
                             <th>Entfernung</th>
+                            <th>Quelle</th>
                         </tr>
                     </thead>
                     <tbody id="logBody">
                         <tr>
-                            <td colspan="5" style="text-align:center; color:var(--text-dim);">
+                            <td colspan="6" style="text-align:center; color:var(--text-dim);">
                                 Noch keine Messungen durchgef&uuml;hrt
                             </td>
                         </tr>
@@ -536,9 +537,64 @@
     // --- State ---
     let sdrConnected = false;
     let mqttConnected = false;
+    let measurementMode = 'simulated'; // 'simulated' or 'real'
     const measurementLog = [];
     const mqttPeers = {};
     let ws = null;
+
+    // --- Load COM ports from server ---
+    window.loadComPorts = function() {
+        var select = document.getElementById('sdrPort');
+        var token = localStorage.getItem('token');
+        var headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
+        fetch('/api/scan_ports', { headers: headers })
+        .then(function(res) { return res.json(); })
+        .then(function(ports) {
+            // Keep the first two options (placeholder + auto-detect)
+            while (select.options.length > 2) select.remove(2);
+
+            if (Array.isArray(ports) && ports.length > 0) {
+                ports.forEach(function(p) {
+                    var opt = document.createElement('option');
+                    opt.value = p.device;
+                    var label = p.device;
+                    if (p.description && p.description !== p.device) {
+                        label += ' - ' + p.description;
+                    }
+                    if (p.manufacturer) {
+                        label += ' [' + p.manufacturer + ']';
+                    }
+                    opt.textContent = label;
+                    select.appendChild(opt);
+                });
+                console.log('Loaded ' + ports.length + ' COM port(s)');
+            } else {
+                var opt = document.createElement('option');
+                opt.value = '';
+                opt.disabled = true;
+                opt.textContent = '(keine Ports gefunden)';
+                select.appendChild(opt);
+            }
+        })
+        .catch(function(e) {
+            console.error('Failed to load COM ports:', e);
+        });
+    };
+
+    function updateMeasurementModeDisplay() {
+        var label = document.getElementById('spectrumLabel');
+        if (label) {
+            if (measurementMode === 'real') {
+                label.textContent = 'Frequenzspektrum (LIVE - Echtmessung)';
+                label.style.color = '#2ecc71';
+            } else {
+                label.textContent = 'Frequenzspektrum (simuliert)';
+                label.style.color = '';
+            }
+        }
+    }
 
     // --- Spectrum canvas (simulated waterfall) ---
     const canvas = document.getElementById('spectrumCanvas');
@@ -650,19 +706,21 @@
         const squelch = parseInt(document.getElementById('sdrSquelch').value);
 
         // Simulate measurement (in production, calls /api/sdr/measure)
+        measurementMode = 'simulated';
+        updateMeasurementModeDisplay();
         const simulatedPower = -60 + (Math.random() * 30 - 15);
         const squelchThresholds = [-999, -85, -80, -75, -70, -65, -60, -55, -50, -45];
         const threshold = squelchThresholds[Math.min(Math.max(squelch, 0), 9)];
 
         if (simulatedPower < threshold) {
             updateSignalDisplay(simulatedPower, null, true);
-            addLogEntry(freq, mode, simulatedPower, 'geblockt');
+            addLogEntry(freq, mode, simulatedPower, 'geblockt', 'SIM');
             return;
         }
 
         const distance = estimateDistance(simulatedPower, freq);
         updateSignalDisplay(simulatedPower, distance, false);
-        addLogEntry(freq, mode, simulatedPower, distance.toFixed(1) + ' m');
+        addLogEntry(freq, mode, simulatedPower, distance.toFixed(1) + ' m', 'SIM');
 
         // Draw spectrum
         drawSpectrumNoise();
@@ -770,21 +828,24 @@
         }
     }
 
-    function addLogEntry(freq, mode, power, distance) {
+    function addLogEntry(freq, mode, power, distance, source) {
         var now = new Date();
         var ts = now.toLocaleTimeString('de-DE');
-        measurementLog.push({ time: ts, freq: freq, mode: mode, power: power, distance: distance });
+        source = source || (measurementMode === 'real' ? 'LIVE' : 'SIM');
+        measurementLog.push({ time: ts, freq: freq, mode: mode, power: power, distance: distance, source: source });
 
         var tbody = document.getElementById('logBody');
         // Remove placeholder
         if (measurementLog.length === 1) tbody.innerHTML = '';
 
+        var sourceColor = source === 'SIM' ? '#f39c12' : '#2ecc71';
         var tr = document.createElement('tr');
         tr.innerHTML = '<td>' + ts + '</td>' +
             '<td>' + freq.toFixed(3) + '</td>' +
             '<td>' + mode + '</td>' +
             '<td>' + (typeof power === 'number' ? power.toFixed(1) : power) + '</td>' +
-            '<td>' + distance + '</td>';
+            '<td>' + distance + '</td>' +
+            '<td style="color:' + sourceColor + '; font-weight:bold;">' + source + '</td>';
         tbody.insertBefore(tr, tbody.firstChild);
     }
 
@@ -822,7 +883,7 @@
     window.clearLog = function() {
         measurementLog.length = 0;
         document.getElementById('logBody').innerHTML =
-            '<tr><td colspan="5" style="text-align:center; color:var(--text-dim);">Noch keine Messungen durchgeführt</td></tr>';
+            '<tr><td colspan="6" style="text-align:center; color:var(--text-dim);">Noch keine Messungen durchgeführt</td></tr>';
     };
 
     window.exportLog = function() {
@@ -830,10 +891,10 @@
             alert('Keine Messungen zum Exportieren vorhanden.');
             return;
         }
-        var csv = 'Zeit,Frequenz_MHz,Modus,Signal_dBm,Entfernung\n';
+        var csv = 'Zeit,Frequenz_MHz,Modus,Signal_dBm,Entfernung,Quelle\n';
         measurementLog.forEach(function(e) {
             csv += e.time + ',' + e.freq + ',' + e.mode + ',' +
-                (typeof e.power === 'number' ? e.power.toFixed(2) : e.power) + ',' + e.distance + '\n';
+                (typeof e.power === 'number' ? e.power.toFixed(2) : e.power) + ',' + e.distance + ',' + (e.source || 'SIM') + '\n';
         });
         var blob = new Blob([csv], { type: 'text/csv' });
         var a = document.createElement('a');
@@ -846,6 +907,7 @@
     window.addEventListener('DOMContentLoaded', function() {
         initSpectrumCanvas();
         connectWebSocket();
+        loadComPorts();
     });
 
     window.addEventListener('resize', function() {
