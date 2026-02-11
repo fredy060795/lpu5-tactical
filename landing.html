@@ -575,7 +575,9 @@
 
                 if (res.ok) {
                     localStorage.setItem('lpu5_user', JSON.stringify(data.user));
-                    localStorage.setItem('lpu5_token', username);
+                    localStorage.setItem('lpu5_token', data.token || username);
+                    // Also store as 'token' for cross-page compatibility (overview.html)
+                    if (data.token) localStorage.setItem('token', data.token);
 
                     // Initialize language from user preference
                     if (data.user && data.user.language) {

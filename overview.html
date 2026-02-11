@@ -823,6 +823,28 @@
           }
           break;
 
+        case 'status_update':
+          // Handle status updates from other pages (e.g., index.html) via server WebSocket
+          if (data.channel === 'status') {
+            console.log('Received status_update via WebSocket:', data);
+            const statusData = data.data || data;
+            const username = statusData.username || statusData.unit_id;
+            const newStatus = statusData.status;
+            // Update own status display if it concerns the current user
+            if (username && newStatus && username === currentUserName) {
+              const el = document.getElementById('out-status');
+              if (el) {
+                el.innerText = newStatus;
+                if (newStatus === 'AKTIV') el.style.color = '#28a745';
+                else if (newStatus === 'BASE') el.style.color = '#007bff';
+                else if (newStatus === 'KIA') el.style.color = '#dc3545';
+              }
+            }
+            // Refresh map data to reflect status changes
+            sync();
+          }
+          break;
+
         case 'error':
           console.error('WebSocket error:', data.error);
           break;
@@ -2286,12 +2308,17 @@
       if (statusChannel) {
         statusChannel.addEventListener('message', (event) => {
           const data = event.data;
-          if (data.type === 'status_change' && data.username === currentUserName) {
-            const outStatus = document.getElementById('out-status');
-            if (outStatus) {
-              outStatus.textContent = data.status;
-              outStatus.style.color = data.color;
+          if (data.type === 'status_change') {
+            // Update own status display if it concerns the current user
+            if (data.username === currentUserName) {
+              const outStatus = document.getElementById('out-status');
+              if (outStatus) {
+                outStatus.textContent = data.status;
+                outStatus.style.color = data.color;
+              }
             }
+            // Refresh map data to reflect any status changes
+            sync();
           }
         });
 
@@ -2308,6 +2335,7 @@
         if (e.key === 'lpu5_last_status_update' && e.newValue) {
           try {
             const data = JSON.parse(e.newValue);
+            // Update own status display if it concerns the current user
             if (data.username === currentUserName) {
               const outStatus = document.getElementById('out-status');
               if (outStatus) {
@@ -2315,6 +2343,8 @@
                 outStatus.style.color = data.color;
               }
             }
+            // Refresh map data to reflect any status changes
+            sync();
           } catch (err) {
             console.warn('Failed to parse status update', err);
           }
