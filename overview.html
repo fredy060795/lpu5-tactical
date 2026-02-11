@@ -1072,6 +1072,11 @@
       // the visible crosshair, even when viewport and map container differ
       // (mobile browser chrome, notch safe-areas, etc.)
       const ch = document.getElementById('crosshair');
+      if (!ch) {
+        // Fallback to map center if crosshair element is missing
+        const size = map.getSize();
+        return map.containerPointToLatLng(L.point(size.x / 2, size.y / 2));
+      }
       const chRect = ch.getBoundingClientRect();
       const mapRect = map.getContainer().getBoundingClientRect();
       const containerPoint = L.point(
