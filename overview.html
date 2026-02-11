@@ -528,6 +528,7 @@
     const pendingLayers = new Map();
     const serverMarkerLayers = new Map(); // server marker id -> L.marker layer
     const meshtasticMarkers = new Map(); // mesh_id -> { marker, data }
+    const symbolLayers = new Map(); // symbol id -> L.marker layer (symbols from /api/map/symbols)
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
 
@@ -1005,7 +1006,8 @@
       renderPendingLayers();
       sync();
       setInterval(sync, 3000);
-      // sync() handles both markers and symbols
+      loadMapSymbols(); // Load symbols from server (admin_map + other users' GPS)
+      setInterval(loadMapSymbols, 5000); // Refresh symbols every 5 seconds
       updateMeshtasticNodes(); // Initial load
       setInterval(updateMeshtasticNodes, 5000); // Update every 5 seconds
       loadOverlays(); // Load overlays from server
@@ -1290,10 +1292,81 @@
 
     // Unified sync handles both markers and symbols
 
+    // Load symbols from server (placed by admin_map or other overview clients)
+    async function loadMapSymbols() {
+      if (!map) return;
+      try {
+        const res = await fetch('/api/map/symbols');
+        if (!res.ok) return;
+        const data = await res.json();
+        const serverSymbols = data.symbols || [];
+
+        // Clear previous symbol layers
+        for (const [id, layer] of symbolLayers) {
+          try { map.removeLayer(layer); } catch (e) { }
+        }
+        symbolLayers.clear();
+
+        for (const s of serverSymbols) {
+          // Skip own GPS position marker (already shown locally)
+          if (s.type === 'gps_position' && s.username === currentUserName) continue;
+
+          const isGps = (s.type === 'gps_position');
+          const symType = s.type || s.sym || 'raute';
+          let iconHtml;
+          if (isGps) {
+            const color = s.color || '#28a745';
+            iconHtml = `<i class="fas fa-location-arrow" style="color:${color}; font-size: 28px;"></i>`;
+          } else {
+            iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.raute;
+            iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
+          }
+          const icon = L.divIcon({
+            className: isGps ? 'gps-marker-arrow' : 'server-symbol',
+            html: iconHtml,
+            iconSize: isGps ? [36, 36] : [32, 32],
+            iconAnchor: isGps ? [18, 18] : [16, 16]
+          });
+          const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
+
+          // Show username label for GPS positions, symbol type for others
+          const tooltipText = isGps ? (s.username || s.label || 'GPS') : (s.label || s.type || 'Symbol');
+          marker.bindTooltip(tooltipText, {
+            permanent: isGps,
+            direction: 'right',
+            offset: [10, 0],
+            className: 'symbol-label'
+          });
+
+          if (!isGps) {
+            marker.on('click touchstart', async (ev) => {
+              ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+              if (currentTool === 'trash') {
+                if (!confirm('Symbol löschen?')) return;
+                try {
+                  const token = localStorage.getItem('token');
+                  const dres = await fetch(`/api/map/symbols/${s.id}`, {
+                    method: 'DELETE',
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                  });
+                  if (dres.ok) { map.removeLayer(marker); symbolLayers.delete(s.id); }
+                } catch (e) { console.error('Delete symbol error:', e); }
+              }
+            });
+          }
+
+          symbolLayers.set(s.id, marker);
+        }
+      } catch (e) {
+        console.warn('loadMapSymbols error', e);
+      }
+    }
+
     // Refresh all data without full page reload (preserves login state)
     async function refreshAllData() {
       try {
         await sync();
+        await loadMapSymbols();
         await updateMeshtasticNodes();
         await loadOverlays();
       } catch (e) {
@@ -1502,6 +1575,46 @@
       return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`;
     }
 
+    // Send GPS position to server so admin_map.html can see it
+    let _lastGpsSendId = null; // track the server symbol id for upsert
+    async function sendGpsToServer(lat, lng) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        // Delete previous GPS position marker to avoid duplicates
+        if (_lastGpsSendId) {
+          try {
+            await fetch(`/api/map/symbols/${_lastGpsSendId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+          } catch (e) { }
+        }
+        const res = await fetch('/api/map/symbols', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            lat: lat,
+            lng: lng,
+            type: 'gps_position',
+            source_page: 'overview',
+            label: currentUserName || 'GPS',
+            color: '#28a745',
+            icon: 'fa-location-arrow'
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.symbol && data.symbol.id) _lastGpsSendId = data.symbol.id;
+        }
+      } catch (e) {
+        console.warn('sendGpsToServer failed', e);
+      }
+    }
+
     // GPS Auto-tracking functions
     function startGpsAutoTracking() {
       if (!navigator.geolocation) {
@@ -1540,6 +1653,9 @@
               }
             });
           }
+
+          // Send GPS position to server for admin_map visibility
+          sendGpsToServer(lat, lng);
         },
         (error) => {
           console.warn('GPS auto-tracking error:', error);
@@ -1611,6 +1727,7 @@
         });
 
         map.setView([latNum, lngNum], Math.max(map.getZoom(), 15));
+        sendGpsToServer(latNum, lngNum);
       }
     }
 
@@ -1657,6 +1774,7 @@
 
         map.setView([lat, lng], Math.max(map.getZoom(), 15));
         flashBtn(btn, '#28a745');
+        sendGpsToServer(lat, lng);
       }, async (err) => {
         console.warn('geolocation error', err);
         const msg = (err && err.message) ? err.message : '';
@@ -1719,6 +1837,7 @@
 
           map.setView([lat, lng], Math.max(map.getZoom(), 12));
           flashBtn(btn, '#ffaa00');
+          sendGpsToServer(lat, lng);
           return true;
         } catch (fetchError) {
           // Check if it's an abort error (timeout)
@@ -1772,6 +1891,7 @@
         });
 
         map.setView([lat, lng], Math.max(map.getZoom(), 14));
+        sendGpsToServer(lat, lng);
       } else alert('UngÃ¼ltige Koordinaten.');
     }
 
