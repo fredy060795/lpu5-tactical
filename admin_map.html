@@ -1783,11 +1783,24 @@
         });
       }
 
-      // Save drawings and symbols to localStorage
+      // Save drawings, symbols and overlays to localStorage
       function saveStateToLocalStorage() {
         try {
           const state = {
-            // Overlays are intentionally excluded - blob URLs cannot be persisted
+            overlays: overlays.map(o => {
+              try {
+                const b = o.overlay.getBounds();
+                return {
+                  id: o.id,
+                  name: o.name,
+                  url: o.url,
+                  rotation: o.rotation || 0,
+                  creator: o.creator,
+                  opacity: o.opacity != null ? o.opacity : 1.0,
+                  bounds: { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() }
+                };
+              } catch (e) { return null; }
+            }).filter(Boolean),
             drawings: drawings.map(d => ({
               id: d.id,
               name: d.name,
@@ -1804,11 +1817,28 @@
           localStorage.setItem('lpu5_map_state', JSON.stringify(state));
           console.log('Map state saved to localStorage');
         } catch (e) {
-          console.error('Failed to save map state:', e);
+          if (e.name === 'QuotaExceededError') {
+            console.warn('localStorage quota exceeded, saving state without overlay images');
+            try {
+              const fallback = {
+                overlays: overlays.map(o => {
+                  try {
+                    const b = o.overlay.getBounds();
+                    return { id: o.id, name: o.name, url: '', rotation: o.rotation || 0, creator: o.creator, opacity: o.opacity != null ? o.opacity : 1.0, bounds: { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() } };
+                  } catch (e2) { return null; }
+                }).filter(Boolean),
+                drawings: drawings.map(d => ({ id: d.id, name: d.name, creator: d.creator, geoJSON: d.layer.toGeoJSON() })),
+                symbols: symbols.map(s => ({ id: s.id, sym: s.sym, creator: s.creator, latlng: s.marker.getLatLng() }))
+              };
+              localStorage.setItem('lpu5_map_state', JSON.stringify(fallback));
+            } catch (e2) { console.error('Failed to save fallback map state:', e2); }
+          } else {
+            console.error('Failed to save map state:', e);
+          }
         }
       }
 
-      // Load drawings and symbols from localStorage
+      // Load drawings, symbols and overlays from localStorage
       function loadStateFromLocalStorage() {
         try {
           const savedState = localStorage.getItem('lpu5_map_state');
@@ -1817,12 +1847,33 @@
           const state = JSON.parse(savedState);
           console.log('Loading map state from localStorage:', state);
 
-          // Note: Overlays cannot be restored from localStorage because
-          // image data (blob URLs) don't persist. Users will need to re-import images.
+          // Restore overlays from localStorage (data URLs persist across refresh)
+          if (state.overlays) {
+            state.overlays.forEach(o => {
+              try {
+                if (overlays.find(x => x.id === o.id)) return; // skip duplicates
+                if (!o.url || !o.bounds) return; // skip incomplete data
+                const b = o.bounds;
+                const leafletBounds = [[b.south, b.west], [b.north, b.east]];
+                const leafletOverlay = L.imageOverlay(o.url, leafletBounds, { pane: 'paneOverlays', interactive: true }).addTo(map);
+                const ovOpacity = o.opacity != null ? o.opacity : 1.0;
+                try { leafletOverlay.setOpacity(ovOpacity); } catch (e2) { }
+                try { leafletOverlay.setZIndex(450); } catch (e2) { }
+                leafletOverlay.once('load', () => {
+                  const img = leafletOverlay.getElement();
+                  if (img) { img.style.transformOrigin = '50% 50%'; img.style.pointerEvents = 'auto'; img.style.boxShadow = '0 0 8px rgba(0,0,0,0.6)'; }
+                });
+                overlays.push({ id: o.id, overlay: leafletOverlay, name: o.name || 'Overlay', url: o.url, rotation: o.rotation || 0, creator: o.creator || 'unknown', opacity: ovOpacity });
+              } catch (e) {
+                console.error('Failed to restore overlay:', e);
+              }
+            });
+          }
 
           if (state.drawings) {
             state.drawings.forEach(d => {
               try {
+                if (drawings.find(x => x.id === d.id)) return; // skip duplicates
                 const layer = L.geoJSON(d.geoJSON, {
                   pane: 'paneDrawings',
                   style: { color: '#007bff', weight: 3 }
@@ -1837,6 +1888,7 @@
           if (state.symbols) {
             state.symbols.forEach(s => {
               try {
+                if (symbols.find(x => x.id === s.id)) return; // skip duplicates
                 const svgHtml = getSymbolSvg(s.sym);
                 const marker = L.marker([s.latlng.lat, s.latlng.lng], {
                   icon: L.divIcon({
@@ -1988,6 +2040,9 @@
         const creator = getCurrentUsername();
         overlays.push({ id, overlay: leafletOverlay, name: file.name, url, rotation: rot, creator, opacity });
 
+        // Save to localStorage immediately for offline persistence
+        saveStateToLocalStorage();
+
         // Save overlay to server API for persistence and sharing
         try {
           const token = localStorage.getItem('token');
@@ -2014,6 +2069,7 @@
               const idx = overlays.findIndex(x => x.id === id);
               if (idx !== -1) overlays[idx].id = result.overlay.id;
               console.log('Overlay saved to server:', result.overlay.id);
+              saveStateToLocalStorage();
             }
           } else {
             console.error('Failed to save overlay to server:', resp.status);
@@ -2206,6 +2262,7 @@
           }
 
           panel.querySelector('#ovEditorMsg').textContent = 'Änderungen gespeichert.';
+          saveStateToLocalStorage();
         });
 
         document.getElementById('ovCancelBtn').addEventListener('click', () => {
@@ -2356,7 +2413,11 @@
       async function loadMapSymbols() {
         try {
           const res = await fetch('/api/map/symbols');
-          if (!res.ok) return;
+          if (!res.ok) {
+            // Server returned error - keep existing symbols (local state)
+            if (symbols.length === 0) loadStateFromLocalStorage();
+            return;
+          }
           const data = await res.json();
           const serverSymbols = data.symbols || [];
 
@@ -2411,9 +2472,37 @@
 
             symbols.push({ id: s.id, marker, sym: s.type || s.sym || 'raute', creator: s.username });
           });
+
+          // Re-add pending (not-yet-synced) local symbols so they remain visible
+          const pending = readPendingSymbols();
+          pending.forEach(p => {
+            const alreadyOnMap = symbols.some(s => {
+              const ll = s.marker.getLatLng();
+              return Math.abs(ll.lat - p.lat) < 0.00001 && Math.abs(ll.lng - p.lng) < 0.00001 && s.sym === (p.sym || 'raute');
+            });
+            if (!alreadyOnMap) {
+              const svgHtml = getSymbolSvg(p.sym || 'raute');
+              const icon = L.divIcon({ className: 'custom-sym', html: svgHtml, iconSize: [32, 32], iconAnchor: [16, 32] });
+              const marker = L.marker([p.lat, p.lng], { icon, pane: 'paneSymbols' }).addTo(map);
+              marker.on('click', () => {
+                if (symbolDeleteMode) {
+                  if (!confirm('Delete symbol?')) return;
+                  removeSymbol(p.id);
+                  renderSettingsList();
+                }
+              });
+              symbols.push({ id: p.id, marker, sym: p.sym || 'raute', creator: p.creator });
+            }
+          });
+
+          saveStateToLocalStorage();
           renderSettingsList();
         } catch (e) {
           console.error('Failed to load symbols:', e);
+          // Server unreachable - preserve existing symbols, or load from localStorage
+          if (symbols.length === 0) {
+            loadStateFromLocalStorage();
+          }
         }
       }
 
@@ -2457,7 +2546,11 @@
       async function loadOverlays() {
         try {
           const resp = await fetch('/api/overlays');
-          if (!resp.ok) return;
+          if (!resp.ok) {
+            // Server returned error - keep existing overlays (local state)
+            if (overlays.length === 0) loadStateFromLocalStorage();
+            return;
+          }
           const serverOverlays = await resp.json();
 
           for (const o of serverOverlays) {
@@ -2482,18 +2575,24 @@
             }
           }
 
-          // Remove overlays that no longer exist on server
+          // Remove overlays that no longer exist on server, but keep locally-created ones (id starts with 'ov_')
           const serverIds = new Set(serverOverlays.map(o => o.id));
           for (let i = overlays.length - 1; i >= 0; i--) {
-            if (!serverIds.has(overlays[i].id)) {
+            const isLocalOnly = overlays[i].id && overlays[i].id.startsWith('ov_');
+            if (!serverIds.has(overlays[i].id) && !isLocalOnly) {
               try { map.removeLayer(overlays[i].overlay); } catch (e) { }
               overlays.splice(i, 1);
             }
           }
 
+          saveStateToLocalStorage();
           refreshOverlayList(); renderSettingsList();
         } catch (e) {
           console.error('Failed to load overlays from server:', e);
+          // Server unreachable - preserve existing overlays, or load from localStorage
+          if (overlays.length === 0) {
+            loadStateFromLocalStorage();
+          }
         }
       }
 
@@ -2717,7 +2816,11 @@
       updateMeshtasticNodes();
       setInterval(updateMeshtasticNodes, 5000);
 
-      // Load Map Symbols
+      // Load saved state from localStorage FIRST (immediate, synchronous)
+      // This ensures locally persisted data is visible before async server fetches
+      loadStateFromLocalStorage();
+
+      // Load Map Symbols from server (merges with local state)
       loadMapSymbols();
       setInterval(loadMapSymbols, 5000);
 
@@ -2725,16 +2828,13 @@
       sendPendingSymbols();
       setInterval(sendPendingSymbols, 5000);
 
-      // Load Overlays from server
+      // Load Overlays from server (merges with local state)
       loadOverlays();
       setInterval(loadOverlays, 10000);
 
       // initial render
       refreshOverlayList();
       renderSettingsList();
-
-      // Load saved state from localStorage
-      loadStateFromLocalStorage();
 
       // expose state for debug
       window.LPU5_state = { overlays, drawings, symbols, map };
