@@ -1071,18 +1071,27 @@
     }
 
     // Start data sync and WebSocket — called only after successful login
+    let _syncIntervals = [];
     function startDataSync() {
       if (dataSyncStarted || !isLoggedIn) return;
       dataSyncStarted = true;
       sync();
-      setInterval(sync, 3000);
+      _syncIntervals.push(setInterval(sync, 3000));
       loadMapSymbols();
-      setInterval(loadMapSymbols, 5000);
+      _syncIntervals.push(setInterval(loadMapSymbols, 5000));
       updateMeshtasticNodes();
-      setInterval(updateMeshtasticNodes, 5000);
+      _syncIntervals.push(setInterval(updateMeshtasticNodes, 5000));
       loadOverlays();
-      setInterval(loadOverlays, 10000);
+      _syncIntervals.push(setInterval(loadOverlays, 10000));
       connectWebSocket();
+    }
+
+    function stopDataSync() {
+      _syncIntervals.forEach(id => clearInterval(id));
+      _syncIntervals = [];
+      dataSyncStarted = false;
+      isLoggedIn = false;
+      if (ws) { try { ws.close(); } catch(e){} ws = null; }
     }
 
     function crosshairLatLng() {
@@ -2924,6 +2933,7 @@
 
     // Logout: clear cached credentials and reload
     window.logoutOverview = function() {
+      stopDataSync();
       localStorage.removeItem('token');
       localStorage.removeItem('lpu5_cached_user');
       localStorage.removeItem('lpu5_cached_pass');
