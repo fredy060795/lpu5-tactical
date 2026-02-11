@@ -532,6 +532,10 @@
       console.warn('BroadcastChannel not supported, using localStorage fallback only', e);
     }
 
+    // Authentication state — data sync and WebSocket only start after login
+    let isLoggedIn = false;
+    let dataSyncStarted = false;
+
     // WebSocket connection for real-time updates
     let ws = null;
     let wsReconnectAttempts = 0;
@@ -539,6 +543,7 @@
     const wsReconnectDelay = 3000;
 
     function connectWebSocket() {
+      if (!isLoggedIn) return; // Only connect when authenticated
       if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
         return; // Already connecting or connected
       }
@@ -928,6 +933,8 @@
           // Close hamburger menu after login
           const menu = document.getElementById('status-menu');
           if (menu) menu.style.display = 'none';
+          isLoggedIn = true;
+          startDataSync();
         } else {
           alert('Login fehlgeschlagen');
         }
@@ -949,6 +956,8 @@
           currentUserName = r.user.username;
           if (r.token) localStorage.setItem('token', r.token);
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
+          isLoggedIn = true;
+          startDataSync();
           return true;
         }
       } catch (e) {
@@ -956,6 +965,11 @@
         console.warn('Auto-login failed (offline?), using cached name', e);
         currentUserName = cachedUser;
         document.getElementById('out-name').innerText = cachedUser.toUpperCase();
+        // Allow data sync in offline mode with cached credentials
+        if (localStorage.getItem('token')) {
+          isLoggedIn = true;
+          startDataSync();
+        }
         return true;
       }
       return false;
@@ -1008,17 +1022,6 @@
       map.createPane('meshtasticPane').style.zIndex = 550; // Below pending, above draw
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
-      sync();
-      setInterval(sync, 3000);
-      loadMapSymbols(); // Load symbols from server (admin_map + other users' GPS)
-      setInterval(loadMapSymbols, 5000); // Refresh symbols every 5 seconds
-      updateMeshtasticNodes(); // Initial load
-      setInterval(updateMeshtasticNodes, 5000); // Update every 5 seconds
-      loadOverlays(); // Load overlays from server
-      setInterval(loadOverlays, 10000); // Refresh overlays every 10 seconds
-
-      // Connect WebSocket for real-time updates
-      connectWebSocket();
 
       // Network Status Listeners
       window.addEventListener('online', () => {
@@ -1065,6 +1068,21 @@
       } catch (e) {
         console.warn('Failed to restore GPS settings', e);
       }
+    }
+
+    // Start data sync and WebSocket — called only after successful login
+    function startDataSync() {
+      if (dataSyncStarted || !isLoggedIn) return;
+      dataSyncStarted = true;
+      sync();
+      setInterval(sync, 3000);
+      loadMapSymbols();
+      setInterval(loadMapSymbols, 5000);
+      updateMeshtasticNodes();
+      setInterval(updateMeshtasticNodes, 5000);
+      loadOverlays();
+      setInterval(loadOverlays, 10000);
+      connectWebSocket();
     }
 
     function crosshairLatLng() {
@@ -1236,7 +1254,7 @@
 
     // sync
     async function sync() {
-      if (!map) return;
+      if (!map || !isLoggedIn) return;
       await sendPendingMarkers().catch((e) => {
         console.warn('Failed to send pending markers:', e);
       });
@@ -1303,7 +1321,7 @@
 
     // Load symbols from server (placed by admin_map or other overview clients)
     async function loadMapSymbols() {
-      if (!map) return;
+      if (!map || !isLoggedIn) return;
       try {
         const res = await fetch('/api/map/symbols');
         if (!res.ok) return;
@@ -1385,7 +1403,7 @@
 
     // Meshtastic node synchronization
     async function updateMeshtasticNodes() {
-      if (!map) return;
+      if (!map || !isLoggedIn) return;
       try {
         const resp = await fetch('/api/meshtastic/nodes');
         if (!resp.ok) {
@@ -1537,7 +1555,7 @@
     const _overlayLayers = new Map(); // overlay_id -> L.imageOverlay
 
     async function loadOverlays() {
-      if (!map) return;
+      if (!map || !isLoggedIn) return;
       try {
         const resp = await fetch('/api/overlays');
         if (!resp.ok) return;
