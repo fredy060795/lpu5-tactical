@@ -529,12 +529,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-/* localStorage helpers */
-function loadClientStatus(){ try { return JSON.parse(localStorage.getItem(STATUS_LS_KEY) || '{}'); } catch(e){ return {}; } }
-function saveClientStatus(){ try { localStorage.setItem(STATUS_LS_KEY, JSON.stringify(clientStatusMap || {})); } catch(e){} }
-function loadDeviceMap(){ try { return JSON.parse(localStorage.getItem(DEVICE_MAP_LS_KEY) || '{}'); } catch(e){ return {}; } }
-function saveDeviceMap(){ try { localStorage.setItem(DEVICE_MAP_LS_KEY, JSON.stringify(deviceAssignmentMap || {})); } catch(e){} }
-
 /* logout */
 function logoutUser(){
     if (!confirm('Wirklich abmelden?')) return;
@@ -664,8 +658,9 @@ function logoutUser(){
     
     // Force refresh of the main table to show updated status
     // Delay needed to allow status update to complete before re-rendering
-    if (typeof renderState === 'function') {
-      setTimeout(() => renderState(), 100);
+    if (typeof renderTable === 'function') {
+      clientStatusMap = loadClientStatus();
+      setTimeout(() => renderTable(), 100);
     }
   }
 
