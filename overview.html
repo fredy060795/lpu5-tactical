@@ -481,7 +481,7 @@
         <line x1="14" y1="11" x2="14" y2="17"></line>
       </svg>
     </div>
-    <div class="tool-btn" id="s-reload" onclick="location.reload()" title="Seite neu laden">
+    <div class="tool-btn" id="s-reload" onclick="refreshAllData()" title="Seite neu laden">
       <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
       </svg>
@@ -1268,6 +1268,17 @@
     }
 
     // Unified sync handles both markers and symbols
+
+    // Refresh all data without full page reload (preserves login state)
+    async function refreshAllData() {
+      try {
+        await sync();
+        await updateMeshtasticNodes();
+        await loadOverlays();
+      } catch (e) {
+        console.warn('refreshAllData error', e);
+      }
+    }
 
     // Meshtastic node synchronization
     async function updateMeshtasticNodes() {
@@ -2615,6 +2626,21 @@
           // Persist status to localStorage for page reload
           try {
             localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
+          } catch (e) { }
+
+          // Broadcast to other tabs (index.html) via BroadcastChannel and localStorage
+          const updateData = {
+            type: 'status_change',
+            status: status,
+            color: statusElement ? statusElement.style.color : '',
+            username: currentUserName,
+            timestamp: new Date().toISOString()
+          };
+          if (statusChannel) {
+            try { statusChannel.postMessage(updateData); } catch (e) { }
+          }
+          try {
+            localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
           } catch (e) { }
 
           // Visual feedback on toolbar buttons if they exist

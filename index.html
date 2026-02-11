@@ -350,6 +350,18 @@ async function localSetStatus(idEnc, newStatus){
     applyClientStatus(key, newStatus, ts);
     renderTable();
 
+    // Broadcast status change to other tabs (overview.html)
+    const username = user ? (user.username || '') : id;
+    const color = newStatus === 'AKTIV' ? '#28a745' : (newStatus === 'KIA' ? '#dc3545' : '#007bff');
+    const updateData = { type: 'status_change', status: newStatus, color: color, username: username, timestamp: ts };
+    try {
+        const bc = new BroadcastChannel('lpu5_status_updates');
+        bc.postMessage(updateData);
+        bc.close();
+    } catch(e){}
+    try { localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData)); } catch(e){}
+    try { localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: newStatus })); } catch(e){}
+
     // try persist: /api/status -> marker PUT -> user metadata PUT (without toggling account active)
     try {
         const resp = await fetch(`/api/status/${encodeURIComponent(id)}/${encodeURIComponent(newStatus)}`, { method:'POST' });
