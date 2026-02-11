@@ -99,6 +99,7 @@ class DataServerManager:
             
             # Shut down the broadcast thread pool
             self._broadcast_executor.shutdown(wait=False)
+            self._broadcast_session.close()
             
             # Try graceful shutdown first
             self.process.terminate()
