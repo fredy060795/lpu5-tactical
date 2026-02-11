@@ -141,7 +141,7 @@
       padding: 8px;
       border: 1px solid #444;
       border-radius: 4px;
-      display: none;
+      display: block;
     }
 
     /* Toolbar with proper sizing to cover all icons - removed max-width constraint to ensure full coverage */
@@ -153,7 +153,7 @@
       background: rgba(26, 26, 26, 0.95);
       padding: 8px 12px;
       border-radius: 50px;
-      display: none;
+      display: flex;
       gap: 8px;
       z-index: 6005;
       align-items: center;
@@ -285,7 +285,7 @@
       width: 100%;
       height: 100%;
       z-index: 1;
-      display: none;
+      display: block;
     }
 
     .tactical-overlay {
@@ -387,17 +387,6 @@
 </head>
 
 <body>
-
-  <div id="login-screen">
-    <div class="login-container">
-      <h2 style="color:var(--accent-blue); margin-bottom:15px;">OPERATIV PRECISION</h2>
-      <div class="login-form">
-        <input type="text" id="user" placeholder="Rufname" autocomplete="off">
-        <input type="password" id="pass" placeholder="Passwort">
-        <button class="login-btn" onclick="validateLogin()">START</button>
-      </div>
-    </div>
-  </div>
 
   <div id="offline-indicator">
     <i class="fas fa-plane"></i> OFFLINE MODUS
@@ -921,40 +910,55 @@
 
     // UI & login
     async function validateLogin() {
-      const u = document.getElementById('user').value;
-      const p = document.getElementById('pass').value;
+      const u = document.getElementById('menu-user') ? document.getElementById('menu-user').value : '';
+      const p = document.getElementById('menu-pass') ? document.getElementById('menu-pass').value : '';
+      if (!u || !p) { alert('Bitte Benutzername und Passwort eingeben'); return; }
       try {
         const res = await fetch('/api/login_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
         if (res.ok) {
           const r = await res.json();
           currentUserName = r.user.username;
 
-          // Save token to localStorage for authentication
-          if (r.token) {
-            localStorage.setItem('token', r.token);
-          }
-
-          document.getElementById('login-screen').style.display = 'none';
-          document.getElementById('map').style.display = 'block';
-          document.getElementById('ui-top').style.display = 'block';
-
-          // Ensure toolbar is visible and properly laid out
-          const toolbar = document.getElementById('ui-tools');
-          if (toolbar) {
-            toolbar.style.display = 'flex';
-            // Force a layout recalculation to ensure toolbar appears
-            setTimeout(() => layoutToolbar(), 0);
-          }
+          // Cache credentials and token in localStorage
+          if (r.token) localStorage.setItem('token', r.token);
+          localStorage.setItem('lpu5_cached_user', u);
+          localStorage.setItem('lpu5_cached_pass', p);
 
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
-          initMap();
+          // Close hamburger menu after login
+          const menu = document.getElementById('status-menu');
+          if (menu) menu.style.display = 'none';
         } else {
           alert('Login fehlgeschlagen');
         }
       } catch (e) {
         console.error('Login error:', e);
-        alert('Network error during login: ' + e.message);
+        alert('Netzwerkfehler beim Login: ' + e.message);
       }
+    }
+
+    // Auto-login from cached credentials
+    async function tryAutoLogin() {
+      const cachedUser = localStorage.getItem('lpu5_cached_user');
+      const cachedPass = localStorage.getItem('lpu5_cached_pass');
+      if (!cachedUser || !cachedPass) return false;
+      try {
+        const res = await fetch('/api/login_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: cachedUser, password: cachedPass }) });
+        if (res.ok) {
+          const r = await res.json();
+          currentUserName = r.user.username;
+          if (r.token) localStorage.setItem('token', r.token);
+          document.getElementById('out-name').innerText = currentUserName.toUpperCase();
+          return true;
+        }
+      } catch (e) {
+        // Offline: restore username from cache so UI shows the name
+        console.warn('Auto-login failed (offline?), using cached name', e);
+        currentUserName = cachedUser;
+        document.getElementById('out-name').innerText = cachedUser.toUpperCase();
+        return true;
+      }
+      return false;
     }
 
     // Map init
@@ -2188,7 +2192,13 @@
     layoutToolbar();
 
     // Add Enter key handler for chat input
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', async function () {
+      // Initialize map immediately (no login gate)
+      initMap();
+
+      // Try auto-login from cached credentials
+      await tryAutoLogin();
+
       const chatInput = document.getElementById('chat-input');
       if (chatInput) {
         chatInput.addEventListener('keypress', function (e) {
@@ -2816,15 +2826,26 @@
         return;
       }
 
+      const isLoggedIn = !!currentUserName;
       const currentStatus = document.getElementById('out-status').innerText;
       const currentInterval = (gpsUpdateInterval / 1000) || 5;
 
-      menu.innerHTML = `
-        <div class="menu-header">
-          <h2 style="color:var(--accent-blue)">COMMAND MENU</h2>
-          <div onclick="toggleHamburgerMenu()" style="font-size:24px; padding:10px; cursor:pointer;">×</div>
+      // Login section (shown only when not logged in)
+      const loginSection = !isLoggedIn ? `
+        <div class="menu-section">
+          <h3>Anmelden</h3>
+          <input type="text" id="menu-user" placeholder="Rufname" autocomplete="off"
+            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+          <input type="password" id="menu-pass" placeholder="Passwort"
+            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+          <button class="menu-btn" style="background:var(--accent-blue);border-color:var(--accent-blue);justify-content:center;font-weight:bold;" onclick="event.stopPropagation(); validateLogin()">
+            <i class="fas fa-sign-in-alt"></i> LOGIN
+          </button>
         </div>
+      ` : '';
 
+      // Main menu sections (shown only when logged in)
+      const mainSections = isLoggedIn ? `
         <div class="menu-section">
           <h3>Lebensstatus</h3>
           <div class="status-grid">
@@ -2863,10 +2884,30 @@
 
         <div class="menu-section">
           <button class="menu-btn" onclick="openBleSettings()"><i class="fab fa-bluetooth-b"></i> BLE Meshtastic</button>
-          <button class="menu-btn logout-btn" onclick="location.reload()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+          <button class="menu-btn logout-btn" onclick="logoutOverview()"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
+      ` : '';
+
+      menu.innerHTML = `
+        <div class="menu-header">
+          <h2 style="color:var(--accent-blue)">COMMAND MENU</h2>
+          <div onclick="toggleHamburgerMenu()" style="font-size:24px; padding:10px; cursor:pointer;">×</div>
+        </div>
+        ${loginSection}
+        ${mainSections}
       `;
       menu.style.display = 'flex';
+    };
+
+    // Logout: clear cached credentials and reload
+    window.logoutOverview = function() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('lpu5_cached_user');
+      localStorage.removeItem('lpu5_cached_pass');
+      currentUserName = '';
+      document.getElementById('out-name').innerText = '---';
+      const menu = document.getElementById('status-menu');
+      if (menu) menu.style.display = 'none';
     };
 
     window.setGpsInterval = function(sec) {
