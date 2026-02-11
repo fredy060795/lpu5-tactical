@@ -1077,13 +1077,13 @@
       if (dataSyncStarted || !isLoggedIn) return;
       dataSyncStarted = true;
       sync();
-      _syncIntervals.push(setInterval(sync, 3000));
+      _syncIntervals.push(setInterval(sync, 15000));
       loadMapSymbols();
-      _syncIntervals.push(setInterval(loadMapSymbols, 5000));
+      _syncIntervals.push(setInterval(loadMapSymbols, 30000));
       updateMeshtasticNodes();
-      _syncIntervals.push(setInterval(updateMeshtasticNodes, 5000));
+      _syncIntervals.push(setInterval(updateMeshtasticNodes, 30000));
       loadOverlays();
-      _syncIntervals.push(setInterval(loadOverlays, 10000));
+      _syncIntervals.push(setInterval(loadOverlays, 60000));
       connectWebSocket();
     }
 
@@ -2372,7 +2372,7 @@
     */
     (function () {
       // Check for shared stream periodically
-      setInterval(checkForSharedStream, 2000);
+      setInterval(checkForSharedStream, 10000);
 
       // Also check on storage event (cross-tab communication)
       window.addEventListener('storage', function (e) {
@@ -3035,7 +3035,7 @@
 
       // Initial sync
       setTimeout(sync, 1000);
-      setInterval(sync, 5000);
+      setInterval(sync, 30000);
 
     })();
   </script>

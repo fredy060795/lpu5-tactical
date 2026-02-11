@@ -26,7 +26,7 @@ from fastapi import FastAPI, Body, HTTPException, Request, Path, Header, WebSock
 from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import json
 import uuid
@@ -378,7 +378,7 @@ def broadcast_websocket_update(channel: str, event_type: str, data: Dict) -> Non
             "type": event_type,
             "channel": channel,
             "data": data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         # Schedule the broadcast in the event loop
         import asyncio

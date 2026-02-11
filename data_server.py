@@ -19,7 +19,7 @@ import json
 import logging
 import signal
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Set, Any, Optional
 
 # Fix Windows asyncio ProactorEventLoop issue
@@ -61,8 +61,8 @@ class DataServerConnectionManager:
         await websocket.accept()
         self.active_connections[connection_id] = websocket
         self.connection_metadata[connection_id] = {
-            "connected_at": datetime.utcnow().isoformat(),
-            "last_activity": datetime.utcnow().isoformat(),
+            "connected_at": datetime.now(timezone.utc).isoformat(),
+            "last_activity": datetime.now(timezone.utc).isoformat(),
             "messages_sent": 0,
             "subscriptions": set()
         }
@@ -72,7 +72,7 @@ class DataServerConnectionManager:
         await self.send_to_connection(connection_id, {
             "type": "connection_established",
             "connection_id": connection_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
     
     def disconnect(self, connection_id: str):
@@ -104,7 +104,7 @@ class DataServerConnectionManager:
         await self.send_to_connection(connection_id, {
             "type": "subscribed",
             "channel": channel,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
     
     async def unsubscribe(self, connection_id: str, channel: str):
@@ -121,7 +121,7 @@ class DataServerConnectionManager:
         await self.send_to_connection(connection_id, {
             "type": "unsubscribed",
             "channel": channel,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
     
     async def send_to_connection(self, connection_id: str, message: dict):
@@ -131,7 +131,7 @@ class DataServerConnectionManager:
                 await self.active_connections[connection_id].send_json(message)
                 if connection_id in self.connection_metadata:
                     self.connection_metadata[connection_id]["messages_sent"] += 1
-                    self.connection_metadata[connection_id]["last_activity"] = datetime.utcnow().isoformat()
+                    self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
             except Exception as e:
                 logger.error(f"Failed to send message to {connection_id}: {e}")
                 # Connection may be dead, will be cleaned up on next interaction
@@ -147,7 +147,7 @@ class DataServerConnectionManager:
         # Add metadata to message
         message["channel"] = channel
         if "timestamp" not in message:
-            message["timestamp"] = datetime.utcnow().isoformat()
+            message["timestamp"] = datetime.now(timezone.utc).isoformat()
         
         # Send to all subscribers
         for connection_id in subscribers:
@@ -158,7 +158,7 @@ class DataServerConnectionManager:
         logger.debug(f"Broadcasting to all: {len(self.active_connections)} connections")
         
         if "timestamp" not in message:
-            message["timestamp"] = datetime.utcnow().isoformat()
+            message["timestamp"] = datetime.now(timezone.utc).isoformat()
         
         for connection_id in list(self.active_connections.keys()):
             await self.send_to_connection(connection_id, message)
@@ -232,7 +232,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif message_type == "ping":
                     await connection_manager.send_to_connection(connection_id, {
                         "type": "pong",
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     })
                 
                 # Relay camera frames (server-side relay)
@@ -314,7 +314,7 @@ def get_status():
         "status": "running",
         "server": "LPU5 Data Distribution Server",
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         **stats
     }
 
@@ -323,7 +323,7 @@ def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 # -------------------------

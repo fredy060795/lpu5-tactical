@@ -14,7 +14,7 @@ Implements WebSocket support for real-time tactical updates:
 import json
 import logging
 from typing import Dict, List, Set, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -47,9 +47,9 @@ class ConnectionManager:
         
         # Initialize connection metadata
         self.connection_metadata[connection_id] = {
-            "connected_at": datetime.utcnow().isoformat(),
+            "connected_at": datetime.now(timezone.utc).isoformat(),
             "user_id": user_id,
-            "last_activity": datetime.utcnow().isoformat(),
+            "last_activity": datetime.now(timezone.utc).isoformat(),
             "messages_sent": 0,
             "messages_received": 0
         }
@@ -64,7 +64,7 @@ class ConnectionManager:
         await self.send_personal_message(connection_id, {
             "type": "connection_established",
             "connection_id": connection_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
     
     def disconnect(self, connection_id: str):
@@ -137,7 +137,7 @@ class ConnectionManager:
             # Update metadata on successful send
             if connection_id in self.connection_metadata:
                 self.connection_metadata[connection_id]["messages_sent"] += 1
-                self.connection_metadata[connection_id]["last_activity"] = datetime.utcnow().isoformat()
+                self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
             
             # Reset failed attempts counter on success
             self.failed_send_attempts[connection_id] = 0
@@ -191,7 +191,7 @@ class ConnectionManager:
         
         # Add timestamp if not present
         if "timestamp" not in message:
-            message["timestamp"] = datetime.utcnow().isoformat()
+            message["timestamp"] = datetime.now(timezone.utc).isoformat()
         
         disconnected = []
         for connection_id, websocket in self.active_connections.items():
@@ -263,7 +263,7 @@ class ConnectionManager:
         
         # Add timestamp if not present
         if "timestamp" not in message:
-            message["timestamp"] = datetime.utcnow().isoformat()
+            message["timestamp"] = datetime.now(timezone.utc).isoformat()
         
         # Add channel to message
         message["channel"] = channel
@@ -340,7 +340,7 @@ class ConnectionManager:
             connection_id: Connection to update
         """
         if connection_id in self.connection_metadata:
-            self.connection_metadata[connection_id]["last_activity"] = datetime.utcnow().isoformat()
+            self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
             self.connection_metadata[connection_id]["messages_received"] += 1
     
     def get_connection_health(self, connection_id: str) -> Dict[str, Any]:
@@ -364,7 +364,7 @@ class ConnectionManager:
         if connected_at_str:
             try:
                 connected_at = datetime.fromisoformat(connected_at_str)
-                duration_seconds = (datetime.utcnow() - connected_at).total_seconds()
+                duration_seconds = (datetime.now(timezone.utc) - connected_at).total_seconds()
             except Exception:
                 duration_seconds = 0
         else:
@@ -532,7 +532,7 @@ class WebSocketEventHandler:
         async def handle_ping(connection_id: str, message: Dict):
             await self.manager.send_personal_message(connection_id, {
                 "type": "pong",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
         
         self.register_handler("ping", handle_ping)
