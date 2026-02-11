@@ -703,7 +703,7 @@
           // Handle Meshtastic node updates from another client
           if (data.data && data.channel === 'nodes') {
             console.log('Received node update:', data.data);
-            sync(); // Refresh markers to show updated node positions
+            updateMeshtasticNodes(); // Refresh meshtastic markers (not sync which renders them as generic icons)
           }
           break;
 
@@ -1476,17 +1476,12 @@
             continue;
           }
 
-          const label = n.name || n.callsign || mesh;
-
-          // Extract shortName icon from various possible locations
+          // Extract shortName from various possible locations
           // Note: checking both shortName and shortname for backwards compatibility with different Meshtastic versions
           let shortName = null;
           try {
-            // Helper function to extract shortName from an object
             const getShortName = (obj) => obj && (obj.shortName || obj.shortname);
-
-            // Check in order: top-level, user, raw.user, raw.raw.user
-            shortName = n.shortName ||
+            shortName = n.shortName || n.short_name ||
               getShortName(n.user) ||
               (n.raw && getShortName(n.raw.user)) ||
               (n.raw && n.raw.raw && getShortName(n.raw.raw.user));
@@ -1494,52 +1489,46 @@
             console.warn('Failed to extract shortName for meshtastic node:', n.mesh_id || n.id, e);
           }
 
+          // Extract longName for popup display on click
+          let longName = null;
+          try {
+            const getLongName = (obj) => obj && (obj.longName || obj.longname);
+            longName = n.longName || n.long_name || n.name ||
+              getLongName(n.user) ||
+              (n.raw && getLongName(n.raw.user)) ||
+              (n.raw && n.raw.raw && getLongName(n.raw.raw.user)) ||
+              n.callsign || mesh;
+          } catch (e) {
+            longName = n.name || n.callsign || mesh;
+          }
+
+          // Build blue circle icon with shortName text inside
+          const displayName = shortName || '';
+          const iconHtml = `<div style="width:28px;height:28px;background:#007bff;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;line-height:1;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>`;
+
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
-            // Update position and icon
             const entry = meshtasticMarkers.get(mesh);
             entry.marker.setLatLng([lat, lng]);
             entry.data = n;
 
-            // Update icon with shortName if available
-            let iconHtml;
-            if (shortName) {
-              iconHtml = `<div style="width:24px;height:24px;background:transparent;border:2px solid #007bff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-size:14px;">${shortName}</div>`;
-            } else {
-              iconHtml = `<div style="width:24px;height:24px;background:#007bff;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);"></div>`;
-            }
             const newIcon = L.divIcon({
               className: 'meshtastic-marker',
               html: iconHtml,
-              iconSize: [24, 24],
-              iconAnchor: [12, 12]
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
             });
             entry.marker.setIcon(newIcon);
 
-            // Update tooltip
-            entry.marker.unbindTooltip();
-            entry.marker.bindTooltip(String(label), {
-              permanent: true,
-              direction: 'right',
-              offset: [8, 0],
-              className: 'meshtastic-label'
-            }).openTooltip();
+            // Update popup with longName
+            entry.marker.unbindPopup();
+            entry.marker.bindPopup(String(longName));
           } else {
-            // Create meshtastic icon - use shortName icon if available, otherwise blue circle
-            let iconHtml;
-            if (shortName) {
-              // Display the shortName icon (emoji) with styling
-              iconHtml = `<div style="width:24px;height:24px;background:transparent;border:2px solid #007bff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-size:14px;">${shortName}</div>`;
-            } else {
-              // Fallback to blue circle
-              iconHtml = `<div style="width:24px;height:24px;background:#007bff;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);"></div>`;
-            }
-
             const icon = L.divIcon({
               className: 'meshtastic-marker',
               html: iconHtml,
-              iconSize: [24, 24],
-              iconAnchor: [12, 12]
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
             });
 
             const marker = L.marker([lat, lng], {
@@ -1547,12 +1536,8 @@
               pane: 'meshtasticPane'
             }).addTo(map);
 
-            marker.bindTooltip(String(label), {
-              permanent: true,
-              direction: 'right',
-              offset: [8, 0],
-              className: 'meshtastic-label'
-            }).openTooltip();
+            // Show longName on click via popup
+            marker.bindPopup(String(longName));
 
             meshtasticMarkers.set(mesh, { marker, data: n });
           }
