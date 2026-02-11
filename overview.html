@@ -346,6 +346,12 @@
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.9); z-index: 10001; display: none;
       flex-direction: column; padding: 20px; color: #fff;
+      overflow-y: auto;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+    #status-menu::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
     }
     .menu-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-blue); padding-bottom: 10px; margin-bottom: 20px; }
     .menu-section { margin-bottom: 20px; background: #111; border: 1px solid #333; padding: 15px; border-radius: 8px; }
@@ -473,6 +479,11 @@
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
         <line x1="10" y1="11" x2="10" y2="17"></line>
         <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+    </div>
+    <div class="tool-btn" id="s-reload" onclick="location.reload()" title="Seite neu laden">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
       </svg>
     </div>
   </div>
@@ -2612,6 +2623,9 @@
         console.error('Error setting life status:', error);
         alert('Error updating status');
       }
+      
+      // Close the menu after setting status
+      toggleHamburgerMenu();
     };
 
     /* ----------------- HAMBURGER MENU FUNCTIONS -----------------
@@ -2642,25 +2656,25 @@
         <div class="menu-section">
           <h3>Lebensstatus</h3>
           <div class="status-grid">
-            <div class="status-btn ${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="setLifeStatus('AKTIV')">AKTIV</div>
-            <div class="status-btn ${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="setLifeStatus('BASE')">BASE</div>
-            <div class="status-btn ${currentStatus === 'KIA' ? 'kia-status' : ''}" onclick="setLifeStatus('KIA')">KIA</div>
+            <div class="status-btn ${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('AKTIV')">AKTIV</div>
+            <div class="status-btn ${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('BASE')">BASE</div>
+            <div class="status-btn ${currentStatus === 'KIA' ? 'kia-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('KIA')">KIA</div>
           </div>
         </div>
 
         <div class="menu-section">
           <h3>GPS Einstellungen</h3>
-          <button class="menu-btn" onclick="toggleGpsAuto()">
+          <button class="menu-btn" onclick="event.stopPropagation(); toggleGpsAuto()">
             <i class="fas fa-sync-alt"></i> GPS Automatisch aktualisieren
           </button>
           <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Zeit:</div>
           <div class="gps-grid">
-            <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="setGpsInterval(5)">5 Sek</button>
-            <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="setGpsInterval(10)">10 Sek</button>
-            <button class="interval-btn ${currentInterval == 30 ? 'active' : ''}" onclick="setGpsInterval(30)">30 Sek</button>
-            <button class="interval-btn ${currentInterval == 60 ? 'active' : ''}" onclick="setGpsInterval(60)">60 Sek</button>
+            <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sek</button>
+            <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sek</button>
+            <button class="interval-btn ${currentInterval == 30 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(30)">30 Sek</button>
+            <button class="interval-btn ${currentInterval == 60 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(60)">60 Sek</button>
           </div>
-          <button class="menu-btn" style="margin-top:15px;" onclick="setManualGps()">
+          <button class="menu-btn" style="margin-top:15px;" onclick="event.stopPropagation(); setManualGps()">
             <i class="fas fa-crosshairs"></i> Manuell GPS setzen
           </button>
         </div>
@@ -2692,9 +2706,14 @@
 
     window.toggleGpsAuto = function() {
       const active = localStorage.getItem('lpu5_gps_auto') === 'true';
-      localStorage.setItem('lpu5_gps_auto', !active);
-      alert('Auto-GPS: ' + (!active ? 'AN' : 'AUS'));
-      location.reload(); 
+      if (active) {
+        stopGpsAutoTracking();
+        alert('Auto-GPS: AUS');
+      } else {
+        startGpsAutoTracking();
+        alert('Auto-GPS: AN');
+      }
+      toggleHamburgerMenu();
     };
 
     window.openBleSettings = function() {
