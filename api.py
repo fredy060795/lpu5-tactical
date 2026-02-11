@@ -3455,11 +3455,17 @@ def api_import_meshtastic(data: dict = Body(...)):
                 if not mesh:
                     continue
                 existing_db = db.query(MeshtasticNode).filter(MeshtasticNode.id == str(mesh)).first()
+                try:
+                    safe_lat = float(node_rec.get("lat", 0.0))
+                    safe_lng = float(node_rec.get("lng", 0.0))
+                except (ValueError, TypeError):
+                    safe_lat = 0.0
+                    safe_lng = 0.0
                 if existing_db:
                     existing_db.long_name = node_rec.get("longName") or node_rec.get("name")
                     existing_db.short_name = node_rec.get("shortName") or node_rec.get("name")
-                    existing_db.lat = float(node_rec.get("lat", 0.0))
-                    existing_db.lng = float(node_rec.get("lng", 0.0))
+                    existing_db.lat = safe_lat
+                    existing_db.lng = safe_lng
                     existing_db.last_heard = datetime.utcnow()
                     existing_db.is_online = True
                     existing_db.raw_data = node_rec
@@ -3468,8 +3474,8 @@ def api_import_meshtastic(data: dict = Body(...)):
                         id=str(mesh),
                         long_name=node_rec.get("longName") or node_rec.get("name"),
                         short_name=node_rec.get("shortName") or node_rec.get("name"),
-                        lat=float(node_rec.get("lat", 0.0)),
-                        lng=float(node_rec.get("lng", 0.0)),
+                        lat=safe_lat,
+                        lng=safe_lng,
                         last_heard=datetime.utcnow(),
                         is_online=True,
                         raw_data=node_rec
@@ -3575,8 +3581,12 @@ async def import_meshtastic_nodes(
                 is_valid, error_reason = validate_node_for_import(parsed)
                 
                 if is_valid:
-                    lat_val = float(parsed['latitude']) if parsed['latitude'] is not None else 0.0
-                    lng_val = float(parsed['longitude']) if parsed['longitude'] is not None else 0.0
+                    try:
+                        lat_val = float(parsed['latitude']) if parsed['latitude'] is not None else 0.0
+                        lng_val = float(parsed['longitude']) if parsed['longitude'] is not None else 0.0
+                    except (ValueError, TypeError):
+                        lat_val = 0.0
+                        lng_val = 0.0
 
                     # Build a node record compatible with /api/meshtastic/nodes format
                     node_rec = {
@@ -3656,11 +3666,17 @@ async def import_meshtastic_nodes(
                     if not full_rec:
                         continue
                     existing_db = db.query(MeshtasticNode).filter(MeshtasticNode.id == node_id).first()
+                    try:
+                        safe_lat = float(full_rec.get('lat', 0.0))
+                        safe_lng = float(full_rec.get('lng', 0.0))
+                    except (ValueError, TypeError):
+                        safe_lat = 0.0
+                        safe_lng = 0.0
                     if existing_db:
                         existing_db.long_name = full_rec.get('longName') or full_rec.get('name')
                         existing_db.short_name = full_rec.get('shortName') or full_rec.get('name')
-                        existing_db.lat = full_rec.get('lat', 0.0)
-                        existing_db.lng = full_rec.get('lng', 0.0)
+                        existing_db.lat = safe_lat
+                        existing_db.lng = safe_lng
                         existing_db.altitude = full_rec.get('altitude')
                         existing_db.last_heard = datetime.utcnow()
                         existing_db.is_online = True
@@ -3670,8 +3686,8 @@ async def import_meshtastic_nodes(
                             id=node_id,
                             long_name=full_rec.get('longName') or full_rec.get('name'),
                             short_name=full_rec.get('shortName') or full_rec.get('name'),
-                            lat=full_rec.get('lat', 0.0),
-                            lng=full_rec.get('lng', 0.0),
+                            lat=safe_lat,
+                            lng=safe_lng,
                             altitude=full_rec.get('altitude'),
                             last_heard=datetime.utcnow(),
                             is_online=True,
