@@ -5317,6 +5317,31 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ===========================
+# Stream Share State (for polling by stream_share.html)
+# ===========================
+_active_stream_share: Dict = {"active": False}
+
+@app.get("/api/stream_share", summary="Get current shared stream state")
+def get_stream_share():
+    """Return the currently active shared stream info (polled by stream_share.html iframe)."""
+    return _active_stream_share
+
+@app.post("/api/stream_share", summary="Set shared stream state")
+async def set_stream_share(data: Dict = Body(...)):
+    """Update the shared stream state (called by stream.html when sharing)."""
+    global _active_stream_share
+    _active_stream_share = {
+        "active": data.get("active", False),
+        "stream_url": data.get("stream_url"),
+        "stream_type": data.get("stream_type", "video"),
+        "source": data.get("source"),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    # Also broadcast via WebSocket
+    broadcast_websocket_update("camera", "stream_share", _active_stream_share)
+    return {"status": "success"}
+
+# ===========================
 # WebSocket Endpoint
 # ===========================
 
@@ -5367,6 +5392,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     logger.debug(f"Relaying camera frame from {connection_id}")
                     await websocket_manager.publish_to_channel('camera', {
                         'type': 'camera_frame',
+                        'channel': 'camera',
                         'frame': data.get('frame'),
                         'timestamp': datetime.utcnow().isoformat(),
                         'source_connection': connection_id
@@ -5376,8 +5402,18 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif message_type == 'stream_share':
                     # Relay stream sharing notifications to camera channel
                     logger.info(f"Relaying stream_share from {connection_id}: active={data.get('active')}")
+                    # Persist state for polling endpoint (/api/stream_share)
+                    global _active_stream_share
+                    _active_stream_share = {
+                        "active": data.get('active', False),
+                        "stream_url": data.get('stream_url') or data.get('details'),
+                        "stream_type": data.get('stream_type', 'mjpeg' if data.get('isCamera') else 'video'),
+                        "source": data.get('source'),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
                     await websocket_manager.publish_to_channel('camera', {
                         'type': 'stream_share',
+                        'channel': 'camera',
                         'streamId': data.get('streamId', 'camera_main'),
                         'active': data.get('active', False),
                         'isCamera': data.get('isCamera', False),
@@ -5391,6 +5427,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     logger.info(f"Relaying camera_stream_stop from {connection_id}")
                     await websocket_manager.publish_to_channel('camera', {
                         'type': 'camera_stream_stop',
+                        'channel': 'camera',
                         'timestamp': datetime.utcnow().isoformat(),
                         'source_connection': connection_id
                     })
