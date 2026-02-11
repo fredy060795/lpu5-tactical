@@ -1023,8 +1023,8 @@
 
       map.createPane('overlayPane').style.zIndex = 300;
       map.createPane('drawPane').style.zIndex = 600;
-      map.createPane('pendingPane').style.zIndex = 650;
-      map.createPane('meshtasticPane').style.zIndex = 550; // Below pending, above draw
+      map.createPane('meshtasticPane').style.zIndex = 650; // Above draw so blue circles always visible
+      map.createPane('pendingPane').style.zIndex = 700;
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
 
@@ -1400,6 +1400,9 @@
         for (const s of serverSymbols) {
           // Skip own GPS position marker (already shown locally)
           if (s.type === 'gps_position' && s.username === currentUserName) continue;
+
+          // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
+          if (s.type === 'node' || MESHTASTIC_SOURCES.includes(s.username) || MESHTASTIC_SOURCES.includes(s.created_by)) continue;
 
           const isGps = (s.type === 'gps_position');
           const symType = s.type || s.sym || 'raute';
@@ -3065,10 +3068,6 @@
         const menu = document.getElementById('status-menu');
         if (menu) menu.style.display = 'none';
       };
-
-      // Initial sync
-      setTimeout(sync, 1000);
-      setInterval(sync, 30000);
 
     })();
   </script>

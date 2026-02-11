@@ -652,6 +652,8 @@ def ensure_default_admin():
 # -------------------------
 _MESHTASTIC_SYNC_THREAD = None
 _MESHTASTIC_SYNC_STOP_EVENT = threading.Event()
+# created_by values used by meshtastic code paths — used to filter meshtastic markers from general endpoints
+_MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
 
 def sync_meshtastic_nodes_to_map_markers_once():
     """
@@ -1744,7 +1746,8 @@ def get_map_markers():
     db = SessionLocal()
     try:
         markers = db.query(MapMarker).all()
-        # Convert to dict list for JSON response
+        # Convert to dict list for JSON response, excluding meshtastic-synced markers
+        # (those are rendered exclusively via /api/meshtastic/nodes → updateMeshtasticNodes)
         return [
             {
                 "id": m.id,
@@ -1759,6 +1762,7 @@ def get_map_markers():
                 "created_at": m.created_at.isoformat() if m.created_at else None,
                 "data": m.data
             } for m in markers
+            if m.type != "node" and (not m.created_by or m.created_by not in _MESHTASTIC_CREATED_BY)
         ]
     finally:
         db.close()
@@ -5173,6 +5177,9 @@ def get_map_symbols():
             # Convert to dict list
             symbol_list = []
             for s in symbols:
+                # Skip meshtastic-synced markers — rendered by updateMeshtasticNodes()
+                if s.type == "node" or (s.created_by and s.created_by in _MESHTASTIC_CREATED_BY):
+                    continue
                 # Basic fields
                 s_dict = {
                     "id": s.id,
