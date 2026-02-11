@@ -1062,9 +1062,17 @@
     }
 
     function crosshairLatLng() {
-      const size = map.getSize();
-      const centerPoint = L.point(size.x / 2, size.y / 2);
-      return map.containerPointToLatLng(centerPoint);
+      // Use actual crosshair element position so the marker always matches
+      // the visible crosshair, even when viewport and map container differ
+      // (mobile browser chrome, notch safe-areas, etc.)
+      const ch = document.getElementById('crosshair');
+      const chRect = ch.getBoundingClientRect();
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const containerPoint = L.point(
+        chRect.left + chRect.width / 2 - mapRect.left,
+        chRect.top + chRect.height / 2 - mapRect.top
+      );
+      return map.containerPointToLatLng(containerPoint);
     }
 
     // Helper to prevent double-firing of touch and click events
