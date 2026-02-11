@@ -13,7 +13,7 @@ Implements geofencing capabilities for tactical operations:
 import json
 import math
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 import logging
 from database import SessionLocal
@@ -61,7 +61,7 @@ class GeoFence:
         self.alert_on_exit = alert_on_exit
         self.enabled = enabled
         self.metadata = metadata or {}
-        self.created_at = datetime.utcnow().isoformat()
+        self.created_at = datetime.now(timezone.utc).isoformat()
         
     def contains_point(self, lat: float, lon: float) -> bool:
         """
@@ -312,7 +312,7 @@ class GeofencingManager:
                     "lat": lat,
                     "lon": lon,
                     "distance_from_center": distance,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message": f"Entity {entity_id} entered zone {fence.name}"
                 })
             
@@ -328,7 +328,7 @@ class GeofencingManager:
                     "lat": lat,
                     "lon": lon,
                     "distance_from_center": distance,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "message": f"Entity {entity_id} exited zone {fence.name}"
                 })
             

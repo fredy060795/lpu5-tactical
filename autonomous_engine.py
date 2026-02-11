@@ -13,7 +13,7 @@ Implements autonomous capabilities for tactical operations:
 import json
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, Callable
 import threading
 import time
@@ -59,7 +59,7 @@ class Rule:
         self.actions = actions
         self.enabled = enabled
         self.priority = priority
-        self.created_at = datetime.utcnow().isoformat()
+        self.created_at = datetime.now(timezone.utc).isoformat()
         self.last_triggered = None
         self.execution_count = 0
         
@@ -372,12 +372,12 @@ class AutonomousEngine:
                 try:
                     db_rule = db.query(RuleModel).filter(RuleModel.id == rule.rule_id).first()
                     if db_rule:
-                        db_rule.last_triggered = datetime.utcnow()
+                        db_rule.last_triggered = datetime.now(timezone.utc)
                         db_rule.execution_count += 1
                         db.commit()
                     
                     # Also update local cache
-                    rule.last_triggered = datetime.utcnow().isoformat()
+                    rule.last_triggered = datetime.now(timezone.utc).isoformat()
                     rule.execution_count += 1
                 except Exception as db_err:
                     db.rollback()
@@ -428,7 +428,7 @@ class AutonomousEngine:
         """Worker thread for time-based rules"""
         while self.running:
             try:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 
                 # Check time-based rules
                 for rule in self.rules.values():
@@ -526,7 +526,7 @@ class AutonomousEngine:
             return {
                 "entity_id": entity_id,
                 "status": status,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         
         self.register_action_handler("set_status", action_set_status)

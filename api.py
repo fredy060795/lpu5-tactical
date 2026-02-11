@@ -333,8 +333,8 @@ def generate_token(user_id: str, username: str) -> str:
     payload = {
         "user_id": user_id,
         "username": username,
-        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
-        "iat": datetime.utcnow()
+        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
+        "iat": datetime.now(timezone.utc)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -352,7 +352,7 @@ def log_audit(action: str, user_id: str, details: Dict) -> None:
             event_type=action,
             user=user_id,
             details=json.dumps(details),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         db.add(log_entry)
         db.commit()
@@ -430,9 +430,9 @@ def save_session(db: Session, session_obj: Dict) -> None:
         db.query(APISession).filter(APISession.username == username).delete()
     
     # Convert ISO strings to datetime objects
-    created_at = datetime.fromisoformat(session_obj["created_at"]) if isinstance(session_obj.get("created_at"), str) else datetime.utcnow()
-    expires_at = datetime.fromisoformat(session_obj["expires_at"]) if isinstance(session_obj.get("expires_at"), str) else (datetime.utcnow() + timedelta(hours=24))
-    last_seen = datetime.fromisoformat(session_obj["last_seen"]) if isinstance(session_obj.get("last_seen"), str) else datetime.utcnow()
+    created_at = datetime.fromisoformat(session_obj["created_at"]) if isinstance(session_obj.get("created_at"), str) else datetime.now(timezone.utc)
+    expires_at = datetime.fromisoformat(session_obj["expires_at"]) if isinstance(session_obj.get("expires_at"), str) else (datetime.now(timezone.utc) + timedelta(hours=24))
+    last_seen = datetime.fromisoformat(session_obj["last_seen"]) if isinstance(session_obj.get("last_seen"), str) else datetime.now(timezone.utc)
 
     new_session = APISession(
         id=session_obj.get("id"),
@@ -477,7 +477,7 @@ def update_session_language(user_id: str, language: str) -> None:
 
 def list_active_sessions() -> List[Dict]:
     with SessionLocal() as db:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         sessions = db.query(APISession).filter(APISession.expires_at > now).all()
         return [
             {
@@ -612,7 +612,7 @@ def ensure_default_admin():
                     role="admin",
                     group_id="admins",
                     is_active=True,
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 db.add(default_user)
                 db.commit()
@@ -635,7 +635,7 @@ def ensure_default_admin():
                     role=tu["role"],
                     group_id=tu["group_id"],
                     is_active=True,
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
                 db.add(new_user)
                 db.commit()
@@ -686,7 +686,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 marker.lng = float(lng)
                 marker.name = f"{n.hardware_model or ''} = {name}"
                 marker_data = marker.data if isinstance(marker.data, dict) else {}
-                marker_data["updated_at"] = datetime.utcnow().isoformat()
+                marker_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 marker.data = marker_data
                 updated += 1
             else:
@@ -697,7 +697,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
                     name=f"{n.hardware_model or ''} = {name}",
                     type="node",
                     created_by="import_meshtastic",
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(timezone.utc),
                     data={"unit_id": mesh}
                 )
                 db.add(new_marker)
@@ -746,7 +746,7 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
                     "id": m.id, "lat": m.lat, "lng": m.lng, "name": m.name, 
                     "type": m.type, "color": m.color, "icon": m.icon, 
                     "created_by": m.created_by, "data": m.data,
-                    "timestamp": m.created_at.isoformat() if m.created_at else datetime.utcnow().isoformat()
+                    "timestamp": m.created_at.isoformat() if m.created_at else datetime.now(timezone.utc).isoformat()
                 } for m in markers
             ]
             if marker_list:
@@ -759,7 +759,7 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
                 {
                     "id": o.id, "name": o.name, "data": o.data,
                     "created_by": o.created_by,
-                    "timestamp": o.created_at.isoformat() if o.created_at else datetime.utcnow().isoformat()
+                    "timestamp": o.created_at.isoformat() if o.created_at else datetime.now(timezone.utc).isoformat()
                 } for o in overlays
             ]
             if overlay_list:
@@ -899,26 +899,26 @@ async def login_user(data: dict = Body(...), request: Request = None, db: Sessio
     
     # Update last login in data JSON
     current_data = user.data if user.data else {}
-    current_data["last_login"] = datetime.utcnow().isoformat()
+    current_data["last_login"] = datetime.now(timezone.utc).isoformat()
     user.data = current_data
     db.commit()
     
     log_audit("login_success", user.id, {"username": username})
 
     token = generate_token(user.id, user.username)
-    expires_at = (datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS)).isoformat()
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)).isoformat()
     client_ip = request.client.host if request and request.client else ""
     session_obj = {
         "id": str(uuid.uuid4()),
         "token": token,
         "user_id": user.id,
         "username": user.username,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "expires_at": expires_at,
         "ip": client_ip,
         "ips": [client_ip],
         "last_ip": client_ip,
-        "last_seen": datetime.utcnow().isoformat(),
+        "last_seen": datetime.now(timezone.utc).isoformat(),
         "language": (user.data or {}).get("language", "de")
     }
     save_session(db, session_obj)
@@ -1106,7 +1106,7 @@ async def create_user_with_password(data: dict = Body(...), authorization: Optio
         role=role,
         group_id=group_id,
         is_active=True,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         unit=data.get("unit"),
         device=data.get("device"),
         rank=data.get("rank"),
@@ -1149,7 +1149,7 @@ async def create_user_legacy(data: dict = Body(...), db: Session = Depends(get_d
         group_id=group_id or "users",
         role="user",
         is_active=True,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(new_user)
     db.commit()
@@ -1279,7 +1279,7 @@ async def register_user(data: dict = Body(...), db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Invalid QR token")
         if qr.max_uses > 0 and qr.uses >= qr.max_uses:
             raise HTTPException(status_code=400, detail="QR token max uses exceeded")
-        if qr.expires_at and datetime.utcnow() > qr.expires_at:
+        if qr.expires_at and datetime.now(timezone.utc) > qr.expires_at:
             raise HTTPException(status_code=400, detail="QR token expired")
         
         qr.uses += 1
@@ -1356,7 +1356,7 @@ async def approve_registration(data: dict = Body(...), db: Session = Depends(get
         group_id="users",
         role="user",
         is_active=True,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         data={"legacy_id": reg.id}
     )
     db.add(new_user)
@@ -1470,7 +1470,7 @@ def update_unit_status(unit_id: str = Path(...), new_status: str = Path(...), au
         raise HTTPException(status_code=404, detail="User not found")
     
     # Update status with history in the 'data' JSON field
-    ts = datetime.utcnow().isoformat()
+    ts = datetime.now(timezone.utc).isoformat()
     current_data = user.data if user.data else {}
     
     if "history" not in current_data or not isinstance(current_data["history"], list):
@@ -1641,7 +1641,7 @@ def api_mission_complete(mission_id: str = Path(...), result: str = Path(...), a
         # Update extra data if it exists
         if mission.data:
             new_data = dict(mission.data)
-            new_data["completed_at"] = datetime.utcnow().isoformat()
+            new_data["completed_at"] = datetime.now(timezone.utc).isoformat()
             mission.data = new_data
             
         db.commit()
@@ -1695,7 +1695,7 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
         except: return None
     
     start_dt = parse_time(mission.data.get("start_time") if mission.data else None) or mission.created_at
-    end_dt = parse_time(mission.data.get("completed_at") if mission.data else None) or datetime.utcnow()
+    end_dt = parse_time(mission.data.get("completed_at") if mission.data else None) or datetime.now(timezone.utc)
     
     # Load users from DB
     users = db.query(User).all()
@@ -1811,7 +1811,7 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
             "color": new_marker.color,
             "icon": new_marker.icon,
             "created_by": new_marker.created_by,
-            "timestamp": new_marker.created_at.isoformat() if new_marker.created_at else datetime.utcnow().isoformat(),
+            "timestamp": new_marker.created_at.isoformat() if new_marker.created_at else datetime.now(timezone.utc).isoformat(),
             "data": new_marker.data
         }
         
@@ -1868,7 +1868,7 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
             "color": marker.color,
             "icon": marker.icon,
             "created_by": marker.created_by,
-            "timestamp": marker.created_at.isoformat() if marker.created_at else datetime.utcnow().isoformat(),
+            "timestamp": marker.created_at.isoformat() if marker.created_at else datetime.now(timezone.utc).isoformat(),
             "data": marker.data
         }
         
@@ -2014,7 +2014,7 @@ def update_drawing(drawing_id: str, data: dict = Body(...)):
             "color": drawing.color,
             "weight": drawing.weight,
             "created_by": drawing.created_by,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         # Broadcast to all clients
@@ -2142,7 +2142,7 @@ def update_overlay(overlay_id: str, data: dict = Body(...)):
             "opacity": overlay.opacity,
             "rotation": overlay.rotation,
             "created_by": overlay.created_by,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         broadcast_websocket_update("overlays", "overlay_updated", overlay_dict)
@@ -2215,7 +2215,7 @@ def create_symbol(data: dict = Body(...), db: Session = Depends(get_db)):
         "symbolType": data.get("symbolType", "circle"),
         "name": new_marker.name,
         "created_by": new_marker.created_by,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     broadcast_websocket_update("symbols", "symbol_created", symbol_dict)
@@ -2245,7 +2245,7 @@ def update_symbol(symbol_id: str, data: dict = Body(...), db: Session = Depends(
         "symbolType": (marker.data or {}).get("symbolType"),
         "name": marker.name,
         "created_by": marker.created_by,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     broadcast_websocket_update("symbols", "symbol_updated", symbol_dict)
@@ -2334,7 +2334,7 @@ async def sync_upload(data: dict = Body(...), authorization: Optional[str] = Hea
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        timestamp = data.get("timestamp", datetime.utcnow().isoformat())
+        timestamp = data.get("timestamp", datetime.now(timezone.utc).isoformat())
         
         # Process and save each data type
         updates = {}
@@ -2475,7 +2475,7 @@ def sync_download(authorization: Optional[str] = Header(None)):
         
         # Get last modification time from the marker database file
         # This provides a real timestamp of when data was last changed
-        data_modified = datetime.utcnow().isoformat()
+        data_modified = datetime.now(timezone.utc).isoformat()
         try:
             markers_path = DB_PATHS.get("map_markers")
             if markers_path and os.path.exists(markers_path):
@@ -2491,7 +2491,7 @@ def sync_download(authorization: Optional[str] = Header(None)):
             "overlays": overlays,
             "symbols": symbols,
             "messages": recent_messages,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "data_modified": data_modified
         }
         
@@ -2614,7 +2614,7 @@ def meshtastic_messages(limit: int = 100):
 
 @app.post("/api/meshtastic/send")
 def meshtastic_send(data: dict = Body(...)):
-    message = {"id": str(uuid.uuid4()), "from": data.get("from"), "text": data.get("text"), "ts": int(datetime.utcnow().timestamp())}
+    message = {"id": str(uuid.uuid4()), "from": data.get("from"), "text": data.get("text"), "ts": int(datetime.now(timezone.utc).timestamp())}
     msgs = load_json("meshtastic_messages")
     if not isinstance(msgs, list):
         msgs = []
@@ -3163,7 +3163,7 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
                         "battery": raw.get("battery") or (raw.get("deviceMetrics") and raw.get("deviceMetrics").get("batteryLevel")),
                         "snr": raw.get("snr"),
                         "rssi": raw.get("rssi"),
-                        "last_heard": raw.get("last_heard") or raw.get("lastHeard") or int(datetime.utcnow().timestamp()),
+                        "last_heard": raw.get("last_heard") or raw.get("lastHeard") or int(datetime.now(timezone.utc).timestamp()),
                         "lat": latf,
                         "lng": lngf,
                         "callsign": raw.get("callsign") or None,
@@ -3357,7 +3357,7 @@ def api_import_meshtastic(data: dict = Body(...)):
                 "battery": raw.get("battery"),
                 "snr": raw.get("snr"),
                 "rssi": raw.get("rssi"),
-                "last_heard": raw.get("last_heard") or int(datetime.utcnow().timestamp()),
+                "last_heard": raw.get("last_heard") or int(datetime.now(timezone.utc).timestamp()),
                 "lat": latf,
                 "lng": lngf,
                 "callsign": raw.get("callsign") or None,
@@ -3470,7 +3470,7 @@ def api_import_meshtastic(data: dict = Body(...)):
                     existing_db.short_name = node_rec.get("shortName") or node_rec.get("name")
                     existing_db.lat = safe_lat
                     existing_db.lng = safe_lng
-                    existing_db.last_heard = datetime.utcnow()
+                    existing_db.last_heard = datetime.now(timezone.utc)
                     existing_db.is_online = True
                     existing_db.raw_data = node_rec
                 else:
@@ -3480,7 +3480,7 @@ def api_import_meshtastic(data: dict = Body(...)):
                         short_name=node_rec.get("shortName") or node_rec.get("name"),
                         lat=safe_lat,
                         lng=safe_lng,
-                        last_heard=datetime.utcnow(),
+                        last_heard=datetime.now(timezone.utc),
                         is_online=True,
                         raw_data=node_rec
                     )
@@ -3603,7 +3603,7 @@ async def import_meshtastic_nodes(
                         'lng': lng_val,
                         'altitude': parsed.get('altitude', 0),
                         'has_gps': parsed['has_gps'],
-                        'last_heard': int(datetime.utcnow().timestamp()),
+                        'last_heard': int(datetime.now(timezone.utc).timestamp()),
                         'imported_from': 'gateway_import',
                         'source': 'meshtastic_gateway'
                     }
@@ -3682,7 +3682,7 @@ async def import_meshtastic_nodes(
                         existing_db.lat = safe_lat
                         existing_db.lng = safe_lng
                         existing_db.altitude = full_rec.get('altitude')
-                        existing_db.last_heard = datetime.utcnow()
+                        existing_db.last_heard = datetime.now(timezone.utc)
                         existing_db.is_online = True
                         existing_db.raw_data = full_rec
                     else:
@@ -3693,7 +3693,7 @@ async def import_meshtastic_nodes(
                             lat=safe_lat,
                             lng=safe_lng,
                             altitude=full_rec.get('altitude'),
-                            last_heard=datetime.utcnow(),
+                            last_heard=datetime.now(timezone.utc),
                             is_online=True,
                             raw_data=full_rec
                         )
@@ -3785,7 +3785,7 @@ def api_ingest_node(data: dict = Body(...)):
             # Update
             existing_node.lat = latf
             existing_node.lng = lngf
-            existing_node.last_heard = datetime.utcnow()
+            existing_node.last_heard = datetime.now(timezone.utc)
             existing_node.battery_level = node_data.get("battery")
             existing_node.long_name = friendly # Update name if needed?
             existing_node.hardware_model = node_data.get("hardware")
@@ -3799,7 +3799,7 @@ def api_ingest_node(data: dict = Body(...)):
                 long_name=friendly,
                 lat=latf,
                 lng=lngf,
-                last_heard=datetime.utcnow(),
+                last_heard=datetime.now(timezone.utc),
                 battery_level=node_data.get("battery"),
                 hardware_model=node_data.get("hardware"),
                 raw_data=node_data,
@@ -3826,7 +3826,7 @@ def api_ingest_node(data: dict = Body(...)):
         if marker:
              marker.lat = latf
              marker.lng = lngf
-             marker.timestamp = datetime.utcnow() # Note: MapMarker model uses created_at, update it? 
+             marker.timestamp = datetime.now(timezone.utc) # Note: MapMarker model uses created_at, update it? 
              # MapMarker doesn't have updated_at default, let's assume we just update position
         else:
             marker = MapMarker(
@@ -3971,7 +3971,7 @@ def api_qr_create(data: dict = Body(...), request: Request = None, db: Session =
 
     token = str(uuid.uuid4())
     qr_id = str(uuid.uuid4())
-    expires_at_dt = datetime.utcnow() + timedelta(days=expires_days)
+    expires_at_dt = datetime.now(timezone.utc) + timedelta(days=expires_days)
     
     png_b64 = None
     qr_url = None
@@ -4084,7 +4084,7 @@ def qr_redirect(token: str, request: Request, db: Session = Depends(get_db)):
 
     if qr.expires_at:
         try:
-            if datetime.utcnow() > qr.expires_at:
+            if datetime.now(timezone.utc) > qr.expires_at:
                 raise HTTPException(status_code=410, detail="QR token expired")
         except HTTPException:
             raise
@@ -4148,8 +4148,8 @@ def api_create_registration_qr(data: dict = Body(...)):
             "type": "registration",  # Added type field for consolidated database
             "max_uses": max_uses,
             "uses": 0,
-            "created_at": datetime.utcnow().isoformat(),
-            "expires_at": (datetime.utcnow() + timedelta(days=expires_days)).isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=expires_days)).isoformat()
         }
         # Now using qr_codes (consolidated database) instead of registration_qr_codes
         qr_list = load_json("qr_codes")
@@ -4203,7 +4203,7 @@ def api_use_registration_qr(data: dict = Body(...)):
             raise HTTPException(status_code=400, detail="QR token max uses exceeded")
         if reg.get("expires_at"):
             try:
-                if datetime.utcnow() > datetime.fromisoformat(reg.get("expires_at")):
+                if datetime.now(timezone.utc) > datetime.fromisoformat(reg.get("expires_at")):
                     raise HTTPException(status_code=400, detail="QR token expired")
             except Exception:
                 pass
@@ -4437,7 +4437,7 @@ async def gateway_start(data: dict = Body(...)):
                             "type": "gateway_status",
                             "status": "started",
                             "port": port,
-                            "timestamp": datetime.utcnow().isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         }))
                     except Exception as e:
                         logger.warning(f"Failed to broadcast gateway status: {e}")
@@ -4492,7 +4492,7 @@ async def gateway_stop():
                     asyncio.create_task(websocket_manager.broadcast({
                         "type": "gateway_status",
                         "status": "stopped",
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }))
                 except Exception as e:
                     logger.warning(f"Failed to broadcast gateway status: {e}")
@@ -4698,7 +4698,7 @@ async def gateway_send_message(data: dict = Body(...)):
                             "type": "gateway_message",
                             "direction": "outgoing",
                             "text": text,
-                            "timestamp": datetime.utcnow().isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         }))
                     except Exception as e:
                         logger.warning(f"Failed to broadcast message: {e}")
@@ -5103,7 +5103,7 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
             channel=channel_id,
             sender=username,
             content=text,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         db.add(new_msg)
         db.commit()
@@ -5226,7 +5226,7 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
         if lat is None or lng is None:
             raise HTTPException(status_code=400, detail="lat and lng are required")
         
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         
         with SessionLocal() as db:
             # Check for conflicts
@@ -5253,7 +5253,7 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
                 color=symbol.get("color", "#3498db"),
                 icon=symbol.get("icon", "fa-map-marker"),
                 created_by=username,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 data={
                     "source_page": source_page,
                     "timestamp": timestamp,
@@ -5339,7 +5339,7 @@ async def set_stream_share(data: Dict = Body(...)):
         "stream_url": data.get("stream_url"),
         "stream_type": data.get("stream_type", "video"),
         "source": data.get("source"),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     # Also broadcast via WebSocket
     broadcast_websocket_update("camera", "stream_share", _active_stream_share)
@@ -5398,7 +5398,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         'type': 'camera_frame',
                         'channel': 'camera',
                         'frame': data.get('frame'),
-                        'timestamp': datetime.utcnow().isoformat(),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
                     })
                     relay_handled = True
@@ -5413,7 +5413,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "stream_url": data.get('stream_url') or data.get('details'),
                         "stream_type": data.get('stream_type', 'mjpeg' if data.get('isCamera') else 'video'),
                         "source": data.get('source'),
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                     await websocket_manager.publish_to_channel('camera', {
                         'type': 'stream_share',
@@ -5421,7 +5421,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         'streamId': data.get('streamId', 'camera_main'),
                         'active': data.get('active', False),
                         'isCamera': data.get('isCamera', False),
-                        'timestamp': datetime.utcnow().isoformat(),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
                     })
                     relay_handled = True
@@ -5432,7 +5432,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket_manager.publish_to_channel('camera', {
                         'type': 'camera_stream_stop',
                         'channel': 'camera',
-                        'timestamp': datetime.utcnow().isoformat(),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
                     })
                     relay_handled = True
@@ -5510,7 +5510,7 @@ def system_health():
     """Get system health status"""
     health_status = {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "modules": {
             "core": True,
             "autonomous": AUTONOMOUS_MODULES_AVAILABLE,

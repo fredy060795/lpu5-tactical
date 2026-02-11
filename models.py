@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from database import Base
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 def generate_uuid():
@@ -21,7 +21,7 @@ class User(Base):
     fullname = Column(String, nullable=True)
     callsign = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True) # Catch-all for extra legacy fields like history
 
 class MapMarker(Base):
@@ -35,7 +35,7 @@ class MapMarker(Base):
     color = Column(String, default="#ffffff")
     icon = Column(String, default="default")
     created_by = Column(String, ForeignKey("users.username"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)  # Extra properties
 
 class Mission(Base):
@@ -44,7 +44,7 @@ class Mission(Base):
     name = Column(String)
     description = Column(String, nullable=True)
     status = Column(String, default="active")  # active, completed, archived
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)
 
 class MeshtasticNode(Base):
@@ -56,7 +56,7 @@ class MeshtasticNode(Base):
     lng = Column(Float, nullable=True)
     altitude = Column(Float, nullable=True)
     battery_level = Column(Integer, nullable=True)
-    last_heard = Column(DateTime, default=datetime.utcnow)
+    last_heard = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_online = Column(Boolean, default=False)
     hardware_model = Column(String, nullable=True)
     raw_data = Column(JSON, nullable=True)
@@ -74,7 +74,7 @@ class AutonomousRule(Base):
     priority = Column(Integer, default=5)
     last_triggered = Column(DateTime, nullable=True)
     execution_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True) # Catch-all for extra fields
 
 class Geofence(Base):
@@ -90,7 +90,7 @@ class Geofence(Base):
     alert_on_exit = Column(Boolean, default=False)
     enabled = Column(Boolean, default=True)
     color = Column(String, default="#ff0000")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True) # For metadata etc.
 
 class ChatMessage(Base):
@@ -99,7 +99,7 @@ class ChatMessage(Base):
     channel = Column(String, index=True)
     sender = Column(String)
     content = Column(Text)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     type = Column(String, default="text")
 
 class AuditLog(Base):
@@ -109,7 +109,7 @@ class AuditLog(Base):
     user = Column(String, nullable=True)
     details = Column(String)
     ip_address = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class Drawing(Base):
     __tablename__ = "drawings"
@@ -120,7 +120,7 @@ class Drawing(Base):
     color = Column(String, default="#3388ff")
     weight = Column(Integer, default=3)
     created_by = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)
 
 class Overlay(Base):
@@ -132,7 +132,7 @@ class Overlay(Base):
     opacity = Column(Float, default=1.0)
     rotation = Column(Float, default=0.0)
     created_by = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)
 
 class APISession(Base):
@@ -141,10 +141,10 @@ class APISession(Base):
     token = Column(String, index=True)
     user_id = Column(String, ForeignKey("users.id"))
     username = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime)
     ip = Column(String, nullable=True)
-    last_seen = Column(DateTime, default=datetime.utcnow)
+    last_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)
 
 class UserGroup(Base):
@@ -152,7 +152,7 @@ class UserGroup(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     name = Column(String, unique=True)
     description = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)
 
 class QRCode(Base):
@@ -165,7 +165,7 @@ class QRCode(Base):
     max_uses = Column(Integer, default=0)  # 0 = unlimited
     uses = Column(Integer, default=0)
     allowed_ips = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)
 
 class PendingRegistration(Base):
@@ -177,5 +177,5 @@ class PendingRegistration(Base):
     email = Column(String, nullable=True)
     fullname = Column(String, nullable=True)
     callsign = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)

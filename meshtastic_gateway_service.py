@@ -22,7 +22,7 @@ import time
 import logging
 import argparse
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List
 
 # Optional imports (graceful fallback)
@@ -110,14 +110,14 @@ class MeshtasticGatewayService:
                 logger.info("Subscribed to meshtastic.receive events")
             
             self.stats["connected"] = True
-            self.stats["uptime_start"] = datetime.utcnow().isoformat()
+            self.stats["uptime_start"] = datetime.now(timezone.utc).isoformat()
             logger.info(f"✓ Connected to Meshtastic device on {self.port}")
             
             # Broadcast connection event
             self._broadcast("gateway_status", {
                 "status": "connected",
                 "port": self.port,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
             
             return True
@@ -143,7 +143,7 @@ class MeshtasticGatewayService:
                 self._broadcast("gateway_status", {
                     "status": "disconnected",
                     "port": self.port,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
                 
             except Exception as e:
@@ -228,7 +228,7 @@ class MeshtasticGatewayService:
                 "hardware": user.get('hwModel', 'UNKNOWN'),
                 "device": self.port,
                 "imported_from": "gateway_service",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
             # Load existing nodes
@@ -254,11 +254,11 @@ class MeshtasticGatewayService:
                     "lat": final_lat,
                     "lng": final_lon,
                     "has_gps": has_gps,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
             self.stats["nodes_synced"] = len(nodes_db)
-            self.stats["last_sync"] = datetime.utcnow().isoformat()
+            self.stats["last_sync"] = datetime.now(timezone.utc).isoformat()
             
         except Exception as e:
             logger.error(f"Error processing node: {e}")
@@ -288,7 +288,7 @@ class MeshtasticGatewayService:
                 "to": to_id,
                 "sender_name": sender_name,
                 "text": text,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "packet_id": packet.get('id'),
                 "channel": packet.get('channel', 0)
             }
@@ -312,7 +312,7 @@ class MeshtasticGatewayService:
                 "from": from_id,
                 "sender_name": sender_name,
                 "text": text,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
             
         except Exception as e:
