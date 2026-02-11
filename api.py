@@ -1900,6 +1900,10 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
         marker = db.query(MapMarker).filter(MapMarker.id == marker_id).first()
         if not marker:
             raise HTTPException(status_code=404, detail="Marker not found")
+        
+        # Prevent deletion of GPS position markers
+        if marker.type == 'gps_position':
+            raise HTTPException(status_code=403, detail="GPS position markers cannot be deleted")
             
         db.delete(marker)
         db.commit()
@@ -5292,7 +5296,7 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
 
 @app.delete("/api/map/symbols/{symbol_id}", summary="Delete a map symbol")
 async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
-    """Delete a map symbol (DB-backed)"""
+    """Delete a map symbol (DB-backed). GPS position markers cannot be deleted."""
     try:
         # Verify user authentication
         verify_token(authorization)
@@ -5301,6 +5305,10 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
             marker = db.query(MapMarker).filter(MapMarker.id == symbol_id).first()
             if not marker:
                 raise HTTPException(status_code=404, detail="Symbol not found")
+            
+            # Prevent deletion of GPS position markers
+            if marker.type == 'gps_position':
+                raise HTTPException(status_code=403, detail="GPS position markers cannot be deleted")
             
             db.delete(marker)
             db.commit()
@@ -5408,10 +5416,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     logger.info(f"Relaying stream_share from {connection_id}: active={data.get('active')}")
                     # Persist state for polling endpoint (/api/stream_share)
                     global _active_stream_share
+                    is_camera = data.get('isCamera', False)
                     _active_stream_share = {
                         "active": data.get('active', False),
                         "stream_url": data.get('stream_url') or data.get('details'),
-                        "stream_type": data.get('stream_type', 'mjpeg' if data.get('isCamera') else 'video'),
+                        "stream_type": data.get('stream_type', 'mjpeg' if is_camera else 'video'),
+                        "isCamera": is_camera,
                         "source": data.get('source'),
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }
@@ -5420,7 +5430,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         'channel': 'camera',
                         'streamId': data.get('streamId', 'camera_main'),
                         'active': data.get('active', False),
-                        'isCamera': data.get('isCamera', False),
+                        'isCamera': is_camera,
+                        'stream_url': _active_stream_share['stream_url'],
+                        'stream_type': _active_stream_share['stream_type'],
                         'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
                     })
