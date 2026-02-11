@@ -364,25 +364,6 @@
             </div>
         </section>
 
-        <aside class="side-col">
-            <!-- Gateway Nodes Panel -->
-            <div class="panel">
-                <div class="section-title">📡 Gateway Nodes</div>
-                <button id="refreshNodesBtn" class="btn" style="width:100%; margin-bottom:5px;"><i class="fas fa-sync"></i> Refresh</button>
-                <div id="gatewayNodesList" class="history-list" style="max-height:30vh;">
-                    <div class="small">No nodes imported</div>
-                </div>
-            </div>
-
-            <!-- Gateway Log Panel -->
-            <div class="panel" style="margin-top:12px">
-                <div class="section-title">📋 Gateway Log</div>
-                <button id="clearLogBtn" class="btn" style="width:100%; margin-bottom:5px;"><i class="fas fa-trash"></i> Clear Log</button>
-                <div id="gatewayLog" class="history-list" style="max-height:20vh; font-size:0.8rem;">
-                    <div class="small">Gateway not started</div>
-                </div>
-            </div>
-        </aside>
     </main>
 </div>
 
@@ -429,12 +410,8 @@
         if (scanPortsBtn) scanPortsBtn.addEventListener('click', scanPorts);
         if (connectGatewayBtn) connectGatewayBtn.addEventListener('click', connectGateway);
         if (disconnectGatewayBtn) disconnectGatewayBtn.addEventListener('click', disconnectGateway);
-        document.getElementById('refreshNodesBtn').addEventListener('click', loadGatewayNodes);
-        document.getElementById('clearLogBtn').addEventListener('click', clearLog);
-        document.getElementById('sendBtn').addEventListener('click', sendMessage);
-        
-        // Load initial data
-        loadGatewayNodes();
+        const sendBtn = document.getElementById('sendBtn');
+        if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     }
 
     async function scanPorts() {
@@ -490,7 +467,6 @@
                 addLog('success', `Connected to ${port}`);
                 updateConnectionUI(true);
                 startStatusPolling();
-                loadGatewayNodes();
                 loadGatewayMessages();
             } else {
                 addLog('error', data.message || 'Connection failed');
@@ -603,34 +579,6 @@
         }
     }
 
-    async function loadGatewayNodes() {
-        try {
-            const response = await fetch('/api/gateway/nodes');
-            const data = await response.json();
-            
-            const listEl = document.getElementById('gatewayNodesList');
-            
-            if (data.nodes && data.nodes.length > 0) {
-                listEl.innerHTML = data.nodes.map(node => `
-                    <div class="small" style="padding:6px; margin-bottom:4px; background:#0f0f0f; border-radius:4px; border-left:3px solid ${node.has_gps ? '#28a745' : '#666'};">
-                        <div style="font-weight:bold; color:#ddd;">${node.name || node.id}</div>
-                        <div style="color:#999; font-size:0.85em;">
-                            ${node.has_gps && node.lat != null && node.lng != null ? `📍 ${node.lat.toFixed(5)}, ${node.lng.toFixed(5)}` : '📍 No GPS'}
-                        </div>
-                        <div style="color:#888; font-size:0.8em;">
-                            ${node.hardware || 'Unknown'} | ${node.battery ? node.battery + '%' : 'No battery'}
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                listEl.innerHTML = '<div class="small">No nodes imported</div>';
-            }
-        } catch (error) {
-            console.error('Failed to load nodes:', error);
-            addLog('error', 'Failed to load nodes: ' + error.message);
-        }
-    }
-
     async function loadGatewayMessages() {
         try {
             const response = await fetch('/api/gateway/messages?limit=50');
@@ -708,48 +656,8 @@
     }
 
     function addLog(type, message) {
-        const logEl = document.getElementById('gatewayLog');
         const time = new Date().toLocaleTimeString();
-        
-        const colors = {
-            info: '#5bc0de',
-            success: '#28a745',
-            warning: '#ffc107',
-            error: '#dc3545'
-        };
-        
-        const icon = {
-            info: 'ℹ️',
-            success: '✓',
-            warning: '⚠️',
-            error: '✗'
-        };
-        
-        const entry = document.createElement('div');
-        entry.style.padding = '4px';
-        entry.style.borderBottom = '1px solid #222';
-        entry.style.color = colors[type] || '#999';
-        entry.innerHTML = `<span style="color:#666;">[${time}]</span> ${icon[type] || ''} ${message}`;
-        
-        // Remove placeholder
-        if (logEl.querySelector('.small')) {
-            logEl.innerHTML = '';
-        }
-        
-        logEl.appendChild(entry);
-        
-        // Keep only last 50 entries
-        while (logEl.children.length > 50) {
-            logEl.removeChild(logEl.firstChild);
-        }
-        
-        // Auto-scroll
-        logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function clearLog() {
-        const logEl = document.getElementById('gatewayLog');
-        logEl.innerHTML = '<div class="small">Log cleared</div>';
+        console.log(`[${time}] [${type}] ${message}`);
     }
 
     // ===========================
@@ -798,7 +706,6 @@
                 addLog('info', `Gateway ${data.status}: ${data.port || ''}`);
                 if (data.status === 'started') {
                     loadGatewayStatus();
-                    loadGatewayNodes();
                 } else if (data.status === 'stopped') {
                     updateConnectionUI(false);
                     stopStatusPolling();
@@ -815,7 +722,6 @@
                 
             case 'gateway_node_update':
                 addLog('info', `📡 Node update: ${data.name || data.id}`);
-                loadGatewayNodes();
                 break;
                 
             case 'gateway_log':
