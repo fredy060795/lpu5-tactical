@@ -320,7 +320,7 @@
 
                         <div class="controls">
                             <select id="unitSelect" class="input" aria-label="Sending unit">
-                                <option value="">Choose sender unit...</option>
+                                <option value="">Channel List</option>
                             </select>
 
                             <select id="messageMode" class="input" aria-label="Message mode">
@@ -365,31 +365,8 @@
         </section>
 
         <aside class="side-col">
-            <!-- Gateway Connection Panel -->
-            <div class="panel">
-                <div class="section-title">🔗 Gateway Connection</div>
-                <div class="setting-row">
-                    <select id="comPortSelect" class="input">
-                        <option value="">Select port...</option>
-                    </select>
-                </div>
-                <button id="scanPortsBtn" class="btn" style="width:100%; margin-top:5px;"><i class="fas fa-search"></i> Scan Ports</button>
-                <div style="display:flex; gap:5px; margin-top:5px;">
-                    <button id="connectGatewayBtn" class="btn btn-send" style="flex:1;"><i class="fas fa-plug"></i> Connect</button>
-                    <button id="disconnectGatewayBtn" class="btn btn-cancel" style="flex:1; display:none;"><i class="fas fa-times"></i> Disconnect</button>
-                </div>
-                <div id="gatewayStatus" class="small" style="margin-top:8px; padding:8px; background:#0f0f0f; border-radius:4px;">
-                    <div><strong>Status:</strong> <span id="gatewayStatusText">Not connected</span></div>
-                    <div id="gatewayStats" style="display:none; margin-top:4px;">
-                        <div><strong>Nodes:</strong> <span id="gatewayNodesCount">0</span></div>
-                        <div><strong>Messages:</strong> <span id="gatewayMessagesCount">0</span></div>
-                        <div><strong>Uptime:</strong> <span id="gatewayUptime">-</span></div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Gateway Nodes Panel -->
-            <div class="panel" style="margin-top:12px">
+            <div class="panel">
                 <div class="section-title">📡 Gateway Nodes</div>
                 <button id="refreshNodesBtn" class="btn" style="width:100%; margin-bottom:5px;"><i class="fas fa-sync"></i> Refresh</button>
                 <div id="gatewayNodesList" class="history-list" style="max-height:30vh;">
@@ -446,23 +423,27 @@
 
     function initGatewayClient() {
         // Event listeners
-        document.getElementById('scanPortsBtn').addEventListener('click', scanPorts);
-        document.getElementById('connectGatewayBtn').addEventListener('click', connectGateway);
-        document.getElementById('disconnectGatewayBtn').addEventListener('click', disconnectGateway);
+        const scanPortsBtn = document.getElementById('scanPortsBtn');
+        const connectGatewayBtn = document.getElementById('connectGatewayBtn');
+        const disconnectGatewayBtn = document.getElementById('disconnectGatewayBtn');
+        if (scanPortsBtn) scanPortsBtn.addEventListener('click', scanPorts);
+        if (connectGatewayBtn) connectGatewayBtn.addEventListener('click', connectGateway);
+        if (disconnectGatewayBtn) disconnectGatewayBtn.addEventListener('click', disconnectGateway);
         document.getElementById('refreshNodesBtn').addEventListener('click', loadGatewayNodes);
         document.getElementById('clearLogBtn').addEventListener('click', clearLog);
         document.getElementById('sendBtn').addEventListener('click', sendMessage);
         
         // Load initial data
-        scanPorts();
+        loadGatewayNodes();
     }
 
     async function scanPorts() {
         try {
+            const select = document.getElementById('comPortSelect');
+            if (!select) return;
             const response = await fetch('/api/gateway/ports');
             const data = await response.json();
             
-            const select = document.getElementById('comPortSelect');
             select.innerHTML = '<option value="">Select port...</option>';
             
             if (data.ports && data.ports.length > 0) {
@@ -483,7 +464,8 @@
     }
 
     async function connectGateway() {
-        const port = document.getElementById('comPortSelect').value;
+        const select = document.getElementById('comPortSelect');
+        const port = select ? select.value : '';
         if (!port) {
             alert('Please select a port');
             return;
@@ -551,17 +533,15 @@
         const disconnectBtn = document.getElementById('disconnectGatewayBtn');
         
         if (connected) {
-            statusText.textContent = '✓ Connected';
-            statusText.style.color = '#28a745';
-            stats.style.display = 'block';
-            connectBtn.style.display = 'none';
-            disconnectBtn.style.display = 'block';
+            if (statusText) { statusText.textContent = '✓ Connected'; statusText.style.color = '#28a745'; }
+            if (stats) stats.style.display = 'block';
+            if (connectBtn) connectBtn.style.display = 'none';
+            if (disconnectBtn) disconnectBtn.style.display = 'block';
         } else {
-            statusText.textContent = 'Not connected';
-            statusText.style.color = '#999';
-            stats.style.display = 'none';
-            connectBtn.style.display = 'block';
-            disconnectBtn.style.display = 'none';
+            if (statusText) { statusText.textContent = 'Not connected'; statusText.style.color = '#999'; }
+            if (stats) stats.style.display = 'none';
+            if (connectBtn) connectBtn.style.display = 'block';
+            if (disconnectBtn) disconnectBtn.style.display = 'none';
         }
     }
 
@@ -610,13 +590,16 @@
     }
 
     function updateStatusDisplay(data) {
-        document.getElementById('gatewayNodesCount').textContent = data.nodes_synced || 0;
-        document.getElementById('gatewayMessagesCount').textContent = data.messages_received || 0;
+        const nodesCount = document.getElementById('gatewayNodesCount');
+        const messagesCount = document.getElementById('gatewayMessagesCount');
+        const uptime = document.getElementById('gatewayUptime');
+        if (nodesCount) nodesCount.textContent = data.nodes_synced || 0;
+        if (messagesCount) messagesCount.textContent = data.messages_received || 0;
         
-        if (data.uptime_seconds) {
+        if (data.uptime_seconds && uptime) {
             const hours = Math.floor(data.uptime_seconds / 3600);
             const minutes = Math.floor((data.uptime_seconds % 3600) / 60);
-            document.getElementById('gatewayUptime').textContent = `${hours}h ${minutes}m`;
+            uptime.textContent = `${hours}h ${minutes}m`;
         }
     }
 

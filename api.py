@@ -278,12 +278,18 @@ DB_PATHS: Dict[str, str] = {
     "config": os.path.join(base_path, "config.json"),
     "qr_codes": os.path.join(base_path, "qr_codes_db.json"),
     "pending_registrations": os.path.join(base_path, "pending_registrations_db.json"),
+    "meshtastic_nodes": os.path.join(base_path, "meshtastic_nodes_db.json"),
+    "map_markers": os.path.join(base_path, "map_markers_db.json"),
+    "meshtastic_messages": os.path.join(base_path, "meshtastic_messages_db.json"),
 }
 
 DEFAULT_DB_CONTENTS: Dict[str, Any] = {
     "config": {},
     "qr_codes": [],
     "pending_registrations": [],
+    "meshtastic_nodes": [],
+    "map_markers": [],
+    "meshtastic_messages": [],
 }
 
 # -------------------------
@@ -2497,7 +2503,33 @@ def meshtastic_nodes():
     # Return meshtastic_nodes ensuring lat/lng are numeric and default to 0.0 when missing
     nodes = load_json("meshtastic_nodes")
     if not isinstance(nodes, list):
-        return []
+        nodes = []
+
+    # Fallback: if JSON DB is empty, try loading from SQLAlchemy
+    if not nodes:
+        db = SessionLocal()
+        try:
+            db_nodes = db.query(MeshtasticNode).all()
+            for dn in db_nodes:
+                nodes.append({
+                    "id": dn.id,
+                    "mesh_id": dn.id,
+                    "name": dn.long_name or dn.short_name or dn.id,
+                    "longName": dn.long_name,
+                    "shortName": dn.short_name,
+                    "lat": dn.lat if dn.lat is not None else 0.0,
+                    "lng": dn.lng if dn.lng is not None else 0.0,
+                    "altitude": dn.altitude,
+                    "battery": dn.battery_level,
+                    "is_online": dn.is_online,
+                    "hardware_model": dn.hardware_model,
+                    "last_heard": int(dn.last_heard.timestamp()) if dn.last_heard else None,
+                })
+        except Exception as e:
+            logger.warning("Fallback SQLAlchemy node load failed: %s", e)
+        finally:
+            db.close()
+
     normalized = []
     for n in nodes:
         nn = dict(n)
@@ -3414,6 +3446,48 @@ def api_import_meshtastic(data: dict = Body(...)):
 
         save_json("meshtastic_nodes", nodes_db)
         save_json("map_markers", markers_db)
+
+        # Also persist to SQLAlchemy MeshtasticNode table for sync worker and map
+        db = SessionLocal()
+        try:
+            for node_rec in nodes_to_import:
+                mesh = node_rec.get("mesh_id") or node_rec.get("id")
+                if not mesh:
+                    continue
+                existing_db = db.query(MeshtasticNode).filter(MeshtasticNode.id == str(mesh)).first()
+                try:
+                    safe_lat = float(node_rec.get("lat", 0.0))
+                    safe_lng = float(node_rec.get("lng", 0.0))
+                except (ValueError, TypeError):
+                    safe_lat = 0.0
+                    safe_lng = 0.0
+                if existing_db:
+                    existing_db.long_name = node_rec.get("longName") or node_rec.get("name")
+                    existing_db.short_name = node_rec.get("shortName") or node_rec.get("name")
+                    existing_db.lat = safe_lat
+                    existing_db.lng = safe_lng
+                    existing_db.last_heard = datetime.utcnow()
+                    existing_db.is_online = True
+                    existing_db.raw_data = node_rec
+                else:
+                    new_node = MeshtasticNode(
+                        id=str(mesh),
+                        long_name=node_rec.get("longName") or node_rec.get("name"),
+                        short_name=node_rec.get("shortName") or node_rec.get("name"),
+                        lat=safe_lat,
+                        lng=safe_lng,
+                        last_heard=datetime.utcnow(),
+                        is_online=True,
+                        raw_data=node_rec
+                    )
+                    db.add(new_node)
+            db.commit()
+        except Exception as db_err:
+            db.rollback()
+            logger.warning("Failed to persist imported nodes to SQLAlchemy: %s", db_err)
+        finally:
+            db.close()
+
         log_audit("import_meshtastic", "system", {"port": port, "imported": len(imported)})
         
         logger.info(f"[Port:{port}] Import completed successfully: {len(imported)} nodes imported")
@@ -3430,15 +3504,18 @@ def api_import_meshtastic(data: dict = Body(...)):
 @app.post("/api/meshtastic/import")
 async def import_meshtastic_nodes(
     file: UploadFile = File(None),
-    json_data: str = Form(None)
+    json_data: str = Form(None),
+    gateway_data: str = Form(None)
 ):
     """
     Import Meshtastic nodes via Gateway JSON export.
     Accepts either:
     1. File upload (JSON from Gateway export)
-    2. Direct JSON data (from frontend paste)
+    2. Direct JSON data (from frontend paste) — field: json_data or gateway_data
     
-    At least one parameter must be provided.
+    Persists imported nodes to:
+    - meshtastic_nodes JSON DB (for /api/meshtastic/nodes)
+    - SQLAlchemy MeshtasticNode table (for sync worker and map markers)
     
     Returns: List of imported nodes with success/error status
     """
@@ -3446,8 +3523,11 @@ async def import_meshtastic_nodes(
         # Import the Gateway parser module
         from meshtastic_gateway_parser import parse_meshtastic_node, validate_node_for_import
         
+        # Accept both field names for backward compatibility
+        raw_json = json_data or gateway_data
+        
         # Validate that at least one input method is provided
-        if not file and not json_data:
+        if not file and not raw_json:
             raise HTTPException(
                 status_code=400, 
                 detail="No data provided. Please upload a file or paste JSON data."
@@ -3464,9 +3544,9 @@ async def import_meshtastic_nodes(
                     status_code=400, 
                     detail=f"The uploaded file is not valid JSON. Please ensure you exported the correct format from Meshtastic Gateway. Error: {str(e)}"
                 )
-        elif json_data:
+        elif raw_json:
             try:
-                nodes_data = json.loads(json_data)
+                nodes_data = json.loads(raw_json)
             except json.JSONDecodeError as e:
                 raise HTTPException(
                     status_code=400, 
@@ -3487,8 +3567,8 @@ async def import_meshtastic_nodes(
         imported = []
         errors = []
         
-        # Load existing nodes
-        nodes_db = load_json("nodes")
+        # Load existing nodes from JSON DB
+        nodes_db = load_json("meshtastic_nodes")
         if not isinstance(nodes_db, list):
             nodes_db = []
         
@@ -3501,39 +3581,53 @@ async def import_meshtastic_nodes(
                 is_valid, error_reason = validate_node_for_import(parsed)
                 
                 if is_valid:
-                    # Check for duplicates
-                    existing = next((n for n in nodes_db if n.get('id') == parsed['id']), None)
+                    try:
+                        lat_val = float(parsed['latitude']) if parsed['latitude'] is not None else 0.0
+                        lng_val = float(parsed['longitude']) if parsed['longitude'] is not None else 0.0
+                    except (ValueError, TypeError):
+                        lat_val = 0.0
+                        lng_val = 0.0
+
+                    # Build a node record compatible with /api/meshtastic/nodes format
+                    node_rec = {
+                        'id': parsed['id'],
+                        'mesh_id': parsed['id'],
+                        'name': parsed['callsign'],
+                        'longName': parsed['callsign'],
+                        'shortName': parsed['callsign'],
+                        'lat': lat_val,
+                        'lng': lng_val,
+                        'altitude': parsed.get('altitude', 0),
+                        'has_gps': parsed['has_gps'],
+                        'last_heard': int(datetime.utcnow().timestamp()),
+                        'imported_from': 'gateway_import',
+                        'source': 'meshtastic_gateway'
+                    }
+
+                    # Check for duplicates in JSON DB
+                    existing = next((n for n in nodes_db if n.get('id') == parsed['id'] or n.get('mesh_id') == parsed['id']), None)
                     
                     if existing:
                         # Update existing node
-                        existing.update({
-                            'callsign': parsed['callsign'],
-                            'latitude': parsed['latitude'],
-                            'longitude': parsed['longitude'],
-                            'altitude': parsed['altitude'],
-                            'has_gps': parsed['has_gps'],
-                            'updated_at': datetime.now().isoformat()
-                        })
+                        for k, v in node_rec.items():
+                            if v is not None:
+                                existing[k] = v
+                        existing['updated_at'] = datetime.now().isoformat()
                         imported.append({
                             'id': parsed['id'],
+                            'name': parsed['callsign'],
+                            'mesh_id': parsed['id'],
                             'callsign': parsed['callsign'],
                             'action': 'updated'
                         })
                     else:
                         # Add new node
-                        new_node = {
-                            'id': parsed['id'],
-                            'callsign': parsed['callsign'],
-                            'latitude': parsed['latitude'],
-                            'longitude': parsed['longitude'],
-                            'altitude': parsed['altitude'],
-                            'has_gps': parsed['has_gps'],
-                            'created_at': datetime.now().isoformat(),
-                            'source': 'meshtastic_gateway'
-                        }
-                        nodes_db.append(new_node)
+                        node_rec['created_at'] = datetime.now().isoformat()
+                        nodes_db.append(node_rec)
                         imported.append({
                             'id': parsed['id'],
+                            'name': parsed['callsign'],
+                            'mesh_id': parsed['id'],
                             'callsign': parsed['callsign'],
                             'action': 'created'
                         })
@@ -3558,9 +3652,55 @@ async def import_meshtastic_nodes(
                     'reason': f'Parse error: {str(e)}'
                 })
         
-        # Save updated nodes database
+        # Save updated nodes to JSON DB
         if imported:
-            save_json("nodes", nodes_db)
+            save_json("meshtastic_nodes", nodes_db)
+
+            # Also persist to SQLAlchemy MeshtasticNode table for sync worker and map
+            db = SessionLocal()
+            try:
+                for imp in imported:
+                    node_id = imp['id']
+                    # Find the full record from nodes_db
+                    full_rec = next((n for n in nodes_db if n.get('id') == node_id or n.get('mesh_id') == node_id), None)
+                    if not full_rec:
+                        continue
+                    existing_db = db.query(MeshtasticNode).filter(MeshtasticNode.id == node_id).first()
+                    try:
+                        safe_lat = float(full_rec.get('lat', 0.0))
+                        safe_lng = float(full_rec.get('lng', 0.0))
+                    except (ValueError, TypeError):
+                        safe_lat = 0.0
+                        safe_lng = 0.0
+                    if existing_db:
+                        existing_db.long_name = full_rec.get('longName') or full_rec.get('name')
+                        existing_db.short_name = full_rec.get('shortName') or full_rec.get('name')
+                        existing_db.lat = safe_lat
+                        existing_db.lng = safe_lng
+                        existing_db.altitude = full_rec.get('altitude')
+                        existing_db.last_heard = datetime.utcnow()
+                        existing_db.is_online = True
+                        existing_db.raw_data = full_rec
+                    else:
+                        new_node = MeshtasticNode(
+                            id=node_id,
+                            long_name=full_rec.get('longName') or full_rec.get('name'),
+                            short_name=full_rec.get('shortName') or full_rec.get('name'),
+                            lat=safe_lat,
+                            lng=safe_lng,
+                            altitude=full_rec.get('altitude'),
+                            last_heard=datetime.utcnow(),
+                            is_online=True,
+                            raw_data=full_rec
+                        )
+                        db.add(new_node)
+                db.commit()
+            except Exception as db_err:
+                db.rollback()
+                logger.warning("Failed to persist gateway nodes to SQLAlchemy: %s", db_err)
+            finally:
+                db.close()
+
             log_audit("import_meshtastic_gateway", "system", {
                 "imported": len(imported),
                 "errors": len(errors),
@@ -3569,8 +3709,8 @@ async def import_meshtastic_nodes(
         
         return {
             'status': 'success' if imported else 'partial' if errors else 'no_data',
-            'success': len(imported),
-            'errors': len(errors),
+            'success_count': len(imported),
+            'error_count': len(errors),
             'imported_nodes': imported,
             'error_details': errors,
             'message': f'Successfully imported {len(imported)} node(s). {len(errors)} error(s).'
@@ -4170,6 +4310,14 @@ def api_cleanup_mesh_databases():
         ).delete(synchronize_session=False)
         
         db.commit()
+
+        # Also clear JSON DB files
+        save_json("meshtastic_nodes", [])
+        # Only remove meshtastic-created markers from JSON DB, not all markers
+        markers_db = load_json("map_markers")
+        if isinstance(markers_db, list):
+            markers_db = [m for m in markers_db if m.get("created_by") not in ("import_meshtastic", "ingest_node", "meshtastic_sync")]
+            save_json("map_markers", markers_db)
         
         # Log action
         log_audit("cleanup_mesh_databases", "system", {
