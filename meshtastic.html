@@ -632,10 +632,10 @@
                     <div class="small" style="padding:6px; margin-bottom:4px; background:#0f0f0f; border-radius:4px; border-left:3px solid ${node.has_gps ? '#28a745' : '#666'};">
                         <div style="font-weight:bold; color:#ddd;">${node.name || node.id}</div>
                         <div style="color:#999; font-size:0.85em;">
-                            ${node.has_gps ? `📍 ${node.lat.toFixed(5)}, ${node.lng.toFixed(5)}` : '📍 No GPS'}
+                            ${node.has_gps && node.lat != null && node.lng != null ? `📍 ${node.lat.toFixed(5)}, ${node.lng.toFixed(5)}` : '📍 No GPS'}
                         </div>
                         <div style="color:#888; font-size:0.8em;">
-                            ${node.hardware} | ${node.battery ? node.battery + '%' : 'No battery'}
+                            ${node.hardware || 'Unknown'} | ${node.battery ? node.battery + '%' : 'No battery'}
                         </div>
                     </div>
                 `).join('');
@@ -823,8 +823,9 @@
                 break;
                 
             case 'gateway_message':
-                if (data.direction === 'incoming') {
-                    addLog('info', `📨 Message: ${data.text.substring(0, 30)}...`);
+                if (data.direction === 'incoming' && data.text) {
+                    const preview = data.text.substring(0, 30);
+                    addLog('info', `📨 Message: ${preview}${data.text.length > 30 ? '...' : ''}`);
                     loadGatewayMessages();
                 }
                 break;

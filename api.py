@@ -4380,7 +4380,7 @@ def gateway_status():
         if status.get("uptime_start"):
             try:
                 start_time = datetime.fromisoformat(status["uptime_start"].replace('Z', '+00:00'))
-                uptime_seconds = (datetime.utcnow().replace(tzinfo=timezone.utc) - start_time).total_seconds()
+                uptime_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
                 status["uptime_seconds"] = int(uptime_seconds)
             except:
                 status["uptime_seconds"] = 0
