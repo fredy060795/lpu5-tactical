@@ -2814,7 +2814,7 @@
 
       // Load Meshtastic nodes on init and periodically
       updateMeshtasticNodes();
-      setInterval(updateMeshtasticNodes, 5000);
+      setInterval(updateMeshtasticNodes, 30000);
 
       // Load saved state from localStorage FIRST (immediate, synchronous)
       // This ensures locally persisted data is visible before async server fetches
@@ -2822,15 +2822,15 @@
 
       // Load Map Symbols from server (merges with local state)
       loadMapSymbols();
-      setInterval(loadMapSymbols, 5000);
+      setInterval(loadMapSymbols, 30000);
 
       // Retry sending pending symbols (localStorage queue)
       sendPendingSymbols();
-      setInterval(sendPendingSymbols, 5000);
+      setInterval(sendPendingSymbols, 15000);
 
       // Load Overlays from server (merges with local state)
       loadOverlays();
-      setInterval(loadOverlays, 10000);
+      setInterval(loadOverlays, 60000);
 
       // initial render
       refreshOverlayList();
@@ -2861,7 +2861,7 @@
       window.addEventListener('load', function () {
         checkForSharedStream();
         // Also check periodically for stream updates
-        setInterval(checkForSharedStream, 2000);
+        setInterval(checkForSharedStream, 10000);
       });
 
       function checkForSharedStream() {
@@ -3167,7 +3167,7 @@
       // Check for incoming messages periodically
       window.addEventListener('load', function () {
         checkForIncomingMessages();
-        setInterval(checkForIncomingMessages, 3000);
+        setInterval(checkForIncomingMessages, 10000);
       });
 
       function checkForIncomingMessages() {
@@ -3651,8 +3651,8 @@
       }
 
       // Start auto-sync upload every 2 seconds
-      console.log('Starting auto-sync upload (every 2 seconds)...');
-      setInterval(autoSyncUpload, 2000);
+      console.log('Starting auto-sync upload (every 10 seconds)...');
+      setInterval(autoSyncUpload, 10000);
 
       // Initial sync after 1 second
       setTimeout(autoSyncUpload, 1000);

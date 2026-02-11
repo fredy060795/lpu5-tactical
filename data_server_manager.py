@@ -14,6 +14,7 @@ import sys
 import os
 import requests
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger("lpu5-data-server-manager")
 
@@ -25,6 +26,8 @@ class DataServerManager:
         self.data_server_host = data_server_host
         self.process: Optional[subprocess.Popen] = None
         self.base_url = f"http://{data_server_host}:{data_server_port}"
+        self._broadcast_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="broadcast")
+        self._broadcast_session = requests.Session()
         
     def start(self, timeout: int = 10) -> bool:
         """
@@ -93,6 +96,10 @@ class DataServerManager:
         
         try:
             logger.info(f"Stopping data server (PID: {self.process.pid})...")
+            
+            # Shut down the broadcast thread pool
+            self._broadcast_executor.shutdown(wait=False)
+            self._broadcast_session.close()
             
             # Try graceful shutdown first
             self.process.terminate()
@@ -177,7 +184,10 @@ class DataServerManager:
     
     def broadcast(self, channel: str, message_type: str, data: dict) -> bool:
         """
-        Broadcast data to clients via the data server.
+        Broadcast data to clients via the data server (non-blocking).
+        
+        Submits the broadcast to a background thread pool so it doesn't block
+        the calling API request handler.
         
         Args:
             channel: Channel to broadcast on (e.g., 'markers', 'drawings')
@@ -185,7 +195,7 @@ class DataServerManager:
             data: Data to broadcast
             
         Returns:
-            True if broadcast successful, False otherwise
+            True if broadcast was submitted, False otherwise
         """
         try:
             payload = {
@@ -193,23 +203,26 @@ class DataServerManager:
                 "type": message_type,
                 "data": data
             }
-            
-            response = requests.post(
+            self._broadcast_executor.submit(self._do_broadcast, payload)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to submit broadcast: {e}")
+            return False
+
+    def _do_broadcast(self, payload: dict) -> None:
+        """Execute the actual HTTP broadcast in a background thread."""
+        try:
+            response = self._broadcast_session.post(
                 f"{self.base_url}/api/broadcast",
                 json=payload,
-                timeout=2
+                timeout=5
             )
-            
             if response.status_code == 200:
-                logger.debug(f"Broadcast to channel '{channel}' successful")
-                return True
+                logger.debug(f"Broadcast to channel '{payload.get('channel')}' successful")
             else:
                 logger.warning(f"Broadcast failed with status {response.status_code}")
-                return False
-                
         except Exception as e:
             logger.error(f"Failed to broadcast data: {e}")
-            return False
     
     def restart(self, timeout: int = 10) -> bool:
         """
