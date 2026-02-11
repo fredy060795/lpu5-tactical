@@ -2315,7 +2315,7 @@
         const icon = L.divIcon({ className: 'custom-sym', html: svgHtml, iconSize: [32, 32], iconAnchor: [16, 32] });
         const marker = L.marker(latlng, { icon, pane: 'paneSymbols' }).addTo(map);
         const id = genId('sym'); const creator = getCurrentUsername();
-        const cid = 'pending-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+        const cid = 'pending-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
         marker.on('click', () => {
           if (symbolDeleteMode) {
             if (!confirm('Delete symbol?')) return;
