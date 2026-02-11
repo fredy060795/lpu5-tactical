@@ -374,7 +374,7 @@ class MeshtasticGatewayService:
         if auto_sync:
             self.sync_thread = threading.Thread(
                 target=self.sync_loop,
-                args=(sync_interval,)
+                args=(sync_interval,),
                 daemon=True,
                 name="MeshtasticSyncThread"
             )
