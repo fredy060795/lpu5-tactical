@@ -4196,6 +4196,34 @@ def api_cleanup_mesh_databases():
 # Gateway Service Endpoints
 # ===========================
 
+def _gateway_broadcast_callback(event_type: str, data: Dict):
+    """Callback function for gateway service to broadcast WebSocket events"""
+    try:
+        # Add type field
+        message = {
+            "type": event_type,
+            **data
+        }
+        
+        # Use data server if available, otherwise fall back to websocket manager
+        if DATA_SERVER_AVAILABLE and data_server_manager:
+            try:
+                data_server_manager.broadcast_to_channel("gateway", message)
+            except Exception as e:
+                logger.warning(f"Data server broadcast failed, falling back to WebSocket: {e}")
+                if websocket_manager and _MAIN_EVENT_LOOP:
+                    asyncio.run_coroutine_threadsafe(
+                        websocket_manager.broadcast(message),
+                        _MAIN_EVENT_LOOP
+                    )
+        elif websocket_manager and _MAIN_EVENT_LOOP:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.broadcast(message),
+                _MAIN_EVENT_LOOP
+            )
+    except Exception as e:
+        logger.error(f"Gateway broadcast callback error: {e}")
+
 @app.post("/api/gateway/start")
 async def gateway_start(data: dict = Body(...)):
     """
@@ -4228,8 +4256,12 @@ async def gateway_start(data: dict = Body(...)):
             }
         
         try:
-            # Create gateway service instance
-            _gateway_service = MeshtasticGatewayService(port, base_path=base_path)
+            # Create gateway service instance with broadcast callback
+            _gateway_service = MeshtasticGatewayService(
+                port, 
+                base_path=base_path,
+                broadcast_callback=_gateway_broadcast_callback
+            )
             
             # Start in background thread
             def run_gateway():
