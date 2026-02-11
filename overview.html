@@ -158,7 +158,17 @@
       z-index: 6005;
       align-items: center;
       flex-wrap: nowrap;
-      min-width: fit-content;
+      max-width: calc(100vw - 20px);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      touch-action: pan-x;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .bottom-toolbar::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
     }
 
     .tool-btn {
