@@ -2758,6 +2758,20 @@ async def meshtastic_connect(data: dict = Body(...)):
     
     logger.info(f"[Port:{port}] === Persistent connection request ===")
     
+    # Check if gateway service is running on this port and stop it first
+    # This prevents PermissionError when import_nodes.html tries to connect
+    # to a port that the gateway service (started by meshtastic.html) holds open
+    with _gateway_service_lock:
+        if _gateway_service and _gateway_service.running and _gateway_service.port == port:
+            logger.warning(f"[Port:{port}] Gateway service is running on this port — stopping it to allow direct connection")
+            try:
+                _gateway_service.stop()
+                _gateway_service = None
+                logger.info(f"[Port:{port}] Gateway service stopped, waiting for OS to release port")
+                time.sleep(1.5)  # Wait for OS to release serial port (Windows needs ~1s)
+            except Exception as e:
+                logger.error(f"[Port:{port}] Failed to stop gateway service: {e}")
+    
     # Use lock to prevent concurrent connection attempts
     with _meshtastic_connection_lock:
         try:
@@ -3009,6 +3023,18 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
         if not iface:
             # Check and close any persistent connection on this port
             _check_and_close_persistent_connection(port, "preview/import operation")
+            
+            # Also check if gateway service is running on this port and stop it
+            with _gateway_service_lock:
+                global _gateway_service
+                if _gateway_service and _gateway_service.running and _gateway_service.port == port:
+                    logger.warning(f"[Port:{port}] Gateway service is running on this port — stopping it for preview/import")
+                    try:
+                        _gateway_service.stop()
+                        _gateway_service = None
+                        logger.info(f"[Port:{port}] Gateway service stopped for preview/import")
+                    except Exception as e:
+                        logger.error(f"[Port:{port}] Failed to stop gateway service: {e}")
             
             # Delay to allow OS to release serial port after closing (Windows needs ~0.5s)
             time.sleep(0.5)
