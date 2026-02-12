@@ -3695,6 +3695,7 @@
               const opt = document.createElement('option');
               opt.value = ch.id;
               opt.textContent = ch.name || ch.id;
+              if (ch.color) opt.style.color = ch.color;
               select.appendChild(opt);
             });
           } else {
