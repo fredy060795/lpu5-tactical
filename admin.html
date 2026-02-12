@@ -317,79 +317,6 @@
             .btn-approve, .btn-reject { min-width: 160px; padding: 12px 16px; font-size: 0.98rem; }
         }
 
-        /* Channel Tab Styles */
-        .channel-card {
-            background: var(--panel-contrast);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 14px;
-        }
-        .channel-card-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .channel-color-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            border: 1px solid #555;
-            flex-shrink: 0;
-        }
-        .channel-card-name {
-            font-size: 1rem;
-            font-weight: bold;
-            color: var(--text-main);
-        }
-        .channel-card-desc {
-            font-size: 0.85rem;
-            color: var(--muted);
-            margin-left: auto;
-        }
-        .channel-members-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin: 8px 0;
-            min-height: 28px;
-        }
-        .member-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: rgba(40,167,69,0.15);
-            color: #5ddb7a;
-            border: 1px solid rgba(40,167,69,0.3);
-            padding: 4px 10px;
-            border-radius: 14px;
-            font-size: 0.82rem;
-        }
-        .member-tag .remove-member {
-            cursor: pointer;
-            margin-left: 2px;
-            color: #f55;
-            font-size: 0.9rem;
-        }
-        .member-tag .remove-member:hover {
-            color: #ff8888;
-        }
-        .channel-add-member {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-top: 8px;
-        }
-        .channel-add-member select {
-            flex: 1;
-            max-width: 250px;
-        }
-        .no-members {
-            color: #777;
-            font-size: 0.85rem;
-            font-style: italic;
-        }
     </style>
 </head>
 <body>
@@ -402,7 +329,6 @@
 <!-- Tabs -->
 <div class="tabs">
     <button class="tab-btn active" onclick="switchTab(event, 'users')"><i class="fas fa-users"></i> USERS</button>
-    <button class="tab-btn" onclick="switchTab(event, 'channels')"><i class="fas fa-comments"></i> CHANNELS</button>
     <button class="tab-btn" onclick="switchTab(event, 'qrcode')"><i class="fas fa-qrcode"></i> CREATE QR CODE</button>
 </div>
 
@@ -440,17 +366,6 @@
                 <tr><td colspan="6" class="empty-state"><i class="fas fa-spinner"></i> Loading...</td></tr>
             </tbody>
         </table>
-    </div>
-</div>
-
-<!-- TAB: CHANNELS -->
-<div id="tab-channels" class="tab-content">
-    <div class="section">
-        <h3><i class="fas fa-comments"></i> Channel-Verwaltung</h3>
-        <p style="color:var(--muted);font-size:0.9rem;margin-bottom:16px;">Benutzer zu Channels hinzufügen, um Gruppen zu bilden die Nachrichten empfangen können.</p>
-        <div id="channelsList">
-            <div class="empty-state"><i class="fas fa-spinner"></i> Lade Channels...</div>
-        </div>
     </div>
 </div>
 
@@ -618,7 +533,6 @@
         evt.currentTarget.classList.add('active');
         const el = document.getElementById('tab-' + id);
         if (el) el.classList.add('active');
-        if (id === 'channels' && typeof loadAdminChannels === 'function') loadAdminChannels();
     }
 </script>
 
@@ -886,130 +800,6 @@
       const select = document.getElementById('qrUserSelect');
       if (select) select.addEventListener('change', onQRUserChange);
     });
-
-    // ========================
-    // Channel Management
-    // ========================
-    let _adminAllUsers = [];
-
-    async function loadAdminChannels() {
-      try {
-        const [chRes, usRes] = await Promise.all([
-          fetch('/api/chat/channels', { headers: getAuthHeaders() }),
-          fetch('/api/users', { headers: getAuthHeaders() })
-        ]);
-        const chData = chRes.ok ? await chRes.json() : {};
-        const channels = (chData && chData.channels) ? chData.channels : [];
-        _adminAllUsers = usRes.ok ? await usRes.json() : [];
-        if (!Array.isArray(_adminAllUsers)) _adminAllUsers = [];
-
-        const container = document.getElementById('channelsList');
-        if (!container) return;
-
-        if (channels.length === 0) {
-          container.innerHTML = '<div class="empty-state">Keine Channels vorhanden. Channels können in der Meshtastic-Chat Seite erstellt werden.</div>';
-          return;
-        }
-
-        container.innerHTML = channels.map(ch => {
-          const members = Array.isArray(ch.members) ? ch.members : [];
-          const memberTags = members.length > 0
-            ? members.map(m => '<span class="member-tag">' + escapeHtmlAdmin(m) + ' <span class="remove-member" onclick="removeChannelMember(\'' + escapeAttrAdmin(ch.id) + '\',\'' + escapeAttrAdmin(m) + '\')" title="Entfernen">&times;</span></span>').join('')
-            : '<span class="no-members">Keine Mitglieder</span>';
-          const userOptions = _adminAllUsers
-            .filter(u => !members.includes(u.username))
-            .map(u => '<option value="' + escapeAttrAdmin(u.username) + '">' + escapeHtmlAdmin(u.username || u.id) + '</option>')
-            .join('');
-          return '<div class="channel-card">' +
-            '<div class="channel-card-header">' +
-              '<div class="channel-color-dot" style="background:' + escapeAttrAdmin(ch.color || '#ffffff') + '"></div>' +
-              '<span class="channel-card-name">' + escapeHtmlAdmin(ch.name || ch.id) + '</span>' +
-              '<span class="channel-card-desc">' + escapeHtmlAdmin(ch.description || '') + '</span>' +
-            '</div>' +
-            '<div style="font-size:0.85rem;color:#aaa;margin-bottom:4px;">Mitglieder:</div>' +
-            '<div class="channel-members-list">' + memberTags + '</div>' +
-            '<div class="channel-add-member">' +
-              '<div class="select-wrapper" style="flex:1;max-width:250px;">' +
-                '<select id="addMemberSelect-' + escapeAttrAdmin(ch.id) + '">' +
-                  '<option value="">— Benutzer wählen —</option>' +
-                  userOptions +
-                '</select>' +
-              '</div>' +
-              '<button class="btn btn-small" onclick="addChannelMember(\'' + escapeAttrAdmin(ch.id) + '\')"><i class="fas fa-user-plus"></i> Hinzufügen</button>' +
-            '</div>' +
-          '</div>';
-        }).join('');
-      } catch (e) {
-        console.error('loadAdminChannels error:', e);
-        const container = document.getElementById('channelsList');
-        if (container) container.innerHTML = '<div class="empty-state" style="color:#f55;">Fehler beim Laden der Channels</div>';
-      }
-    }
-
-    async function addChannelMember(channelId) {
-      const select = document.getElementById('addMemberSelect-' + channelId);
-      if (!select || !select.value) { alert('Bitte einen Benutzer auswählen.'); return; }
-      const username = select.value;
-      try {
-        const chRes = await fetch('/api/chat/channels', { headers: getAuthHeaders() });
-        const chData = chRes.ok ? await chRes.json() : {};
-        const channels = (chData && chData.channels) ? chData.channels : [];
-        const ch = channels.find(c => c.id === channelId);
-        if (!ch) { alert('Channel nicht gefunden.'); return; }
-        const members = Array.isArray(ch.members) ? [...ch.members] : [];
-        if (members.includes(username)) { alert('Benutzer ist bereits Mitglied.'); return; }
-        members.push(username);
-        const res = await fetch('/api/chat/channels/' + encodeURIComponent(channelId) + '/members', {
-          method: 'PUT',
-          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ members: members })
-        });
-        if (res.ok) {
-          await loadAdminChannels();
-        } else {
-          const err = await res.json().catch(() => ({}));
-          alert('Fehler: ' + (err.detail || 'Unbekannter Fehler'));
-        }
-      } catch (e) {
-        console.error('addChannelMember error:', e);
-        alert('Fehler: ' + e.message);
-      }
-    }
-
-    async function removeChannelMember(channelId, username) {
-      if (!confirm('Benutzer "' + username + '" aus dem Channel entfernen?')) return;
-      try {
-        const chRes = await fetch('/api/chat/channels', { headers: getAuthHeaders() });
-        const chData = chRes.ok ? await chRes.json() : {};
-        const channels = (chData && chData.channels) ? chData.channels : [];
-        const ch = channels.find(c => c.id === channelId);
-        if (!ch) { alert('Channel nicht gefunden.'); return; }
-        const members = Array.isArray(ch.members) ? ch.members.filter(m => m !== username) : [];
-        const res = await fetch('/api/chat/channels/' + encodeURIComponent(channelId) + '/members', {
-          method: 'PUT',
-          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ members: members })
-        });
-        if (res.ok) {
-          await loadAdminChannels();
-        } else {
-          const err = await res.json().catch(() => ({}));
-          alert('Fehler: ' + (err.detail || 'Unbekannter Fehler'));
-        }
-      } catch (e) {
-        console.error('removeChannelMember error:', e);
-        alert('Fehler: ' + e.message);
-      }
-    }
-
-    function escapeHtmlAdmin(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-    }
-    function escapeAttrAdmin(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g,'&amp;').replace(/'/g,'&#039;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
 
     // createQRCode: called by onclick on the admin.html "Erstelle QR CODE" button
     async function createQRCode(){

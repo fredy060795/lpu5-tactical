@@ -67,6 +67,17 @@ from fastapi import Depends
 # Ensure all tables exist (creates any missing tables like chat_channels, chat_messages)
 Base.metadata.create_all(bind=engine)
 
+# Migrate existing tables: add missing columns that create_all() won't add to existing tables
+from sqlalchemy import text as sa_text, inspect as sa_inspect
+_inspector = sa_inspect(engine)
+if "chat_messages" in _inspector.get_table_names():
+    _existing_cols = {c["name"] for c in _inspector.get_columns("chat_messages")}
+    with engine.begin() as _conn:
+        if "delivered_to" not in _existing_cols:
+            _conn.execute(sa_text("ALTER TABLE chat_messages ADD COLUMN delivered_to JSON"))
+        if "read_by" not in _existing_cols:
+            _conn.execute(sa_text("ALTER TABLE chat_messages ADD COLUMN read_by JSON"))
+
 # Import new autonomous modules
 try:
     from cot_protocol import CoTEvent, CoTProtocolHandler
