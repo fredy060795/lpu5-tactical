@@ -244,10 +244,110 @@
         .btn { padding:10px 14px; border-radius:6px; background:var(--panel-bg); color:var(--text-main); border:1px solid var(--border-color); cursor:pointer; font-weight:bold; font-family: 'Courier New', monospace; text-transform:uppercase; }
         .btn-send { background: #071; color:#000; border-color: #063; }
         .btn-cancel { background:#2b2b2b }
+        .btn-danger { background: var(--accent-red); color:#fff; border-color:#a71d2a; }
+        .btn-danger:hover { background:#c82333; }
+        .btn-sm { padding:5px 10px; font-size:0.8rem; }
         .small { font-size:0.85em; color:#999 }
 
+        /* =========================
+           Channel Sidebar
+           ========================= */
+        .chat-layout { display:flex; gap:0; height: calc(100vh - 80px); }
+
+        .channel-sidebar {
+            width:260px; min-width:260px; background:#111; border-right:1px solid #222;
+            display:flex; flex-direction:column; overflow:hidden;
+        }
+        .channel-sidebar-header {
+            padding:14px 16px; border-bottom:1px solid #222;
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .channel-sidebar-header h3 { margin:0; font-size:0.95rem; color:#ddd; }
+        .channel-sidebar-header button { background:none; border:none; color:var(--accent-green); cursor:pointer; font-size:1.1rem; padding:4px; }
+        .channel-sidebar-header button:hover { color:#fff; }
+
+        .channel-list { flex:1; overflow-y:auto; padding:6px 0; }
+        .channel-list::-webkit-scrollbar { width:4px; }
+        .channel-list::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+
+        .channel-item {
+            display:flex; align-items:center; padding:10px 16px; cursor:pointer;
+            transition: background 0.15s; gap:10px; position:relative;
+        }
+        .channel-item:hover { background:#1a1a1a; }
+        .channel-item.active { background:#1e2a1e; border-left:3px solid var(--accent-green); }
+        .channel-item .ch-color {
+            width:10px; height:10px; border-radius:50%; flex-shrink:0;
+        }
+        .channel-item .ch-info { flex:1; min-width:0; }
+        .channel-item .ch-name { font-size:0.9rem; color:#ddd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .channel-item .ch-desc { font-size:0.72rem; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .channel-item .ch-badge {
+            background:var(--accent-green); color:#000; font-size:0.7rem; font-weight:bold;
+            padding:1px 6px; border-radius:10px; min-width:14px; text-align:center; display:none;
+        }
+        .channel-item .ch-actions {
+            display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%);
+        }
+        .channel-item:hover .ch-actions { display:flex; gap:4px; }
+        .channel-item .ch-actions button {
+            background:none; border:none; color:#777; cursor:pointer; font-size:0.8rem; padding:3px;
+        }
+        .channel-item .ch-actions button:hover { color:#fff; }
+        .channel-item .ch-actions .ch-delete:hover { color:var(--accent-red); }
+
+        .chat-main-area { flex:1; display:flex; flex-direction:column; min-width:0; }
+        .chat-main-header {
+            padding:12px 18px; border-bottom:1px solid #222; background:#0f0f0f;
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .chat-main-header .ch-title { font-size:1rem; color:#eee; display:flex; align-items:center; gap:8px; }
+        .chat-main-header .ch-title .ch-color-dot { width:12px; height:12px; border-radius:50%; }
+        .chat-main-header .ch-members { font-size:0.8rem; color:#777; }
+
+        /* =========================
+           Modal Styles
+           ========================= */
+        .modal-overlay {
+            display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.7); z-index:2000; align-items:center; justify-content:center;
+        }
+        .modal-overlay.active { display:flex; }
+        .modal-box {
+            background:#1a1a1a; border:1px solid #333; border-radius:10px;
+            padding:24px; width:420px; max-width:90vw; max-height:85vh; overflow-y:auto;
+        }
+        .modal-box h3 { margin:0 0 16px 0; color:#eee; font-size:1.05rem; }
+        .modal-box label { display:block; font-size:0.85rem; color:#aaa; margin-bottom:4px; margin-top:12px; }
+        .modal-box input, .modal-box textarea, .modal-box select {
+            width:100%; padding:9px 12px; background:#000; color:#fff; border:1px solid #444;
+            border-radius:6px; font-family:'Courier New',monospace; font-size:0.9rem; box-sizing:border-box;
+        }
+        .modal-box textarea { min-height:60px; resize:vertical; }
+        .modal-box .color-picker-row { display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+        .modal-box .color-swatch {
+            width:30px; height:30px; border-radius:50%; cursor:pointer; border:2px solid transparent;
+            transition: border-color 0.15s, transform 0.15s;
+        }
+        .modal-box .color-swatch:hover { transform:scale(1.15); }
+        .modal-box .color-swatch.selected { border-color:#fff; transform:scale(1.15); }
+        .modal-actions { display:flex; gap:10px; margin-top:20px; justify-content:flex-end; }
+        .modal-actions .btn { min-width:100px; text-align:center; }
+
+        /* Members list in modal */
+        .members-list { max-height:200px; overflow-y:auto; margin-top:8px; }
+        .member-item {
+            display:flex; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid #222;
+        }
+        .member-item:last-child { border-bottom:none; }
+        .member-item .member-name { flex:1; color:#ccc; font-size:0.85rem; }
+        .member-item .member-remove { background:none; border:none; color:#777; cursor:pointer; font-size:0.8rem; }
+        .member-item .member-remove:hover { color:var(--accent-red); }
+
         @media (max-width:1100px){
-            main.app-main{ flex-direction:column; padding:12px }
+            main.app-main{ flex-direction:column; padding:0 }
+            .chat-layout { flex-direction:column; height:auto; }
+            .channel-sidebar { width:100%; min-width:100%; border-right:none; border-bottom:1px solid #222; max-height:200px; }
             .side-col{ width:100%; order:2 }
             .chat-col{ order:1; width:100% }
             .composer { grid-template-columns:1fr; }
@@ -298,78 +398,157 @@
 
 <div class="app">
     <header class="app-header">
-        <h1>Meshtastic Chat - COT Integration</h1>
+        <h1><i class="fas fa-comments"></i> Meshtastic Chat & Channels</h1>
     </header>
 
-    <main class="app-main" role="main">
-        <section class="chat-col">
-            <div class="panel">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                    <div class="section-title">Chat Window</div>
-                    <div class="small">Bridge: USB (import_nodes) • CoT: supported</div>
+    <div class="chat-layout">
+        <!-- Channel Sidebar -->
+        <aside class="channel-sidebar">
+            <div class="channel-sidebar-header">
+                <h3><i class="fas fa-hashtag"></i> Channels</h3>
+                <button onclick="openCreateChannelModal()" title="Neuen Channel erstellen"><i class="fas fa-plus"></i></button>
+            </div>
+            <div class="channel-list" id="channelList">
+                <div class="small" style="padding:16px;text-align:center">Lade Channels...</div>
+            </div>
+        </aside>
+
+        <!-- Chat Main Area -->
+        <div class="chat-main-area">
+            <div class="chat-main-header">
+                <div class="ch-title">
+                    <span class="ch-color-dot" id="activeChDot" style="background:#fff"></span>
+                    <span id="activeChName">Alle Einheiten</span>
                 </div>
-
-                <div id="messages" class="messages" aria-live="polite" aria-relevant="additions">
-                    <div class="small empty-state">Loading messages...</div>
-                </div>
-
-                <div class="composer">
-                    <div class="composer-left">
-                        <label class="small">Message</label>
-                        <textarea id="messageText" placeholder="Enter your message..."></textarea>
-
-                        <div class="controls">
-                            <select id="unitSelect" class="input" aria-label="Sending unit">
-                                <option value="">Channel List</option>
-                            </select>
-
-                            <select id="messageMode" class="input" aria-label="Message mode">
-                                <option value="text">Text</option>
-                                <option value="cot">COT (Cursor-On-Target)</option>
-                            </select>
-
-                            <button id="sendBtn" class="btn btn-send"><i class="fas fa-paper-plane"></i> Send</button>
-                        </div>
-                    </div>
-
-                    <aside class="right-panel">
-                        <div class="section-title">Message Parameters</div>
-                        <div class="panel" style="margin-bottom:10px">
-                            <div class="setting-row">
-                                <label>Frequency (MHz)</label>
-                                <input id="frequency" class="input" type="number" step="0.01" min="0" placeholder="e.g. 433.50" />
-                            </div>
-                            <div id="cotSettings" style="display:none; margin-top:6px">
-                                <div class="small" style="margin-bottom:6px">COT Settings</div>
-                                <div class="setting-row">
-                                    <label>Type</label>
-                                    <select id="cotType" class="input">
-                                        <option value="a-f-G-U-C">a-f-G-U-C</option>
-                                        <option value="b-m-p">b-m-p</option>
-                                    </select>
-                                </div>
-                                <div class="setting-row">
-                                    <label>Coords.</label>
-                                    <input id="cotLat" class="input" type="number" step="0.000001" placeholder="Lat" />
-                                    <input id="cotLon" class="input" type="number" step="0.000001" placeholder="Lon" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="section-title">Send History</div>
-                        <div id="sendHistory" class="history-list panel">
-                            <div class="small">No sent messages</div>
-                        </div>
-                    </aside>
+                <div>
+                    <button class="btn btn-sm" onclick="openChannelInfoModal()" title="Channel Info"><i class="fas fa-info-circle"></i></button>
                 </div>
             </div>
-        </section>
 
-    </main>
+            <div id="messages" class="messages" aria-live="polite" aria-relevant="additions" style="flex:1;max-height:none;border-radius:0;border:none;border-bottom:1px solid #222">
+                <div class="small empty-state">Lade Nachrichten...</div>
+            </div>
+
+            <div class="composer" style="padding:12px 16px;margin-top:0">
+                <div class="composer-left">
+                    <textarea id="messageText" placeholder="Nachricht eingeben..." style="min-height:70px"></textarea>
+                    <div class="controls">
+                        <select id="messageMode" class="input" aria-label="Message mode" style="max-width:180px">
+                            <option value="text">Text</option>
+                            <option value="cot">COT (Cursor-On-Target)</option>
+                        </select>
+                        <button id="sendBtn" class="btn btn-send"><i class="fas fa-paper-plane"></i> Senden</button>
+                    </div>
+                </div>
+                <aside class="right-panel">
+                    <div class="section-title">Parameter</div>
+                    <div class="panel" style="margin-bottom:10px">
+                        <div class="setting-row">
+                            <label>Frequenz (MHz)</label>
+                            <input id="frequency" class="input" type="number" step="0.01" min="0" placeholder="z.B. 433.50" />
+                        </div>
+                        <div id="cotSettings" style="display:none; margin-top:6px">
+                            <div class="small" style="margin-bottom:6px">COT Einstellungen</div>
+                            <div class="setting-row">
+                                <label>Typ</label>
+                                <select id="cotType" class="input">
+                                    <option value="a-f-G-U-C">a-f-G-U-C</option>
+                                    <option value="b-m-p">b-m-p</option>
+                                </select>
+                            </div>
+                            <div class="setting-row">
+                                <label>Koordinaten</label>
+                                <input id="cotLat" class="input" type="number" step="0.000001" placeholder="Lat" />
+                                <input id="cotLon" class="input" type="number" step="0.000001" placeholder="Lon" />
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden select for channel tracking (used by JS) -->
+<select id="unitSelect" style="display:none"></select>
+
+<!-- Create Channel Modal -->
+<div class="modal-overlay" id="createChannelModal">
+    <div class="modal-box">
+        <h3><i class="fas fa-plus-circle"></i> Neuen Channel erstellen</h3>
+        <label>Channel Name *</label>
+        <input id="newChName" type="text" placeholder="z.B. Delta Team" maxlength="50" />
+        <label>Beschreibung</label>
+        <textarea id="newChDesc" placeholder="Optionale Beschreibung..."></textarea>
+        <label>Farbe</label>
+        <div class="color-picker-row" id="colorPicker">
+            <div class="color-swatch selected" data-color="#ffffff" style="background:#ffffff"></div>
+            <div class="color-swatch" data-color="#3498db" style="background:#3498db"></div>
+            <div class="color-swatch" data-color="#2ecc71" style="background:#2ecc71"></div>
+            <div class="color-swatch" data-color="#e67e22" style="background:#e67e22"></div>
+            <div class="color-swatch" data-color="#9b59b6" style="background:#9b59b6"></div>
+            <div class="color-swatch" data-color="#e74c3c" style="background:#e74c3c"></div>
+            <div class="color-swatch" data-color="#f1c40f" style="background:#f1c40f"></div>
+            <div class="color-swatch" data-color="#1abc9c" style="background:#1abc9c"></div>
+            <div class="color-swatch" data-color="#e91e63" style="background:#e91e63"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="closeCreateChannelModal()">Abbrechen</button>
+            <button class="btn btn-send" onclick="createChannel()"><i class="fas fa-check"></i> Erstellen</button>
+        </div>
+    </div>
+</div>
+
+<!-- Channel Info/Members Modal -->
+<div class="modal-overlay" id="channelInfoModal">
+    <div class="modal-box">
+        <h3><i class="fas fa-info-circle"></i> Channel Info</h3>
+        <div id="channelInfoContent">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <span class="ch-color-dot" id="infoChDot" style="width:16px;height:16px;border-radius:50%"></span>
+                <span id="infoChName" style="font-size:1.1rem;color:#eee;font-weight:bold"></span>
+            </div>
+            <div style="color:#999;font-size:0.85rem;margin-bottom:12px" id="infoChDesc"></div>
+            <label>Erstellt von</label>
+            <div id="infoChCreator" style="color:#ccc;font-size:0.9rem;margin-bottom:8px">—</div>
+            <label>Mitglieder</label>
+            <div class="members-list" id="infoMembersList">
+                <div class="small">Keine Mitglieder zugewiesen</div>
+            </div>
+            <div style="margin-top:12px" id="infoChActions"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="closeChannelInfoModal()">Schließen</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="deleteChannelModal">
+    <div class="modal-box">
+        <h3><i class="fas fa-exclamation-triangle" style="color:var(--accent-red)"></i> Channel löschen</h3>
+        <p style="color:#ccc">Möchten Sie den Channel <strong id="deleteChName"></strong> wirklich löschen?</p>
+        <p style="color:#999;font-size:0.85rem">Alle Nachrichten in diesem Channel gehen verloren.</p>
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="closeDeleteChannelModal()">Abbrechen</button>
+            <button class="btn btn-danger" onclick="confirmDeleteChannel()"><i class="fas fa-trash"></i> Löschen</button>
+        </div>
+    </div>
 </div>
 
 <script>
     // ===========================
-    // User Display
+    // State
+    // ===========================
+    let channels = [];
+    let activeChannelId = 'all';
+    let deleteTargetChannelId = null;
+    let selectedColor = '#ffffff';
+    let gatewayStatusInterval = null;
+    let ws = null;
+
+    // ===========================
+    // Init
     // ===========================
     document.addEventListener('DOMContentLoaded', () => {
         updateUserNameDisplay();
@@ -377,30 +556,40 @@
         setupWebSocket();
         loadGatewayStatus();
         loadChatChannels();
+        setupColorPicker();
+        setupCOTToggle();
+        setupEnterToSend();
     });
 
-    async function loadChatChannels() {
-        try {
-            const token = localStorage.getItem('token') || localStorage.getItem('lpu5_token') || sessionStorage.getItem('token');
-            const headers = {};
-            if (token) headers['Authorization'] = 'Bearer ' + token;
-            const resp = await fetch('/api/chat/channels', { headers: headers });
-            if (!resp.ok) return;
-            const data = await resp.json();
-            const select = document.getElementById('unitSelect');
-            if (!select || !data.channels) return;
-            select.innerHTML = '';
-            data.channels.forEach(ch => {
-                const opt = document.createElement('option');
-                opt.value = ch.id;
-                opt.textContent = ch.name || ch.id;
-                select.appendChild(opt);
+    function setupCOTToggle() {
+        const modeSelect = document.getElementById('messageMode');
+        if (modeSelect) {
+            modeSelect.addEventListener('change', () => {
+                const cotSettings = document.getElementById('cotSettings');
+                if (cotSettings) cotSettings.style.display = modeSelect.value === 'cot' ? 'block' : 'none';
             });
-        } catch (e) {
-            console.debug('Failed to load chat channels:', e);
         }
     }
 
+    function setupEnterToSend() {
+        const ta = document.getElementById('messageText');
+        if (ta) {
+            ta.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+            });
+        }
+    }
+
+    function getAuthHeaders() {
+        const token = localStorage.getItem('token') || localStorage.getItem('lpu5_token') || sessionStorage.getItem('token');
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        return headers;
+    }
+
+    // ===========================
+    // User Display
+    // ===========================
     async function updateUserNameDisplay() {
         const el = document.getElementById('userName');
         if (!el) return;
@@ -420,13 +609,217 @@
     }
 
     // ===========================
+    // Channel Management
+    // ===========================
+    async function loadChatChannels() {
+        try {
+            const resp = await fetch('/api/chat/channels', { headers: getAuthHeaders() });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!data.channels) return;
+            channels = data.channels;
+
+            // Populate hidden select (for backward compat)
+            const select = document.getElementById('unitSelect');
+            if (select) {
+                select.innerHTML = '';
+                channels.forEach(ch => {
+                    const opt = document.createElement('option');
+                    opt.value = ch.id;
+                    opt.textContent = ch.name || ch.id;
+                    select.appendChild(opt);
+                });
+            }
+
+            renderChannelList();
+
+            // Ensure active channel is still valid
+            if (!channels.find(c => c.id === activeChannelId)) {
+                activeChannelId = channels.length > 0 ? channels[0].id : 'all';
+            }
+            setActiveChannel(activeChannelId);
+        } catch (e) {
+            console.debug('Failed to load chat channels:', e);
+        }
+    }
+
+    function renderChannelList() {
+        const list = document.getElementById('channelList');
+        if (!list) return;
+        if (channels.length === 0) {
+            list.innerHTML = '<div class="small" style="padding:16px;text-align:center">Keine Channels</div>';
+            return;
+        }
+        list.innerHTML = channels.map(ch => {
+            const isActive = ch.id === activeChannelId;
+            const isDefault = ch.is_default !== false;
+            const deleteBtn = !isDefault ? `<button class="ch-delete" onclick="event.stopPropagation();openDeleteChannelModal('${ch.id}','${escapeAttr(ch.name)}')" title="Löschen"><i class="fas fa-trash-alt"></i></button>` : '';
+            return `
+            <div class="channel-item${isActive ? ' active' : ''}" onclick="setActiveChannel('${ch.id}')" data-channel-id="${ch.id}">
+                <div class="ch-color" style="background:${ch.color || '#fff'}"></div>
+                <div class="ch-info">
+                    <div class="ch-name">${escapeHtml(ch.name || ch.id)}</div>
+                    <div class="ch-desc">${escapeHtml(ch.description || '')}</div>
+                </div>
+                <div class="ch-badge" id="badge-${ch.id}"></div>
+                <div class="ch-actions">
+                    ${deleteBtn}
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function setActiveChannel(channelId) {
+        activeChannelId = channelId;
+        const select = document.getElementById('unitSelect');
+        if (select) select.value = channelId;
+
+        // Update header
+        const ch = channels.find(c => c.id === channelId);
+        const dot = document.getElementById('activeChDot');
+        const name = document.getElementById('activeChName');
+        if (ch) {
+            if (dot) dot.style.background = ch.color || '#fff';
+            if (name) name.textContent = ch.name || ch.id;
+        }
+
+        // Update sidebar active state
+        document.querySelectorAll('.channel-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.channelId === channelId);
+        });
+
+        // Reset badge
+        const badge = document.getElementById('badge-' + channelId);
+        if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
+
+        loadGatewayMessages();
+    }
+
+    // ===========================
+    // Create Channel
+    // ===========================
+    function setupColorPicker() {
+        document.querySelectorAll('#colorPicker .color-swatch').forEach(sw => {
+            sw.addEventListener('click', () => {
+                document.querySelectorAll('#colorPicker .color-swatch').forEach(s => s.classList.remove('selected'));
+                sw.classList.add('selected');
+                selectedColor = sw.dataset.color;
+            });
+        });
+    }
+
+    function openCreateChannelModal() {
+        document.getElementById('newChName').value = '';
+        document.getElementById('newChDesc').value = '';
+        selectedColor = '#ffffff';
+        document.querySelectorAll('#colorPicker .color-swatch').forEach(s => {
+            s.classList.toggle('selected', s.dataset.color === '#ffffff');
+        });
+        document.getElementById('createChannelModal').classList.add('active');
+    }
+    function closeCreateChannelModal() {
+        document.getElementById('createChannelModal').classList.remove('active');
+    }
+
+    async function createChannel() {
+        const name = document.getElementById('newChName').value.trim();
+        if (!name) { alert('Bitte Channel-Name eingeben'); return; }
+        const desc = document.getElementById('newChDesc').value.trim();
+        try {
+            const resp = await fetch('/api/chat/channels', {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description: desc, color: selectedColor })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.status === 'success') {
+                closeCreateChannelModal();
+                addLog('success', 'Channel erstellt: ' + name);
+                await loadChatChannels();
+                if (data.channel) setActiveChannel(data.channel.id);
+            } else {
+                alert(data.detail || 'Fehler beim Erstellen');
+            }
+        } catch (e) {
+            console.error('Create channel error:', e);
+            alert('Fehler: ' + e.message);
+        }
+    }
+
+    // ===========================
+    // Delete Channel
+    // ===========================
+    function openDeleteChannelModal(channelId, channelName) {
+        deleteTargetChannelId = channelId;
+        document.getElementById('deleteChName').textContent = channelName;
+        document.getElementById('deleteChannelModal').classList.add('active');
+    }
+    function closeDeleteChannelModal() {
+        document.getElementById('deleteChannelModal').classList.remove('active');
+        deleteTargetChannelId = null;
+    }
+
+    async function confirmDeleteChannel() {
+        if (!deleteTargetChannelId) return;
+        try {
+            const resp = await fetch('/api/chat/channels/' + encodeURIComponent(deleteTargetChannelId), {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            const data = await resp.json();
+            if (resp.ok && data.status === 'success') {
+                closeDeleteChannelModal();
+                addLog('info', 'Channel gelöscht');
+                if (activeChannelId === deleteTargetChannelId) activeChannelId = 'all';
+                await loadChatChannels();
+            } else {
+                alert(data.detail || 'Fehler beim Löschen');
+            }
+        } catch (e) {
+            console.error('Delete channel error:', e);
+            alert('Fehler: ' + e.message);
+        }
+    }
+
+    // ===========================
+    // Channel Info Modal
+    // ===========================
+    function openChannelInfoModal() {
+        const ch = channels.find(c => c.id === activeChannelId);
+        if (!ch) return;
+        document.getElementById('infoChDot').style.background = ch.color || '#fff';
+        document.getElementById('infoChName').textContent = ch.name || ch.id;
+        document.getElementById('infoChDesc').textContent = ch.description || 'Keine Beschreibung';
+        document.getElementById('infoChCreator').textContent = ch.created_by || '—';
+
+        const membersList = document.getElementById('infoMembersList');
+        if (ch.members && ch.members.length > 0) {
+            membersList.innerHTML = ch.members.map(m => `
+                <div class="member-item">
+                    <i class="fas fa-user" style="color:#666"></i>
+                    <span class="member-name">${escapeHtml(m)}</span>
+                </div>`).join('');
+        } else {
+            membersList.innerHTML = '<div class="small" style="padding:8px">Alle Benutzer (kein Filter)</div>';
+        }
+
+        const actions = document.getElementById('infoChActions');
+        if (!ch.is_default) {
+            actions.innerHTML = `<button class="btn btn-danger btn-sm" onclick="closeChannelInfoModal();openDeleteChannelModal('${ch.id}','${escapeAttr(ch.name)}')"><i class="fas fa-trash"></i> Channel löschen</button>`;
+        } else {
+            actions.innerHTML = '<div class="small">Standard-Channel (kann nicht gelöscht werden)</div>';
+        }
+
+        document.getElementById('channelInfoModal').classList.add('active');
+    }
+    function closeChannelInfoModal() {
+        document.getElementById('channelInfoModal').classList.remove('active');
+    }
+
+    // ===========================
     // Gateway Client
     // ===========================
-    let gatewayStatusInterval = null;
-    let ws = null;
-
     function initGatewayClient() {
-        // Event listeners
         const scanPortsBtn = document.getElementById('scanPortsBtn');
         const connectGatewayBtn = document.getElementById('connectGatewayBtn');
         const disconnectGatewayBtn = document.getElementById('disconnectGatewayBtn');
@@ -443,9 +836,7 @@
             if (!select) return;
             const response = await fetch('/api/gateway/ports');
             const data = await response.json();
-            
-            select.innerHTML = '<option value="">Select port...</option>';
-            
+            select.innerHTML = '<option value="">Port wählen...</option>';
             if (data.ports && data.ports.length > 0) {
                 data.ports.forEach(port => {
                     const option = document.createElement('option');
@@ -453,75 +844,59 @@
                     option.textContent = `${port.device} - ${port.description}`;
                     select.appendChild(option);
                 });
-                addLog('info', `Found ${data.ports.length} port(s)`);
+                addLog('info', `${data.ports.length} Port(s) gefunden`);
             } else {
-                addLog('warning', 'No ports found');
+                addLog('warning', 'Keine Ports gefunden');
             }
         } catch (error) {
             console.error('Failed to scan ports:', error);
-            addLog('error', 'Failed to scan ports: ' + error.message);
+            addLog('error', 'Port-Scan fehlgeschlagen: ' + error.message);
         }
     }
 
     async function connectGateway() {
         const select = document.getElementById('comPortSelect');
         const port = select ? select.value : '';
-        if (!port) {
-            alert('Please select a port');
-            return;
-        }
-
-        addLog('info', `Connecting to ${port}...`);
-        
+        if (!port) { alert('Bitte Port auswählen'); return; }
+        addLog('info', `Verbinde mit ${port}...`);
         try {
             const response = await fetch('/api/gateway/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    port: port,
-                    auto_sync: true,
-                    sync_interval: 300
-                })
+                body: JSON.stringify({ port: port, auto_sync: true, sync_interval: 300 })
             });
-            
             const data = await response.json();
-            
             if (data.status === 'success' || data.status === 'already_running') {
-                addLog('success', `Connected to ${port}`);
+                addLog('success', `Verbunden mit ${port}`);
                 updateConnectionUI(true);
                 startStatusPolling();
                 loadGatewayMessages();
             } else {
-                addLog('error', data.message || 'Connection failed');
-                alert(data.message || 'Failed to connect');
+                addLog('error', data.message || 'Verbindung fehlgeschlagen');
+                alert(data.message || 'Verbindung fehlgeschlagen');
             }
         } catch (error) {
             console.error('Connection error:', error);
-            addLog('error', 'Connection error: ' + error.message);
-            alert('Failed to connect: ' + error.message);
+            addLog('error', 'Verbindungsfehler: ' + error.message);
+            alert('Verbindung fehlgeschlagen: ' + error.message);
         }
     }
 
     async function disconnectGateway() {
-        addLog('info', 'Disconnecting...');
-        
+        addLog('info', 'Trenne Verbindung...');
         try {
-            const response = await fetch('/api/gateway/stop', {
-                method: 'POST'
-            });
-            
+            const response = await fetch('/api/gateway/stop', { method: 'POST' });
             const data = await response.json();
-            
             if (data.status === 'success' || data.status === 'not_running') {
-                addLog('info', 'Disconnected');
+                addLog('info', 'Getrennt');
                 updateConnectionUI(false);
                 stopStatusPolling();
             } else {
-                addLog('error', 'Disconnect failed');
+                addLog('error', 'Trennen fehlgeschlagen');
             }
         } catch (error) {
             console.error('Disconnect error:', error);
-            addLog('error', 'Disconnect error: ' + error.message);
+            addLog('error', 'Trennungsfehler: ' + error.message);
         }
     }
 
@@ -530,14 +905,13 @@
         const stats = document.getElementById('gatewayStats');
         const connectBtn = document.getElementById('connectGatewayBtn');
         const disconnectBtn = document.getElementById('disconnectGatewayBtn');
-        
         if (connected) {
-            if (statusText) { statusText.textContent = '✓ Connected'; statusText.style.color = '#28a745'; }
+            if (statusText) { statusText.textContent = '✓ Verbunden'; statusText.style.color = '#28a745'; }
             if (stats) stats.style.display = 'block';
             if (connectBtn) connectBtn.style.display = 'none';
             if (disconnectBtn) disconnectBtn.style.display = 'block';
         } else {
-            if (statusText) { statusText.textContent = 'Not connected'; statusText.style.color = '#999'; }
+            if (statusText) { statusText.textContent = 'Nicht verbunden'; statusText.style.color = '#999'; }
             if (stats) stats.style.display = 'none';
             if (connectBtn) connectBtn.style.display = 'block';
             if (disconnectBtn) disconnectBtn.style.display = 'none';
@@ -548,7 +922,6 @@
         try {
             const response = await fetch('/api/gateway/status');
             const data = await response.json();
-            
             if (data.running && data.connected) {
                 updateConnectionUI(true);
                 updateStatusDisplay(data);
@@ -563,12 +936,10 @@
 
     function startStatusPolling() {
         if (gatewayStatusInterval) return;
-        
         gatewayStatusInterval = setInterval(async () => {
             try {
                 const response = await fetch('/api/gateway/status');
                 const data = await response.json();
-                
                 if (data.running && data.connected) {
                     updateStatusDisplay(data);
                 } else {
@@ -582,10 +953,7 @@
     }
 
     function stopStatusPolling() {
-        if (gatewayStatusInterval) {
-            clearInterval(gatewayStatusInterval);
-            gatewayStatusInterval = null;
-        }
+        if (gatewayStatusInterval) { clearInterval(gatewayStatusInterval); gatewayStatusInterval = null; }
     }
 
     function updateStatusDisplay(data) {
@@ -594,7 +962,6 @@
         const uptime = document.getElementById('gatewayUptime');
         if (nodesCount) nodesCount.textContent = data.nodes_synced || 0;
         if (messagesCount) messagesCount.textContent = data.messages_received || 0;
-        
         if (data.uptime_seconds && uptime) {
             const hours = Math.floor(data.uptime_seconds / 3600);
             const minutes = Math.floor((data.uptime_seconds % 3600) / 60);
@@ -602,17 +969,17 @@
         }
     }
 
+    // ===========================
+    // Messages
+    // ===========================
     async function loadGatewayMessages() {
         try {
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-            const channelId = document.getElementById('unitSelect') ? (document.getElementById('unitSelect').value || 'all') : 'all';
-            const headers = {};
-            if (token) headers['Authorization'] = 'Bearer ' + token;
+            const channelId = activeChannelId || 'all';
+            let messages = [];
 
             // Load from unified chat API
-            let messages = [];
             try {
-                const chatResp = await fetch('/api/chat/messages/' + encodeURIComponent(channelId), { headers: headers });
+                const chatResp = await fetch('/api/chat/messages/' + encodeURIComponent(channelId), { headers: getAuthHeaders() });
                 if (chatResp.ok) {
                     const chatData = await chatResp.json();
                     if (chatData.messages) messages = chatData.messages;
@@ -650,12 +1017,12 @@
                     const readStatus = _renderReadStatus(msg, isOutgoing);
                     return `
                     <div class="msg-row ${rowClass}" data-msg-id="${msg.id || ''}">
-                        <div class="msg-bubble">
+                        <div class="msg-bubble${msg.type === 'cot' ? ' cot' : ''}">
                             <div class="msg-meta">
-                                <span>${msg.username || msg.from || 'Unknown'}</span>
+                                <span>${escapeHtml(msg.username || msg.from || 'Unknown')}</span>
                                 <span>${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}</span>
                             </div>
-                            <div class="msg-text">${msg.text || ''}</div>
+                            <div class="msg-text">${escapeHtml(msg.text || '')}</div>
                             ${readStatus}
                         </div>
                     </div>`;
@@ -663,6 +1030,7 @@
                 messagesEl.scrollTop = messagesEl.scrollHeight;
 
                 // Mark incoming messages as delivered
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
                 if (token) {
                     const incomingIds = messages.filter(m => m.id && m.username !== selfName).map(m => m.id);
                     if (incomingIds.length > 0) {
@@ -674,7 +1042,7 @@
                     }
                 }
             } else {
-                messagesEl.innerHTML = '<div class="small empty-state">No messages yet</div>';
+                messagesEl.innerHTML = '<div class="small empty-state" style="padding:40px;text-align:center"><i class="fas fa-comments" style="font-size:2rem;display:block;margin-bottom:10px;color:#333"></i>Keine Nachrichten in diesem Channel</div>';
             }
         } catch (error) {
             console.error('Failed to load messages:', error);
@@ -697,13 +1065,9 @@
 
     async function sendMessage() {
         const text = document.getElementById('messageText').value.trim();
-        if (!text) {
-            alert('Please enter a message');
-            return;
-        }
+        if (!text) { alert('Bitte Nachricht eingeben'); return; }
 
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const channelId = document.getElementById('unitSelect') ? (document.getElementById('unitSelect').value || 'all') : 'all';
+        const channelId = activeChannelId || 'all';
         const messageMode = document.getElementById('messageMode') ? document.getElementById('messageMode').value : 'text';
         const selfName = sessionStorage.getItem('currentUser') || localStorage.getItem('username') || 'You';
 
@@ -716,14 +1080,13 @@
             <div class="msg-row outgoing" data-pending="true">
                 <div class="msg-bubble${messageMode === 'cot' ? ' cot' : ''}">
                     <div class="msg-meta">
-                        <span>${selfName}</span>
+                        <span>${escapeHtml(selfName)}</span>
                         <span>${new Date().toLocaleTimeString()}</span>
                     </div>
-                    <div class="msg-text">${text}</div>
+                    <div class="msg-text">${escapeHtml(text)}</div>
                     <div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:#888;">&#9711;</div>
                 </div>
-            </div>
-        `;
+            </div>`;
         messagesEl.insertAdjacentHTML('beforeend', msgHtml);
         messagesEl.scrollTop = messagesEl.scrollHeight;
         const pendingEl = messagesEl.querySelector('.msg-row[data-pending="true"]:last-child');
@@ -731,20 +1094,14 @@
         document.getElementById('messageText').value = '';
 
         try {
-            // Send via unified chat API with auth
-            const headers = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = 'Bearer ' + token;
-
-            const response = await fetch('/api/chat/message', {
+            const resp = await fetch('/api/chat/message', {
                 method: 'POST',
-                headers: headers,
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ channel_id: channelId, text: text, type: messageMode })
             });
-
-            const data = await response.json();
-
+            const data = await resp.json();
             if (data.status === 'success' && data.message) {
-                addLog('success', 'Message sent: ' + text.substring(0, 30));
+                addLog('success', 'Nachricht gesendet: ' + text.substring(0, 30));
                 if (pendingEl) {
                     pendingEl.setAttribute('data-msg-id', data.message.id);
                     pendingEl.removeAttribute('data-pending');
@@ -752,7 +1109,7 @@
                     if (st) st.innerHTML = '&#10003;';
                 }
             } else {
-                addLog('error', 'Failed to send message');
+                addLog('error', 'Senden fehlgeschlagen');
                 if (pendingEl) {
                     const st = pendingEl.querySelector('.chat-msg-status');
                     if (st) { st.innerHTML = '&#10007;'; st.style.color = '#f44'; }
@@ -771,7 +1128,7 @@
             }
         } catch (error) {
             console.error('Send error:', error);
-            addLog('error', 'Send error: ' + error.message);
+            addLog('error', 'Sendefehler: ' + error.message);
             if (pendingEl) {
                 const st = pendingEl.querySelector('.chat-msg-status');
                 if (st) { st.innerHTML = '&#10007;'; st.style.color = '#f44'; }
@@ -790,32 +1147,16 @@
     function setupWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
-        
         try {
             ws = new WebSocket(wsUrl);
-            
-            ws.onopen = () => {
-                console.log('WebSocket connected');
-                addLog('info', 'WebSocket connected');
-            };
-            
+            ws.onopen = () => { console.log('WebSocket connected'); addLog('info', 'WebSocket verbunden'); };
             ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    handleWebSocketMessage(data);
-                } catch (error) {
-                    console.error('WebSocket message error:', error);
-                }
+                try { handleWebSocketMessage(JSON.parse(event.data)); }
+                catch (error) { console.error('WebSocket message error:', error); }
             };
-            
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                addLog('warning', 'WebSocket connection issue');
-            };
-            
+            ws.onerror = (error) => { console.error('WebSocket error:', error); };
             ws.onclose = () => {
                 console.log('WebSocket closed, reconnecting...');
-                addLog('warning', 'WebSocket disconnected, reconnecting...');
                 setTimeout(setupWebSocket, 5000);
             };
         } catch (error) {
@@ -828,30 +1169,123 @@
         switch (data.type) {
             case 'gateway_status':
                 addLog('info', `Gateway ${data.status}: ${data.port || ''}`);
-                if (data.status === 'started') {
-                    loadGatewayStatus();
-                } else if (data.status === 'stopped') {
-                    updateConnectionUI(false);
-                    stopStatusPolling();
-                }
+                if (data.status === 'started') loadGatewayStatus();
+                else if (data.status === 'stopped') { updateConnectionUI(false); stopStatusPolling(); }
                 break;
-                
+
             case 'gateway_message':
                 if (data.direction === 'incoming' && data.text) {
                     const preview = data.text.substring(0, 30);
-                    addLog('info', `📨 Message: ${preview}${data.text.length > 30 ? '...' : ''}`);
+                    addLog('info', `📨 Nachricht: ${preview}${data.text.length > 30 ? '...' : ''}`);
                     loadGatewayMessages();
                 }
                 break;
-                
+
             case 'gateway_node_update':
-                addLog('info', `📡 Node update: ${data.name || data.id}`);
+                addLog('info', `📡 Node Update: ${data.name || data.id}`);
                 break;
-                
+
             case 'gateway_log':
                 addLog(data.level || 'info', data.message);
                 break;
+
+            case 'chat_message':
+            case 'new_message':
+                if (data.data) {
+                    const msg = data.data;
+                    const selfName = sessionStorage.getItem('currentUser') || localStorage.getItem('username') || '';
+                    // If it's our own message, update the pending indicator
+                    if (msg.username === selfName) {
+                        const pending = document.querySelector('.msg-row[data-pending="true"]');
+                        if (pending) {
+                            pending.setAttribute('data-msg-id', msg.id);
+                            pending.removeAttribute('data-pending');
+                            const st = pending.querySelector('.chat-msg-status');
+                            if (st) st.innerHTML = '&#10003;';
+                        }
+                        break;
+                    }
+                    // If the message belongs to the active channel, show it
+                    const msgChannel = msg.channel_id || 'all';
+                    if (msgChannel === activeChannelId || activeChannelId === 'all') {
+                        const messagesEl = document.getElementById('messages');
+                        const emptyState = messagesEl.querySelector('.empty-state');
+                        if (emptyState) emptyState.remove();
+                        const html = `
+                        <div class="msg-row incoming" data-msg-id="${msg.id || ''}">
+                            <div class="msg-bubble${msg.type === 'cot' ? ' cot' : ''}">
+                                <div class="msg-meta">
+                                    <span>${escapeHtml(msg.username || 'Unknown')}</span>
+                                    <span>${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}</span>
+                                </div>
+                                <div class="msg-text">${escapeHtml(msg.text || '')}</div>
+                            </div>
+                        </div>`;
+                        messagesEl.insertAdjacentHTML('beforeend', html);
+                        messagesEl.scrollTop = messagesEl.scrollHeight;
+                        // Mark as delivered
+                        if (msg.id) {
+                            const tk = localStorage.getItem('token') || sessionStorage.getItem('token');
+                            if (tk) fetch('/api/chat/message/' + msg.id + '/delivered', { method: 'POST', headers: { 'Authorization': 'Bearer ' + tk } }).catch(() => {});
+                        }
+                    } else {
+                        // Show badge on the channel
+                        const badge = document.getElementById('badge-' + msgChannel);
+                        if (badge) {
+                            const count = parseInt(badge.textContent || '0') + 1;
+                            badge.textContent = count;
+                            badge.style.display = 'block';
+                        }
+                    }
+                }
+                break;
+
+            case 'message_status':
+                if (data.data) {
+                    const d = data.data;
+                    if (d.message_id) {
+                        const el = document.querySelector('.msg-row[data-msg-id="' + d.message_id + '"] .chat-msg-status');
+                        if (el) {
+                            if (d.read_by && d.read_by.length > 0) { el.innerHTML = '&#10003;&#10003;'; el.style.color = '#4fc3f7'; }
+                            else if (d.delivered_to && d.delivered_to.length > 0) { el.innerHTML = '&#10003;&#10003;'; }
+                        }
+                    }
+                }
+                break;
+
+            case 'channel_created':
+                addLog('info', 'Neuer Channel erstellt');
+                loadChatChannels();
+                break;
+
+            case 'channel_deleted':
+                addLog('info', 'Channel gelöscht');
+                if (data.data && data.data.id === activeChannelId) {
+                    activeChannelId = 'all';
+                }
+                loadChatChannels();
+                break;
         }
+    }
+
+    // ===========================
+    // Utilities
+    // ===========================
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    function escapeAttr(str) {
+        return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function logoutUser() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('lpu5_token');
+        localStorage.removeItem('lpu5_user');
+        sessionStorage.clear();
+        window.location.href = 'landing.html';
     }
 </script>
 
