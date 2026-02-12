@@ -190,6 +190,32 @@
       display: block;
     }
 
+    .chat-notification-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: #dc3545;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: bold;
+      padding: 2px 5px;
+      border-radius: 10px;
+      min-width: 16px;
+      text-align: center;
+      display: none;
+      z-index: 10;
+    }
+
+    .chat-notification-badge.show {
+      display: block;
+      animation: chatBadgePulse 1.5s infinite;
+    }
+
+    @keyframes chatBadgePulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
 
     #chat-window {
       position: fixed;
@@ -531,6 +557,7 @@
     const symbolLayers = new Map(); // symbol id -> L.marker layer (symbols from /api/map/symbols)
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
+    let chatUnreadCount = 0; // Unread chat message counter
 
     // BroadcastChannel for cross-tab status synchronization
     // Enables real-time status updates between overview.html and index.html tabs
@@ -770,6 +797,12 @@
               `;
               messagesDiv.appendChild(messageEl);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
+              // Update unread badge if chat window is not open
+              const chatWin = document.getElementById('chat-window');
+              if (!chatWin || !chatWin.classList.contains('open')) {
+                chatUnreadCount++;
+                updateChatNotificationBadge();
+              }
               // Mark as delivered
               if (msg.id) {
                 const tk = localStorage.getItem('token');
@@ -2211,11 +2244,31 @@
     }
 
     // Chat Window Functions
+    function updateChatNotificationBadge() {
+      const chatBtn = document.getElementById('s-chat');
+      if (!chatBtn) return;
+      let badge = chatBtn.querySelector('.chat-notification-badge');
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.className = 'chat-notification-badge';
+        chatBtn.appendChild(badge);
+      }
+      if (chatUnreadCount > 0) {
+        badge.textContent = chatUnreadCount > 99 ? '99+' : chatUnreadCount;
+        badge.classList.add('show');
+      } else {
+        badge.classList.remove('show');
+      }
+    }
+
     function openChatWindow() {
       const chatWindow = document.getElementById('chat-window');
       if (chatWindow) {
         chatWindow.classList.add('open');
         chatWindow.classList.remove('minimized');
+        // Reset unread badge
+        chatUnreadCount = 0;
+        updateChatNotificationBadge();
         // Load channels for chat recipient dropdown, then load messages
         loadChatUsers().then(() => loadChatMessages());
       }

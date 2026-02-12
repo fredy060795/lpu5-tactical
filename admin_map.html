@@ -792,7 +792,7 @@
       color: #888;
     }
 
-    .icon-btn[data-flyout="fly-chat"] {
+    #chatToolbarBtn {
       position: relative;
     }
 
@@ -877,7 +877,7 @@
     <div class="icon-btn" data-flyout="fly-draw" title="Zeichnen"><i class="fas fa-pen-nib"></i></div>
     <div class="icon-btn" data-flyout="fly-symbols" title="Symbole"><i class="fas fa-map-marker-alt"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
-    <div class="icon-btn" onclick="openChatWindow()" title="Chat / Nachrichten"><i class="fas fa-comments"></i></div>
+    <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Nachrichten"><i class="fas fa-comments"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
   </div>
 
@@ -1702,6 +1702,8 @@
                 messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.username || 'Unknown') : (msg.username || 'Unknown')) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.text || '') : (msg.text || '')) + '</div>';
                 messagesContainer.appendChild(messageEl);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                // Update unread badge if chat window is not active
+                if (typeof window.notifyUnreadMessage === 'function') window.notifyUnreadMessage();
                 // Mark as delivered
                 if (msg.id) {
                   const tk = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -3421,7 +3423,7 @@
       }
 
       function updateNotificationBadge() {
-        const chatIcon = document.querySelector('[data-flyout="fly-chat"]');
+        const chatIcon = document.getElementById('chatToolbarBtn');
         if (!chatIcon) return;
 
         let badge = chatIcon.querySelector('.chat-notification-badge');
@@ -3818,6 +3820,15 @@
         unreadCount = 0;
         updateNotificationBadge();
         updateChatInfo('Keine neuen Nachrichten');
+      };
+
+      window.notifyUnreadMessage = function () {
+        const chatWindow = document.getElementById('chatWindow');
+        if (!chatWindow || !chatWindow.classList.contains('active')) {
+          unreadCount++;
+          updateNotificationBadge();
+          updateChatInfo(`${unreadCount} neue Nachricht${unreadCount > 1 ? 'en' : ''}`);
+        }
       };
 
       const chatRecipientSelect = document.getElementById('chatRecipient');
