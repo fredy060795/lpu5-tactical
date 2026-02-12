@@ -223,7 +223,7 @@ MAX_STORED_MESSAGES = 1000  # Maximum messages to keep in database
 MAX_RETURNED_MESSAGES = 100  # Maximum messages to return in sync/download
 
 @asynccontextmanager
-async def lifespan(app):
+async def lifespan(application):
     # ---- Startup logic ----
     global _MAIN_EVENT_LOOP
     try:
