@@ -2746,7 +2746,7 @@ async def meshtastic_connect(data: dict = Body(...)):
     - Uses connection lock to prevent concurrent access
     - Properly closes any existing connection first
     """
-    global _active_meshtastic_connection, _active_meshtastic_port
+    global _active_meshtastic_connection, _active_meshtastic_port, _gateway_service
     
     port = data.get("port")
     if not port:
