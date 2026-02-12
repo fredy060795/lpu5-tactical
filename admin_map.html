@@ -792,7 +792,7 @@
       color: #888;
     }
 
-    .icon-btn[data-flyout="fly-chat"] {
+    #chatToolbarBtn {
       position: relative;
     }
 
@@ -877,7 +877,7 @@
     <div class="icon-btn" data-flyout="fly-draw" title="Zeichnen"><i class="fas fa-pen-nib"></i></div>
     <div class="icon-btn" data-flyout="fly-symbols" title="Symbole"><i class="fas fa-map-marker-alt"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
-    <div class="icon-btn" onclick="openChatWindow()" title="Chat / Nachrichten"><i class="fas fa-comments"></i></div>
+    <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Nachrichten"><i class="fas fa-comments"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
   </div>
 
@@ -1243,6 +1243,7 @@
             // Subscribe to relevant channels
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'positions' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'messages' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'chat' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'status' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'markers' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'nodes' }));
@@ -1675,7 +1676,7 @@
               const msg = data.data;
               const messagesContainer = document.getElementById('chatMessagesContainer');
               if (messagesContainer) {
-                const selfName = sessionStorage.getItem('currentUser') || '';
+                const selfName = getCurrentUsername();
                 if (msg.username === selfName) {
                   // Update local pending message with server id
                   const pending = messagesContainer.querySelector('.chat-message[data-pending="true"]');
@@ -1701,6 +1702,8 @@
                 messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.username || 'Unknown') : (msg.username || 'Unknown')) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.text || '') : (msg.text || '')) + '</div>';
                 messagesContainer.appendChild(messageEl);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                // Update unread badge if chat window is not active
+                if (typeof window.notifyUnreadMessage === 'function') window.notifyUnreadMessage();
                 // Mark as delivered
                 if (msg.id) {
                   const tk = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -3420,7 +3423,7 @@
       }
 
       function updateNotificationBadge() {
-        const chatIcon = document.querySelector('[data-flyout="fly-chat"]');
+        const chatIcon = document.getElementById('chatToolbarBtn');
         if (!chatIcon) return;
 
         let badge = chatIcon.querySelector('.chat-notification-badge');
@@ -3617,7 +3620,7 @@
         messageEl.className = 'chat-message outgoing';
         messageEl.setAttribute('data-pending', 'true');
 
-        const currentUser = sessionStorage.getItem('currentUser') || 'Me';
+        const currentUser = getCurrentUsername();
         const time = new Date().toLocaleTimeString('de-DE', {
           hour: '2-digit',
           minute: '2-digit'
@@ -3676,7 +3679,7 @@
 
           // Also try meshtastic send (best-effort for mesh relay)
           try {
-            const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+            const currentUser = getCurrentUsername();
             await fetch('/api/meshtastic/send', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -3696,7 +3699,7 @@
       }
 
       function shareMessageToOtherPages(message) {
-        const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+        const currentUser = getCurrentUsername();
         const messageData = {
           sender: currentUser,
           text: message,
@@ -3773,7 +3776,7 @@
           const messagesContainer = document.getElementById('chatMessagesContainer');
           const placeholder = document.getElementById('chatPlaceholder');
           if (!messagesContainer) return;
-          const selfName = sessionStorage.getItem('currentUser') || '';
+          const selfName = getCurrentUsername();
           if (messages.length === 0) {
             if (placeholder) placeholder.style.display = '';
             messagesContainer.querySelectorAll('.chat-message').forEach(el => el.remove());
@@ -3817,6 +3820,15 @@
         unreadCount = 0;
         updateNotificationBadge();
         updateChatInfo('Keine neuen Nachrichten');
+      };
+
+      window.notifyUnreadMessage = function () {
+        const chatWindow = document.getElementById('chatWindow');
+        if (!chatWindow || !chatWindow.classList.contains('active')) {
+          unreadCount++;
+          updateNotificationBadge();
+          updateChatInfo(`${unreadCount} neue Nachricht${unreadCount > 1 ? 'en' : ''}`);
+        }
       };
 
       const chatRecipientSelect = document.getElementById('chatRecipient');
