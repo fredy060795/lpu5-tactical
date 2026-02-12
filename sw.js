@@ -1,10 +1,16 @@
-const CACHE_NAME = 'lpu5-v1';
+const CACHE_NAME = 'lpu5-v2-meshtastic';
 const ASSETS = [
     '/',
     '/landing.html',
     '/mobile.html',
     '/tactical_map.html',
     '/index.html',
+    '/overview.html',
+    '/meshtastic-web-client.js',
+    '/cot-client.js',
+    '/message-queue-manager.js',
+    '/manifest.json',
+    '/logo.png',
     '/assets/api-client.js',
     '/assets/ws-client.js',
     'https://unpkg.com/dexie/dist/dexie.js',

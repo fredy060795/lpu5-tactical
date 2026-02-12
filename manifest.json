@@ -1,11 +1,12 @@
 {
-  "name": "LPU5 Tactical Network",
-  "short_name": "LPU5",
-  "description": "Tactical Network Management System for Field Units",
-  "start_url": "/landing.html",
+  "name": "LPU5 Tactical Network with Meshtastic",
+  "short_name": "LPU5-Mesh",
+  "description": "Tactical Network Management System with Off-Grid Meshtastic LoRa Integration and COT Support",
+  "start_url": "/overview.html",
   "display": "standalone",
   "background_color": "#0a0a0a",
-  "theme_color": "#007bff",
+  "theme_color": "#28a745",
+  "orientation": "any",
   "icons": [
     {
       "src": "/logo.png",
@@ -17,5 +18,13 @@
       "sizes": "512x512",
       "type": "image/png"
     }
+  ],
+  "categories": ["navigation", "utilities", "productivity"],
+  "features": [
+    "Web Bluetooth API",
+    "Offline First",
+    "Meshtastic LoRa Communication",
+    "COT (Cursor on Target) Protocol",
+    "Real-time Mapping"
   ]
 }
