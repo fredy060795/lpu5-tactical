@@ -1180,7 +1180,7 @@
       });
       map.attributionControl.setPosition('bottomleft');
 
-      // user detection (creator)
+      // user detection (creator) - exposed globally for chat IIFE access
       function getCurrentUsername() {
         try {
           const raw = localStorage.getItem('lpu5_user');
@@ -1192,6 +1192,7 @@
         } catch (e) { }
         return 'Gast';
       }
+      window.getCurrentUsername = getCurrentUsername;
       const userNameEl = document.getElementById('userName');
       if (userNameEl) userNameEl.textContent = getCurrentUsername();
 
