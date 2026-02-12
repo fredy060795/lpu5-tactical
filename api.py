@@ -5170,7 +5170,7 @@ async def create_chat_channel(data: Dict = Body(...), authorization: str = Heade
             "is_default": False, "created_by": new_channel.created_by or "",
         }
         if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
-            await websocket_manager.broadcast(channel="chat", event="channel_created", data=ch_dict)
+            await websocket_manager.broadcast({"type": "channel_created", "channel": "chat", "data": ch_dict})
         return {"status": "success", "channel": ch_dict}
     except HTTPException:
         raise
@@ -5195,7 +5195,7 @@ async def delete_chat_channel(channel_id: str, authorization: str = Header(None)
         db.delete(channel)
         db.commit()
         if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
-            await websocket_manager.broadcast(channel="chat", event="channel_deleted", data={"id": channel_id, "deleted_by": username})
+            await websocket_manager.broadcast({"type": "channel_deleted", "channel": "chat", "data": {"id": channel_id, "deleted_by": username}})
         return {"status": "success", "detail": f"Channel {channel_id} deleted"}
     except HTTPException:
         raise
@@ -5282,11 +5282,7 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
 
         # Broadcast to WebSocket clients
         if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
-            await websocket_manager.broadcast(
-                channel="chat",
-                event="new_message",
-                data=msg_dict
-            )
+            await websocket_manager.broadcast({"type": "new_message", "channel": "chat", "data": msg_dict})
 
         return {"status": "success", "message": msg_dict}
     except HTTPException:
@@ -5315,10 +5311,7 @@ async def mark_message_delivered(message_id: str, authorization: str = Header(No
             msg.delivered_to = delivered
             db.commit()
             if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
-                await websocket_manager.broadcast(
-                    channel="chat", event="message_delivered",
-                    data={"message_id": message_id, "delivered_to": delivered}
-                )
+                await websocket_manager.broadcast({"type": "message_delivered", "channel": "chat", "data": {"message_id": message_id, "delivered_to": delivered}})
         return {"status": "success", "message_id": message_id, "delivered_to": delivered}
     except HTTPException:
         raise
@@ -5351,10 +5344,7 @@ async def mark_message_read(message_id: str, authorization: str = Header(None)):
                 msg.delivered_to = delivered
             db.commit()
             if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
-                await websocket_manager.broadcast(
-                    channel="chat", event="message_read",
-                    data={"message_id": message_id, "read_by": read_list, "delivered_to": delivered}
-                )
+                await websocket_manager.broadcast({"type": "message_read", "channel": "chat", "data": {"message_id": message_id, "read_by": read_list, "delivered_to": delivered}})
         return {"status": "success", "message_id": message_id, "read_by": read_list}
     except HTTPException:
         raise
@@ -5393,10 +5383,7 @@ async def mark_messages_read_bulk(data: Dict = Body(...), authorization: str = H
                     updated.append(mid)
         db.commit()
         if updated and AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
-            await websocket_manager.broadcast(
-                channel="chat", event="messages_read",
-                data={"message_ids": updated, "read_by_user": username}
-            )
+            await websocket_manager.broadcast({"type": "messages_read", "channel": "chat", "data": {"message_ids": updated, "read_by_user": username}})
         return {"status": "success", "updated": updated}
     except HTTPException:
         raise
