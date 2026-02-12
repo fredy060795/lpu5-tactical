@@ -491,15 +491,14 @@ def broadcast_websocket_update(channel: str, event_type: str, data: Dict) -> Non
         event_type: Event type identifier (e.g., 'marker_created', 'drawing_updated')
         data: Event data dictionary to broadcast
     """
-    # Try to broadcast via data server first (preferred method)
+    # Try to broadcast via data server (best-effort, non-blocking)
     if DATA_SERVER_AVAILABLE and data_server_manager and data_server_manager.is_running():
         try:
             data_server_manager.broadcast(channel, event_type, data)
-            return
         except Exception as e:
-            logger.warning(f"Failed to broadcast via data server, falling back to direct WebSocket: {e}")
+            logger.warning(f"Failed to broadcast via data server: {e}")
     
-    # Fallback to direct WebSocket (backward compatibility)
+    # Always broadcast via direct WebSocket (clients connect to main API server)
     if not AUTONOMOUS_MODULES_AVAILABLE or not websocket_manager:
         logger.debug("WebSocket manager not available")
         return
