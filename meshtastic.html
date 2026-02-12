@@ -376,7 +376,30 @@
         initGatewayClient();
         setupWebSocket();
         loadGatewayStatus();
+        loadChatChannels();
     });
+
+    async function loadChatChannels() {
+        try {
+            const token = localStorage.getItem('token') || localStorage.getItem('lpu5_token') || sessionStorage.getItem('token');
+            const headers = {};
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            const resp = await fetch('/api/chat/channels', { headers: headers });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const select = document.getElementById('unitSelect');
+            if (!select || !data.channels) return;
+            select.innerHTML = '';
+            data.channels.forEach(ch => {
+                const opt = document.createElement('option');
+                opt.value = ch.id;
+                opt.textContent = ch.name || ch.id;
+                select.appendChild(opt);
+            });
+        } catch (e) {
+            console.debug('Failed to load chat channels:', e);
+        }
+    }
 
     async function updateUserNameDisplay() {
         const el = document.getElementById('userName');
@@ -581,32 +604,95 @@
 
     async function loadGatewayMessages() {
         try {
-            const response = await fetch('/api/gateway/messages?limit=50');
-            const data = await response.json();
-            
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const channelId = document.getElementById('unitSelect') ? (document.getElementById('unitSelect').value || 'all') : 'all';
+            const headers = {};
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+
+            // Load from unified chat API
+            let messages = [];
+            try {
+                const chatResp = await fetch('/api/chat/messages/' + encodeURIComponent(channelId), { headers: headers });
+                if (chatResp.ok) {
+                    const chatData = await chatResp.json();
+                    if (chatData.messages) messages = chatData.messages;
+                }
+            } catch (e) { console.debug('Chat API not available:', e); }
+
+            // Also load gateway messages and merge
+            try {
+                const gwResp = await fetch('/api/gateway/messages?limit=50');
+                if (gwResp.ok) {
+                    const gwData = await gwResp.json();
+                    if (gwData.messages) {
+                        gwData.messages.forEach(msg => {
+                            messages.push({
+                                id: msg.id || '',
+                                username: msg.sender_name || msg.from || 'Mesh',
+                                text: msg.text || '',
+                                timestamp: msg.timestamp || new Date().toISOString(),
+                                type: msg.type || 'mesh',
+                                delivered_to: [],
+                                read_by: []
+                            });
+                        });
+                    }
+                }
+            } catch (e) { console.debug('Gateway API not available:', e); }
+
             const messagesEl = document.getElementById('messages');
-            
-            if (data.messages && data.messages.length > 0) {
-                messagesEl.innerHTML = data.messages.map(msg => `
-                    <div class="msg-row incoming">
+            const selfName = sessionStorage.getItem('currentUser') || localStorage.getItem('username') || '';
+
+            if (messages.length > 0) {
+                messagesEl.innerHTML = messages.map(msg => {
+                    const isOutgoing = msg.username === selfName;
+                    const rowClass = isOutgoing ? 'outgoing' : 'incoming';
+                    const readStatus = _renderReadStatus(msg, isOutgoing);
+                    return `
+                    <div class="msg-row ${rowClass}" data-msg-id="${msg.id || ''}">
                         <div class="msg-bubble">
                             <div class="msg-meta">
-                                <span>${msg.sender_name || msg.from}</span>
-                                <span>${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                                <span>${msg.username || msg.from || 'Unknown'}</span>
+                                <span>${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}</span>
                             </div>
-                            <div class="msg-text">${msg.text}</div>
+                            <div class="msg-text">${msg.text || ''}</div>
+                            ${readStatus}
                         </div>
-                    </div>
-                `).join('');
-                
-                // Scroll to bottom
+                    </div>`;
+                }).join('');
                 messagesEl.scrollTop = messagesEl.scrollHeight;
+
+                // Mark incoming messages as delivered
+                if (token) {
+                    const incomingIds = messages.filter(m => m.id && m.username !== selfName).map(m => m.id);
+                    if (incomingIds.length > 0) {
+                        fetch('/api/chat/messages/mark-read', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                            body: JSON.stringify({ message_ids: incomingIds })
+                        }).catch(() => {});
+                    }
+                }
             } else {
                 messagesEl.innerHTML = '<div class="small empty-state">No messages yet</div>';
             }
         } catch (error) {
             console.error('Failed to load messages:', error);
         }
+    }
+
+    function _renderReadStatus(msg, isOutgoing) {
+        if (!isOutgoing) return '';
+        let icon = '&#9711;'; // pending
+        let color = '#888';
+        if (msg.read_by && msg.read_by.length > 0) {
+            icon = '&#10003;&#10003;'; color = '#4fc3f7'; // read = blue double check
+        } else if (msg.delivered_to && msg.delivered_to.length > 0) {
+            icon = '&#10003;&#10003;'; color = '#888'; // delivered = grey double check
+        } else if (msg.id) {
+            icon = '&#10003;'; // sent = single check
+        }
+        return '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
     }
 
     async function sendMessage() {
@@ -616,42 +702,80 @@
             return;
         }
 
-        try {
-            const response = await fetch('/api/gateway/send-message', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text })
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                addLog('success', 'Message sent: ' + text.substring(0, 30));
-                document.getElementById('messageText').value = '';
-                
-                // Add to messages display
-                const messagesEl = document.getElementById('messages');
-                const msgHtml = `
-                    <div class="msg-row outgoing">
-                        <div class="msg-bubble">
-                            <div class="msg-meta">
-                                <span>You</span>
-                                <span>${new Date().toLocaleTimeString()}</span>
-                            </div>
-                            <div class="msg-text">${text}</div>
-                        </div>
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const channelId = document.getElementById('unitSelect') ? (document.getElementById('unitSelect').value || 'all') : 'all';
+        const messageMode = document.getElementById('messageMode') ? document.getElementById('messageMode').value : 'text';
+        const selfName = sessionStorage.getItem('currentUser') || localStorage.getItem('username') || 'You';
+
+        // Add to messages display immediately
+        const messagesEl = document.getElementById('messages');
+        const emptyState = messagesEl.querySelector('.empty-state');
+        if (emptyState) emptyState.remove();
+
+        const msgHtml = `
+            <div class="msg-row outgoing" data-pending="true">
+                <div class="msg-bubble${messageMode === 'cot' ? ' cot' : ''}">
+                    <div class="msg-meta">
+                        <span>${selfName}</span>
+                        <span>${new Date().toLocaleTimeString()}</span>
                     </div>
-                `;
-                messagesEl.insertAdjacentHTML('beforeend', msgHtml);
-                messagesEl.scrollTop = messagesEl.scrollHeight;
+                    <div class="msg-text">${text}</div>
+                    <div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:#888;">&#9711;</div>
+                </div>
+            </div>
+        `;
+        messagesEl.insertAdjacentHTML('beforeend', msgHtml);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        const pendingEl = messagesEl.querySelector('.msg-row[data-pending="true"]:last-child');
+
+        document.getElementById('messageText').value = '';
+
+        try {
+            // Send via unified chat API with auth
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+
+            const response = await fetch('/api/chat/message', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ channel_id: channelId, text: text, type: messageMode })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success' && data.message) {
+                addLog('success', 'Message sent: ' + text.substring(0, 30));
+                if (pendingEl) {
+                    pendingEl.setAttribute('data-msg-id', data.message.id);
+                    pendingEl.removeAttribute('data-pending');
+                    const st = pendingEl.querySelector('.chat-msg-status');
+                    if (st) st.innerHTML = '&#10003;';
+                }
             } else {
                 addLog('error', 'Failed to send message');
-                alert('Failed to send message: ' + (data.message || 'Unknown error'));
+                if (pendingEl) {
+                    const st = pendingEl.querySelector('.chat-msg-status');
+                    if (st) { st.innerHTML = '&#10007;'; st.style.color = '#f44'; }
+                }
+            }
+
+            // Also try gateway/meshtastic send (best-effort for mesh relay)
+            try {
+                await fetch('/api/gateway/send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+            } catch (gwErr) {
+                console.debug('Gateway relay not available:', gwErr);
             }
         } catch (error) {
             console.error('Send error:', error);
             addLog('error', 'Send error: ' + error.message);
-            alert('Failed to send message: ' + error.message);
+            if (pendingEl) {
+                const st = pendingEl.querySelector('.chat-msg-status');
+                if (st) { st.innerHTML = '&#10007;'; st.style.color = '#f44'; }
+            }
         }
     }
 

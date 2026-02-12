@@ -59,7 +59,7 @@ _MAIN_EVENT_LOOP = None
 
 # Database imports
 from database import SessionLocal, engine, get_db
-from models import User, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration
+from models import User, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
@@ -5043,7 +5043,7 @@ def trigger_rules_api(data: Dict = Body(...)):
 # Chat Channels Endpoints
 # ===========================
 
-# Default chat channels
+# Default chat channels (seeded into DB on first use)
 DEFAULT_CHANNELS = [
     {"id": "all", "name": "Alle Einheiten", "description": "Broadcast to all units", "color": "#ffffff"},
     {"id": "hq", "name": "HQ", "description": "Headquarters Communication", "color": "#3498db"},
@@ -5052,10 +5052,164 @@ DEFAULT_CHANNELS = [
     {"id": "bravo", "name": "Bravo", "description": "Bravo Team Channel", "color": "#9b59b6"}
 ]
 
+def _ensure_default_channels(db):
+    """Seed default channels into DB if they don't exist yet."""
+    for ch in DEFAULT_CHANNELS:
+        existing = db.query(ChatChannel).filter(ChatChannel.id == ch["id"]).first()
+        if not existing:
+            db.add(ChatChannel(
+                id=ch["id"], name=ch["name"], description=ch.get("description", ""),
+                color=ch.get("color", "#ffffff"), is_default=True, members=[]
+            ))
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+def _extract_username_from_auth(authorization: str) -> str:
+    """Extract username from Authorization header. Returns username or raises HTTPException."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Empty token")
+    user_payload = verify_token(token)
+    if not user_payload or not isinstance(user_payload, dict):
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user_payload.get("username") or user_payload.get("sub") or "Unknown"
+
+def _chat_message_to_dict(m):
+    """Convert a ChatMessage ORM object to a serializable dict."""
+    return {
+        "id": m.id,
+        "channel_id": m.channel,
+        "username": m.sender,
+        "text": m.content,
+        "timestamp": m.timestamp.isoformat() if m.timestamp else None,
+        "type": m.type or "text",
+        "delivered_to": m.delivered_to if m.delivered_to else [],
+        "read_by": m.read_by if m.read_by else [],
+    }
+
 @app.get("/api/chat/channels", summary="Get chat channels")
 def get_chat_channels():
-    """Get list of available chat channels (currently static)"""
-    return {"status": "success", "channels": DEFAULT_CHANNELS}
+    """Get list of available chat channels (static defaults + DB custom channels)"""
+    db = SessionLocal()
+    try:
+        _ensure_default_channels(db)
+        channels = db.query(ChatChannel).all()
+        return {
+            "status": "success",
+            "channels": [
+                {
+                    "id": ch.id,
+                    "name": ch.name,
+                    "description": ch.description or "",
+                    "color": ch.color or "#ffffff",
+                    "members": ch.members if ch.members else [],
+                    "is_default": ch.is_default if ch.is_default is not None else False,
+                    "created_by": ch.created_by or "",
+                }
+                for ch in channels
+            ],
+        }
+    except Exception as e:
+        logger.exception("get_chat_channels failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.post("/api/chat/channels", summary="Create a chat channel")
+async def create_chat_channel(data: Dict = Body(...), authorization: str = Header(None)):
+    """Create a new chat channel"""
+    db = SessionLocal()
+    try:
+        username = _extract_username_from_auth(authorization)
+        name = (data.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Channel name is required")
+        # Generate a safe id from the name
+        channel_id = data.get("id") or name.lower().replace(" ", "_")
+        existing = db.query(ChatChannel).filter(
+            (ChatChannel.id == channel_id) | (ChatChannel.name == name)
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Channel already exists")
+        new_channel = ChatChannel(
+            id=channel_id,
+            name=name,
+            description=data.get("description", ""),
+            color=data.get("color", "#ffffff"),
+            created_by=username,
+            members=data.get("members", []),
+            is_default=False,
+        )
+        db.add(new_channel)
+        db.commit()
+        db.refresh(new_channel)
+        ch_dict = {
+            "id": new_channel.id, "name": new_channel.name,
+            "description": new_channel.description or "", "color": new_channel.color,
+            "members": new_channel.members if new_channel.members else [],
+            "is_default": False, "created_by": new_channel.created_by or "",
+        }
+        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+            await websocket_manager.broadcast(channel="chat", event="channel_created", data=ch_dict)
+        return {"status": "success", "channel": ch_dict}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("create_chat_channel failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.delete("/api/chat/channels/{channel_id}", summary="Delete a chat channel")
+async def delete_chat_channel(channel_id: str, authorization: str = Header(None)):
+    """Delete a custom chat channel (default channels cannot be deleted)"""
+    db = SessionLocal()
+    try:
+        username = _extract_username_from_auth(authorization)
+        channel = db.query(ChatChannel).filter(ChatChannel.id == channel_id).first()
+        if not channel:
+            raise HTTPException(status_code=404, detail="Channel not found")
+        if channel.is_default:
+            raise HTTPException(status_code=403, detail="Cannot delete default channel")
+        db.delete(channel)
+        db.commit()
+        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+            await websocket_manager.broadcast(channel="chat", event="channel_deleted", data={"id": channel_id, "deleted_by": username})
+        return {"status": "success", "detail": f"Channel {channel_id} deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("delete_chat_channel failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.put("/api/chat/channels/{channel_id}/members", summary="Update channel members")
+async def update_channel_members(channel_id: str, data: Dict = Body(...), authorization: str = Header(None)):
+    """Update the member list of a chat channel"""
+    db = SessionLocal()
+    try:
+        _extract_username_from_auth(authorization)
+        channel = db.query(ChatChannel).filter(ChatChannel.id == channel_id).first()
+        if not channel:
+            raise HTTPException(status_code=404, detail="Channel not found")
+        channel.members = data.get("members", [])
+        db.commit()
+        return {"status": "success", "channel_id": channel_id, "members": channel.members}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("update_channel_members failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 @app.get("/api/chat/messages/{channel_id}", summary="Get chat messages for a channel")
 def get_chat_messages(channel_id: str, limit: int = 100):
@@ -5067,15 +5221,7 @@ def get_chat_messages(channel_id: str, limit: int = 100):
         messages.reverse()
         return {
             "status": "success",
-            "messages": [
-                {
-                    "id": m.id,
-                    "channel_id": m.channel,
-                    "username": m.sender,
-                    "text": m.content,
-                    "timestamp": m.timestamp.isoformat() if m.timestamp else None
-                } for m in messages
-            ]
+            "messages": [_chat_message_to_dict(m) for m in messages],
         }
     except Exception as e:
         logger.exception("get_chat_messages failed: %s", e)
@@ -5088,47 +5234,36 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
     """Send a chat message to a channel (DB-backed)"""
     db = SessionLocal()
     try:
-        # Verify user authentication
-        if not authorization or not authorization.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-        
-        token = authorization.split(" ")[1]
-        user_payload = verify_token(token)
-        
-        if user_payload is None:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-        
-        username = user_payload.get("username", "Unknown")
-        
+        username = _extract_username_from_auth(authorization)
+
         channel_id = message.get("channel_id")
         text = message.get("text", "").strip()
-        
+
         if not channel_id or not text:
             raise HTTPException(status_code=400, detail="channel_id and text are required")
-        
-        # Verify channel exists in static list
-        if not any(ch.get("id") == channel_id for ch in DEFAULT_CHANNELS):
+
+        # Verify channel exists (check DB channels including defaults)
+        _ensure_default_channels(db)
+        channel_exists = db.query(ChatChannel).filter(ChatChannel.id == channel_id).first()
+        if not channel_exists:
             raise HTTPException(status_code=404, detail="Channel not found")
-        
+
         # Create message in DB
         new_msg = ChatMessage(
             channel=channel_id,
             sender=username,
             content=text,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
+            type=message.get("type", "text"),
+            delivered_to=[],
+            read_by=[],
         )
         db.add(new_msg)
         db.commit()
         db.refresh(new_msg)
-        
-        msg_dict = {
-            "id": new_msg.id,
-            "channel_id": new_msg.channel,
-            "username": new_msg.sender,
-            "text": new_msg.content,
-            "timestamp": new_msg.timestamp.isoformat()
-        }
-        
+
+        msg_dict = _chat_message_to_dict(new_msg)
+
         # Broadcast to WebSocket clients
         if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
             await websocket_manager.broadcast(
@@ -5136,13 +5271,118 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
                 event="new_message",
                 data=msg_dict
             )
-        
+
         return {"status": "success", "message": msg_dict}
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
         logger.exception("send_chat_message failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.post("/api/chat/message/{message_id}/delivered", summary="Mark message as delivered")
+async def mark_message_delivered(message_id: str, authorization: str = Header(None)):
+    """Mark a chat message as delivered to the current user (single checkmark)"""
+    db = SessionLocal()
+    try:
+        username = _extract_username_from_auth(authorization)
+        msg = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+        if not msg:
+            raise HTTPException(status_code=404, detail="Message not found")
+        delivered = msg.delivered_to if msg.delivered_to else []
+        if username not in delivered:
+            delivered.append(username)
+            msg.delivered_to = delivered
+            db.commit()
+            if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+                await websocket_manager.broadcast(
+                    channel="chat", event="message_delivered",
+                    data={"message_id": message_id, "delivered_to": delivered}
+                )
+        return {"status": "success", "message_id": message_id, "delivered_to": delivered}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("mark_message_delivered failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.post("/api/chat/message/{message_id}/read", summary="Mark message as read")
+async def mark_message_read(message_id: str, authorization: str = Header(None)):
+    """Mark a chat message as read by the current user (double checkmark)"""
+    db = SessionLocal()
+    try:
+        username = _extract_username_from_auth(authorization)
+        msg = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+        if not msg:
+            raise HTTPException(status_code=404, detail="Message not found")
+        read_list = msg.read_by if msg.read_by else []
+        if username not in read_list:
+            read_list.append(username)
+            msg.read_by = read_list
+            # Also ensure delivered
+            delivered = msg.delivered_to if msg.delivered_to else []
+            if username not in delivered:
+                delivered.append(username)
+                msg.delivered_to = delivered
+            db.commit()
+            if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+                await websocket_manager.broadcast(
+                    channel="chat", event="message_read",
+                    data={"message_id": message_id, "read_by": read_list, "delivered_to": delivered}
+                )
+        return {"status": "success", "message_id": message_id, "read_by": read_list}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("mark_message_read failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.post("/api/chat/messages/mark-read", summary="Mark multiple messages as read")
+async def mark_messages_read_bulk(data: Dict = Body(...), authorization: str = Header(None)):
+    """Mark multiple messages as read by the current user"""
+    db = SessionLocal()
+    try:
+        username = _extract_username_from_auth(authorization)
+        message_ids = data.get("message_ids", [])
+        if not message_ids:
+            raise HTTPException(status_code=400, detail="message_ids list is required")
+        updated = []
+        for mid in message_ids:
+            msg = db.query(ChatMessage).filter(ChatMessage.id == mid).first()
+            if msg and msg.sender != username:
+                read_list = msg.read_by if msg.read_by else []
+                delivered = msg.delivered_to if msg.delivered_to else []
+                changed = False
+                if username not in read_list:
+                    read_list.append(username)
+                    msg.read_by = read_list
+                    changed = True
+                if username not in delivered:
+                    delivered.append(username)
+                    msg.delivered_to = delivered
+                    changed = True
+                if changed:
+                    updated.append(mid)
+        db.commit()
+        if updated and AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+            await websocket_manager.broadcast(
+                channel="chat", event="messages_read",
+                data={"message_ids": updated, "read_by_user": username}
+            )
+        return {"status": "success", "updated": updated}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("mark_messages_read_bulk failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()

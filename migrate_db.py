@@ -3,7 +3,7 @@ import os
 import sys
 from datetime import datetime
 from database import SessionLocal, engine, Base
-from models import User, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, AuditLog
+from models import User, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog
 
 # Create tables
 Base.metadata.create_all(bind=engine)
