@@ -648,6 +648,12 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .chat-messages-container::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
     }
 
     .chat-placeholder {
@@ -2366,23 +2372,36 @@
         const name = (document.getElementById('areaName_fly').value || 'Linie ' + (new Date()).toLocaleTimeString());
         const id = genId('draw');
         const creator = getCurrentUsername();
+        const color = document.getElementById('drawColor_fly').value || '#0088ff';
         drawingLine.bindPopup(`<strong>${escapeHtml(name)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(creator)}</div>`);
         drawings.push({ id, layer: drawingLine, name, creator });
 
         // Save state to localStorage
         saveStateToLocalStorage();
 
-        // Broadcast drawing to other clients
+        // Save drawing to API for persistence
         try {
-          broadcastDrawing({
-            id,
-            name,
-            points: drawingPoints,
-            color: document.getElementById('drawColor_fly').value || '#0088ff',
-            creator
-          });
+          const token = localStorage.getItem('token');
+          fetch('/api/drawings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? 'Bearer ' + token : ''
+            },
+            body: JSON.stringify({
+              name: name,
+              type: 'polyline',
+              coordinates: drawingPoints,
+              color: color,
+              weight: 3,
+              created_by: creator
+            })
+          }).then(res => {
+            if (!res.ok) console.error('Failed to save drawing to API:', res.status);
+            else console.log('Drawing saved to API');
+          }).catch(e => console.error('Error saving drawing to API:', e));
         } catch (e) {
-          console.error('Failed to broadcast drawing:', e);
+          console.error('Failed to save drawing to API:', e);
         }
 
         drawingLine = null;
@@ -2392,7 +2411,22 @@
       }
       document.getElementById('drawStartBtn').addEventListener('click', startDrawing);
       document.getElementById('drawFinishBtn').addEventListener('click', finishDrawing);
-      function removeDrawing(id) { const idx = drawings.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(drawings[idx].layer); } catch (e) { } drawings.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); }
+      function removeDrawing(id) {
+        const idx = drawings.findIndex(x => x.id === id);
+        if (idx === -1) return;
+        try { map.removeLayer(drawings[idx].layer); } catch (e) { }
+        drawings.splice(idx, 1);
+        renderSettingsList();
+        saveStateToLocalStorage();
+        // Delete from API
+        try {
+          const token = localStorage.getItem('token');
+          fetch('/api/drawings/' + encodeURIComponent(id), {
+            method: 'DELETE',
+            headers: { 'Authorization': token ? 'Bearer ' + token : '' }
+          }).catch(e => console.error('Error deleting drawing from API:', e));
+        } catch (e) { console.error('Failed to delete drawing from API:', e); }
+      }
 
       // ---------------- Symbols ----------------
       let activeSymbol = null; let placingSymbol = false; let symbolDeleteMode = false;
