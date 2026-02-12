@@ -1752,13 +1752,6 @@
             }).addTo(map).bindPopup('GPS Position (Auto-tracking)', {
               closeButton: true
             });
-
-            gpsMarker.on('click', () => {
-              if (confirm('GPS-Marker entfernen?')) {
-                try { map.removeLayer(gpsMarker); } catch (e) { }
-                gpsMarker = null;
-              }
-            });
           }
 
           // Send GPS position to server for admin_map visibility
@@ -1826,13 +1819,6 @@
           closeButton: true
         });
 
-        gpsMarker.on('click', () => {
-          if (confirm('GPS-Marker entfernen?')) {
-            try { map.removeLayer(gpsMarker); } catch (e) { }
-            gpsMarker = null;
-          }
-        });
-
         map.setView([latNum, lngNum], Math.max(map.getZoom(), 15));
         sendGpsToServer(latNum, lngNum);
       }
@@ -1867,17 +1853,9 @@
             iconAnchor: [20, 20]
           }),
           pane: 'drawPane'
-        }).addTo(map).bindPopup('GPS Position (click to remove)', {
+        }).addTo(map).bindPopup('GPS Position', {
           closeButton: true
         }).openPopup();
-
-        // Add click handler to remove marker
-        gpsMarker.on('click', () => {
-          if (confirm('GPS-Marker entfernen?')) {
-            try { map.removeLayer(gpsMarker); } catch (e) { }
-            gpsMarker = null;
-          }
-        });
 
         map.setView([lat, lng], Math.max(map.getZoom(), 15));
         flashBtn(btn, '#28a745');
@@ -1930,17 +1908,9 @@
               iconAnchor: [20, 20]
             }),
             pane: 'drawPane'
-          }).addTo(map).bindPopup('IP-based position (approximate) (click to remove)', {
+          }).addTo(map).bindPopup('IP-based position (approximate)', {
             closeButton: true
           }).openPopup();
-
-          // Add click handler to remove marker
-          gpsMarker.on('click', () => {
-            if (confirm('GPS-Marker entfernen?')) {
-              try { map.removeLayer(gpsMarker); } catch (e) { }
-              gpsMarker = null;
-            }
-          });
 
           map.setView([lat, lng], Math.max(map.getZoom(), 12));
           flashBtn(btn, '#ffaa00');
@@ -1985,17 +1955,9 @@
             iconAnchor: [20, 20]
           }),
           pane: 'drawPane'
-        }).addTo(map).bindPopup('Manually entered position (click to remove)', {
+        }).addTo(map).bindPopup('Manually entered position', {
           closeButton: true
         }).openPopup();
-
-        // Add click handler to remove marker
-        gpsMarker.on('click', () => {
-          if (confirm('GPS-Marker entfernen?')) {
-            try { map.removeLayer(gpsMarker); } catch (e) { }
-            gpsMarker = null;
-          }
-        });
 
         map.setView([lat, lng], Math.max(map.getZoom(), 14));
         sendGpsToServer(lat, lng);
@@ -2907,6 +2869,10 @@
           try {
             localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
           } catch (e) { }
+
+          // Also broadcast via setStatus to ensure lpu5_global_status channel
+          // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
+          try { if (typeof setStatus === 'function') setStatus(status, statusElement ? statusElement.style.color : ''); } catch (e) { }
 
           // Visual feedback on toolbar buttons if they exist
           document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
