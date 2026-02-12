@@ -572,6 +572,7 @@
           // Subscribe to relevant channels
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'positions' }));
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'messages' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'chat' }));
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'status' }));
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'markers' }));
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'nodes' }));

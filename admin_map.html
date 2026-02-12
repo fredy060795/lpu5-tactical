@@ -1243,6 +1243,7 @@
             // Subscribe to relevant channels
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'positions' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'messages' }));
+            ws.send(JSON.stringify({ type: 'subscribe', channel: 'chat' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'status' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'markers' }));
             ws.send(JSON.stringify({ type: 'subscribe', channel: 'nodes' }));
@@ -1675,7 +1676,7 @@
               const msg = data.data;
               const messagesContainer = document.getElementById('chatMessagesContainer');
               if (messagesContainer) {
-                const selfName = sessionStorage.getItem('currentUser') || '';
+                const selfName = getCurrentUsername();
                 if (msg.username === selfName) {
                   // Update local pending message with server id
                   const pending = messagesContainer.querySelector('.chat-message[data-pending="true"]');
@@ -3617,7 +3618,7 @@
         messageEl.className = 'chat-message outgoing';
         messageEl.setAttribute('data-pending', 'true');
 
-        const currentUser = sessionStorage.getItem('currentUser') || 'Me';
+        const currentUser = getCurrentUsername();
         const time = new Date().toLocaleTimeString('de-DE', {
           hour: '2-digit',
           minute: '2-digit'
@@ -3676,7 +3677,7 @@
 
           // Also try meshtastic send (best-effort for mesh relay)
           try {
-            const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+            const currentUser = getCurrentUsername();
             await fetch('/api/meshtastic/send', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -3696,7 +3697,7 @@
       }
 
       function shareMessageToOtherPages(message) {
-        const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+        const currentUser = getCurrentUsername();
         const messageData = {
           sender: currentUser,
           text: message,
@@ -3773,7 +3774,7 @@
           const messagesContainer = document.getElementById('chatMessagesContainer');
           const placeholder = document.getElementById('chatPlaceholder');
           if (!messagesContainer) return;
-          const selfName = sessionStorage.getItem('currentUser') || '';
+          const selfName = getCurrentUsername();
           if (messages.length === 0) {
             if (placeholder) placeholder.style.display = '';
             messagesContainer.querySelectorAll('.chat-message').forEach(el => el.remove());
