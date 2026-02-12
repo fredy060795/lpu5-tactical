@@ -524,6 +524,32 @@
       
       try {
         showToast(`Verbinde mit Meshtastic auf ${port}...`, 'info');
+        
+        // Check if gateway service is running on this port (started by meshtastic.html)
+        // If so, stop it first to free the COM port for import operations
+        try {
+          const gwStatusRes = await fetch('/api/gateway/status');
+          if (gwStatusRes.ok) {
+            const gwStatus = await gwStatusRes.json();
+            if (gwStatus.running && gwStatus.port === port) {
+              showToast(`Gateway Service läuft auf ${port} — wird gestoppt für Import...`, 'info');
+              const stopRes = await fetch('/api/gateway/stop', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+              });
+              if (stopRes.ok) {
+                showToast(`Gateway Service auf ${port} gestoppt`, 'success');
+                // Wait for OS to release the serial port (Windows needs time)
+                await new Promise(r => setTimeout(r, 1500));
+              } else {
+                showToast(`Warnung: Gateway Service konnte nicht gestoppt werden — Port ${port} könnte belegt sein`, 'error');
+              }
+            }
+          }
+        } catch(gwErr) {
+          console.warn('Gateway status check failed (non-critical):', gwErr);
+        }
+        
         const res = await fetch('/api/meshtastic/connect', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
