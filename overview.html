@@ -755,6 +755,11 @@
                 }
                 break;
               }
+              // Filter by selected channel
+              const chatRecipientEl = document.getElementById('chat-recipient');
+              const selectedChannel = chatRecipientEl ? chatRecipientEl.value : 'all';
+              const msgChannel = msg.channel_id || 'all';
+              if (selectedChannel !== 'all' && msgChannel !== selectedChannel) break;
               // Clear placeholder if present
               if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
                 messagesDiv.innerHTML = '';
@@ -782,6 +787,12 @@
               }
             }
           }
+          break;
+
+        case 'channel_created':
+        case 'channel_deleted':
+          // Refresh channel dropdown when channels change
+          if (typeof loadChatUsers === 'function') loadChatUsers();
           break;
 
         case 'message_delivered':
@@ -2159,8 +2170,8 @@
       if (chatWindow) {
         chatWindow.classList.add('open');
         chatWindow.classList.remove('minimized');
-        // Load users for chat recipient dropdown
-        loadChatUsers();
+        // Load channels for chat recipient dropdown, then load messages
+        loadChatUsers().then(() => loadChatMessages());
       }
     }
 
@@ -2262,9 +2273,9 @@
     function loadChatUsers() {
       // Load channels from API for chat recipient dropdown
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) return Promise.resolve();
 
-      fetch('/api/chat/channels', {
+      return fetch('/api/chat/channels', {
         headers: { 'Authorization': 'Bearer ' + token }
       })
         .then(r => r.json())
@@ -2298,6 +2309,66 @@
         .catch(err => {
           console.error('Error loading channels/users for chat:', err);
         });
+    }
+
+    function loadChatMessages() {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const select = document.getElementById('chat-recipient');
+      const channelId = (select && select.value) ? select.value : 'all';
+      const messagesDiv = document.getElementById('chat-messages');
+      if (!messagesDiv) return;
+
+      fetch('/api/chat/messages/' + encodeURIComponent(channelId), {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+        .then(r => r.json())
+        .then(result => {
+          const messages = (result && result.messages) ? result.messages : [];
+          const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
+          messagesDiv.innerHTML = '';
+          if (messages.length === 0) {
+            messagesDiv.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;"><p>Keine Nachrichten</p><p style="font-size: 0.8em; margin-top: 10px;">COT-Nachrichten werden hier angezeigt</p></div>';
+            return;
+          }
+          messages.forEach(msg => {
+            const isOutgoing = msg.username === selfName;
+            const messageEl = document.createElement('div');
+            messageEl.className = 'chat-message';
+            messageEl.setAttribute('data-msg-id', msg.id || '');
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
+            let statusHtml = '';
+            if (isOutgoing) {
+              let icon = '&#10003;', color = '#888';
+              if (msg.read_by && msg.read_by.length > 0) { icon = '&#10003;&#10003;'; color = '#4fc3f7'; }
+              else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
+              statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.75em;color:' + color + ';">' + icon + '</div>';
+            }
+            messageEl.innerHTML = '<div class="chat-message-sender">' + (msg.username || 'Unknown') + '<span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + (msg.text || '') + '</div>' + statusHtml;
+            messagesDiv.appendChild(messageEl);
+          });
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          // Mark messages as read
+          const unreadIds = messages.filter(m => m.username !== selfName && m.id).map(m => m.id);
+          if (unreadIds.length > 0) {
+            fetch('/api/chat/messages/mark-read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ message_ids: unreadIds })
+            }).catch(() => {});
+          }
+        })
+        .catch(e => {
+          console.error('Error loading chat messages:', e);
+        });
+    }
+
+    // Reload messages when channel selection changes
+    const chatRecipientEl = document.getElementById('chat-recipient');
+    if (chatRecipientEl) {
+      chatRecipientEl.addEventListener('change', function () {
+        loadChatMessages();
+      });
     }
 
     // BLE Pairing Function (Placeholder)
