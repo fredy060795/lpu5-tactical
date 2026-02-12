@@ -793,13 +793,6 @@
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
     </div>
-    <div class="tool-btn" id="s-meshtastic" ontouchstart="handleToolInteraction(() => toggleMeshtasticPanel(), event)"
-      onclick="handleToolInteraction(() => toggleMeshtasticPanel(), event)" title="Meshtastic LoRa">
-      <svg viewBox="0 0 24 24" fill="#2ecc71" stroke="white" stroke-width="1.5">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-        <circle cx="12" cy="12" r="3" fill="white"/>
-      </svg>
-    </div>
     <div class="tool-btn" id="s-trash" ontouchstart="handleToolInteraction(() => setTool('trash'), event)"
       onclick="handleToolInteraction(() => setTool('trash'), event)" title="Löschmodus">
       <svg viewBox="0 0 24 24" fill="none" stroke="#ff6666" stroke-width="2">
@@ -2636,13 +2629,53 @@
       // Clear input
       input.value = '';
 
-      // Send message to server via API
+      // Send message to server via API, with automatic COT fallback
       const channelId = recipient.value || 'all';
       const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('No auth token found - cannot send chat message');
-        const statusEl = messageEl.querySelector('.chat-msg-status');
-        if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+
+      // Helper: send via Meshtastic COT as fallback
+      function sendViaMeshtasticCOT(msgEl) {
+        if (meshtasticConnected && meshtasticClient) {
+          const mapCenter = map ? map.getCenter() : null;
+          // Send as COT with position if available, otherwise as plain text
+          let sendPromise;
+          if (mapCenter) {
+            const cotEvent = new COTEvent({
+              lat: mapCenter.lat,
+              lon: mapCenter.lng,
+              callsign: currentUserName || 'MESH-USER',
+              remarks: message
+            });
+            sendPromise = meshtasticClient.sendCOT(cotEvent.toXML());
+          } else {
+            sendPromise = meshtasticClient.sendText(message);
+          }
+          sendPromise.then(() => {
+            console.log('[Chat] Message sent via Meshtastic COT fallback');
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '📡'; statusEl.title = 'Gesendet via Meshtastic COT'; }
+          }).catch(cotErr => {
+            console.error('[Chat] Meshtastic COT fallback also failed:', cotErr);
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+          });
+        } else {
+          // No Meshtastic connection, queue for later
+          if (messageQueue) {
+            messageQueue.addPendingMessage({ text: message, type: 'cot', timestamp: Date.now() });
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In Warteschlange'; }
+          } else {
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+          }
+        }
+      }
+
+      if (!token || !navigator.onLine) {
+        // No token or offline: send directly via Meshtastic COT
+        console.log('[Chat] No server connection, using Meshtastic COT');
+        sendViaMeshtasticCOT(messageEl);
         return;
       }
       const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
@@ -2651,7 +2684,10 @@
         headers: headers,
         body: JSON.stringify({ channel_id: channelId, text: message })
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Server responded with ' + r.status);
+        return r.json();
+      })
       .then(result => {
         if (result.status === 'success' && result.message) {
           messageEl.setAttribute('data-msg-id', result.message.id);
@@ -2661,9 +2697,8 @@
         }
       })
       .catch(e => {
-        console.error('Failed to send chat message:', e);
-        const statusEl = messageEl.querySelector('.chat-msg-status');
-        if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+        console.error('Failed to send chat message via server, falling back to COT:', e);
+        sendViaMeshtasticCOT(messageEl);
       });
     }
 
@@ -3511,7 +3546,22 @@
         </div>
 
         <div class="menu-section">
-          <button class="menu-btn" onclick="openBleSettings()"><i class="fab fa-bluetooth-b"></i> BLE Meshtastic</button>
+          <h3>Meshtastic</h3>
+          <div id="menu-mesh-status" style="font-size: 0.85em; color: #888; margin-bottom: 10px;">
+            <i class="fab fa-bluetooth-b"></i> Status: <span id="menu-mesh-status-text">Nicht verbunden</span>
+          </div>
+          <button class="menu-btn" id="menu-mesh-connect-btn" onclick="event.stopPropagation(); connectMeshtastic(); toggleHamburgerMenu();">
+            <i class="fab fa-bluetooth-b"></i> Mesh Gerät verbinden
+          </button>
+          <button class="menu-btn" id="menu-mesh-disconnect-btn" onclick="event.stopPropagation(); disconnectMeshtastic(); toggleHamburgerMenu();" style="display:none;">
+            <i class="fas fa-times"></i> Mesh Gerät trennen
+          </button>
+          <button class="menu-btn" onclick="event.stopPropagation(); toggleMeshtasticPanel(); toggleHamburgerMenu();">
+            <i class="fas fa-broadcast-tower"></i> Mesh Panel öffnen
+          </button>
+        </div>
+
+        <div class="menu-section">
           <button class="menu-btn logout-btn" onclick="logoutOverview()"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
       ` : '';
@@ -3558,8 +3608,9 @@
       toggleHamburgerMenu();
     };
 
+    // Legacy alias - opens Meshtastic panel (previously redirected to import_nodes.html)
     window.openBleSettings = function() {
-      window.location.href = 'import_nodes.html';
+      toggleMeshtasticPanel();
     };
 
     window.setManualGps = function() {
@@ -3712,6 +3763,9 @@
         document.getElementById('mesh-connect-btn').style.display = 'none';
         document.getElementById('mesh-disconnect-btn').style.display = 'block';
 
+        // Update hamburger menu buttons
+        updateMenuMeshButtons(true);
+
         // Process any pending messages
         processPendingMessages();
 
@@ -3739,6 +3793,9 @@
       document.getElementById('mesh-connect-btn').style.display = 'block';
       document.getElementById('mesh-disconnect-btn').style.display = 'none';
       document.getElementById('mesh-connect-btn').disabled = false;
+
+      // Update hamburger menu buttons
+      updateMenuMeshButtons(false);
     };
 
     // Send message via Meshtastic
@@ -3821,13 +3878,22 @@
         messageQueue.addReceivedMessage(message);
       }
 
-      // Display in chat
+      // Display in chat window
       displayMessageInChat({
         text: message.text,
         from: 'Node-' + (message.from ? message.from.toString(16) : 'Unknown'),
         timestamp: message.timestamp,
         type: message.isCOT ? 'cot' : 'text'
       });
+
+      // Update chat notification badge if chat window is closed
+      const chatWin = document.getElementById('chat-window');
+      if (!chatWin || !chatWin.classList.contains('open')) {
+        if (typeof chatUnreadCount !== 'undefined') {
+          chatUnreadCount++;
+          if (typeof updateChatNotificationBadge === 'function') updateChatNotificationBadge();
+        }
+      }
 
       // If it's a COT message, add marker to map
       if (message.isCOT && COTProtocolHandler) {
@@ -3868,6 +3934,20 @@
         statusText.textContent = status;
         statusText.style.color = connected ? '#28a745' : '#aaa';
       }
+      // Also update hamburger menu status text
+      const menuStatusText = document.getElementById('menu-mesh-status-text');
+      if (menuStatusText) {
+        menuStatusText.textContent = connected ? 'Verbunden' : 'Nicht verbunden';
+        menuStatusText.style.color = connected ? '#28a745' : '#888';
+      }
+    }
+
+    // Update hamburger menu mesh connect/disconnect buttons
+    function updateMenuMeshButtons(connected) {
+      const connectBtn = document.getElementById('menu-mesh-connect-btn');
+      const disconnectBtn = document.getElementById('menu-mesh-disconnect-btn');
+      if (connectBtn) connectBtn.style.display = connected ? 'none' : 'flex';
+      if (disconnectBtn) disconnectBtn.style.display = connected ? 'flex' : 'none';
     }
 
     // Update node list display
@@ -3969,10 +4049,10 @@
 
       let contentHTML = `
         <div class="chat-message-header">
-          <span class="chat-message-sender">${message.from}</span>
-          <span class="chat-message-time">${time}</span>
+          <span class="chat-message-sender">${_escapeHtml(message.from)}</span>
+          <span class="chat-message-time">${_escapeHtml(time)}</span>
         </div>
-        <div>${message.text}</div>
+        <div class="chat-message-text">${_escapeHtml(message.text)}</div>
       `;
 
       if (message.type === 'cot') {

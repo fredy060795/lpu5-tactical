@@ -21,9 +21,13 @@ class MeshtasticWebClient {
         
         // Meshtastic BLE Service UUID
         this.SERVICE_UUID = '6ba1b218-15a8-461f-9fa8-5dcae273eafd';
-        this.FROMRADIO_UUID = '2c55e69e-4993-11ed-b878-0242ac120002';
-        this.TORADIO_UUID = '29adaf70-4993-11ed-b878-0242ac120002';
+        // New firmware characteristic UUIDs (Meshtastic 2.x+)
+        this.FROMRADIO_UUID = '8ba2bcc2-ee02-4a55-a531-c525c5e454d5';
+        this.TORADIO_UUID = 'f75c76d2-129e-4dad-a1dd-7866124401e7';
         this.FROMNUM_UUID = 'ed9da18c-a800-4f66-a670-aa7547e34453';
+        // Legacy firmware characteristic UUIDs (fallback)
+        this.LEGACY_FROMRADIO_UUID = '2c55e69e-4993-11ed-b878-0242ac120002';
+        this.LEGACY_TORADIO_UUID = '29adaf70-4993-11ed-b878-0242ac120002';
     }
 
     /**
@@ -60,10 +64,23 @@ class MeshtasticWebClient {
             // Get the Meshtastic service
             this.service = await this.server.getPrimaryService(this.SERVICE_UUID);
             
-            // Get characteristics
-            this.toRadioCharacteristic = await this.service.getCharacteristic(this.TORADIO_UUID);
-            this.fromRadioCharacteristic = await this.service.getCharacteristic(this.FROMRADIO_UUID);
-            this.fromNumCharacteristic = await this.service.getCharacteristic(this.FROMNUM_UUID);
+            // Get characteristics - try new UUIDs first, fall back to legacy
+            try {
+                this.toRadioCharacteristic = await this.service.getCharacteristic(this.TORADIO_UUID);
+                this.fromRadioCharacteristic = await this.service.getCharacteristic(this.FROMRADIO_UUID);
+            } catch (charError) {
+                this._updateStatus('Trying legacy characteristic UUIDs...');
+                this.toRadioCharacteristic = await this.service.getCharacteristic(this.LEGACY_TORADIO_UUID);
+                this.fromRadioCharacteristic = await this.service.getCharacteristic(this.LEGACY_FROMRADIO_UUID);
+            }
+            
+            try {
+                // fromNum is used for notification signaling; connection works without it
+                this.fromNumCharacteristic = await this.service.getCharacteristic(this.FROMNUM_UUID);
+            } catch (numError) {
+                console.warn('[Meshtastic] fromNum characteristic not found, continuing without it');
+                this.fromNumCharacteristic = null;
+            }
             
             // Start notifications
             await this.fromRadioCharacteristic.startNotifications();
