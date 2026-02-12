@@ -227,6 +227,12 @@
       flex: 1;
       overflow-y: auto;
       padding: 15px;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
     }
 
     .chat-input-area {
@@ -652,24 +658,11 @@
           break;
 
         case 'drawing_created':
-          // Handle new drawing from another client
-          if (data.data && data.channel === 'drawings') {
-            console.log('Received drawing_created:', data.data);
-          }
-          break;
-
         case 'drawing_updated':
-          // Handle drawing update from another client
-          if (data.data && data.channel === 'drawings') {
-            console.log('Received drawing_updated:', data.data);
-          }
-          break;
-
         case 'drawing_deleted':
-          // Handle drawing deletion from another client
-          if (data.data && data.channel === 'drawings') {
-            console.log('Received drawing_deleted:', data.data);
-          }
+          // Handle drawing changes from another client - reload from server
+          console.log('Received drawing update:', data.type);
+          if (typeof loadDrawings === 'function') loadDrawings();
           break;
 
         case 'overlay_created':
@@ -1154,6 +1147,8 @@
       _syncIntervals.push(setInterval(updateMeshtasticNodes, 30000));
       loadOverlays();
       _syncIntervals.push(setInterval(loadOverlays, 60000));
+      loadDrawings();
+      _syncIntervals.push(setInterval(loadDrawings, 60000));
       connectWebSocket();
     }
 
@@ -1727,6 +1722,56 @@
         }
       } catch (e) {
         console.error('Failed to load overlays:', e);
+      }
+    }
+
+    // Drawing state for overview page
+    const _drawingLayers = new Map(); // drawing_id -> L.polyline/polygon
+
+    function _escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+
+    function _renderDrawingLayer(d) {
+      try {
+        let layer;
+        const coords = d.coordinates || d.points;
+        if (!coords || coords.length < 2) return null;
+        if (d.type === 'polygon') {
+          layer = L.polygon(coords, { color: d.color || '#0088ff', weight: d.weight || 3, pane: 'drawPane' }).addTo(map);
+        } else {
+          layer = L.polyline(coords, { color: d.color || '#0088ff', weight: d.weight || 3, pane: 'drawPane' }).addTo(map);
+        }
+        layer.bindPopup(`<strong>${_escapeHtml(d.name || 'Drawing')}</strong><div style="font-size:.8rem;color:#999">by ${_escapeHtml(d.created_by || d.creator || 'unknown')}</div>`);
+        return layer;
+      } catch (e) {
+        console.error('Failed to render drawing layer:', e);
+        return null;
+      }
+    }
+
+    async function loadDrawings() {
+      if (!map || !isLoggedIn) return;
+      try {
+        const resp = await fetch('/api/drawings');
+        if (!resp.ok) return;
+        const serverDrawings = await resp.json();
+
+        const serverIds = new Set();
+        for (const d of serverDrawings) {
+          serverIds.add(d.id);
+          if (_drawingLayers.has(d.id)) continue;
+          const layer = _renderDrawingLayer(d);
+          if (layer) _drawingLayers.set(d.id, layer);
+        }
+
+        // Remove drawings no longer on server
+        for (const [id, layer] of _drawingLayers) {
+          if (!serverIds.has(id)) {
+            try { map.removeLayer(layer); } catch (e) { }
+            _drawingLayers.delete(id);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load drawings:', e);
       }
     }
 
