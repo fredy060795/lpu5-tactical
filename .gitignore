@@ -58,3 +58,8 @@ main
 test_sync_functionality.py
 test_browser_sync.py
 test_*.png
+
+# Runtime JSON databases
+map_markers_db.json
+meshtastic_messages_db.json
+meshtastic_nodes_db.json
