@@ -5242,10 +5242,17 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
                 MapMarker.lng <= lng + threshold
             ).all()
             
-            # Simplified priority logic for MVP refactor:
-            # For now, we allow placing multiple symbols close by, but we could enforce uniqueness.
-            # To match ATAK behavior, multiple objects can exist.
-            # Original logic handled "conflict", but let's trust the user/admin (or implementing specific logic later)
+            # For gps_position type, remove all previous GPS markers from this user
+            # to ensure only the latest position is shown (no duplicates)
+            if symbol_type == "gps_position":
+                old_gps = db.query(MapMarker).filter(
+                    MapMarker.type == "gps_position",
+                    MapMarker.created_by == username
+                ).all()
+                for old in old_gps:
+                    db.delete(old)
+                if old_gps:
+                    db.commit()
             
             # Create new marker
             new_symbol = MapMarker(

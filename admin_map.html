@@ -2421,6 +2421,17 @@
           const data = await res.json();
           const serverSymbols = data.symbols || [];
 
+          // Deduplicate GPS positions: keep only the latest per user
+          const latestGpsPerUser = new Map();
+          for (const s of serverSymbols) {
+            if (s.type === 'gps_position' && s.username) {
+              const existing = latestGpsPerUser.get(s.username);
+              if (!existing || (s.timestamp || '') > (existing.timestamp || '')) {
+                latestGpsPerUser.set(s.username, s);
+              }
+            }
+          }
+
           // Clear current symbols from map
           symbols.forEach(s => {
             try { map.removeLayer(s.marker); } catch (e) { }
@@ -2428,6 +2439,9 @@
           symbols.length = 0;
 
           serverSymbols.forEach(s => {
+            // Skip duplicate GPS positions — only show the latest per user
+            if (s.type === 'gps_position' && s.username && latestGpsPerUser.get(s.username) !== s) return;
+
             const isGps = (s.type === 'gps_position');
             let icon;
             if (isGps) {
@@ -2450,14 +2464,8 @@
             const marker = L.marker([s.lat, s.lng], { icon, pane: 'paneSymbols' }).addTo(map);
 
             if (isGps) {
-              // GPS positions: show permanent username label
+              // GPS positions: show username on click only
               const displayName = s.label || s.username || 'GPS';
-              marker.bindTooltip(displayName, {
-                permanent: true,
-                direction: 'right',
-                offset: [12, 0],
-                className: 'meshtastic-label'
-              });
               marker.bindPopup(`<strong>${displayName}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
             } else {
               marker.bindPopup(`<strong>${s.label || s.type || 'Symbol'}</strong><div style="font-size:.8rem;color:#999">by ${s.username || 'unknown'}</div>`);
@@ -2611,7 +2619,7 @@
       function createArrowIconHtml(color) { return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`; }
 
       // Send GPS position to server for bidirectional sync with overview.html
-      let _lastGpsSendId = null;
+      let _lastGpsSendId = localStorage.getItem('lpu5_last_gps_send_id') || null;
       async function sendGpsToServer(lat, lon) {
         try {
           const token = localStorage.getItem('token');
@@ -2643,7 +2651,10 @@
           });
           if (res.ok) {
             const data = await res.json();
-            if (data.symbol && data.symbol.id) _lastGpsSendId = data.symbol.id;
+            if (data.symbol && data.symbol.id) {
+              _lastGpsSendId = data.symbol.id;
+              try { localStorage.setItem('lpu5_last_gps_send_id', _lastGpsSendId); } catch (e) { }
+            }
           }
         } catch (e) {
           console.warn('sendGpsToServer failed', e);
