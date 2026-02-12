@@ -22,6 +22,7 @@ Notes:
  - Replacing this file will not modify JSON DB files. Still: back up your DB folder before replacing in production.
  - If pyserial/meshtastic/qrcode are missing server-side they will be attempted to be used if available; otherwise fallback behavior used.
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Body, HTTPException, Request, Path, Header, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -58,10 +59,13 @@ logger = logging.getLogger("lpu5-api")
 _MAIN_EVENT_LOOP = None
 
 # Database imports
-from database import SessionLocal, engine, get_db
+from database import Base, SessionLocal, engine, get_db
 from models import User, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration
 from sqlalchemy.orm import Session
 from fastapi import Depends
+
+# Ensure all tables exist (creates any missing tables like chat_channels, chat_messages)
+Base.metadata.create_all(bind=engine)
 
 # Import new autonomous modules
 try:
@@ -218,7 +222,107 @@ JWT_EXPIRATION_HOURS = 24
 MAX_STORED_MESSAGES = 1000  # Maximum messages to keep in database
 MAX_RETURNED_MESSAGES = 100  # Maximum messages to return in sync/download
 
-app = FastAPI(title="LPU5 Tactical Tracker API", version="2.1.0")
+@asynccontextmanager
+async def lifespan(application):
+    # ---- Startup logic ----
+    global _MAIN_EVENT_LOOP
+    try:
+        _MAIN_EVENT_LOOP = asyncio.get_running_loop()
+        logger.info(f"Captured main event loop: {_MAIN_EVENT_LOOP}")
+    except RuntimeError:
+        try:
+            _MAIN_EVENT_LOOP = asyncio.get_event_loop()
+            logger.info(f"Captured event loop: {_MAIN_EVENT_LOOP}")
+        except Exception as e:
+            logger.warning(f"Could not capture event loop: {e}")
+
+    ensure_db_files()
+    ensure_default_admin()
+
+    # Start data server process if available
+    if DATA_SERVER_AVAILABLE and data_server_manager:
+        try:
+            logger.info("Starting data distribution server...")
+            if data_server_manager.start(timeout=15):
+                logger.info("✅ Data server started successfully")
+                status = data_server_manager.get_status()
+                if status:
+                    logger.info(f"   Data server status: {status.get('status')}")
+                    logger.info(f"   WebSocket: ws://127.0.0.1:8002/ws")
+            else:
+                logger.warning("⚠️  Failed to start data server, falling back to direct WebSocket")
+        except Exception as e:
+            logger.error(f"Error starting data server: {e}")
+
+    # Start background sync thread if enabled
+    try:
+        cfg = load_json("config") or {}
+        enabled = cfg.get("meshtastic_auto_sync", True)
+        interval = int(cfg.get("meshtastic_sync_interval_seconds", 30))
+    except Exception:
+        enabled = True
+        interval = 30
+    global _MESHTASTIC_SYNC_THREAD
+    if enabled and (_MESHTASTIC_SYNC_THREAD is None or not _MESHTASTIC_SYNC_THREAD.is_alive()):
+        _MESHTASTIC_SYNC_STOP_EVENT.clear()
+        _MESHTASTIC_SYNC_THREAD = threading.Thread(target=_meshtastic_sync_worker, args=(interval,), daemon=True, name="meshtastic-sync")
+        _MESHTASTIC_SYNC_THREAD.start()
+
+    # Start periodic marker broadcast thread for real-time sync
+    try:
+        cfg = load_json("config") or {}
+        broadcast_enabled = cfg.get("marker_broadcast_enabled", True)
+        broadcast_interval = int(cfg.get("marker_broadcast_interval_seconds", 60))
+    except Exception:
+        broadcast_enabled = True
+        broadcast_interval = 60
+    global _MARKER_BROADCAST_THREAD
+    if broadcast_enabled and (_MARKER_BROADCAST_THREAD is None or not _MARKER_BROADCAST_THREAD.is_alive()):
+        _MARKER_BROADCAST_STOP_EVENT.clear()
+        _MARKER_BROADCAST_THREAD = threading.Thread(target=_marker_broadcast_worker, args=(broadcast_interval,), daemon=True, name="marker-broadcast")
+        _MARKER_BROADCAST_THREAD.start()
+        logger.info("✅ Marker broadcast worker started (interval=%ss)", broadcast_interval)
+
+    logger.info("Startup complete. DB files ensured.")
+
+    yield
+
+    # ---- Shutdown logic ----
+    # Stop gateway service
+    global _gateway_service
+    if _gateway_service:
+        try:
+            logger.info("Stopping gateway service...")
+            _gateway_service.stop()
+            _gateway_service = None
+            logger.info("✅ Gateway service stopped")
+        except Exception as e:
+            logger.error(f"Error stopping gateway service: {e}")
+
+    # Stop meshtastic sync thread
+    try:
+        _MESHTASTIC_SYNC_STOP_EVENT.set()
+    except Exception:
+        pass
+
+    # Stop marker broadcast thread
+    try:
+        _MARKER_BROADCAST_STOP_EVENT.set()
+    except Exception:
+        pass
+
+    # Stop data server process
+    if DATA_SERVER_AVAILABLE and data_server_manager:
+        try:
+            logger.info("Stopping data distribution server...")
+            if data_server_manager.stop():
+                logger.info("✅ Data server stopped successfully")
+            else:
+                logger.warning("⚠️  Failed to stop data server gracefully")
+        except Exception as e:
+            logger.error(f"Error stopping data server: {e}")
+
+app = FastAPI(title="LPU5 Tactical Tracker API", version="2.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -778,106 +882,6 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
             time.sleep(1)
     logger.info("Marker broadcast worker stopped")
 
-
-@app.on_event("startup")
-def on_startup():
-    # Store reference to main event loop for thread-safe broadcasts
-    import asyncio
-    global _MAIN_EVENT_LOOP
-    try:
-        _MAIN_EVENT_LOOP = asyncio.get_running_loop()
-        logger.info(f"Captured main event loop: {_MAIN_EVENT_LOOP}")
-    except RuntimeError:
-        try:
-            _MAIN_EVENT_LOOP = asyncio.get_event_loop()
-            logger.info(f"Captured event loop: {_MAIN_EVENT_LOOP}")
-        except Exception as e:
-            logger.warning(f"Could not capture event loop: {e}")
-    
-    ensure_db_files()
-    ensure_default_admin()
-    
-    # Start data server process if available
-    if DATA_SERVER_AVAILABLE and data_server_manager:
-        try:
-            logger.info("Starting data distribution server...")
-            if data_server_manager.start(timeout=15):
-                logger.info("✅ Data server started successfully")
-                status = data_server_manager.get_status()
-                if status:
-                    logger.info(f"   Data server status: {status.get('status')}")
-                    logger.info(f"   WebSocket: ws://127.0.0.1:8002/ws")
-            else:
-                logger.warning("⚠️  Failed to start data server, falling back to direct WebSocket")
-        except Exception as e:
-            logger.error(f"Error starting data server: {e}")
-    
-    # Start background sync thread if enabled
-    try:
-        cfg = load_json("config") or {}
-        enabled = cfg.get("meshtastic_auto_sync", True)
-        interval = int(cfg.get("meshtastic_sync_interval_seconds", 30))
-    except Exception:
-        enabled = True
-        interval = 30
-    global _MESHTASTIC_SYNC_THREAD
-    if enabled and (_MESHTASTIC_SYNC_THREAD is None or not _MESHTASTIC_SYNC_THREAD.is_alive()):
-        _MESHTASTIC_SYNC_STOP_EVENT.clear()
-        _MESHTASTIC_SYNC_THREAD = threading.Thread(target=_meshtastic_sync_worker, args=(interval,), daemon=True, name="meshtastic-sync")
-        _MESHTASTIC_SYNC_THREAD.start()
-    
-    # Start periodic marker broadcast thread for real-time sync
-    try:
-        cfg = load_json("config") or {}
-        broadcast_enabled = cfg.get("marker_broadcast_enabled", True)
-        broadcast_interval = int(cfg.get("marker_broadcast_interval_seconds", 60))
-    except Exception:
-        broadcast_enabled = True
-        broadcast_interval = 60
-    global _MARKER_BROADCAST_THREAD
-    if broadcast_enabled and (_MARKER_BROADCAST_THREAD is None or not _MARKER_BROADCAST_THREAD.is_alive()):
-        _MARKER_BROADCAST_STOP_EVENT.clear()
-        _MARKER_BROADCAST_THREAD = threading.Thread(target=_marker_broadcast_worker, args=(broadcast_interval,), daemon=True, name="marker-broadcast")
-        _MARKER_BROADCAST_THREAD.start()
-        logger.info("✅ Marker broadcast worker started (interval=%ss)", broadcast_interval)
-    
-    logger.info("Startup complete. DB files ensured.")
-
-@app.on_event("shutdown")
-def on_shutdown():
-    # Stop gateway service
-    global _gateway_service
-    if _gateway_service:
-        try:
-            logger.info("Stopping gateway service...")
-            _gateway_service.stop()
-            _gateway_service = None
-            logger.info("✅ Gateway service stopped")
-        except Exception as e:
-            logger.error(f"Error stopping gateway service: {e}")
-    
-    # Stop meshtastic sync thread
-    try:
-        _MESHTASTIC_SYNC_STOP_EVENT.set()
-    except Exception:
-        pass
-    
-    # Stop marker broadcast thread
-    try:
-        _MARKER_BROADCAST_STOP_EVENT.set()
-    except Exception:
-        pass
-    
-    # Stop data server process
-    if DATA_SERVER_AVAILABLE and data_server_manager:
-        try:
-            logger.info("Stopping data distribution server...")
-            if data_server_manager.stop():
-                logger.info("✅ Data server stopped successfully")
-            else:
-                logger.warning("⚠️  Failed to stop data server gracefully")
-        except Exception as e:
-            logger.error(f"Error stopping data server: {e}")
 
 # -------------------------
 # Authentication endpoints
