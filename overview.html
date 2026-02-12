@@ -253,6 +253,9 @@
       flex: 1;
       overflow-y: auto;
       padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       scrollbar-width: none; /* Firefox */
       -ms-overflow-style: none; /* IE and Edge */
     }
@@ -287,20 +290,53 @@
     }
 
     .chat-message {
-      margin-bottom: 10px;
-      padding: 10px;
-      background: #222;
-      border-radius: 6px;
-      border-left: 3px solid var(--accent-blue);
+      padding: 10px 12px;
+      border-radius: 8px;
+      max-width: 85%;
+      word-wrap: break-word;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-message.outgoing {
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 3px;
+    }
+
+    .chat-message.incoming {
+      background: #1a1a1a;
+      color: #d0d0d0;
+      align-self: flex-start;
+      border: 1px solid #333;
+      border-bottom-left-radius: 3px;
+    }
+
+    .chat-message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 0.75rem;
     }
 
     .chat-message-sender {
       font-weight: bold;
-      color: var(--accent-blue);
-      margin-bottom: 5px;
+      color: #28a745;
+    }
+
+    .chat-message.outgoing .chat-message-sender {
+      color: #9ad1ff;
     }
 
     .chat-message-text {
+      font-size: 0.85rem;
+      line-height: 1.4;
       color: #fff;
     }
 
@@ -786,15 +822,10 @@
                 messagesDiv.innerHTML = '';
               }
               const messageEl = document.createElement('div');
-              messageEl.className = 'chat-message';
+              messageEl.className = 'chat-message incoming';
               messageEl.setAttribute('data-msg-id', msg.id || '');
-              messageEl.innerHTML = `
-                <div class="chat-message-sender">
-                  ${msg.username || 'Unknown'}
-                  <span class="chat-message-time">${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}</span>
-                </div>
-                <div class="chat-message-text">${msg.text || msg.message || ''}</div>
-              `;
+              const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+              messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || msg.message || '') + '</div>';
               messagesDiv.appendChild(messageEl);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
               // Update unread badge if chat window is not open
@@ -2313,24 +2344,27 @@
       const message = input.value.trim();
       if (!message) return;
 
-      // Create message element
-      const messageEl = document.createElement('div');
-      messageEl.className = 'chat-message';
-      messageEl.setAttribute('data-pending', 'true');
-      const senderName = currentUserName || sessionStorage.getItem('currentUser') || 'Me';
-      messageEl.innerHTML = `
-    <div class="chat-message-sender">
-      ${senderName}
-      <span class="chat-message-time">${new Date().toLocaleTimeString()}</span>
-    </div>
-    <div class="chat-message-text">${message}</div>
-    <div class="chat-msg-status" style="text-align:right;font-size:0.75em;color:#888;">&#9711;</div>
-  `;
-
-      // Clear initial "no messages" text if present (check for placeholder class or attribute)
+      // Clear initial "no messages" placeholder if present
+      const placeholder = messagesDiv.querySelector('.chat-placeholder');
+      if (placeholder) placeholder.style.display = 'none';
       if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
         messagesDiv.innerHTML = '';
       }
+
+      // Create message element with outgoing style
+      const messageEl = document.createElement('div');
+      messageEl.className = 'chat-message outgoing';
+      messageEl.setAttribute('data-pending', 'true');
+      const senderName = currentUserName || sessionStorage.getItem('currentUser') || 'Me';
+      const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      messageEl.innerHTML = `
+    <div class="chat-message-header">
+      <span class="chat-message-sender">${_escapeHtml(senderName)}</span>
+      <span class="chat-message-time">${time}</span>
+    </div>
+    <div class="chat-message-text">${_escapeHtml(message)}</div>
+    <div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:#888;">&#9711;</div>
+  `;
 
       messagesDiv.appendChild(messageEl);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -2433,17 +2467,17 @@
           messages.forEach(msg => {
             const isOutgoing = msg.username === selfName;
             const messageEl = document.createElement('div');
-            messageEl.className = 'chat-message';
+            messageEl.className = 'chat-message ' + (isOutgoing ? 'outgoing' : 'incoming');
             messageEl.setAttribute('data-msg-id', msg.id || '');
-            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : '';
             let statusHtml = '';
             if (isOutgoing) {
               let icon = '&#10003;', color = '#888';
               if (msg.read_by && msg.read_by.length > 0) { icon = '&#10003;&#10003;'; color = '#4fc3f7'; }
               else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
-              statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.75em;color:' + color + ';">' + icon + '</div>';
+              statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
             }
-            messageEl.innerHTML = '<div class="chat-message-sender">' + (msg.username || 'Unknown') + '<span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + (msg.text || '') + '</div>' + statusHtml;
+            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || '') + '</div>' + statusHtml;
             messagesDiv.appendChild(messageEl);
           });
           messagesDiv.scrollTop = messagesDiv.scrollHeight;
