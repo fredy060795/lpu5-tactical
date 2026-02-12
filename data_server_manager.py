@@ -21,7 +21,7 @@ logger = logging.getLogger("lpu5-data-server-manager")
 class DataServerManager:
     """Manages the data server subprocess"""
     
-    def __init__(self, data_server_port: int = 8001, data_server_host: str = "127.0.0.1"):
+    def __init__(self, data_server_port: int = 8002, data_server_host: str = "127.0.0.1"):
         self.data_server_port = data_server_port
         self.data_server_host = data_server_host
         self.process: Optional[subprocess.Popen] = None

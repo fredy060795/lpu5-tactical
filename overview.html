@@ -452,194 +452,6 @@
     .menu-btn i { width: 20px; text-align: center; }
     .logout-btn { color: var(--accent-red); border-color: var(--accent-red); margin-top: 10px; }
 
-    /* Meshtastic Panel */
-    #meshtastic-panel {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      width: 320px;
-      max-height: 80vh;
-      background: var(--panel-bg);
-      border: 2px solid var(--accent-green);
-      border-radius: 8px;
-      z-index: 9999;
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    }
-
-    #meshtastic-panel.open {
-      display: flex;
-    }
-
-    .mesh-header {
-      background: var(--bg-dark);
-      padding: 12px 15px;
-      border-bottom: 2px solid var(--accent-green);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .mesh-header h3 {
-      margin: 0;
-      color: var(--accent-green);
-      font-size: 1.1em;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .mesh-status-indicator {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #666;
-      display: inline-block;
-      animation: pulse 2s infinite;
-    }
-
-    .mesh-status-indicator.connected {
-      background: var(--accent-green);
-    }
-
-    .mesh-status-indicator.connecting {
-      background: #ffa500;
-    }
-
-    .mesh-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 15px;
-      scrollbar-width: none;
-    }
-
-    .mesh-content::-webkit-scrollbar {
-      display: none;
-    }
-
-    .mesh-section {
-      margin-bottom: 15px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid #333;
-    }
-
-    .mesh-section:last-child {
-      border-bottom: none;
-    }
-
-    .mesh-section-title {
-      color: var(--accent-blue);
-      font-size: 0.85em;
-      font-weight: bold;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-
-    .mesh-btn {
-      width: 100%;
-      padding: 10px;
-      background: var(--accent-blue);
-      border: none;
-      color: white;
-      border-radius: 4px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-bottom: 8px;
-      font-family: 'Courier New', monospace;
-    }
-
-    .mesh-btn:disabled {
-      background: #555;
-      cursor: not-allowed;
-    }
-
-    .mesh-btn.success {
-      background: var(--accent-green);
-    }
-
-    .mesh-btn.danger {
-      background: var(--accent-red);
-    }
-
-    .mesh-info {
-      background: #1a1a1a;
-      padding: 8px;
-      border-radius: 4px;
-      font-size: 0.85em;
-      color: #aaa;
-      margin-bottom: 8px;
-    }
-
-    .mesh-node-list {
-      max-height: 150px;
-      overflow-y: auto;
-      scrollbar-width: thin;
-    }
-
-    .mesh-node-item {
-      background: #1a1a1a;
-      padding: 8px;
-      border-radius: 4px;
-      margin-bottom: 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.85em;
-    }
-
-    .mesh-node-name {
-      color: var(--accent-green);
-      font-weight: bold;
-    }
-
-    .mesh-node-info {
-      color: #888;
-      font-size: 0.8em;
-    }
-
-    .mesh-message-compose {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .mesh-textarea {
-      width: 100%;
-      min-height: 60px;
-      padding: 8px;
-      background: #000;
-      border: 1px solid #444;
-      color: white;
-      border-radius: 4px;
-      font-family: 'Courier New', monospace;
-      resize: vertical;
-    }
-
-    .mesh-message-options {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      font-size: 0.85em;
-    }
-
-    .mesh-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      color: #aaa;
-    }
-
-    .mesh-checkbox input {
-      cursor: pointer;
-    }
-
-    /* Meshtastic toolbar button */
-    .tool-btn.mesh-active {
-      border-color: var(--accent-green);
-      background: rgba(46, 204, 113, 0.2);
-    }
   </style>
 </head>
 
@@ -686,68 +498,6 @@
       </select>
       <input type="text" id="chat-input" class="chat-input" placeholder="Nachricht eingeben...">
       <button class="chat-send-btn" onclick="sendChatMessage()">Senden</button>
-    </div>
-  </div>
-
-  <!-- Meshtastic Panel -->
-  <div id="meshtastic-panel">
-    <div class="mesh-header">
-      <h3>
-        <span class="mesh-status-indicator" id="mesh-status-indicator"></span>
-        MESHTASTIC
-      </h3>
-      <button class="sidebar-close" onclick="toggleMeshtasticPanel()">×</button>
-    </div>
-    <div class="mesh-content">
-      <!-- Connection Section -->
-      <div class="mesh-section">
-        <div class="mesh-section-title">Connection</div>
-        <div class="mesh-info" id="mesh-status-text">Not connected</div>
-        <button class="mesh-btn" id="mesh-connect-btn" onclick="connectMeshtastic()">
-          <i class="fas fa-bluetooth"></i> Connect Device
-        </button>
-        <button class="mesh-btn danger" id="mesh-disconnect-btn" onclick="disconnectMeshtastic()" style="display:none;">
-          <i class="fas fa-times"></i> Disconnect
-        </button>
-      </div>
-
-      <!-- Nodes Section -->
-      <div class="mesh-section">
-        <div class="mesh-section-title">Mesh Nodes (<span id="mesh-node-count">0</span>)</div>
-        <div class="mesh-node-list" id="mesh-node-list">
-          <div class="mesh-info">No nodes discovered</div>
-        </div>
-      </div>
-
-      <!-- Message Section -->
-      <div class="mesh-section">
-        <div class="mesh-section-title">Send Message</div>
-        <div class="mesh-message-compose">
-          <textarea class="mesh-textarea" id="mesh-message-input" placeholder="Enter message or COT XML..."></textarea>
-          <div class="mesh-message-options">
-            <label class="mesh-checkbox">
-              <input type="checkbox" id="mesh-send-as-cot">
-              Send as COT
-            </label>
-            <button class="mesh-btn success" onclick="sendMeshtasticMessage()" style="flex: 1;">
-              <i class="fas fa-paper-plane"></i> Send
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Queue Status Section -->
-      <div class="mesh-section">
-        <div class="mesh-section-title">Queue Status</div>
-        <div class="mesh-info">
-          Pending: <span id="mesh-queue-pending">0</span> | 
-          Sent: <span id="mesh-queue-sent">0</span> | 
-          Received: <span id="mesh-queue-received">0</span>
-        </div>
-        <button class="mesh-btn" onclick="exportMeshData()" style="font-size: 0.85em;">
-          <i class="fas fa-download"></i> Export Data
-        </button>
-      </div>
     </div>
   </div>
 
@@ -3556,9 +3306,6 @@
           <button class="menu-btn" id="menu-mesh-disconnect-btn" onclick="event.stopPropagation(); disconnectMeshtastic(); toggleHamburgerMenu();" style="display:none;">
             <i class="fas fa-times"></i> Mesh Gerät trennen
           </button>
-          <button class="menu-btn" onclick="event.stopPropagation(); toggleMeshtasticPanel(); toggleHamburgerMenu();">
-            <i class="fas fa-broadcast-tower"></i> Mesh Panel öffnen
-          </button>
         </div>
 
         <div class="menu-section">
@@ -3608,9 +3355,9 @@
       toggleHamburgerMenu();
     };
 
-    // Legacy alias - opens Meshtastic panel (previously redirected to import_nodes.html)
+    // Legacy alias - now connects Meshtastic directly
     window.openBleSettings = function() {
-      toggleMeshtasticPanel();
+      connectMeshtastic();
     };
 
     window.setManualGps = function() {
@@ -3689,79 +3436,75 @@
     (function initMeshtastic() {
       console.log('[Meshtastic] Initializing...');
       
-      // Check for Web Bluetooth support
-      if (!navigator.bluetooth) {
-        console.warn('[Meshtastic] Web Bluetooth not supported');
-        updateMeshStatus('Web Bluetooth not supported', false);
-        return;
-      }
-
-      // Initialize message queue
+      // Initialize message queue (works regardless of BLE support)
       messageQueue = new MessageQueueManager();
       messageQueue.init().then(() => {
         console.log('[Meshtastic] Message queue initialized');
-        updateQueueStats();
       }).catch(err => {
         console.error('[Meshtastic] Failed to initialize queue:', err);
       });
 
-      // Initialize Meshtastic client
-      meshtasticClient = new MeshtasticWebClient();
+      // Check for Web Bluetooth support
+      if (!navigator.bluetooth) {
+        console.warn('[Meshtastic] Web Bluetooth not supported — Server Gateway mode available');
+        updateMeshStatus('BLE nicht verfügbar — Verbinden nutzt Server Gateway', false);
+      } else {
+        // Initialize Meshtastic BLE client
+        meshtasticClient = new MeshtasticWebClient();
 
-      // Set up callbacks
-      meshtasticClient.onMessage((message) => {
-        console.log('[Meshtastic] Message received:', message);
-        handleIncomingMessage(message);
-      });
+        // Set up callbacks
+        meshtasticClient.onMessage((message) => {
+          console.log('[Meshtastic] Message received:', message);
+          handleIncomingMessage(message);
+        });
 
-      meshtasticClient.onNodeUpdate((node) => {
-        console.log('[Meshtastic] Node updated:', node);
-        handleNodeUpdate(node);
-      });
+        meshtasticClient.onNodeUpdate((node) => {
+          console.log('[Meshtastic] Node updated:', node);
+          handleNodeUpdate(node);
+        });
 
-      meshtasticClient.onStatus((status) => {
-        console.log('[Meshtastic] Status:', status);
-        updateMeshStatus(status, meshtasticConnected);
-      });
+        meshtasticClient.onStatus((status) => {
+          console.log('[Meshtastic] Status:', status);
+          updateMeshStatus(status, meshtasticConnected);
+        });
+      }
 
       console.log('[Meshtastic] Ready');
     })();
 
-    // Toggle Meshtastic panel
-    window.toggleMeshtasticPanel = function() {
-      const panel = document.getElementById('meshtastic-panel');
-      const btn = document.getElementById('s-meshtastic');
-      
-      if (panel.classList.contains('open')) {
-        panel.classList.remove('open');
-        btn.classList.remove('mesh-active');
-      } else {
-        panel.classList.add('open');
-        btn.classList.add('mesh-active');
-        updateQueueStats();
-      }
-    };
-
     // Connect to Meshtastic device
+    // Supports two modes:
+    // 1. Web Bluetooth (Chrome/Edge/Opera on Android/Windows/ChromeOS)
+    // 2. Server-side gateway fallback (iOS/Safari/Firefox or when BLE device is already paired with Meshtastic app)
+    let useGatewayMode = false;
+
     window.connectMeshtastic = async function() {
+      // If Web BLE is not supported, automatically use server gateway
       if (!meshtasticClient || !meshtasticClient.isSupported()) {
-        alert('Web Bluetooth is not supported in this browser. Please use Chrome, Edge, or Opera on Android/Windows/ChromeOS.');
+        console.warn('[Meshtastic] Web Bluetooth not supported, using server gateway');
+        await connectViaGateway();
         return;
       }
 
       try {
-        updateMeshStatus('Connecting...', false);
-        document.getElementById('mesh-status-indicator').classList.add('connecting');
-        document.getElementById('mesh-connect-btn').disabled = true;
+        updateMeshStatus('Verbinde...', false);
+        const statusIndicator = document.getElementById('mesh-status-indicator');
+        const connectBtn = document.getElementById('mesh-connect-btn');
+        const disconnectBtn = document.getElementById('mesh-disconnect-btn');
+        if (statusIndicator) statusIndicator.classList.add('connecting');
+        if (connectBtn) connectBtn.disabled = true;
 
         await meshtasticClient.connect();
         
+        useGatewayMode = false;
         meshtasticConnected = true;
-        updateMeshStatus('Connected to Meshtastic device', true);
-        document.getElementById('mesh-status-indicator').classList.remove('connecting');
-        document.getElementById('mesh-status-indicator').classList.add('connected');
-        document.getElementById('mesh-connect-btn').style.display = 'none';
-        document.getElementById('mesh-disconnect-btn').style.display = 'block';
+        updateMeshStatus('Verbunden mit Meshtastic Gerät', true);
+        if (statusIndicator) {
+          statusIndicator.classList.remove('connecting');
+          statusIndicator.classList.add('connected');
+        }
+        if (connectBtn) connectBtn.style.display = 'none';
+        if (disconnectBtn) disconnectBtn.style.display = 'block';
 
         // Update hamburger menu buttons
         updateMenuMeshButtons(true);
@@ -3770,105 +3513,155 @@
         processPendingMessages();
 
       } catch (error) {
-        console.error('[Meshtastic] Connection failed:', error);
-        updateMeshStatus('Connection failed: ' + error.message, false);
-        document.getElementById('mesh-status-indicator').classList.remove('connecting');
-        document.getElementById('mesh-connect-btn').disabled = false;
+        console.error('[Meshtastic] BLE connection failed:', error);
+        const statusIndicator = document.getElementById('mesh-status-indicator');
+        const connectBtn = document.getElementById('mesh-connect-btn');
+        if (statusIndicator) statusIndicator.classList.remove('connecting');
+        if (connectBtn) connectBtn.disabled = false;
         
         if (error.message.includes('cancelled')) {
-          updateMeshStatus('Connection cancelled by user', false);
+          updateMeshStatus('Verbindung vom Benutzer abgebrochen', false);
+        } else {
+          // BLE failed (device busy, already paired with Meshtastic app, etc.)
+          // Offer server gateway as fallback
+          updateMeshStatus('BLE fehlgeschlagen - versuche Server Gateway...', false);
+          const useGateway = confirm(
+            'BLE-Verbindung fehlgeschlagen: ' + error.message + '\n\n' +
+            'Mögliche Ursachen:\n' +
+            '• Das Gerät ist bereits mit der Meshtastic App verbunden\n' +
+            '• Bluetooth ist nicht aktiviert\n\n' +
+            'Stattdessen über den Server-Gateway verbinden?\n' +
+            '(Das Meshtastic-Gerät muss per USB/Seriell am Server angeschlossen sein)'
+          );
+          if (useGateway) {
+            await connectViaGateway();
+          }
         }
       }
     };
 
+    // Connect via server-side gateway (for iOS, or when BLE is occupied by Meshtastic app)
+    async function connectViaGateway() {
+      try {
+        updateMeshStatus('Prüfe Server Gateway...', false);
+        const statusIndicator = document.getElementById('mesh-status-indicator');
+        if (statusIndicator) statusIndicator.classList.add('connecting');
+        
+        const token = localStorage.getItem('token') || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
+        // Check gateway status first
+        const statusRes = await fetch('/api/gateway/status', { headers });
+        const statusData = await statusRes.json();
+
+        if (statusData.running) {
+          // Gateway is already running
+          useGatewayMode = true;
+          meshtasticConnected = true;
+          updateMeshStatus('Verbunden über Server Gateway (' + (statusData.port || 'Seriell') + ')', true);
+          if (statusIndicator) {
+            statusIndicator.classList.remove('connecting');
+            statusIndicator.classList.add('connected');
+          }
+          const gwConnBtn = document.getElementById('mesh-connect-btn');
+          const gwDiscBtn = document.getElementById('mesh-disconnect-btn');
+          if (gwConnBtn) gwConnBtn.style.display = 'none';
+          if (gwDiscBtn) gwDiscBtn.style.display = 'block';
+          updateMenuMeshButtons(true);
+          return;
+        }
+
+        // Gateway not running — try to find and start it
+        const portsRes = await fetch('/api/gateway/ports', { headers });
+        const portsData = await portsRes.json();
+        const ports = portsData.ports || [];
+
+        if (ports.length === 0) {
+          updateMeshStatus('Kein Meshtastic-Gerät am Server gefunden (USB/Seriell)', false);
+          if (statusIndicator) statusIndicator.classList.remove('connecting');
+          if (!navigator.bluetooth) {
+            alert(
+              'Web Bluetooth wird von diesem Browser nicht unterstützt (iOS Safari).\n\n' +
+              'Optionen:\n' +
+              '1. Meshtastic-Gerät per USB am Server anschließen\n' +
+              '2. Chrome, Edge oder Opera auf Android/Windows verwenden'
+            );
+          }
+          return;
+        }
+
+        // Try to start gateway on the first available port
+        const portEntry = ports[0];
+        const port = (typeof portEntry === 'string') ? portEntry : (portEntry.port || portEntry.device || String(portEntry));
+        const startRes = await fetch('/api/gateway/start', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ port: port })
+        });
+
+        if (startRes.ok) {
+          useGatewayMode = true;
+          meshtasticConnected = true;
+          updateMeshStatus('Verbunden über Server Gateway (' + port + ')', true);
+          if (statusIndicator) {
+            statusIndicator.classList.remove('connecting');
+            statusIndicator.classList.add('connected');
+          }
+          const cBtn = document.getElementById('mesh-connect-btn');
+          const dBtn = document.getElementById('mesh-disconnect-btn');
+          if (cBtn) cBtn.style.display = 'none';
+          if (dBtn) dBtn.style.display = 'block';
+          updateMenuMeshButtons(true);
+        } else {
+          const errData = await startRes.json().catch(() => ({}));
+          updateMeshStatus('Gateway Start fehlgeschlagen: ' + (errData.detail || 'Unbekannter Fehler'), false);
+          if (statusIndicator) statusIndicator.classList.remove('connecting');
+        }
+      } catch (e) {
+        console.error('[Meshtastic] Gateway connection failed:', e);
+        updateMeshStatus('Server Gateway nicht erreichbar', false);
+        const statusIndicator = document.getElementById('mesh-status-indicator');
+        if (statusIndicator) statusIndicator.classList.remove('connecting');
+        if (!navigator.bluetooth) {
+          alert(
+            'Web Bluetooth wird von diesem Browser nicht unterstützt (iOS Safari).\n\n' +
+            'Der Server-Gateway ist ebenfalls nicht erreichbar.\n' +
+            'Bitte Meshtastic-Gerät per USB am Server anschließen oder\n' +
+            'Chrome/Edge/Opera auf Android/Windows verwenden.'
+          );
+        }
+      }
+    }
+
     // Disconnect from Meshtastic device
     window.disconnectMeshtastic = async function() {
-      if (meshtasticClient) {
+      if (useGatewayMode) {
+        // Disconnect from server gateway
+        try {
+          const token = localStorage.getItem('token') || '';
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = 'Bearer ' + token;
+          await fetch('/api/gateway/stop', { method: 'POST', headers });
+        } catch (e) {
+          console.warn('[Meshtastic] Gateway stop failed:', e);
+        }
+        useGatewayMode = false;
+      } else if (meshtasticClient) {
         await meshtasticClient.disconnect();
       }
       
       meshtasticConnected = false;
-      updateMeshStatus('Disconnected', false);
-      document.getElementById('mesh-status-indicator').classList.remove('connected');
-      document.getElementById('mesh-connect-btn').style.display = 'block';
-      document.getElementById('mesh-disconnect-btn').style.display = 'none';
-      document.getElementById('mesh-connect-btn').disabled = false;
+      updateMeshStatus('Getrennt', false);
+      const si = document.getElementById('mesh-status-indicator');
+      const cb = document.getElementById('mesh-connect-btn');
+      const db = document.getElementById('mesh-disconnect-btn');
+      if (si) si.classList.remove('connected');
+      if (cb) { cb.style.display = 'block'; cb.disabled = false; }
+      if (db) db.style.display = 'none';
 
       // Update hamburger menu buttons
       updateMenuMeshButtons(false);
-    };
-
-    // Send message via Meshtastic
-    window.sendMeshtasticMessage = async function() {
-      const messageInput = document.getElementById('mesh-message-input');
-      const sendAsCOT = document.getElementById('mesh-send-as-cot').checked;
-      const text = messageInput.value.trim();
-
-      if (!text) {
-        alert('Please enter a message');
-        return;
-      }
-
-      let messageData = {
-        text: text,
-        timestamp: Date.now(),
-        type: sendAsCOT ? 'cot' : 'text'
-      };
-
-      // If sending as COT and not already XML, convert current position to COT
-      if (sendAsCOT && !text.startsWith('<?xml') && !text.startsWith('<event')) {
-        const mapCenter = map.getCenter();
-        const cotEvent = new COTEvent({
-          lat: mapCenter.lat,
-          lon: mapCenter.lng,
-          callsign: localStorage.getItem('username') || 'MESH-USER',
-          remarks: text
-        });
-        messageData.text = cotEvent.toXML();
-      }
-
-      // Add to queue
-      try {
-        const messageId = await messageQueue.addPendingMessage(messageData);
-        console.log('[Meshtastic] Message queued with ID:', messageId);
-        
-        // Try to send immediately if connected
-        if (meshtasticConnected && meshtasticClient) {
-          try {
-            if (sendAsCOT) {
-              await meshtasticClient.sendCOT(messageData.text);
-            } else {
-              await meshtasticClient.sendText(messageData.text);
-            }
-            
-            // Mark as sent using the returned ID
-            await messageQueue.markAsSent(messageId);
-            console.log('[Meshtastic] Message sent successfully');
-            
-            // Add to chat window
-            displayMessageInChat({
-              text: text,
-              from: 'You',
-              timestamp: Date.now(),
-              type: sendAsCOT ? 'cot' : 'text'
-            });
-            
-          } catch (sendError) {
-            console.error('[Meshtastic] Failed to send message:', sendError);
-            alert('Message queued for retry');
-          }
-        } else {
-          alert('Message queued. Will send when connected.');
-        }
-
-        // Clear input
-        messageInput.value = '';
-        updateQueueStats();
-
-      } catch (error) {
-        console.error('[Meshtastic] Failed to queue message:', error);
-        alert('Failed to queue message: ' + error.message);
-      }
     };
 
     // Handle incoming messages
@@ -3907,8 +3700,6 @@
           console.error('[Meshtastic] Failed to parse COT:', error);
         }
       }
-
-      updateQueueStats();
     }
 
     // Handle node updates
@@ -3917,9 +3708,6 @@
       if (messageQueue) {
         messageQueue.updateNode(node);
       }
-
-      // Update node list display
-      updateNodeList();
 
       // Add/update node on map if it has position
       if (node.lat && node.lon) {
@@ -3948,49 +3736,6 @@
       const disconnectBtn = document.getElementById('menu-mesh-disconnect-btn');
       if (connectBtn) connectBtn.style.display = connected ? 'none' : 'flex';
       if (disconnectBtn) disconnectBtn.style.display = connected ? 'flex' : 'none';
-    }
-
-    // Update node list display
-    function updateNodeList() {
-      if (!meshtasticClient) return;
-
-      const nodes = meshtasticClient.getNodes();
-      const nodeList = document.getElementById('mesh-node-list');
-      const nodeCount = document.getElementById('mesh-node-count');
-
-      if (nodeCount) {
-        nodeCount.textContent = nodes.length;
-      }
-
-      if (nodeList && nodes.length > 0) {
-        nodeList.innerHTML = nodes.map(node => `
-          <div class="mesh-node-item">
-            <div>
-              <div class="mesh-node-name">${node.name || 'Node-' + node.id.toString(16)}</div>
-              <div class="mesh-node-info">${node.role || 'CLIENT'}</div>
-            </div>
-            <div class="mesh-node-info">
-              ${node.lat && node.lon ? '📍' : '❓'}
-            </div>
-          </div>
-        `).join('');
-      } else if (nodeList) {
-        nodeList.innerHTML = '<div class="mesh-info">No nodes discovered</div>';
-      }
-    }
-
-    // Update queue statistics
-    async function updateQueueStats() {
-      if (!messageQueue) return;
-
-      try {
-        const stats = await messageQueue.getStats();
-        document.getElementById('mesh-queue-pending').textContent = stats.pendingCount;
-        document.getElementById('mesh-queue-sent').textContent = stats.sentCount;
-        document.getElementById('mesh-queue-received').textContent = stats.receivedCount;
-      } catch (error) {
-        console.error('[Meshtastic] Failed to get stats:', error);
-      }
     }
 
     // Process pending messages
@@ -4022,7 +3767,6 @@
           }
         }
         
-        updateQueueStats();
       } catch (error) {
         console.error('[Meshtastic] Failed to process pending messages:', error);
       }
@@ -4106,46 +3850,14 @@
       console.log('[Meshtastic] Node added to map:', node.name);
     }
 
-    // Export mesh data
-    window.exportMeshData = async function() {
-      if (!messageQueue) {
-        alert('Message queue not initialized');
-        return;
-      }
-
-      try {
-        const data = await messageQueue.exportData();
-        const json = JSON.stringify(data, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'meshtastic-data-' + new Date().toISOString().split('T')[0] + '.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        console.log('[Meshtastic] Data exported');
-      } catch (error) {
-        console.error('[Meshtastic] Export failed:', error);
-        alert('Failed to export data: ' + error.message);
-      }
-    };
-
     // Periodically check connection and process pending messages
     setInterval(() => {
       if (meshtasticConnected && meshtasticClient) {
         processPendingMessages();
-        updateQueueStats();
       }
     }, 30000); // Every 30 seconds
 
   </script>
-
-  <!-- Tactical Chat Component -->
-  <script src="assets/tactical-chat.js"></script>
 
   <!-- Load global navigation - DISABLED per requirements -->
   <!-- <script src="load-global-nav.js"></script> -->
