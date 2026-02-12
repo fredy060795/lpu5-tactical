@@ -2,7 +2,7 @@
 
 ## LPU5 Tactical Tracker
 
-A comprehensive tactical tracking system with integrated Meshtastic Gateway support for real-time mesh network communication and position tracking.
+A comprehensive tactical tracking system with integrated Meshtastic support for real-time mesh network communication, COT (Cursor on Target) protocol, and position tracking. Now includes a fully off-grid Progressive Web App (PWA) integration for direct device connectivity.
 
 ## Features
 
@@ -12,8 +12,32 @@ A comprehensive tactical tracking system with integrated Meshtastic Gateway supp
 - **Mission Planning**: Create and manage tactical missions
 - **WebSocket Support**: Real-time updates across all connected clients
 - **QR Code System**: Secure access via QR codes with expiration and usage limits
+- **PWA Support**: Installable as offline-first Progressive Web App
 
-### Meshtastic Gateway Service (New)
+### Meshtastic PWA Integration (New) 🆕
+The integrated Meshtastic PWA enables **fully off-grid** operation with direct Bluetooth connectivity to Meshtastic devices. Works completely without internet or backend server.
+
+#### PWA Features:
+- **Web Bluetooth**: Direct BLE connection to Meshtastic devices (no backend required)
+- **Off-Grid Operation**: 100% offline capable - no internet connection needed
+- **COT Protocol**: Full ATAK/WinTAK compatibility for tactical coordination
+- **Offline Queue**: IndexedDB-based message queue with automatic retry
+- **Real-time Map**: Mesh nodes and COT messages displayed on Leaflet map
+- **Cross-Platform**: Works on Android, iOS, Windows, ChromeOS
+- **PWA Installable**: Add to home screen for native-like experience
+- **Easy Distribution**: Static HTML files - no server installation needed
+
+#### Quick Start (PWA):
+1. Open `overview.html` in Chrome/Edge/Opera
+2. Click "Install" or "Add to Home Screen"
+3. Launch the app (works offline!)
+4. Click the Meshtastic icon (green mesh circle)
+5. Click "Connect Device" and select your Meshtastic device
+6. Send text or COT messages via LoRa mesh network
+
+See [MESHTASTIC_GUIDE.md](MESHTASTIC_GUIDE.md) for detailed instructions.
+
+### Meshtastic Gateway Service (Backend)
 The integrated Meshtastic Gateway Service enables real-time hardware connection to Meshtastic devices for automatic data import and live tracking.
 
 #### Gateway Features:
@@ -211,6 +235,24 @@ ws.onmessage = (event) => {
 - Gateway auto-sync default: 300 seconds (configurable)
 - Message buffer: 1000 messages max
 - Status polling: 5 seconds interval in UI
+- PWA: IndexedDB for offline storage, Service Worker caching
+
+## PWA Browser Compatibility
+
+### Fully Supported ✅
+- **Chrome (Android, Windows, ChromeOS)**: Full Web Bluetooth and PWA support
+- **Edge (Windows)**: Full Web Bluetooth and PWA support
+- **Opera (Android, Windows)**: Full Web Bluetooth and PWA support
+
+### Partial Support ⚠️
+- **Chrome (macOS, Linux)**: Web Bluetooth available with limitations
+- **iOS Safari**: Limited - no Web Bluetooth support (use backend gateway instead)
+
+### Not Supported ❌
+- **Firefox**: Web Bluetooth not implemented
+- **Older Browsers**: Requires Chrome 56+ or equivalent
+
+For detailed compatibility and troubleshooting, see [MESHTASTIC_GUIDE.md](MESHTASTIC_GUIDE.md).
 
 ## Development
 
@@ -218,11 +260,17 @@ ws.onmessage = (event) => {
 ```
 lpu5-tactical/
 ├── api.py                          # Main API server
-├── meshtastic_gateway_service.py   # Gateway service
+├── meshtastic_gateway_service.py   # Backend gateway service
 ├── websocket_manager.py            # WebSocket handler
 ├── database.py                     # Database connection
 ├── models.py                       # SQLAlchemy models
-├── meshtastic.html                 # Gateway UI
+├── meshtastic.html                 # Backend gateway UI
+├── overview.html                   # PWA with Meshtastic integration
+├── meshtastic-web-client.js        # Web Bluetooth client
+├── cot-client.js                   # COT protocol implementation
+├── message-queue-manager.js        # Offline message queue
+├── MESHTASTIC_GUIDE.md             # User guide for PWA integration
+├── MESHTASTIC_TECHNICAL.md         # Technical documentation
 ├── index.html                      # Main map UI
 ├── requirements.txt                # Python dependencies
 └── README.md                       # This file
