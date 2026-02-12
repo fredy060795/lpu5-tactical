@@ -3772,8 +3772,8 @@
 
       // Add to queue
       try {
-        await messageQueue.addPendingMessage(messageData);
-        console.log('[Meshtastic] Message queued');
+        const messageId = await messageQueue.addPendingMessage(messageData);
+        console.log('[Meshtastic] Message queued with ID:', messageId);
         
         // Try to send immediately if connected
         if (meshtasticConnected && meshtasticClient) {
@@ -3784,8 +3784,8 @@
               await meshtasticClient.sendText(messageData.text);
             }
             
-            // Mark as sent
-            await messageQueue.markAsSent(messageData.id);
+            // Mark as sent using the returned ID
+            await messageQueue.markAsSent(messageId);
             console.log('[Meshtastic] Message sent successfully');
             
             // Add to chat window
@@ -3906,7 +3906,7 @@
       try {
         const stats = await messageQueue.getStats();
         document.getElementById('mesh-queue-pending').textContent = stats.pendingCount;
-        document.getElementById('mesh-queue-sent').textContent = stats.receivedCount; // Using received for sent count display
+        document.getElementById('mesh-queue-sent').textContent = stats.sentCount;
         document.getElementById('mesh-queue-received').textContent = stats.receivedCount;
       } catch (error) {
         console.error('[Meshtastic] Failed to get stats:', error);

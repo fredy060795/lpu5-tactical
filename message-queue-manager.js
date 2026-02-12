@@ -10,6 +10,7 @@ class MessageQueueManager {
         this.dbName = 'MeshtasticOfflineDB';
         this.dbVersion = 1;
         this.initialized = false;
+        this.MAX_RETRIES = 3; // Configurable maximum retry attempts
     }
 
     /**
@@ -76,7 +77,7 @@ class MessageQueueManager {
                 timestamp: message.timestamp || Date.now(),
                 status: 'pending',
                 retryCount: 0,
-                maxRetries: 3
+                maxRetries: this.MAX_RETRIES
             };
 
             const request = store.add(messageData);
@@ -322,9 +323,19 @@ class MessageQueueManager {
         const pending = await this.getPendingMessages();
         const received = await this.getReceivedMessages(1000);
         const nodes = await this.getNodes();
+        
+        // Get sent messages count
+        const sentCount = await new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(['sentMessages'], 'readonly');
+            const store = transaction.objectStore('sentMessages');
+            const request = store.count();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
 
         return {
             pendingCount: pending.length,
+            sentCount: sentCount,
             receivedCount: received.length,
             nodeCount: nodes.length,
             failedCount: pending.filter(m => m.status === 'failed').length
