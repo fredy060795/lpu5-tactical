@@ -440,26 +440,6 @@
                         <button id="sendBtn" class="btn btn-send"><i class="fas fa-paper-plane"></i> Senden</button>
                     </div>
                 </div>
-                <aside class="right-panel">
-                    <div class="section-title">Parameter</div>
-                    <div class="panel" style="margin-bottom:10px">
-                        <div id="cotSettings" style="display:none; margin-top:6px">
-                            <div class="small" style="margin-bottom:6px">COT Einstellungen</div>
-                            <div class="setting-row">
-                                <label>Typ</label>
-                                <select id="cotType" class="input">
-                                    <option value="a-f-G-U-C">a-f-G-U-C</option>
-                                    <option value="b-m-p">b-m-p</option>
-                                </select>
-                            </div>
-                            <div class="setting-row">
-                                <label>Koordinaten</label>
-                                <input id="cotLat" class="input" type="number" step="0.000001" placeholder="Lat" />
-                                <input id="cotLon" class="input" type="number" step="0.000001" placeholder="Lon" />
-                            </div>
-                        </div>
-                    </div>
-                </aside>
             </div>
         </div>
     </div>
@@ -553,19 +533,8 @@
         loadGatewayStatus();
         loadChatChannels();
         setupColorPicker();
-        setupCOTToggle();
         setupEnterToSend();
     });
-
-    function setupCOTToggle() {
-        const modeSelect = document.getElementById('messageMode');
-        if (modeSelect) {
-            modeSelect.addEventListener('change', () => {
-                const cotSettings = document.getElementById('cotSettings');
-                if (cotSettings) cotSettings.style.display = modeSelect.value === 'cot' ? 'block' : 'none';
-            });
-        }
-    }
 
     function setupEnterToSend() {
         const ta = document.getElementById('messageText');
