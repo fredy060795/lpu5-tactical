@@ -653,15 +653,17 @@
         list.innerHTML = channels.map(ch => {
             const isActive = ch.id === activeChannelId;
             const isDefault = ch.is_default !== false;
-            const deleteBtn = !isDefault ? `<button class="ch-delete" onclick="event.stopPropagation();openDeleteChannelModal('${ch.id}','${escapeAttr(ch.name)}')" title="Löschen"><i class="fas fa-trash-alt"></i></button>` : '';
+            const safeId = escapeAttr(ch.id);
+            const safeName = escapeAttr(ch.name);
+            const deleteBtn = !isDefault ? `<button class="ch-delete" onclick="event.stopPropagation();openDeleteChannelModal('${safeId}','${safeName}')" title="Löschen"><i class="fas fa-trash-alt"></i></button>` : '';
             return `
-            <div class="channel-item${isActive ? ' active' : ''}" onclick="setActiveChannel('${ch.id}')" data-channel-id="${ch.id}">
-                <div class="ch-color" style="background:${ch.color || '#fff'}"></div>
+            <div class="channel-item${isActive ? ' active' : ''}" onclick="setActiveChannel('${safeId}')" data-channel-id="${safeId}">
+                <div class="ch-color" style="background:${escapeAttr(ch.color || '#fff')}"></div>
                 <div class="ch-info">
                     <div class="ch-name">${escapeHtml(ch.name || ch.id)}</div>
                     <div class="ch-desc">${escapeHtml(ch.description || '')}</div>
                 </div>
-                <div class="ch-badge" id="badge-${ch.id}"></div>
+                <div class="ch-badge" id="badge-${safeId}"></div>
                 <div class="ch-actions">
                     ${deleteBtn}
                 </div>
@@ -805,7 +807,7 @@
 
         const actions = document.getElementById('infoChActions');
         if (!ch.is_default) {
-            actions.innerHTML = `<button class="btn btn-danger btn-sm" onclick="closeChannelInfoModal();openDeleteChannelModal('${ch.id}','${escapeAttr(ch.name)}')"><i class="fas fa-trash"></i> Channel löschen</button>`;
+            actions.innerHTML = `<button class="btn btn-danger btn-sm" onclick="closeChannelInfoModal();openDeleteChannelModal('${escapeAttr(ch.id)}','${escapeAttr(ch.name)}')"><i class="fas fa-trash"></i> Channel löschen</button>`;
         } else {
             actions.innerHTML = '<div class="small">Standard-Channel (kann nicht gelöscht werden)</div>';
         }
@@ -1277,7 +1279,7 @@
         return div.innerHTML;
     }
     function escapeAttr(str) {
-        return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return String(str).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function logoutUser() {
