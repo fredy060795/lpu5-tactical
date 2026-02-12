@@ -79,6 +79,60 @@
   const streamImage = document.getElementById('streamImage');
   const streamPlaceholder = document.getElementById('streamPlaceholder');
 
+  let isCameraStream = false;
+  let ws = null;
+
+  // WebSocket connection for receiving camera frames
+  function connectWebSocket() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = protocol + '//' + window.location.host + '/ws';
+
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onopen = function() {
+        console.log('Stream viewer WebSocket connected');
+        ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+      };
+      ws.onmessage = function(event) {
+        try {
+          var data = JSON.parse(event.data);
+          if (data.type === 'camera_frame' && data.frame) {
+            // Display base64 camera frame
+            showCameraFrame(data.frame);
+          } else if (data.type === 'stream_share') {
+            if (data.active) {
+              isCameraStream = !!data.isCamera;
+            } else {
+              hideStream();
+            }
+          } else if (data.type === 'camera_stream_stop') {
+            hideStream();
+          }
+        } catch (e) { console.warn('Failed to parse WebSocket message:', e); }
+      };
+      ws.onclose = function() {
+        ws = null;
+        setTimeout(connectWebSocket, 5000);
+      };
+      ws.onerror = function() {
+        // Will trigger onclose
+      };
+    } catch (e) {
+      console.error('Stream viewer WebSocket failed:', e);
+    }
+  }
+
+  function showCameraFrame(frame) {
+    streamPlaceholder.style.display = 'none';
+    streamVideo.style.display = 'none';
+    streamImage.style.display = 'block';
+    streamImage.src = frame;
+    isCameraStream = true;
+  }
+
   // Check for shared stream every 10 seconds
   function checkForSharedStream() {
     const token = localStorage.getItem('token');
@@ -88,24 +142,34 @@
     }
 
     fetch('/api/stream_share', {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': 'Bearer ' + token }
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.active && data.stream_url) {
-        showStream(data);
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.active) {
+        if (data.isCamera) {
+          // Camera stream: frames arrive via WebSocket, just show the image element
+          isCameraStream = true;
+          streamPlaceholder.style.display = 'none';
+          streamVideo.style.display = 'none';
+          streamImage.style.display = 'block';
+        } else if (data.stream_url) {
+          showStream(data);
+        }
       } else {
-        hideStream();
+        if (!isCameraStream) {
+          hideStream();
+        }
       }
     })
-    .catch(err => {
+    .catch(function(err) {
       console.error('Error checking for shared stream:', err);
-      hideStream();
     });
   }
 
   function showStream(data) {
     streamPlaceholder.style.display = 'none';
+    isCameraStream = false;
 
     if (data.stream_type === 'mjpeg') {
       // MJPEG stream (image)
@@ -119,12 +183,13 @@
       if (streamVideo.src !== data.stream_url) {
         streamVideo.src = data.stream_url;
         streamVideo.load();
-        streamVideo.play().catch(e => console.warn('Autoplay prevented:', e));
+        streamVideo.play().catch(function(e) { console.warn('Autoplay prevented:', e); });
       }
     }
   }
 
   function hideStream() {
+    isCameraStream = false;
     streamVideo.style.display = 'none';
     streamImage.style.display = 'none';
     streamPlaceholder.style.display = 'block';
@@ -138,11 +203,14 @@
     }
   }
 
+  // Start WebSocket connection for camera frames
+  connectWebSocket();
+
   // Start checking for stream
   setInterval(checkForSharedStream, 10000);
   checkForSharedStream();
 
-  console.log('Stream share viewer initialized - Full screen mode');
+  console.log('Stream share viewer initialized - Full screen mode with WebSocket camera support');
 })();
 </script>
 

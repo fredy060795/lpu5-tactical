@@ -8,7 +8,7 @@ Supports standard CoT event types and bidirectional conversion.
 """
 
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 import uuid
 import logging
@@ -77,7 +77,7 @@ class CoTEvent:
         self.remarks = remarks
         self.team_name = team_name
         self.team_role = team_role
-        self.time = datetime.utcnow()
+        self.time = datetime.now(timezone.utc)
         self.start = self.time
         self.stale = self.time + timedelta(minutes=stale_minutes)
         self.how = "m-g"  # machine-generated
@@ -213,7 +213,7 @@ class CoTEvent:
             if stale_str:
                 try:
                     stale_time = datetime.strptime(stale_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-                    now = datetime.utcnow()
+                    now = datetime.now(timezone.utc)
                     stale_delta = stale_time - now
                     stale_minutes = max(1, int(stale_delta.total_seconds() / 60))
                 except Exception:
