@@ -1971,11 +1971,12 @@
         if (symbols.length) {
           const h = document.createElement('div'); h.style.color = '#9ad1ff'; h.style.margin = '6px 0 4px'; h.textContent = 'Symbole'; settingsList.appendChild(h);
           symbols.forEach(s => {
+            const isGps = (s.sym === 'gps_position');
             const div = document.createElement('div'); div.className = 'setting-item';
             div.innerHTML = `<div style="flex:1"><strong>${escapeHtml(s.sym || s.id)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(s.creator || 'unknown')}</div></div>
             <div style="display:flex;gap:6px">
               <button class="btn-zoom" data-id="${s.id}" data-type="symbol">Zoom</button>
-              <button class="btn-delete" data-id="${s.id}" data-type="symbol">Delete</button>
+              ${isGps ? '' : `<button class="btn-delete" data-id="${s.id}" data-type="symbol">Delete</button>`}
             </div>`;
             settingsList.appendChild(div);
           });
@@ -1998,7 +1999,7 @@
       }
 
       document.getElementById('settingsRefreshBtn').addEventListener('click', () => renderSettingsList());
-      document.getElementById('settingsClearAllBtn').addEventListener('click', () => { if (!confirm('Delete all objects (Overlays, Drawings, Symbols)?')) return; overlays.slice().forEach(o => removeOverlay(o.id)); drawings.slice().forEach(d => removeDrawing(d.id)); symbols.slice().forEach(s => removeSymbol(s.id)); refreshOverlayList(); renderSettingsList(); alert('All objects removed.'); });
+      document.getElementById('settingsClearAllBtn').addEventListener('click', () => { if (!confirm('Delete all objects (Overlays, Drawings, Symbols)?')) return; overlays.slice().forEach(o => removeOverlay(o.id)); drawings.slice().forEach(d => removeDrawing(d.id)); symbols.slice().filter(s => s.sym !== 'gps_position').forEach(s => removeSymbol(s.id)); refreshOverlayList(); renderSettingsList(); alert('All objects removed.'); });
 
       // ---------------- Overlays (import with opacity) ----------------
       const overlayFileInput = document.getElementById('ovFile_fly');

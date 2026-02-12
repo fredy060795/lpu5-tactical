@@ -5089,7 +5089,15 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
     db = SessionLocal()
     try:
         # Verify user authentication
-        user_payload = verify_token(authorization)
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        
+        token = authorization.split(" ")[1]
+        user_payload = verify_token(token)
+        
+        if user_payload is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
         username = user_payload.get("username", "Unknown")
         
         channel_id = message.get("channel_id")

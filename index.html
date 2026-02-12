@@ -558,8 +558,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (statusBroadcast) {
         statusBroadcast.addEventListener('message', (event) => {
             const data = event.data;
-            if (data.type === 'status_change') {
-                // Reload data to reflect updated status
+            if (data.type === 'status_change' && data.username && data.status) {
+                // Directly apply the status to clientStatusMap for immediate UI update
+                const user = allUsers.find(u => String(u.username) === String(data.username) || String(u.id) === String(data.username));
+                if (user) {
+                    const key = getUserKey(user);
+                    applyClientStatus(key, normalizeStatus(data.status), data.timestamp || nowISO());
+                    renderTable();
+                }
+                // Also reload from server for consistency
                 loadData().catch(e => console.warn('Failed to reload data after status update', e));
             }
         });
@@ -580,8 +587,15 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (e.key === 'lpu5_last_status_update' && e.newValue) {
             try {
                 const data = JSON.parse(e.newValue);
-                if (data.type === 'status_change') {
-                    // Reload data to reflect updated status
+                if (data.type === 'status_change' && data.username && data.status) {
+                    // Directly apply the status to clientStatusMap for immediate UI update
+                    const user = allUsers.find(u => String(u.username) === String(data.username) || String(u.id) === String(data.username));
+                    if (user) {
+                        const key = getUserKey(user);
+                        applyClientStatus(key, normalizeStatus(data.status), data.timestamp || nowISO());
+                        renderTable();
+                    }
+                    // Also reload from server for consistency
                     loadData().catch(err => console.warn('Failed to reload data after status update', err));
                 }
             } catch (err) {
