@@ -3447,7 +3447,7 @@
       // Check for Web Bluetooth support
       if (!navigator.bluetooth) {
         console.warn('[Meshtastic] Web Bluetooth not supported — Server Gateway mode available');
-        updateMeshStatus('BLE nicht verfügbar — Server Gateway nutzen', false);
+        updateMeshStatus('BLE nicht verfügbar — Verbinden nutzt Server Gateway', false);
       } else {
         // Initialize Meshtastic BLE client
         meshtasticClient = new MeshtasticWebClient();
@@ -3592,11 +3592,12 @@
         }
 
         // Try to start gateway on the first available port
-        const port = ports[0].port || ports[0].device || ports[0];
+        const portEntry = ports[0];
+        const port = (typeof portEntry === 'string') ? portEntry : (portEntry.port || portEntry.device || String(portEntry));
         const startRes = await fetch('/api/gateway/start', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ port: typeof port === 'string' ? port : port.toString() })
+          body: JSON.stringify({ port: port })
         });
 
         if (startRes.ok) {
@@ -3639,7 +3640,7 @@
         // Disconnect from server gateway
         try {
           const token = localStorage.getItem('token') || '';
-          const headers = {};
+          const headers = { 'Content-Type': 'application/json' };
           if (token) headers['Authorization'] = 'Bearer ' + token;
           await fetch('/api/gateway/stop', { method: 'POST', headers });
         } catch (e) {
