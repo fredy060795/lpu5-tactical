@@ -1365,6 +1365,9 @@
           // Use robust filtering to catch all Meshtastic nodes (prevents red diamond fallback icons)
           if (isMeshtasticMarker(m)) return;
 
+          // Skip GPS position markers — those are rendered by loadMapSymbols() as blue arrows
+          if (m.type === 'gps_position') return;
+
           serverIds.add(m.id);
           // Robust icon selection: check m.type, then m.name, then fallback to raute
           const iconType = m.type || m.name || 'raute';
