@@ -2426,7 +2426,7 @@
           for (const s of serverSymbols) {
             if (s.type === 'gps_position' && s.username) {
               const existing = latestGpsPerUser.get(s.username);
-              if (!existing || (s.timestamp || '') > (existing.timestamp || '')) {
+              if (!existing || new Date(s.timestamp || 0) > new Date(existing.timestamp || 0)) {
                 latestGpsPerUser.set(s.username, s);
               }
             }
