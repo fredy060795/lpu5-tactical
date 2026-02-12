@@ -352,6 +352,85 @@
             .chat-col{ order:1; width:100% }
             .composer { grid-template-columns:1fr; }
         }
+
+        /* Channel Admin Styles */
+        .channel-admin-card {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+        .channel-admin-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .channel-admin-color-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1px solid #555;
+            flex-shrink: 0;
+        }
+        .channel-admin-card-name {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #d0d0d0;
+        }
+        .channel-admin-card-desc {
+            font-size: 0.85rem;
+            color: #888;
+            margin-left: auto;
+        }
+        .channel-admin-members-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 8px 0;
+            min-height: 28px;
+        }
+        .channel-admin-member-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(40,167,69,0.15);
+            color: #5ddb7a;
+            border: 1px solid rgba(40,167,69,0.3);
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-size: 0.82rem;
+        }
+        .channel-admin-member-tag .remove-member {
+            cursor: pointer;
+            margin-left: 2px;
+            color: #f55;
+            font-size: 0.9rem;
+        }
+        .channel-admin-member-tag .remove-member:hover {
+            color: #ff8888;
+        }
+        .channel-admin-add-member {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+        .channel-admin-add-member select {
+            flex: 1;
+            max-width: 250px;
+            background: #111;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 6px 10px;
+            border-radius: 6px;
+        }
+        .channel-admin-no-members {
+            color: #777;
+            font-size: 0.85rem;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -406,6 +485,7 @@
         <aside class="channel-sidebar">
             <div class="channel-sidebar-header">
                 <h3><i class="fas fa-hashtag"></i> Channels</h3>
+                <button onclick="openChannelAdminModal()" title="Channel-Verwaltung"><i class="fas fa-users-cog"></i></button>
                 <button onclick="openCreateChannelModal()" title="Neuen Channel erstellen"><i class="fas fa-plus"></i></button>
             </div>
             <div class="channel-list" id="channelList">
@@ -508,6 +588,20 @@
         <div class="modal-actions">
             <button class="btn btn-cancel" onclick="closeDeleteChannelModal()">Abbrechen</button>
             <button class="btn btn-danger" onclick="confirmDeleteChannel()"><i class="fas fa-trash"></i> Löschen</button>
+        </div>
+    </div>
+</div>
+
+<!-- Channel-Verwaltung Modal -->
+<div class="modal-overlay" id="channelAdminModal">
+    <div class="modal-box" style="max-width:650px;max-height:80vh;overflow-y:auto">
+        <h3><i class="fas fa-users-cog"></i> Channel-Verwaltung</h3>
+        <p style="color:#999;font-size:0.9rem;margin-bottom:16px;">Benutzer zu Channels hinzufügen, um Gruppen zu bilden die Nachrichten empfangen können.</p>
+        <div id="channelAdminList">
+            <div class="small" style="padding:16px;text-align:center">Lade Channels...</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="closeChannelAdminModal()">Schließen</button>
         </div>
     </div>
 </div>
@@ -1233,6 +1327,127 @@
                 loadChatChannels();
                 break;
         }
+    }
+
+    // ===========================
+    // Channel-Verwaltung (Admin)
+    // ===========================
+    let _channelAdminAllUsers = [];
+
+    function openChannelAdminModal() {
+        document.getElementById('channelAdminModal').classList.add('active');
+        loadChannelAdmin();
+    }
+    function closeChannelAdminModal() {
+        document.getElementById('channelAdminModal').classList.remove('active');
+    }
+
+    async function loadChannelAdmin() {
+      try {
+        const [chRes, usRes] = await Promise.all([
+          fetch('/api/chat/channels', { headers: getAuthHeaders() }),
+          fetch('/api/users', { headers: getAuthHeaders() })
+        ]);
+        const chData = chRes.ok ? await chRes.json() : {};
+        const chList = (chData && chData.channels) ? chData.channels : [];
+        _channelAdminAllUsers = usRes.ok ? await usRes.json() : [];
+        if (!Array.isArray(_channelAdminAllUsers)) _channelAdminAllUsers = [];
+
+        const container = document.getElementById('channelAdminList');
+        if (!container) return;
+
+        if (chList.length === 0) {
+          container.innerHTML = '<div class="small" style="padding:16px;text-align:center">Keine Channels vorhanden.</div>';
+          return;
+        }
+
+        container.innerHTML = chList.map(ch => {
+          const members = Array.isArray(ch.members) ? ch.members : [];
+          const memberTags = members.length > 0
+            ? members.map(m => '<span class="channel-admin-member-tag">' + escapeHtml(m) + ' <span class="remove-member" onclick="removeChannelAdminMember(\'' + escapeAttr(ch.id) + '\',\'' + escapeAttr(m) + '\')" title="Entfernen">&times;</span></span>').join('')
+            : '<span class="channel-admin-no-members">Keine Mitglieder</span>';
+          const userOptions = _channelAdminAllUsers
+            .filter(u => !members.includes(u.username))
+            .map(u => '<option value="' + escapeAttr(u.username) + '">' + escapeHtml(u.username || u.id) + '</option>')
+            .join('');
+          return '<div class="channel-admin-card">' +
+            '<div class="channel-admin-card-header">' +
+              '<div class="channel-admin-color-dot" style="background:' + escapeAttr(ch.color || '#ffffff') + '"></div>' +
+              '<span class="channel-admin-card-name">' + escapeHtml(ch.name || ch.id) + '</span>' +
+              '<span class="channel-admin-card-desc">' + escapeHtml(ch.description || '') + '</span>' +
+            '</div>' +
+            '<div style="font-size:0.85rem;color:#aaa;margin-bottom:4px;">Mitglieder:</div>' +
+            '<div class="channel-admin-members-list">' + memberTags + '</div>' +
+            '<div class="channel-admin-add-member">' +
+              '<select id="addAdminMemberSelect-' + escapeAttr(ch.id) + '">' +
+                '<option value="">— Benutzer wählen —</option>' +
+                userOptions +
+              '</select>' +
+              '<button class="btn btn-sm" onclick="addChannelAdminMember(\'' + escapeAttr(ch.id) + '\')"><i class="fas fa-user-plus"></i> Hinzufügen</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      } catch (e) {
+        console.error('loadChannelAdmin error:', e);
+        const container = document.getElementById('channelAdminList');
+        if (container) container.innerHTML = '<div class="small" style="padding:16px;text-align:center;color:#f55;">Fehler beim Laden der Channels</div>';
+      }
+    }
+
+    async function addChannelAdminMember(channelId) {
+      const select = document.getElementById('addAdminMemberSelect-' + channelId);
+      if (!select || !select.value) { alert('Bitte einen Benutzer auswählen.'); return; }
+      const username = select.value;
+      try {
+        const chRes = await fetch('/api/chat/channels', { headers: getAuthHeaders() });
+        const chData = chRes.ok ? await chRes.json() : {};
+        const chList = (chData && chData.channels) ? chData.channels : [];
+        const ch = chList.find(c => c.id === channelId);
+        if (!ch) { alert('Channel nicht gefunden.'); return; }
+        const members = Array.isArray(ch.members) ? [...ch.members] : [];
+        if (members.includes(username)) { alert('Benutzer ist bereits Mitglied.'); return; }
+        members.push(username);
+        const res = await fetch('/api/chat/channels/' + encodeURIComponent(channelId) + '/members', {
+          method: 'PUT',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ members: members })
+        });
+        if (res.ok) {
+          await loadChannelAdmin();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert('Fehler: ' + (err.detail || 'Unbekannter Fehler'));
+        }
+      } catch (e) {
+        console.error('addChannelAdminMember error:', e);
+        alert('Fehler: ' + e.message);
+      }
+    }
+
+    async function removeChannelAdminMember(channelId, username) {
+      if (!confirm('Benutzer "' + username + '" aus dem Channel entfernen?')) return;
+      try {
+        const chRes = await fetch('/api/chat/channels', { headers: getAuthHeaders() });
+        const chData = chRes.ok ? await chRes.json() : {};
+        const chList = (chData && chData.channels) ? chData.channels : [];
+        const ch = chList.find(c => c.id === channelId);
+        if (!ch) { alert('Channel nicht gefunden.'); return; }
+        const members = Array.isArray(ch.members) ? ch.members.filter(m => m !== username) : [];
+        const res = await fetch('/api/chat/channels/' + encodeURIComponent(channelId) + '/members', {
+          method: 'PUT',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ members: members })
+        });
+        if (res.ok) {
+          await loadChannelAdmin();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert('Fehler: ' + (err.detail || 'Unbekannter Fehler'));
+        }
+      } catch (e) {
+        console.error('removeChannelAdminMember error:', e);
+        alert('Fehler: ' + e.message);
+      }
     }
 
     // ===========================
