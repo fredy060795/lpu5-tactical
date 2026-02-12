@@ -5070,7 +5070,8 @@ def _extract_username_from_auth(authorization: str) -> str:
     """Extract username from Authorization header. Returns username or raises HTTPException."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-    token = authorization.split(" ", 1)[1].strip()
+    parts = authorization.split(" ", 1)
+    token = parts[1].strip() if len(parts) > 1 else ""
     if not token:
         raise HTTPException(status_code=401, detail="Empty token")
     user_payload = verify_token(token)
@@ -5291,6 +5292,8 @@ async def mark_message_delivered(message_id: str, authorization: str = Header(No
         msg = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
         if not msg:
             raise HTTPException(status_code=404, detail="Message not found")
+        if msg.sender == username:
+            return {"status": "success", "message_id": message_id, "delivered_to": msg.delivered_to or []}
         delivered = msg.delivered_to if msg.delivered_to else []
         if username not in delivered:
             delivered.append(username)
@@ -5320,6 +5323,8 @@ async def mark_message_read(message_id: str, authorization: str = Header(None)):
         msg = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
         if not msg:
             raise HTTPException(status_code=404, detail="Message not found")
+        if msg.sender == username:
+            return {"status": "success", "message_id": message_id, "read_by": msg.read_by or []}
         read_list = msg.read_by if msg.read_by else []
         if username not in read_list:
             read_list.append(username)

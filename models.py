@@ -101,8 +101,8 @@ class ChatMessage(Base):
     content = Column(Text)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     type = Column(String, default="text")
-    delivered_to = Column(JSON, nullable=True, default=list)  # list of usernames who received
-    read_by = Column(JSON, nullable=True, default=list)       # list of usernames who read
+    delivered_to = Column(JSON, nullable=True, default=lambda: [])  # list of usernames who received
+    read_by = Column(JSON, nullable=True, default=lambda: [])       # list of usernames who read
 
 class ChatChannel(Base):
     __tablename__ = "chat_channels"
@@ -111,7 +111,7 @@ class ChatChannel(Base):
     description = Column(String, nullable=True)
     color = Column(String, default="#ffffff")
     created_by = Column(String, nullable=True)
-    members = Column(JSON, nullable=True, default=list)  # list of usernames
+    members = Column(JSON, nullable=True, default=lambda: [])  # list of usernames
     is_default = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
