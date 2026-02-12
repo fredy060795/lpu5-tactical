@@ -75,6 +75,7 @@ class MeshtasticWebClient {
             }
             
             try {
+                // fromNum is used for notification signaling; connection works without it
                 this.fromNumCharacteristic = await this.service.getCharacteristic(this.FROMNUM_UUID);
             } catch (numError) {
                 console.warn('[Meshtastic] fromNum characteristic not found, continuing without it');
