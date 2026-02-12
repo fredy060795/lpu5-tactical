@@ -762,30 +762,35 @@
 
         case 'status_update':
           // Handle status updates from server (e.g., when admin changes status in index.html)
-          if (data.status && data.channel === 'status') {
-            console.log('Received status update:', data);
+          if (data.channel === 'status') {
+            console.log('Received status_update via WebSocket:', data);
+            const statusData = data.data || data;
+            const statusUsername = statusData.username || statusData.unit_id;
+            const newStatus = statusData.status;
             
             // Check if this update is for the current user
             const myUnitId = localStorage.getItem('lpu5_unit_id');
             const myUsername = localStorage.getItem('lpu5_username');
             
             // Apply status if it's for this user/unit
-            if (data.unit_id === myUnitId || data.username === myUsername) {
+            if (statusUsername && newStatus && (statusUsername === currentUserName || statusUsername === myUnitId || statusUsername === myUsername)) {
               // Update the status display
               const statusEl = document.getElementById('out-status');
-              if (statusEl && data.status) {
-                statusEl.innerText = data.status;
+              if (statusEl) {
+                statusEl.innerText = newStatus;
                 
                 // Set color based on status
                 let color = '';
-                if (data.status === 'AKTIV') color = '#28a745';      // Green
-                else if (data.status === 'BASE') color = '#007bff';   // Blue
-                else if (data.status === 'KIA') color = '#dc3545';    // Red
+                if (newStatus === 'AKTIV') color = '#28a745';      // Green
+                else if (newStatus === 'BASE') color = '#007bff';   // Blue
+                else if (newStatus === 'KIA') color = '#dc3545';    // Red
                 statusEl.style.color = color;
                 
-                console.log('Status updated to:', data.status);
+                console.log('Status updated to:', newStatus);
               }
             }
+            // Refresh map data to reflect status changes
+            sync();
           }
           break;
 
@@ -820,28 +825,6 @@
           if (data.channel === 'camera') {
             console.log('Camera stream stopped');
             hideCameraStream();
-          }
-          break;
-
-        case 'status_update':
-          // Handle status updates from other pages (e.g., index.html) via server WebSocket
-          if (data.channel === 'status') {
-            console.log('Received status_update via WebSocket:', data);
-            const statusData = data.data || data;
-            const username = statusData.username || statusData.unit_id;
-            const newStatus = statusData.status;
-            // Update own status display if it concerns the current user
-            if (username && newStatus && username === currentUserName) {
-              const el = document.getElementById('out-status');
-              if (el) {
-                el.innerText = newStatus;
-                if (newStatus === 'AKTIV') el.style.color = '#28a745';
-                else if (newStatus === 'BASE') el.style.color = '#007bff';
-                else if (newStatus === 'KIA') el.style.color = '#dc3545';
-              }
-            }
-            // Refresh map data to reflect status changes
-            sync();
           }
           break;
 
@@ -1365,6 +1348,9 @@
           // Use robust filtering to catch all Meshtastic nodes (prevents red diamond fallback icons)
           if (isMeshtasticMarker(m)) return;
 
+          // Skip GPS position markers — those are rendered by loadMapSymbols() as blue arrows
+          if (m.type === 'gps_position') return;
+
           serverIds.add(m.id);
           // Robust icon selection: check m.type, then m.name, then fallback to raute
           const iconType = m.type || m.name || 'raute';
@@ -1413,6 +1399,17 @@
         const data = await res.json();
         const serverSymbols = data.symbols || [];
 
+        // Deduplicate GPS positions: keep only the latest per user
+        const latestGpsPerUser = new Map();
+        for (const s of serverSymbols) {
+          if (s.type === 'gps_position' && s.username) {
+            const existing = latestGpsPerUser.get(s.username);
+            if (!existing || new Date(s.timestamp || 0) > new Date(existing.timestamp || 0)) {
+              latestGpsPerUser.set(s.username, s);
+            }
+          }
+        }
+
         // Clear previous symbol layers
         for (const [id, layer] of symbolLayers) {
           try { map.removeLayer(layer); } catch (e) { }
@@ -1425,6 +1422,9 @@
 
           // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
           if (s.type === 'node' || MESHTASTIC_SOURCES.includes(s.username) || MESHTASTIC_SOURCES.includes(s.created_by)) continue;
+
+          // Skip duplicate GPS positions — only show the latest per user
+          if (s.type === 'gps_position' && s.username && latestGpsPerUser.get(s.username) !== s) continue;
 
           const isGps = (s.type === 'gps_position');
           const symType = s.type || s.sym || 'raute';
@@ -1444,14 +1444,18 @@
           });
           const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
 
-          // Show username label for GPS positions, symbol type for others
+          // Show username label for GPS positions on click, symbol type for others
           const tooltipText = isGps ? (s.username || s.label || 'GPS') : (s.label || s.type || 'Symbol');
-          marker.bindTooltip(tooltipText, {
-            permanent: isGps,
-            direction: 'right',
-            offset: [10, 0],
-            className: 'symbol-label'
-          });
+          if (isGps) {
+            marker.bindPopup(`<strong>${tooltipText}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
+          } else {
+            marker.bindTooltip(tooltipText, {
+              permanent: false,
+              direction: 'right',
+              offset: [10, 0],
+              className: 'symbol-label'
+            });
+          }
 
           if (!isGps) {
             marker.on('click touchstart', async (ev) => {
@@ -1676,7 +1680,7 @@
     }
 
     // Send GPS position to server so admin_map.html can see it
-    let _lastGpsSendId = null; // track the server symbol id for upsert
+    let _lastGpsSendId = localStorage.getItem('lpu5_last_gps_send_id') || null; // track the server symbol id for upsert
     async function sendGpsToServer(lat, lng) {
       try {
         const token = localStorage.getItem('token');
@@ -1708,7 +1712,10 @@
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.symbol && data.symbol.id) _lastGpsSendId = data.symbol.id;
+          if (data.symbol && data.symbol.id) {
+            _lastGpsSendId = data.symbol.id;
+            try { localStorage.setItem('lpu5_last_gps_send_id', _lastGpsSendId); } catch (e) { }
+          }
         }
       } catch (e) {
         console.warn('sendGpsToServer failed', e);
@@ -2102,6 +2109,10 @@
         } catch (e) {
           console.warn('localStorage not available', e);
         }
+        
+        // Also broadcast via setStatus to ensure lpu5_global_status channel
+        // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
+        try { setStatus(status, color); } catch (e) { }
         
         // Close the hamburger menu
         toggleHamburgerMenu();
