@@ -736,17 +736,32 @@
           break;
 
         case 'chat_message':
-          // Handle chat messages
-          if (data.data && data.channel === 'messages') {
+        case 'new_message':
+          // Handle chat messages (from WebSocket broadcast)
+          if (data.data) {
             const msg = data.data;
             const messagesDiv = document.getElementById('chat-messages');
             if (messagesDiv) {
+              // Don't add if sent by self (already shown locally)
+              const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
+              if (msg.username === selfName) {
+                // Update local message with server-assigned id for read receipt tracking
+                const localMsgs = messagesDiv.querySelectorAll('.chat-message[data-pending="true"]');
+                if (localMsgs.length > 0) {
+                  localMsgs[0].setAttribute('data-msg-id', msg.id);
+                  localMsgs[0].removeAttribute('data-pending');
+                  const statusEl = localMsgs[0].querySelector('.chat-msg-status');
+                  if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
+                }
+                break;
+              }
               // Clear placeholder if present
               if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
                 messagesDiv.innerHTML = '';
               }
               const messageEl = document.createElement('div');
               messageEl.className = 'chat-message';
+              messageEl.setAttribute('data-msg-id', msg.id || '');
               messageEl.innerHTML = `
                 <div class="chat-message-sender">
                   ${msg.username || 'Unknown'}
@@ -756,6 +771,41 @@
               `;
               messagesDiv.appendChild(messageEl);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
+              // Mark as delivered
+              if (msg.id) {
+                const tk = localStorage.getItem('token');
+                if (tk) {
+                  fetch('/api/chat/message/' + msg.id + '/delivered', {
+                    method: 'POST', headers: { 'Authorization': 'Bearer ' + tk }
+                  }).catch(() => {});
+                }
+              }
+            }
+          }
+          break;
+
+        case 'message_delivered':
+        case 'message_read':
+        case 'messages_read':
+          // Update read receipt checkmarks on messages
+          if (data.data) {
+            const d = data.data;
+            if (d.message_id) {
+              const el = document.querySelector('.chat-message[data-msg-id="' + d.message_id + '"] .chat-msg-status');
+              if (el) {
+                if (d.read_by && d.read_by.length > 0) {
+                  el.innerHTML = '&#10003;&#10003;'; // double check = read
+                  el.style.color = '#4fc3f7';
+                } else if (d.delivered_to && d.delivered_to.length > 0) {
+                  el.innerHTML = '&#10003;&#10003;'; // double check = delivered
+                }
+              }
+            }
+            if (d.message_ids) {
+              d.message_ids.forEach(function(mid) {
+                const el = document.querySelector('.chat-message[data-msg-id="' + mid + '"] .chat-msg-status');
+                if (el) { el.innerHTML = '&#10003;&#10003;'; el.style.color = '#4fc3f7'; }
+              });
             }
           }
           break;
@@ -2156,6 +2206,7 @@
       // Create message element
       const messageEl = document.createElement('div');
       messageEl.className = 'chat-message';
+      messageEl.setAttribute('data-pending', 'true');
       const senderName = currentUserName || sessionStorage.getItem('currentUser') || 'Me';
       messageEl.innerHTML = `
     <div class="chat-message-sender">
@@ -2163,6 +2214,7 @@
       <span class="chat-message-time">${new Date().toLocaleTimeString()}</span>
     </div>
     <div class="chat-message-text">${message}</div>
+    <div class="chat-msg-status" style="text-align:right;font-size:0.75em;color:#888;">&#9711;</div>
   `;
 
       // Clear initial "no messages" text if present (check for placeholder class or attribute)
@@ -2179,30 +2231,63 @@
       // Send message to server via API
       const channelId = recipient.value || 'all';
       const token = localStorage.getItem('token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = 'Bearer ' + token;
+      if (!token) {
+        console.error('No auth token found - cannot send chat message');
+        const statusEl = messageEl.querySelector('.chat-msg-status');
+        if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+        return;
+      }
+      const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
       fetch('/api/chat/message', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({ channel_id: channelId, text: message })
-      }).catch(e => console.error('Failed to send chat message:', e));
+      })
+      .then(r => r.json())
+      .then(result => {
+        if (result.status === 'success' && result.message) {
+          messageEl.setAttribute('data-msg-id', result.message.id);
+          messageEl.removeAttribute('data-pending');
+          const statusEl = messageEl.querySelector('.chat-msg-status');
+          if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
+        }
+      })
+      .catch(e => {
+        console.error('Failed to send chat message:', e);
+        const statusEl = messageEl.querySelector('.chat-msg-status');
+        if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+      });
     }
 
     function loadChatUsers() {
-      // Load users from API for chat recipient dropdown
+      // Load channels from API for chat recipient dropdown
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      fetch('/api/users', {
+      fetch('/api/chat/channels', {
         headers: { 'Authorization': 'Bearer ' + token }
       })
         .then(r => r.json())
-        .then(users => {
+        .then(result => {
           const select = document.getElementById('chat-recipient');
           if (!select) return;
-
-          // Keep "all" option, add individual users
-          select.innerHTML = '<option value="all">Alle Einheiten</option>';
+          const channels = (result && result.channels) ? result.channels : [];
+          select.innerHTML = '';
+          channels.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch.id;
+            opt.textContent = ch.name || ch.id;
+            if (ch.color) opt.style.color = ch.color;
+            select.appendChild(opt);
+          });
+          // Also load user list for direct messages
+          return fetch('/api/users', { headers: { 'Authorization': 'Bearer ' + token } });
+        })
+        .then(r => r ? r.json() : [])
+        .then(users => {
+          if (!users || !Array.isArray(users)) return;
+          const select = document.getElementById('chat-recipient');
+          if (!select) return;
           users.forEach(user => {
             const opt = document.createElement('option');
             opt.value = user.id;
@@ -2211,15 +2296,7 @@
           });
         })
         .catch(err => {
-          console.error('Error loading users for chat:', err);
-          // Show user-facing error in the chat interface
-          const select = document.getElementById('chat-recipient');
-          if (select && select.children.length === 1) {
-            const opt = document.createElement('option');
-            opt.textContent = '(Error loading users)';
-            opt.disabled = true;
-            select.appendChild(opt);
-          }
+          console.error('Error loading channels/users for chat:', err);
         });
     }
 

@@ -101,6 +101,19 @@ class ChatMessage(Base):
     content = Column(Text)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     type = Column(String, default="text")
+    delivered_to = Column(JSON, nullable=True, default=lambda: [])  # list of usernames who received
+    read_by = Column(JSON, nullable=True, default=lambda: [])       # list of usernames who read
+
+class ChatChannel(Base):
+    __tablename__ = "chat_channels"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String, unique=True)
+    description = Column(String, nullable=True)
+    color = Column(String, default="#ffffff")
+    created_by = Column(String, nullable=True)
+    members = Column(JSON, nullable=True, default=lambda: [])  # list of usernames
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class AuditLog(Base):
     __tablename__ = "audit_log"

@@ -1109,6 +1109,7 @@
     // Create message element
     const messageEl = document.createElement('div');
     messageEl.className = 'chat-message outgoing';
+    messageEl.setAttribute('data-pending', 'true');
     
     const currentUser = sessionStorage.getItem('currentUser') || 'Me';
     const time = new Date().toLocaleTimeString('de-DE', {
@@ -1122,6 +1123,7 @@
         <span class="chat-message-time">${escapeHtml(time)}</span>
       </div>
       <div class="chat-message-text">${escapeHtml(message)}</div>
+      <div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:#888;">&#9711;</div>
     `;
 
     messagesContainer.appendChild(messageEl);
@@ -1131,35 +1133,61 @@
     input.value = '';
 
     // Send message to API
-    sendMessageToAPI(message, recipient.value);
+    sendMessageToAPI(message, recipient.value, messageEl);
 
     // Share to other pages via localStorage
     shareMessageToOtherPages(message);
   };
 
-  async function sendMessageToAPI(message, recipient) {
+  async function sendMessageToAPI(message, recipient, messageEl) {
     try {
-      const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
-      
-      const response = await fetch('/api/meshtastic/send', {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const response = await fetch('/api/chat/message', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: JSON.stringify({
-          from: currentUser,
-          text: message,
-          to: recipient
+          channel_id: recipient || 'all',
+          text: message
         })
       });
 
       if (response.ok) {
+        const result = await response.json();
+        if (result.message && messageEl) {
+          messageEl.setAttribute('data-msg-id', result.message.id);
+          messageEl.removeAttribute('data-pending');
+          const statusEl = messageEl.querySelector('.chat-msg-status');
+          if (statusEl) statusEl.innerHTML = '&#10003;';
+        }
         console.log('Message sent successfully');
       } else {
         console.error('Failed to send message');
+        if (messageEl) {
+          const statusEl = messageEl.querySelector('.chat-msg-status');
+          if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+        }
+      }
+
+      // Also try meshtastic send (best-effort)
+      try {
+        const currentUser = sessionStorage.getItem('currentUser') || 'admin_map';
+        await fetch('/api/meshtastic/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: currentUser, text: message, to: recipient })
+        });
+      } catch (meshErr) {
+        console.debug('Meshtastic relay not available:', meshErr);
       }
     } catch (e) {
       console.error('Error sending message:', e);
+      if (messageEl) {
+        const statusEl = messageEl.querySelector('.chat-msg-status');
+        if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+      }
     }
   }
 
