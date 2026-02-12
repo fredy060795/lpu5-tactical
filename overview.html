@@ -2629,13 +2629,46 @@
       // Clear input
       input.value = '';
 
-      // Send message to server via API
+      // Send message to server via API, with automatic COT fallback
       const channelId = recipient.value || 'all';
       const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('No auth token found - cannot send chat message');
-        const statusEl = messageEl.querySelector('.chat-msg-status');
-        if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+
+      // Helper: send via Meshtastic COT as fallback
+      function sendViaMeshtasticCOT(msgEl) {
+        if (typeof meshtasticConnected !== 'undefined' && meshtasticConnected && meshtasticClient) {
+          const mapCenter = typeof map !== 'undefined' ? map.getCenter() : null;
+          const cotEvent = new COTEvent({
+            lat: mapCenter ? mapCenter.lat : 0,
+            lon: mapCenter ? mapCenter.lng : 0,
+            callsign: currentUserName || 'MESH-USER',
+            remarks: message
+          });
+          meshtasticClient.sendCOT(cotEvent.toXML()).then(() => {
+            console.log('[Chat] Message sent via Meshtastic COT fallback');
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '📡'; statusEl.title = 'Gesendet via Meshtastic COT'; }
+          }).catch(cotErr => {
+            console.error('[Chat] Meshtastic COT fallback also failed:', cotErr);
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+          });
+        } else {
+          // No Meshtastic connection, queue for later
+          if (typeof messageQueue !== 'undefined' && messageQueue) {
+            messageQueue.addPendingMessage({ text: message, type: 'cot', timestamp: Date.now() });
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In Warteschlange'; }
+          } else {
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+          }
+        }
+      }
+
+      if (!token || !navigator.onLine) {
+        // No token or offline: send directly via Meshtastic COT
+        console.log('[Chat] No server connection, using Meshtastic COT');
+        sendViaMeshtasticCOT(messageEl);
         return;
       }
       const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
@@ -2644,7 +2677,10 @@
         headers: headers,
         body: JSON.stringify({ channel_id: channelId, text: message })
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Server responded with ' + r.status);
+        return r.json();
+      })
       .then(result => {
         if (result.status === 'success' && result.message) {
           messageEl.setAttribute('data-msg-id', result.message.id);
@@ -2654,9 +2690,8 @@
         }
       })
       .catch(e => {
-        console.error('Failed to send chat message:', e);
-        const statusEl = messageEl.querySelector('.chat-msg-status');
-        if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+        console.error('Failed to send chat message via server, falling back to COT:', e);
+        sendViaMeshtasticCOT(messageEl);
       });
     }
 
@@ -3835,13 +3870,22 @@
         messageQueue.addReceivedMessage(message);
       }
 
-      // Display in chat
+      // Display in chat window
       displayMessageInChat({
         text: message.text,
         from: 'Node-' + (message.from ? message.from.toString(16) : 'Unknown'),
         timestamp: message.timestamp,
         type: message.isCOT ? 'cot' : 'text'
       });
+
+      // Update chat notification badge if chat window is closed
+      const chatWin = document.getElementById('chat-window');
+      if (!chatWin || !chatWin.classList.contains('open')) {
+        if (typeof chatUnreadCount !== 'undefined') {
+          chatUnreadCount++;
+          if (typeof updateChatNotificationBadge === 'function') updateChatNotificationBadge();
+        }
+      }
 
       // If it's a COT message, add marker to map
       if (message.isCOT && COTProtocolHandler) {
@@ -3997,10 +4041,10 @@
 
       let contentHTML = `
         <div class="chat-message-header">
-          <span class="chat-message-sender">${message.from}</span>
-          <span class="chat-message-time">${time}</span>
+          <span class="chat-message-sender">${_escapeHtml(message.from)}</span>
+          <span class="chat-message-time">${_escapeHtml(time)}</span>
         </div>
-        <div>${message.text}</div>
+        <div class="chat-message-text">${_escapeHtml(message.text)}</div>
       `;
 
       if (message.type === 'cot') {
