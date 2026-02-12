@@ -3446,8 +3446,8 @@
 
       // Check for Web Bluetooth support
       if (!navigator.bluetooth) {
-        console.warn('[Meshtastic] Web Bluetooth not supported — Server Gateway mode available');
-        updateMeshStatus('BLE nicht verfügbar — Verbinden nutzt Server Gateway', false);
+        console.warn('[Meshtastic] Web Bluetooth not supported — please use Chrome/Edge/Opera');
+        updateMeshStatus('BLE nicht verfügbar — bitte Chrome/Edge/Opera verwenden', false);
       } else {
         // Initialize Meshtastic BLE client
         meshtasticClient = new MeshtasticWebClient();
@@ -3473,16 +3473,23 @@
     })();
 
     // Connect to Meshtastic device
-    // Supports two modes:
-    // 1. Web Bluetooth (Chrome/Edge/Opera on Android/Windows/ChromeOS)
-    // 2. Server-side gateway fallback (iOS/Safari/Firefox or when BLE device is already paired with Meshtastic app)
-    let useGatewayMode = false;
+    // overview.html connects ONLY via Web Bluetooth (BLE) directly to local Meshtastic devices.
+    // It does NOT use the server gateway or any server-side Meshtastic logic.
+    // The server gateway is managed exclusively by meshtastic.html / import_nodes.html.
 
     window.connectMeshtastic = async function() {
-      // If Web BLE is not supported, automatically use server gateway
+      // overview.html ONLY supports Web BLE — no server gateway fallback
       if (!meshtasticClient || !meshtasticClient.isSupported()) {
-        console.warn('[Meshtastic] Web Bluetooth not supported, using server gateway');
-        await connectViaGateway();
+        console.warn('[Meshtastic] Web Bluetooth not supported in this browser');
+        updateMeshStatus('Web Bluetooth nicht unterstützt', false);
+        alert(
+          'Web Bluetooth wird von diesem Browser nicht unterstützt.\n\n' +
+          'Bitte verwenden Sie einen der folgenden Browser:\n' +
+          '• Chrome (Android, Windows, ChromeOS)\n' +
+          '• Edge (Windows)\n' +
+          '• Opera (Android, Windows)\n\n' +
+          'Stellen Sie sicher, dass Bluetooth aktiviert ist.'
+        );
         return;
       }
 
@@ -3496,7 +3503,6 @@
 
         await meshtasticClient.connect();
         
-        useGatewayMode = false;
         meshtasticConnected = true;
         updateMeshStatus('Verbunden mit Meshtastic Gerät', true);
         if (statusIndicator) {
@@ -3523,95 +3529,22 @@
           updateMeshStatus('Verbindung vom Benutzer abgebrochen', false);
         } else {
           // BLE failed (device busy, already paired with Meshtastic app, etc.)
-          // Offer server gateway as fallback
-          updateMeshStatus('BLE fehlgeschlagen - versuche Server Gateway...', false);
-          const useGateway = confirm(
+          updateMeshStatus('BLE-Verbindung fehlgeschlagen', false);
+          alert(
             'BLE-Verbindung fehlgeschlagen: ' + error.message + '\n\n' +
             'Mögliche Ursachen:\n' +
             '• Das Gerät ist bereits mit der Meshtastic App verbunden\n' +
-            '• Bluetooth ist nicht aktiviert\n\n' +
-            'Stattdessen über den Server-Gateway verbinden?\n' +
-            '(Das Meshtastic-Gerät muss per USB/Seriell am Server angeschlossen sein)'
+            '• Bluetooth ist nicht aktiviert\n' +
+            '• Das Gerät ist außer Reichweite\n\n' +
+            'Bitte prüfen Sie die Bluetooth-Verbindung und versuchen Sie es erneut.'
           );
-          if (useGateway) {
-            await connectViaGateway();
-          }
         }
       }
     };
 
-    // Connect via server-side gateway (read-only: only attach to an already-running gateway,
-    // never start one — starting the gateway locks the COM port and blocks import_nodes.html)
-    async function connectViaGateway() {
-      try {
-        updateMeshStatus('Prüfe Server Gateway...', false);
-        const statusIndicator = document.getElementById('mesh-status-indicator');
-        if (statusIndicator) statusIndicator.classList.add('connecting');
-        
-        const token = localStorage.getItem('token') || '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = 'Bearer ' + token;
-
-        // Check gateway status — only attach if already running
-        const statusRes = await fetch('/api/gateway/status', { headers });
-        const statusData = await statusRes.json();
-
-        if (statusData.running) {
-          // Gateway is already running — attach to it (read-only)
-          useGatewayMode = true;
-          meshtasticConnected = true;
-          updateMeshStatus('Verbunden über Server Gateway (' + (statusData.port || 'Seriell') + ')', true);
-          if (statusIndicator) {
-            statusIndicator.classList.remove('connecting');
-            statusIndicator.classList.add('connected');
-          }
-          const gwConnBtn = document.getElementById('mesh-connect-btn');
-          const gwDiscBtn = document.getElementById('mesh-disconnect-btn');
-          if (gwConnBtn) gwConnBtn.style.display = 'none';
-          if (gwDiscBtn) gwDiscBtn.style.display = 'block';
-          updateMenuMeshButtons(true);
-          return;
-        }
-
-        // Gateway not running — do NOT start it here (that would lock the COM port
-        // and prevent import_nodes.html from accessing it).
-        // overview.html uses BLE for local device communication;
-        // the gateway should only be started from meshtastic.html or import_nodes.html.
-        updateMeshStatus('Server Gateway nicht aktiv — bitte BLE nutzen oder Gateway über Meshtastic-Seite starten', false);
-        if (statusIndicator) statusIndicator.classList.remove('connecting');
-        if (!navigator.bluetooth) {
-          alert(
-            'Web Bluetooth wird von diesem Browser nicht unterstützt.\n\n' +
-            'Um die Mesh-Verbindung zu nutzen:\n' +
-            '1. Gateway über die Meshtastic-Seite starten (meshtastic.html)\n' +
-            '2. Oder Chrome/Edge/Opera mit Bluetooth verwenden\n\n' +
-            'Hinweis: Die Overview-Seite startet den Gateway nicht selbst,\n' +
-            'um Konflikte mit der Import-Seite zu vermeiden.'
-          );
-        }
-      } catch (e) {
-        console.error('[Meshtastic] Gateway connection failed:', e);
-        updateMeshStatus('Server Gateway nicht erreichbar', false);
-        const statusIndicator = document.getElementById('mesh-status-indicator');
-        if (statusIndicator) statusIndicator.classList.remove('connecting');
-        if (!navigator.bluetooth) {
-          alert(
-            'Web Bluetooth wird von diesem Browser nicht unterstützt.\n\n' +
-            'Der Server-Gateway ist nicht erreichbar.\n' +
-            'Bitte Gateway über die Meshtastic-Seite starten oder\n' +
-            'Chrome/Edge/Opera mit Bluetooth verwenden.'
-          );
-        }
-      }
-    }
-
     // Disconnect from Meshtastic device
     window.disconnectMeshtastic = async function() {
-      if (useGatewayMode) {
-        // Detach from server gateway (do NOT stop it — overview.html only reads from it,
-        // stopping would disrupt other clients and is done from meshtastic.html)
-        useGatewayMode = false;
-      } else if (meshtasticClient) {
+      if (meshtasticClient) {
         await meshtasticClient.disconnect();
       }
       
