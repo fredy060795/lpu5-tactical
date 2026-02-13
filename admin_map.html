@@ -591,6 +591,15 @@
       display: flex;
     }
 
+    .chat-window.minimized {
+      height: auto;
+    }
+
+    .chat-window.minimized .chat-window-content,
+    .chat-window.minimized .chat-window-footer {
+      display: none;
+    }
+
     .chat-window-header {
       background: #28a745;
       color: #fff;
@@ -1074,7 +1083,7 @@
       </div>
       <div class="chat-window-controls">
         <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
-          <i class="fas fa-minus"></i>
+          <i class="fas fa-minus" id="chatMinimizeIcon"></i>
         </button>
         <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
           <i class="fas fa-times"></i>
@@ -1177,25 +1186,35 @@
       map.attributionControl.setPosition('bottomleft');
 
       // user detection (creator) - exposed globally for chat IIFE access
+      // Prioritise JWT username (same source the server uses) to avoid chat echo
       function getCurrentUsername() {
         try {
+          // 1. JWT token – authoritative source (matches server-side _extract_username_from_auth)
+          const jwtToken = localStorage.getItem('token') || localStorage.getItem('lpu5_token');
+          if (jwtToken && jwtToken.includes('.')) {
+            try { const payload = JSON.parse(atob(jwtToken.split('.')[1])); if (payload.username) return payload.username; if (payload.sub) return payload.sub; } catch (e) { console.debug('JWT parse fallback failed:', e); }
+          }
+          // 2. sessionStorage set by overview login
+          const cached = sessionStorage.getItem('currentUser');
+          if (cached) return cached;
+          // 3. lpu5_user object
           const raw = localStorage.getItem('lpu5_user');
           if (raw) {
             try { const u = JSON.parse(raw); return u.username || u.name || u.fullname || u.displayName || String(raw); } catch { return raw; }
           }
+          // 4. Plain token fallback
           const token = localStorage.getItem('lpu5_token');
           if (token && !token.includes('.') && token.length < 128) return token;
-          // Fallback: extract username from JWT token
-          const jwtToken = localStorage.getItem('token') || localStorage.getItem('lpu5_token');
-          if (jwtToken && jwtToken.includes('.')) {
-            try { const payload = JSON.parse(atob(jwtToken.split('.')[1])); if (payload.username) return payload.username; } catch (e) { console.debug('JWT parse fallback failed:', e); }
-          }
         } catch (e) { }
         return 'Gast';
       }
       window.getCurrentUsername = getCurrentUsername;
       const userNameEl = document.getElementById('userName');
       if (userNameEl) userNameEl.textContent = getCurrentUsername();
+
+      // Track IDs of messages we sent ourselves so WebSocket echoes are reliably suppressed.
+      // Entries auto-expire after 30 s (enough time for any delayed echo to arrive).
+      const _sentChatMessageIds = new Set();
 
       // Pending symbols queue (localStorage-first, sync when server available)
       const PENDING_SYMBOLS_KEY = 'pending_admin_map_symbols_v1';
@@ -1681,12 +1700,14 @@
                 const selfName = getCurrentUsername();
                 
                 // Don't display our own messages - they're already shown as outgoing
-                if (msg.username === selfName || msg.sender === selfName) {
+                if (msg.username === selfName || msg.sender === selfName || (msg.id && _sentChatMessageIds.has(String(msg.id)))) {
                   // Update local pending message with server id
                   const pending = messagesContainer.querySelector('.chat-message[data-pending="true"]');
                   if (pending) {
                     pending.setAttribute('data-msg-id', msg.id);
                     pending.removeAttribute('data-pending');
+                    _sentChatMessageIds.add(String(msg.id));
+                    setTimeout(() => _sentChatMessageIds.delete(String(msg.id)), 30000);
                     const st = pending.querySelector('.chat-msg-status');
                     if (st) st.innerHTML = '&#10003;';
                   }
@@ -3473,6 +3494,9 @@
       window.openChatWindow = function () {
         const chatWindow = document.getElementById('chatWindow');
         chatWindow.classList.add('active');
+        chatWindow.classList.remove('minimized');
+        const icon = document.getElementById('chatMinimizeIcon');
+        if (icon) icon.className = 'fas fa-minus';
         isMinimized = false;
 
         unreadCount = 0;
@@ -3490,20 +3514,23 @@
       window.closeChatWindow = function () {
         const chatWindow = document.getElementById('chatWindow');
         chatWindow.classList.remove('active');
+        chatWindow.classList.remove('minimized');
+        const icon = document.getElementById('chatMinimizeIcon');
+        if (icon) icon.className = 'fas fa-minus';
+        isMinimized = false;
       };
 
       window.minimizeChatWindow = function () {
         const chatWindow = document.getElementById('chatWindow');
-        const content = chatWindow.querySelector('.chat-window-content');
-        const footer = chatWindow.querySelector('.chat-window-footer');
+        const icon = document.getElementById('chatMinimizeIcon');
 
         if (isMinimized) {
-          content.style.display = 'flex';
-          footer.style.display = 'block';
+          chatWindow.classList.remove('minimized');
+          if (icon) icon.className = 'fas fa-minus';
           isMinimized = false;
         } else {
-          content.style.display = 'none';
-          footer.style.display = 'none';
+          chatWindow.classList.add('minimized');
+          if (icon) icon.className = 'fas fa-window-maximize';
           isMinimized = true;
         }
       };
@@ -3686,6 +3713,8 @@
             if (result.message && messageEl) {
               messageEl.setAttribute('data-msg-id', result.message.id);
               messageEl.removeAttribute('data-pending');
+              _sentChatMessageIds.add(String(result.message.id));
+              setTimeout(() => _sentChatMessageIds.delete(String(result.message.id)), 30000);
               const statusEl = messageEl.querySelector('.chat-msg-status');
               if (statusEl) statusEl.innerHTML = '&#10003;';
             }

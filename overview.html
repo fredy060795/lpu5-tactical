@@ -240,6 +240,10 @@
       display: flex;
     }
 
+    #chat-window.minimized {
+      height: auto;
+    }
+
     #chat-window.minimized .chat-window-content,
     #chat-window.minimized .chat-window-footer {
       display: none;
@@ -2453,6 +2457,9 @@
       const chatWindow = document.getElementById('chat-window');
       if (chatWindow) {
         chatWindow.classList.remove('open');
+        chatWindow.classList.remove('minimized');
+        const icon = document.getElementById('chat-minimize-icon');
+        if (icon) icon.className = 'fas fa-minus';
       }
     }
 
