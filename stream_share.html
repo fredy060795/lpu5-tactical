@@ -84,9 +84,6 @@
 
   // WebSocket connection for receiving camera frames
   function connectWebSocket() {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host + '/ws';
 
@@ -105,6 +102,9 @@
           } else if (data.type === 'stream_share') {
             if (data.active) {
               isCameraStream = !!data.isCamera;
+              if (!data.isCamera && data.stream_url) {
+                showStream(data);
+              }
             } else {
               hideStream();
             }
@@ -135,14 +135,14 @@
 
   // Check for shared stream every 10 seconds
   function checkForSharedStream() {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.log('No token - cannot check for shared stream');
-      return;
+    var headers = {};
+    var token = localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
     }
 
     fetch('/api/stream_share', {
-      headers: { 'Authorization': 'Bearer ' + token }
+      headers: headers
     })
     .then(function(res) { return res.json(); })
     .then(function(data) {

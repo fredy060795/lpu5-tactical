@@ -289,6 +289,24 @@
       font-weight: bold;
     }
 
+    .chat-channel-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid #444;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      transition: background 0.2s;
+      padding: 0;
+    }
+    .chat-channel-btn:hover { background: rgba(255,255,255,0.25); }
+    .chat-channel-btn.delete-btn:hover { background: rgba(255,50,50,0.4); }
+
     .chat-message {
       padding: 10px 12px;
       border-radius: 8px;
@@ -496,6 +514,8 @@
         <option value="all">Alle Einheiten</option>
         <option value="hq">HQ</option>
       </select>
+      <button class="chat-channel-btn" onclick="createChatChannel()" title="Kanal erstellen"><i class="fas fa-plus"></i></button>
+      <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Kanal löschen"><i class="fas fa-trash"></i></button>
       <input type="text" id="chat-input" class="chat-input" placeholder="Nachricht eingeben...">
       <button class="chat-send-btn" onclick="sendChatMessage()">Senden</button>
     </div>
@@ -2547,6 +2567,55 @@
         .catch(e => {
           console.error('Error loading chat messages:', e);
         });
+    }
+
+    function createChatChannel() {
+      var name = prompt('Neuer Kanal – Name eingeben:');
+      if (!name || !name.trim()) return;
+      name = name.trim();
+      var color = prompt('Farbe (Hex, z.B. #ff9900):', '#ffffff');
+      if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#ffffff';
+      var description = prompt('Beschreibung (optional):', '');
+      var token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) { alert('Nicht angemeldet'); return; }
+      fetch('/api/chat/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ name: name, color: color, description: description || '' })
+      })
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || r.status); });
+          return r.json();
+        })
+        .then(function (result) {
+          if (typeof loadChatUsers === 'function') loadChatUsers().then(function () {
+            var sel = document.getElementById('chat-recipient');
+            if (sel && result.channel) sel.value = result.channel.id;
+          });
+        })
+        .catch(function (e) { alert('Kanal erstellen fehlgeschlagen: ' + e.message); });
+    }
+
+    function deleteChatChannel() {
+      var sel = document.getElementById('chat-recipient');
+      if (!sel || !sel.value) return;
+      var channelId = sel.value;
+      var channelName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : channelId;
+      if (!confirm('Kanal "' + channelName + '" wirklich löschen?')) return;
+      var token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) { alert('Nicht angemeldet'); return; }
+      fetch('/api/chat/channels/' + encodeURIComponent(channelId), {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || r.status); });
+          return r.json();
+        })
+        .then(function () {
+          if (typeof loadChatUsers === 'function') loadChatUsers().then(function () { loadChatMessages(); });
+        })
+        .catch(function (e) { alert('Kanal löschen fehlgeschlagen: ' + e.message); });
     }
 
     // Reload messages when channel selection changes

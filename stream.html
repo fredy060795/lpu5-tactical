@@ -1000,19 +1000,23 @@
             
             // Send WebSocket notification
             if (ws && ws.readyState === WebSocket.OPEN) {
+                const isCamera = mediaStream !== null;
+                const videoSrc = document.getElementById('videoPlayer').src || null;
                 console.log('Sending stream_share message via WebSocket:', {
                     streamId: 'camera_main',
                     active: true,
-                    isCamera: mediaStream !== null
+                    isCamera: isCamera,
+                    stream_url: isCamera ? null : videoSrc
                 });
                 
                 ws.send(JSON.stringify({
                     type: 'stream_share',
                     streamId: 'camera_main',
                     active: true,
-                    isCamera: mediaStream !== null,
+                    isCamera: isCamera,
                     source: currentStream.source,
                     details: currentStream.details,
+                    stream_url: isCamera ? null : videoSrc,
                     timestamp: Date.now()
                 }));
                 
