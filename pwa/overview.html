@@ -36,11 +36,6 @@
       font-family: 'Courier New', monospace;
       overflow: hidden;
       position: fixed;
-      /* Safe area insets for iOS notches */
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
     }
 
     /* Login */
@@ -596,7 +591,7 @@
         <span>Chat / COT Nachrichten</span>
       </div>
       <div class="chat-window-controls">
-        <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
+        <button class="chat-window-btn" onclick="toggleMinimizeChatWindow()" title="Minimieren">
           <i class="fas fa-minus" id="chat-minimize-icon"></i>
         </button>
         <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
@@ -972,10 +967,7 @@
               // Clear placeholder if present
               const placeholder = messagesDiv.querySelector('.chat-placeholder');
               if (placeholder) {
-                placeholder.style.display = 'none';
-              }
-              if (messagesDiv.children.length === 1 && messagesDiv.children[0].classList.contains('chat-placeholder')) {
-                messagesDiv.innerHTML = '';
+                placeholder.remove();
               }
               const messageEl = document.createElement('div');
               messageEl.className = 'chat-message incoming';
@@ -1309,6 +1301,7 @@
       renderPendingLayers();
 
       // Handle map resize on orientation and viewport changes
+      let resizeTimeouts = [];
       function handleMapResize() {
         if (map) {
           try {
@@ -1319,18 +1312,22 @@
         }
       }
 
-      // Trigger map resize after orientation change with multiple attempts
-      // (iOS needs time to settle after orientation change)
-      window.addEventListener('resize', () => {
-        handleMapResize();
-        setTimeout(handleMapResize, 100);
-      });
-      
-      window.addEventListener('orientationchange', () => {
-        setTimeout(handleMapResize, 100);
-        setTimeout(handleMapResize, 300);
-        setTimeout(handleMapResize, 500);
-      });
+      // Debounced resize handler with retry attempts for iOS orientation settling
+      function scheduleMapResize() {
+        // Clear any pending resize timeouts
+        resizeTimeouts.forEach(id => clearTimeout(id));
+        resizeTimeouts = [];
+        
+        // Schedule resize with multiple attempts (iOS needs time to settle)
+        resizeTimeouts.push(setTimeout(handleMapResize, 0));
+        resizeTimeouts.push(setTimeout(handleMapResize, 100));
+        resizeTimeouts.push(setTimeout(handleMapResize, 300));
+        resizeTimeouts.push(setTimeout(handleMapResize, 500));
+      }
+
+      // Trigger map resize on resize and orientation changes
+      window.addEventListener('resize', scheduleMapResize);
+      window.addEventListener('orientationchange', scheduleMapResize);
 
       // Initial resize after map is ready
       setTimeout(handleMapResize, 100);
@@ -2488,7 +2485,7 @@
       }
     }
 
-    function minimizeChatWindow() {
+    function toggleMinimizeChatWindow() {
       const chatWindow = document.getElementById('chat-window');
       const icon = document.getElementById('chat-minimize-icon');
       if (chatWindow) {
