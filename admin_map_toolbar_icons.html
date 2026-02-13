@@ -1212,20 +1212,43 @@
 
   async function loadChatUsers() {
     try {
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       if (!token) return;
 
+      const select = document.getElementById('chatRecipient');
+      if (!select) return;
+      select.innerHTML = '';
+
+      // Load channels first
+      try {
+        const chResponse = await fetch('/api/chat/channels', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (chResponse.ok) {
+          const chResult = await chResponse.json();
+          const channels = (chResult && chResult.channels) ? chResult.channels : [];
+          channels.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch.id;
+            opt.textContent = ch.name || ch.id;
+            if (ch.color) opt.style.color = ch.color;
+            select.appendChild(opt);
+          });
+        } else {
+          select.innerHTML = '<option value="all">Alle Einheiten</option>';
+        }
+      } catch (chErr) {
+        console.error('Error loading chat channels:', chErr);
+        select.innerHTML = '<option value="all">Alle Einheiten</option>';
+      }
+
+      // Also load users for direct messages
       const response = await fetch('/api/users', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
 
       if (response.ok) {
         const users = await response.json();
-        const select = document.getElementById('chatRecipient');
-        if (!select) return;
-
-        // Keep "all" option, add individual users
-        select.innerHTML = '<option value="all">Alle Einheiten</option>';
         users.forEach(user => {
           const opt = document.createElement('option');
           opt.value = user.id;
@@ -1234,7 +1257,7 @@
         });
       }
     } catch (e) {
-      console.error('Error loading chat users:', e);
+      console.error('Error loading chat channels/users:', e);
     }
   }
 
