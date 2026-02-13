@@ -216,7 +216,7 @@ class DataServerManager:
                 response = self._broadcast_session.post(
                     f"{self.base_url}/api/broadcast",
                     json=payload,
-                    timeout=3
+                    timeout=5
                 )
                 if response.status_code == 200:
                     logger.debug(f"Broadcast to channel '{payload.get('channel')}' successful")

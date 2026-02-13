@@ -1188,7 +1188,7 @@
           // Fallback: extract username from JWT token
           const jwtToken = localStorage.getItem('token') || localStorage.getItem('lpu5_token');
           if (jwtToken && jwtToken.includes('.')) {
-            try { const payload = JSON.parse(atob(jwtToken.split('.')[1])); if (payload.username) return payload.username; } catch { }
+            try { const payload = JSON.parse(atob(jwtToken.split('.')[1])); if (payload.username) return payload.username; } catch (e) { console.debug('JWT parse fallback failed:', e); }
           }
         } catch (e) { }
         return 'Gast';
