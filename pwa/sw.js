@@ -69,7 +69,14 @@ self.addEventListener('fetch', event => {
                 return response;
             }).catch(() => {
                 console.log('[PWA SW] Network fetch failed, returning cached version');
-                return cachedResponse;
+                if (cachedResponse) {
+                    return cachedResponse;
+                }
+                // No cached version available
+                return new Response('Offline - content not available', {
+                    status: 503,
+                    statusText: 'Service Unavailable'
+                });
             });
 
             return cachedResponse || networkFetch;

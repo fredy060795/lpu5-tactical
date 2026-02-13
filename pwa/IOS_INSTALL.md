@@ -437,7 +437,7 @@ Admin Panel:  https://[HQ-IP]:8001/admin.html
 ### Version Information
 
 - **Current Version**: 3.0 (iOS PWA)
-- **Last Updated**: 2024
+- **Last Updated**: 2024-02-13
 - **Compatibility**: iOS 11.3+
 
 ---
