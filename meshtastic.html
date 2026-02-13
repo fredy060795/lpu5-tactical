@@ -645,14 +645,15 @@
     // ===========================
     document.addEventListener('DOMContentLoaded', () => {
         // Replace icon placeholders in static HTML
-        document.querySelectorAll('[data-icon="warning"]').forEach(el => {
-            el.outerHTML = WARNING_ICON_SVG;
-        });
-        document.querySelectorAll('[data-icon="trash"]').forEach(el => {
-            el.outerHTML = TRASH_ICON_WITH_MARGIN_SVG;
-        });
-        document.querySelectorAll('[data-icon="users"]').forEach(el => {
-            el.outerHTML = USERS_ICON_SVG;
+        const iconMap = {
+            'warning': WARNING_ICON_SVG,
+            'trash': TRASH_ICON_WITH_MARGIN_SVG,
+            'users': USERS_ICON_SVG
+        };
+        Object.entries(iconMap).forEach(([iconName, iconSVG]) => {
+            document.querySelectorAll(`[data-icon="${iconName}"]`).forEach(el => {
+                el.outerHTML = iconSVG;
+            });
         });
         
         updateUserNameDisplay();
