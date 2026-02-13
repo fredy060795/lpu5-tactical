@@ -384,6 +384,22 @@
             color: #888;
             margin-left: auto;
         }
+        .channel-admin-delete-btn {
+            background: none;
+            border: 1px solid var(--accent-red);
+            color: var(--accent-red);
+            cursor: pointer;
+            font-size: 0.78rem;
+            padding: 3px 10px;
+            border-radius: 6px;
+            margin-left: 8px;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+        }
+        .channel-admin-delete-btn:hover {
+            background: var(--accent-red);
+            color: #fff;
+        }
         .channel-admin-members-list {
             display: flex;
             flex-wrap: wrap;
@@ -1370,11 +1386,15 @@
             .filter(u => !members.includes(u.username))
             .map(u => '<option value="' + escapeAttr(u.username) + '">' + escapeHtml(u.username || u.id) + '</option>')
             .join('');
+          const deleteAdminBtn = !ch.is_default
+            ? '<button class="channel-admin-delete-btn" onclick="closeChannelAdminModal();openDeleteChannelModal(\'' + escapeAttr(ch.id) + '\',\'' + escapeAttr(ch.name || ch.id) + '\')" title="Channel löschen"><i class="fas fa-trash-alt"></i> Löschen</button>'
+            : '';
           return '<div class="channel-admin-card">' +
             '<div class="channel-admin-card-header">' +
               '<div class="channel-admin-color-dot" style="background:' + escapeAttr(ch.color || '#ffffff') + '"></div>' +
               '<span class="channel-admin-card-name">' + escapeHtml(ch.name || ch.id) + '</span>' +
               '<span class="channel-admin-card-desc">' + escapeHtml(ch.description || '') + '</span>' +
+              deleteAdminBtn +
             '</div>' +
             '<div style="font-size:0.85rem;color:#aaa;margin-bottom:4px;">Mitglieder:</div>' +
             '<div class="channel-admin-members-list">' + memberTags + '</div>' +
