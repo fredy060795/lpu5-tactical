@@ -161,7 +161,28 @@ pip install -r requirements.txt
 
 # Run the server
 uvicorn api:app --host 0.0.0.0 --port 8001 --ssl-keyfile key.pem --ssl-certfile cert.pem
+
+# Or use the startup scripts:
+# Linux/Unix/macOS:
+./start_lpu5.sh
+
+# Windows:
+start_lpu5.bat
 ```
+
+### Restarting the System
+
+After making configuration changes or code updates, restart the server:
+
+```bash
+# Linux/Unix/macOS:
+./restart_lpu5.sh
+
+# Windows:
+restart_lpu5.bat
+```
+
+See [RESTART_GUIDE.md](RESTART_GUIDE.md) for detailed restart procedures and troubleshooting.
 
 ### Optional: Meshtastic Gateway Dependencies
 For gateway functionality, install additional packages:
@@ -373,6 +394,7 @@ lpu5-tactical/
 - **[Android Native Guide](android/README.md)** - Android app development and deployment
 - **[Deployment Guide](DEPLOYMENT.md)** - Detailed deployment for both platforms
 - **[Architecture Guide](MULTI_PLATFORM_ARCHITECTURE.md)** - System architecture and design
+- **[Restart Guide](RESTART_GUIDE.md)** - System restart procedures and troubleshooting
 
 ### Technical Documentation
 - **[Meshtastic User Guide](MESHTASTIC_GUIDE.md)** - Using Meshtastic features
@@ -383,6 +405,7 @@ lpu5-tactical/
 |----------|---------|----------|
 | [README.md](README.md) | Project overview | Everyone |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Installation & deployment | Administrators |
+| [RESTART_GUIDE.md](RESTART_GUIDE.md) | Restart procedures | Administrators |
 | [pwa/README.md](pwa/README.md) | iOS PWA usage | iOS users |
 | [android/README.md](android/README.md) | Android app | Android users & developers |
 | [MULTI_PLATFORM_ARCHITECTURE.md](MULTI_PLATFORM_ARCHITECTURE.md) | System design | Developers & architects |
