@@ -2751,7 +2751,7 @@
       if (!name || !name.trim()) return;
       name = name.trim();
       var color = prompt('Farbe (Hex, z.B. #ff9900):', '#ffffff');
-      if (!color) color = '#ffffff';
+      if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#ffffff';
       var description = prompt('Beschreibung (optional):', '');
       var token = localStorage.getItem('token') || sessionStorage.getItem('token');
       if (!token) { alert('Nicht angemeldet'); return; }
