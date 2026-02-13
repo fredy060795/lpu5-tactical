@@ -5085,11 +5085,11 @@ def trigger_rules_api(data: Dict = Body(...)):
 
 # Default chat channels (seeded into DB on first use)
 DEFAULT_CHANNELS = [
-    {"id": "all", "name": "Alle Einheiten", "description": "Broadcast to all units", "color": "#ffffff"},
-    {"id": "hq", "name": "HQ", "description": "Headquarters Communication", "color": "#3498db"},
-    {"id": "fox", "name": "Fox", "description": "Fox Team Channel", "color": "#e67e22"},
-    {"id": "alpha", "name": "Alpha", "description": "Alpha Team Channel", "color": "#2ecc71"},
-    {"id": "bravo", "name": "Bravo", "description": "Bravo Team Channel", "color": "#9b59b6"}
+    {"id": "all", "name": "Alle Einheiten", "description": "Broadcast to all units", "color": "#ffffff", "is_default": True},
+    {"id": "hq", "name": "HQ", "description": "Headquarters Communication", "color": "#3498db", "is_default": False},
+    {"id": "fox", "name": "Fox", "description": "Fox Team Channel", "color": "#e67e22", "is_default": False},
+    {"id": "alpha", "name": "Alpha", "description": "Alpha Team Channel", "color": "#2ecc71", "is_default": False},
+    {"id": "bravo", "name": "Bravo", "description": "Bravo Team Channel", "color": "#9b59b6", "is_default": False}
 ]
 
 def _ensure_default_channels(db):
@@ -5099,8 +5099,11 @@ def _ensure_default_channels(db):
         if not existing:
             db.add(ChatChannel(
                 id=ch["id"], name=ch["name"], description=ch.get("description", ""),
-                color=ch.get("color", "#ffffff"), is_default=True, members=[]
+                color=ch.get("color", "#ffffff"), is_default=ch.get("is_default", False), members=[]
             ))
+        else:
+            # Update existing channels to match the is_default setting from DEFAULT_CHANNELS
+            existing.is_default = ch.get("is_default", False)
     try:
         db.commit()
     except Exception:

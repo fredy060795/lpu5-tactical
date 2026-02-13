@@ -290,7 +290,7 @@
             display:flex; gap:4px; position:absolute; right:8px; top:50%; transform:translateY(-50%);
         }
         .channel-item .ch-actions button {
-            background:none; border:none; color:#777; cursor:pointer; font-size:0.8rem; padding:3px;
+            background:none; border:none; color:#bbb; cursor:pointer; font-size:0.9rem; padding:4px;
         }
         .channel-item .ch-actions button:hover { color:#fff; }
         .channel-item .ch-actions .ch-delete:hover { color:var(--accent-red); }
@@ -597,12 +597,12 @@
 <!-- Delete Confirmation Modal -->
 <div class="modal-overlay" id="deleteChannelModal">
     <div class="modal-box">
-        <h3><i class="fas fa-exclamation-triangle" style="color:var(--accent-red)"></i> Channel löschen</h3>
+        <h3><span data-icon="warning"></span> Channel löschen</h3>
         <p style="color:#ccc">Möchten Sie den Channel <strong id="deleteChName"></strong> wirklich löschen?</p>
         <p style="color:#999;font-size:0.85rem">Alle Nachrichten in diesem Channel gehen verloren.</p>
         <div class="modal-actions">
             <button class="btn btn-cancel" onclick="closeDeleteChannelModal()">Abbrechen</button>
-            <button class="btn btn-danger" onclick="confirmDeleteChannel()"><i class="fas fa-trash"></i> Löschen</button>
+            <button class="btn btn-danger" onclick="confirmDeleteChannel()"><span data-icon="trash"></span> Löschen</button>
         </div>
     </div>
 </div>
@@ -610,7 +610,7 @@
 <!-- Channel-Verwaltung Modal -->
 <div class="modal-overlay" id="channelAdminModal">
     <div class="modal-box" style="max-width:650px;max-height:80vh;overflow-y:auto">
-        <h3><i class="fas fa-users-cog"></i> Channel-Verwaltung</h3>
+        <h3><span data-icon="users"></span> Channel-Verwaltung</h3>
         <p style="color:#999;font-size:0.9rem;margin-bottom:16px;">Benutzer zu Channels hinzufügen, um Gruppen zu bilden die Nachrichten empfangen können.</p>
         <div id="channelAdminList">
             <div class="small" style="padding:16px;text-align:center">Lade Channels...</div>
@@ -633,9 +633,29 @@
     let ws = null;
 
     // ===========================
+    // SVG Icon Constants
+    // ===========================
+    const TRASH_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Löschen"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+    const TRASH_ICON_WITH_MARGIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle;margin-right:4px" role="img" aria-label="Löschen"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+    const WARNING_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Warnung"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+    const USERS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Benutzer"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>';
+
+    // ===========================
     // Init
     // ===========================
     document.addEventListener('DOMContentLoaded', () => {
+        // Replace icon placeholders in static HTML
+        const iconMap = {
+            'warning': WARNING_ICON_SVG,
+            'trash': TRASH_ICON_WITH_MARGIN_SVG,
+            'users': USERS_ICON_SVG
+        };
+        Object.entries(iconMap).forEach(([iconName, iconSVG]) => {
+            document.querySelectorAll(`[data-icon="${iconName}"]`).forEach(el => {
+                el.outerHTML = iconSVG;
+            });
+        });
+        
         updateUserNameDisplay();
         initGatewayClient();
         setupWebSocket();
@@ -729,7 +749,7 @@
             const isDefault = ch.is_default !== false;
             const safeId = escapeAttr(ch.id);
             const safeName = escapeAttr(ch.name);
-            const deleteBtn = !isDefault ? `<button class="ch-delete" onclick="event.stopPropagation();openDeleteChannelModal('${safeId}','${safeName}')" title="Löschen"><i class="fas fa-trash-alt"></i></button>` : '';
+            const deleteBtn = !isDefault ? `<button class="ch-delete" onclick="event.stopPropagation();openDeleteChannelModal('${safeId}','${safeName}')" title="Löschen" aria-label="Channel löschen">${TRASH_ICON_SVG}</button>` : '';
             return `
             <div class="channel-item${isActive ? ' active' : ''}" onclick="setActiveChannel('${safeId}')" data-channel-id="${safeId}">
                 <div class="ch-color" style="background:${escapeAttr(ch.color || '#fff')}"></div>
@@ -1386,7 +1406,7 @@
             .map(u => '<option value="' + escapeAttr(u.username) + '">' + escapeHtml(u.username || u.id) + '</option>')
             .join('');
           const deleteAdminBtn = !ch.is_default
-            ? '<button class="channel-admin-delete-btn" onclick="closeChannelAdminModal();openDeleteChannelModal(\'' + escapeAttr(ch.id) + '\',\'' + escapeAttr(ch.name || ch.id) + '\')" title="Channel löschen"><i class="fas fa-trash-alt"></i> Löschen</button>'
+            ? '<button class="channel-admin-delete-btn" onclick="closeChannelAdminModal();openDeleteChannelModal(\'' + escapeAttr(ch.id) + '\',\'' + escapeAttr(ch.name || ch.id) + '\')" title="Channel löschen">' + TRASH_ICON_WITH_MARGIN_SVG + ' Löschen</button>'
             : '';
           return '<div class="channel-admin-card">' +
             '<div class="channel-admin-card-header">' +
