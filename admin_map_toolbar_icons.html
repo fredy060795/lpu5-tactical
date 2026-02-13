@@ -1065,8 +1065,8 @@
       setTimeout(() => input.focus(), 100);
     }
 
-    // Load available users for dropdown
-    loadChatUsers();
+    // Load channels for chat recipient dropdown, then load messages
+    loadChatUsers().then(() => loadChatMessages());
   };
 
   window.closeChatWindow = function() {
@@ -1261,13 +1261,68 @@
     }
   }
 
+  async function loadChatMessages() {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) return;
+      const select = document.getElementById('chatRecipient');
+      const channelId = (select && select.value) ? select.value : 'all';
+      const resp = await fetch('/api/chat/messages/' + encodeURIComponent(channelId), {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!resp.ok) return;
+      const result = await resp.json();
+      const messages = (result && result.messages) ? result.messages : [];
+      const messagesContainer = document.getElementById('chatMessagesContainer');
+      const placeholder = document.getElementById('chatPlaceholder');
+      if (!messagesContainer) return;
+      const selfName = sessionStorage.getItem('currentUser') || 'Me';
+      if (messages.length === 0) {
+        if (placeholder) placeholder.style.display = '';
+        messagesContainer.querySelectorAll('.chat-message').forEach(el => el.remove());
+        return;
+      }
+      if (placeholder) placeholder.style.display = 'none';
+      // Clear existing messages (keep placeholder)
+      messagesContainer.querySelectorAll('.chat-message').forEach(el => el.remove());
+      messages.forEach(msg => {
+        const isOutgoing = msg.username === selfName;
+        const messageEl = document.createElement('div');
+        messageEl.className = 'chat-message ' + (isOutgoing ? 'outgoing' : 'incoming');
+        messageEl.setAttribute('data-msg-id', msg.id || '');
+        const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : '';
+        let statusHtml = '';
+        if (isOutgoing) {
+          let icon = '&#10003;', color = '#888';
+          if (msg.read_by && msg.read_by.length > 0) { icon = '&#10003;&#10003;'; color = '#4fc3f7'; }
+          else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
+          statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
+        }
+        messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + escapeHtml(time) + '</span></div><div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>' + statusHtml;
+        messagesContainer.appendChild(messageEl);
+      });
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      // Mark messages as read
+      const unreadIds = messages.filter(m => m.username !== selfName && m.id).map(m => m.id);
+      if (unreadIds.length > 0) {
+        fetch('/api/chat/messages/mark-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ message_ids: unreadIds })
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error('Error loading chat messages:', e);
+    }
+  }
+
   window.markAllMessagesRead = function() {
     unreadCount = 0;
     updateNotificationBadge();
     updateChatInfo('Keine neuen Nachrichten');
   };
 
-  // Allow Enter key to send message
+  // Allow Enter key to send message and reload messages on channel change
   document.addEventListener('DOMContentLoaded', function() {
     const input = document.getElementById('chatInput');
     if (input) {
@@ -1276,6 +1331,12 @@
           e.preventDefault();
           sendChatMessage();
         }
+      });
+    }
+    const chatRecipientSelect = document.getElementById('chatRecipient');
+    if (chatRecipientSelect) {
+      chatRecipientSelect.addEventListener('change', function() {
+        loadChatMessages();
       });
     }
   });
