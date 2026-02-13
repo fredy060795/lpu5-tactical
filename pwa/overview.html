@@ -17,6 +17,7 @@
       --accent-blue: #007bff;
       --accent-red: #dc3545;
       --accent-green: #28a745;
+      --vh: 1vh; /* Fallback for dynamic viewport height */
     }
 
     * {
@@ -29,11 +30,17 @@
     body,
     html {
       height: 100%;
+      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for iOS */
       width: 100%;
       background: #000;
       font-family: 'Courier New', monospace;
       overflow: hidden;
       position: fixed;
+      /* Safe area insets for iOS notches */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
 
     /* Login */
@@ -220,39 +227,89 @@
     }
 
 
+    /* Chat Window – matches admin_map.html 1:1 */
     #chat-window {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 70%;
-      background: var(--panel-bg);
+      bottom: 20px;
+      left: 20px;
+      width: 420px;
+      max-width: calc(100vw - 100px);
+      height: 500px;
+      max-height: calc(100vh - 100px);
+      background: #111;
+      border: 2px solid #28a745;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
       z-index: 9998;
       display: none;
       flex-direction: column;
-      border-top: 2px solid var(--accent-blue);
-      transition: height 0.3s ease;
+      overflow: hidden;
     }
 
     #chat-window.open {
       display: flex;
     }
 
-    #chat-window.minimized .chat-messages,
-    #chat-window.minimized .chat-input-area {
+    #chat-window.minimized {
+      height: auto;
+    }
+
+    #chat-window.minimized .chat-window-content,
+    #chat-window.minimized .chat-window-footer {
       display: none;
     }
 
-    .chat-header {
-      background: var(--bg-dark);
-      padding: 15px;
-      border-bottom: 1px solid #444;
+    .chat-window-header {
+      background: #28a745;
+      color: #fff;
+      padding: 10px 15px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      cursor: move;
+      user-select: none;
     }
 
-    .chat-messages {
+    .chat-window-title {
+      font-weight: bold;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-window-controls {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-window-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .chat-window-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .chat-window-content {
+      background: #000;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-messages-container {
       flex: 1;
       overflow-y: auto;
       padding: 15px;
@@ -263,33 +320,18 @@
       -ms-overflow-style: none; /* IE and Edge */
     }
 
-    .chat-messages::-webkit-scrollbar {
+    .chat-messages-container::-webkit-scrollbar {
       display: none; /* Chrome, Safari, Opera */
     }
 
-    .chat-input-area {
-      border-top: 1px solid #444;
-      padding: 15px;
+    .chat-placeholder {
       display: flex;
-      gap: 10px;
-    }
-
-    .chat-input {
-      flex: 1;
-      padding: 10px;
-      background: #000;
-      border: 1px solid #444;
-      color: white;
-      border-radius: 4px;
-    }
-
-    .chat-send-btn {
-      padding: 10px 20px;
-      background: var(--accent-blue);
-      border: none;
-      color: white;
-      border-radius: 4px;
-      font-weight: bold;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      color: #666;
     }
 
     .chat-message {
@@ -301,8 +343,15 @@
     }
 
     @keyframes slideIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .chat-message.outgoing {
@@ -337,16 +386,77 @@
       color: #9ad1ff;
     }
 
+    .chat-message-time {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+
     .chat-message-text {
       font-size: 0.85rem;
       line-height: 1.4;
-      color: #fff;
     }
 
-    .chat-message-time {
-      font-size: 0.7em;
-      color: #888;
-      margin-left: 10px;
+    .chat-window-footer {
+      background: #0a0a0a;
+      border-top: 1px solid #333;
+      padding: 12px 15px;
+    }
+
+    .chat-input-area {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chat-select {
+      padding: 8px 10px;
+      background: #000;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      max-width: 110px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: #000;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: #28a745;
+      box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+    }
+
+    .chat-send-btn {
+      padding: 8px 16px;
+      background: #28a745;
+      border: none;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: bold;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chat-send-btn:hover {
+      background: #218838;
+    }
+
+    .chat-send-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
     }
 
     #map {
@@ -355,6 +465,7 @@
       left: 0;
       width: 100%;
       height: 100%;
+      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for iOS */
       z-index: 1;
       display: block;
     }
@@ -479,28 +590,40 @@
 
   <!-- Chat Window -->
   <div id="chat-window">
-    <div class="chat-header">
-      <h4 style="color: var(--accent-blue); margin: 0;">Chat / COT Nachrichten</h4>
-      <div style="display: flex; gap: 10px;">
-        <button class="sidebar-close" onclick="toggleMinimizeChatWindow()" title="Minimize/Restore">
-          <i class="fas fa-window-minimize" id="chat-minimize-icon"></i>
+    <div class="chat-window-header">
+      <div class="chat-window-title">
+        <i class="fas fa-comments"></i>
+        <span>Chat / COT Nachrichten</span>
+      </div>
+      <div class="chat-window-controls">
+        <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
+          <i class="fas fa-minus" id="chat-minimize-icon"></i>
         </button>
-        <button class="sidebar-close" onclick="closeChatWindow()">×</button>
+        <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
+          <i class="fas fa-times"></i>
+        </button>
       </div>
     </div>
-    <div class="chat-messages" id="chat-messages">
-      <div style="text-align: center; color: #888; padding: 20px;">
-        <p>Keine Nachrichten</p>
-        <p style="font-size: 0.8em; margin-top: 10px;">COT-Nachrichten werden hier angezeigt</p>
+    <div class="chat-window-content">
+      <div class="chat-messages-container" id="chat-messages">
+        <div class="chat-placeholder">
+          <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
+          <div style="color: #666;">Keine Nachrichten</div>
+          <small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small>
+        </div>
       </div>
     </div>
-    <div class="chat-input-area">
-      <select id="chat-recipient" class="chat-input" style="max-width: 150px;">
-        <option value="all">Alle Einheiten</option>
-        <option value="hq">HQ</option>
-      </select>
-      <input type="text" id="chat-input" class="chat-input" placeholder="Nachricht eingeben...">
-      <button class="chat-send-btn" onclick="sendChatMessage()">Senden</button>
+    <div class="chat-window-footer">
+      <div class="chat-input-area">
+        <select id="chat-recipient" class="chat-select">
+          <option value="all">Alle Einheiten</option>
+          <option value="hq">HQ</option>
+        </select>
+        <input type="text" id="chat-input" class="chat-input" placeholder="Nachricht eingeben...">
+        <button class="chat-send-btn" onclick="sendChatMessage()">
+          <i class="fas fa-paper-plane"></i> Senden
+        </button>
+      </div>
     </div>
   </div>
 
@@ -581,6 +704,21 @@
     /* Overview map with immediate (optimistic) marker placement and persistent pending markers.
        Includes BroadcastChannel/storage fallback to broadcast status-change messages
     */
+
+    // Dynamic viewport height polyfill for iOS
+    // Sets CSS custom property --vh to 1% of actual viewport height
+    function updateViewportHeight() {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+    
+    // Update on load and resize/orientation change
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', () => {
+      // Delay to ensure accurate measurement after orientation change
+      setTimeout(updateViewportHeight, 100);
+    });
 
     const PENDING_KEY = 'pending_map_markers_v1';
     const DEBOUNCE_THRESHOLD_MS = 500; // Prevent double-firing of touch/click events
@@ -832,7 +970,11 @@
               const msgChannel = msg.channel_id || 'all';
               if (selectedChannel !== 'all' && msgChannel !== selectedChannel) break;
               // Clear placeholder if present
-              if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
+              const placeholder = messagesDiv.querySelector('.chat-placeholder');
+              if (placeholder) {
+                placeholder.style.display = 'none';
+              }
+              if (messagesDiv.children.length === 1 && messagesDiv.children[0].classList.contains('chat-placeholder')) {
                 messagesDiv.innerHTML = '';
               }
               const messageEl = document.createElement('div');
@@ -1165,6 +1307,33 @@
       map.createPane('pendingPane').style.zIndex = 700;
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
+
+      // Handle map resize on orientation and viewport changes
+      function handleMapResize() {
+        if (map) {
+          try {
+            map.invalidateSize();
+          } catch (e) {
+            console.warn('Map invalidateSize failed:', e);
+          }
+        }
+      }
+
+      // Trigger map resize after orientation change with multiple attempts
+      // (iOS needs time to settle after orientation change)
+      window.addEventListener('resize', () => {
+        handleMapResize();
+        setTimeout(handleMapResize, 100);
+      });
+      
+      window.addEventListener('orientationchange', () => {
+        setTimeout(handleMapResize, 100);
+        setTimeout(handleMapResize, 300);
+        setTimeout(handleMapResize, 500);
+      });
+
+      // Initial resize after map is ready
+      setTimeout(handleMapResize, 100);
 
       // Network Status Listeners
       window.addEventListener('online', () => {
@@ -2319,23 +2488,21 @@
       }
     }
 
-    function toggleMinimizeChatWindow() {
+    function minimizeChatWindow() {
       const chatWindow = document.getElementById('chat-window');
       const icon = document.getElementById('chat-minimize-icon');
       if (chatWindow) {
         if (chatWindow.classList.contains('minimized')) {
           // Restore
           chatWindow.classList.remove('minimized');
-          chatWindow.style.height = '70%';
           if (icon) {
-            icon.className = 'fas fa-window-minimize';
+            icon.className = 'fas fa-minus';
           }
         } else {
           // Minimize
           chatWindow.classList.add('minimized');
-          chatWindow.style.height = '50px';
           if (icon) {
-            icon.className = 'fas fa-window-maximize';
+            icon.className = 'fas fa-window-restore';
           }
         }
       }
@@ -2517,7 +2684,7 @@
           const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
           messagesDiv.innerHTML = '';
           if (messages.length === 0) {
-            messagesDiv.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;"><p>Keine Nachrichten</p><p style="font-size: 0.8em; margin-top: 10px;">COT-Nachrichten werden hier angezeigt</p></div>';
+            messagesDiv.innerHTML = '<div class="chat-placeholder"><i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i><div style="color: #666;">Keine Nachrichten</div><small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small></div>';
             return;
           }
           messages.forEach(msg => {
