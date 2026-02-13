@@ -1212,7 +1212,8 @@
       const userNameEl = document.getElementById('userName');
       if (userNameEl) userNameEl.textContent = getCurrentUsername();
 
-      // Track IDs of messages we sent ourselves so WebSocket echoes are reliably suppressed
+      // Track IDs of messages we sent ourselves so WebSocket echoes are reliably suppressed.
+      // Entries auto-expire after 30 s (enough time for any delayed echo to arrive).
       const _sentChatMessageIds = new Set();
 
       // Pending symbols queue (localStorage-first, sync when server available)
