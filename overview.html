@@ -2457,30 +2457,36 @@
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       if (!token) return Promise.resolve();
 
+      const select = document.getElementById('chat-recipient');
+      if (!select) return Promise.resolve();
+
       return fetch('/api/chat/channels', {
         headers: { 'Authorization': 'Bearer ' + token }
       })
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error('Failed to load channels: ' + r.status);
+          return r.json();
+        })
         .then(result => {
-          const select = document.getElementById('chat-recipient');
-          if (!select) return;
           const channels = (result && result.channels) ? result.channels : [];
           select.innerHTML = '';
-          channels.forEach(ch => {
-            const opt = document.createElement('option');
-            opt.value = ch.id;
-            opt.textContent = ch.name || ch.id;
-            if (ch.color) opt.style.color = ch.color;
-            select.appendChild(opt);
-          });
+          if (channels.length === 0) {
+            select.innerHTML = '<option value="all">Alle Einheiten</option>';
+          } else {
+            channels.forEach(ch => {
+              const opt = document.createElement('option');
+              opt.value = ch.id;
+              opt.textContent = ch.name || ch.id;
+              if (ch.color) opt.style.color = ch.color;
+              select.appendChild(opt);
+            });
+          }
           // Also load user list for direct messages
           return fetch('/api/users', { headers: { 'Authorization': 'Bearer ' + token } });
         })
-        .then(r => r ? r.json() : [])
+        .then(r => (r && r.ok) ? r.json() : [])
         .then(users => {
           if (!users || !Array.isArray(users)) return;
-          const select = document.getElementById('chat-recipient');
-          if (!select) return;
           users.forEach(user => {
             const opt = document.createElement('option');
             opt.value = user.id;
@@ -2490,6 +2496,9 @@
         })
         .catch(err => {
           console.error('Error loading channels/users for chat:', err);
+          if (select && select.options.length === 0) {
+            select.innerHTML = '<option value="all">Alle Einheiten</option>';
+          }
         });
     }
 
