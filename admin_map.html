@@ -1673,7 +1673,9 @@
               const messagesContainer = document.getElementById('chatMessagesContainer');
               if (messagesContainer) {
                 const selfName = getCurrentUsername();
-                if (msg.username === selfName) {
+                
+                // Don't display our own messages - they're already shown as outgoing
+                if (msg.username === selfName || msg.sender === selfName) {
                   // Update local pending message with server id
                   const pending = messagesContainer.querySelector('.chat-message[data-pending="true"]');
                   if (pending) {
@@ -1684,6 +1686,16 @@
                   }
                   break;
                 }
+                
+                // Check for duplicate message (already displayed)
+                if (msg.id) {
+                  const existingMsg = messagesContainer.querySelector('.chat-message[data-msg-id="' + msg.id + '"]');
+                  if (existingMsg) {
+                    console.log('Message already displayed, skipping duplicate');
+                    break;
+                  }
+                }
+                
                 // Filter by selected channel
                 const chatRecipientEl = document.getElementById('chatRecipient');
                 const selectedChannel = chatRecipientEl ? chatRecipientEl.value : 'all';
@@ -3384,6 +3396,14 @@
         const placeholder = document.getElementById('chatPlaceholder');
 
         if (!messagesContainer) return;
+        
+        // Don't display our own messages
+        const currentUser = getCurrentUsername();
+        const sender = data.sender || data.from || 'Unknown';
+        if (sender === currentUser) {
+          console.log('Skipping self-message from displayIncomingMessage');
+          return;
+        }
 
         if (placeholder && placeholder.style.display !== 'none') {
           placeholder.style.display = 'none';
@@ -3392,7 +3412,6 @@
         const messageEl = document.createElement('div');
         messageEl.className = 'chat-message incoming';
 
-        const sender = data.sender || data.from || 'Unknown';
         const text = data.text || data.message || '';
         const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', {
           hour: '2-digit',
@@ -3703,12 +3722,9 @@
           source: 'admin_map'
         };
 
+        // Only set localStorage - this will automatically trigger storage events in OTHER tabs/windows
+        // Do NOT manually dispatch StorageEvent to avoid receiving our own message
         localStorage.setItem('lpu5_broadcast_message', JSON.stringify(messageData));
-
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'lpu5_broadcast_message',
-          newValue: JSON.stringify(messageData)
-        }));
       }
 
       async function loadChatUsers() {
