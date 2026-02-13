@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TACTICAL MAP - PRECISION MOBILE</title>
-  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LPU5 Tactical">
+  <title>LPU5 Tactical - iOS PWA</title>
+  <link rel="manifest" href="/pwa/manifest.json">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
@@ -1175,11 +1178,11 @@
         document.getElementById('offline-indicator').style.display = 'block';
       }
 
-      // Register Service Worker
+      // Register Service Worker for PWA
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW registered', reg))
-          .catch(err => console.log('SW registration failed', err));
+        navigator.serviceWorker.register('/pwa/sw.js', { scope: '/pwa/' })
+          .then(reg => console.log('[PWA] Service Worker registered', reg))
+          .catch(err => console.log('[PWA] Service Worker registration failed', err));
       }
 
       // Restore GPS settings from localStorage

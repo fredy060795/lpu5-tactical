@@ -14,7 +14,8 @@ This system provides **two optimized implementations**:
 - **Communication**: REST API + WebSocket to HQ server
 - **Limitations**: No direct Bluetooth (Safari restriction)
 - **Deployment**: Add to Home Screen from web browser
-- **See**: [pwa/README.md](pwa/README.md)
+- **Quick Start**: [pwa/IOS_INSTALL.md](pwa/IOS_INSTALL.md) - Step-by-step iOS installation
+- **Technical Docs**: [pwa/README.md](pwa/README.md) - Detailed PWA documentation
 
 ### 🤖 Android Native App
 - **Use Case**: Field operators, direct mesh communication
@@ -22,7 +23,8 @@ This system provides **two optimized implementations**:
 - **Communication**: Native BLE/Serial to Meshtastic devices
 - **Features**: Full offline mesh, GPS tracking, COT exchange
 - **Deployment**: Install APK or distribute via Play Store
-- **See**: [android/README.md](android/README.md)
+- **Distribution Guide**: [android/DISTRIBUTION.md](android/DISTRIBUTION.md) - APK building and deployment
+- **Technical Docs**: [android/README.md](android/README.md) - Detailed Android documentation
 
 ## Features
 
@@ -404,12 +406,15 @@ lpu5-tactical/
 | Document | Purpose | Audience |
 |----------|---------|----------|
 | [README.md](README.md) | Project overview | Everyone |
+| [PLATFORM_COMPARISON.md](PLATFORM_COMPARISON.md) | **Platform selection guide** | **Decision makers** |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Installation & deployment | Administrators |
-| [RESTART_GUIDE.md](RESTART_GUIDE.md) | Restart procedures | Administrators |
-| [pwa/README.md](pwa/README.md) | iOS PWA usage | iOS users |
-| [android/README.md](android/README.md) | Android app | Android users & developers |
+| [pwa/IOS_INSTALL.md](pwa/IOS_INSTALL.md) | **iOS installation walkthrough** | **iOS users** |
+| [pwa/README.md](pwa/README.md) | iOS PWA technical docs | iOS users & developers |
+| [android/DISTRIBUTION.md](android/DISTRIBUTION.md) | **Android APK distribution** | **IT staff** |
+| [android/README.md](android/README.md) | Android app technical docs | Android users & developers |
 | [MULTI_PLATFORM_ARCHITECTURE.md](MULTI_PLATFORM_ARCHITECTURE.md) | System design | Developers & architects |
 | [MESHTASTIC_GUIDE.md](MESHTASTIC_GUIDE.md) | Meshtastic features | All users |
+| [RESTART_GUIDE.md](RESTART_GUIDE.md) | Restart procedures | Administrators |
 
 ## License
 

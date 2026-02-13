@@ -1,55 +1,58 @@
-const CACHE_NAME = 'lpu5-v2-meshtastic';
+const CACHE_NAME = 'lpu5-pwa-v3-ios';
 const ASSETS = [
-    '/',
-    '/landing.html',
-    '/mobile.html',
-    '/tactical_map.html',
-    '/index.html',
-    '/overview.html',
-    '/meshtastic-web-client.js',
-    '/cot-client.js',
-    '/message-queue-manager.js',
-    '/manifest.json',
-    '/logo.png',
-    '/assets/api-client.js',
-    '/assets/ws-client.js',
+    '/pwa/',
+    '/pwa/overview.html',
+    '/pwa/manifest.json',
+    '/pwa/logo.png',
+    '/pwa/meshtastic-web-client.js',
+    '/pwa/cot-client.js',
+    '/pwa/message-queue-manager.js',
+    '/pwa/permissions.js',
+    '/pwa/admin_users.js',
+    '/pwa/load-global-nav.js',
     'https://unpkg.com/dexie/dist/dexie.js',
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
 ];
 
-// Install Event
+// Install Event - Cache PWA assets
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
-            console.log('SW: Caching static assets');
+            console.log('[PWA SW] Caching PWA assets');
             return cache.addAll(ASSETS);
         })
     );
     self.skipWaiting();
 });
 
-// Activate Event
+// Activate Event - Clean up old caches
 self.addEventListener('activate', event => {
+    console.log('[PWA SW] Activating service worker');
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
-                keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+                keys.filter(key => key !== CACHE_NAME).map(key => {
+                    console.log('[PWA SW] Deleting old cache:', key);
+                    return caches.delete(key);
+                })
             );
         })
     );
     self.clients.claim();
 });
 
-// Fetch Event
+// Fetch Event - Network-first for API, cache-first for assets
 self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+    
     // Skip cross-origin requests (except CDNs in ASSETS)
-    if (!event.request.url.startsWith(self.location.origin) && !ASSETS.some(a => event.request.url.startsWith(a))) {
+    if (url.origin !== self.location.origin && !ASSETS.some(a => event.request.url.startsWith(a))) {
         return;
     }
 
-    // Skip API calls - they should be handled by api-client.js logic
+    // Skip API calls - always fetch fresh data
     if (event.request.url.includes('/api/')) {
         return;
     }
@@ -64,13 +67,23 @@ self.addEventListener('fetch', event => {
                     caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
                 }
                 return response;
+            }).catch(() => {
+                console.log('[PWA SW] Network fetch failed, returning cached version');
+                if (cachedResponse) {
+                    return cachedResponse;
+                }
+                // No cached version available
+                return new Response('Offline - content not available', {
+                    status: 503,
+                    statusText: 'Service Unavailable'
+                });
             });
 
             return cachedResponse || networkFetch;
         }).catch(() => {
             // Offline fallback for HTML pages
             if (event.request.mode === 'navigate') {
-                return caches.match('/mobile.html');
+                return caches.match('/pwa/overview.html');
             }
         })
     );
