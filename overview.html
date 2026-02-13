@@ -1064,6 +1064,7 @@
           if (r.token) localStorage.setItem('token', r.token);
           localStorage.setItem('lpu5_cached_user', u);
           localStorage.setItem('lpu5_cached_pass', p);
+          sessionStorage.setItem('currentUser', currentUserName);
 
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
           // Close hamburger menu after login
@@ -1091,6 +1092,7 @@
           const r = await res.json();
           currentUserName = r.user.username;
           if (r.token) localStorage.setItem('token', r.token);
+          sessionStorage.setItem('currentUser', currentUserName);
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
           isLoggedIn = true;
           startDataSync();
@@ -1100,6 +1102,7 @@
         // Offline: restore username from cache so UI shows the name
         console.warn('Auto-login failed (offline?), using cached name', e);
         currentUserName = cachedUser;
+        sessionStorage.setItem('currentUser', cachedUser);
         document.getElementById('out-name').innerText = cachedUser.toUpperCase();
         // Allow data sync in offline mode with cached credentials
         if (localStorage.getItem('token')) {

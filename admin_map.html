@@ -809,6 +809,7 @@
       min-width: 18px;
       text-align: center;
       display: none;
+      z-index: 10;
     }
 
     .chat-notification-badge.show {
@@ -1180,10 +1181,15 @@
         try {
           const raw = localStorage.getItem('lpu5_user');
           if (raw) {
-            try { const u = JSON.parse(raw); return u.name || u.fullname || u.username || u.displayName || String(raw); } catch { return raw; }
+            try { const u = JSON.parse(raw); return u.username || u.name || u.fullname || u.displayName || String(raw); } catch { return raw; }
           }
           const token = localStorage.getItem('lpu5_token');
           if (token && !token.includes('.') && token.length < 128) return token;
+          // Fallback: extract username from JWT token
+          const jwtToken = localStorage.getItem('token') || localStorage.getItem('lpu5_token');
+          if (jwtToken && jwtToken.includes('.')) {
+            try { const payload = JSON.parse(atob(jwtToken.split('.')[1])); if (payload.username) return payload.username; } catch (e) { console.debug('JWT parse fallback failed:', e); }
+          }
         } catch (e) { }
         return 'Gast';
       }
