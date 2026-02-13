@@ -710,6 +710,7 @@
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
     let chatUnreadCount = 0; // Unread chat message counter
+    const _sentChatMessageIds = new Set(); // Track IDs of messages we sent to suppress WebSocket echoes
     const _recentChatKeys = new Set(); // Deduplication for cross-tab chat messages
     function _chatDedupKey(sender, text, ts) {
       return JSON.stringify([sender || '', text || '', Math.floor((typeof ts === 'string' ? new Date(ts).getTime() : (ts || Date.now())) / 5000)]);
@@ -921,16 +922,23 @@
             if (messagesDiv) {
               // Don't add if sent by self (already shown locally)
               const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
-              if (msg.username === selfName) {
+              if (msg.username === selfName || msg.sender === selfName || (msg.id && _sentChatMessageIds.has(String(msg.id)))) {
                 // Update local message with server-assigned id for read receipt tracking
                 const localMsgs = messagesDiv.querySelectorAll('.chat-message[data-pending="true"]');
                 if (localMsgs.length > 0) {
                   localMsgs[0].setAttribute('data-msg-id', msg.id);
                   localMsgs[0].removeAttribute('data-pending');
+                  _sentChatMessageIds.add(String(msg.id));
+                  setTimeout(() => _sentChatMessageIds.delete(String(msg.id)), 30000);
                   const statusEl = localMsgs[0].querySelector('.chat-msg-status');
                   if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
                 }
                 break;
+              }
+              // Check for duplicate message (already displayed)
+              if (msg.id) {
+                const existingMsg = messagesDiv.querySelector('.chat-message[data-msg-id="' + msg.id + '"]');
+                if (existingMsg) break;
               }
               // Filter by selected channel
               const chatRecipientEl = document.getElementById('chat-recipient');
@@ -2567,6 +2575,8 @@
         if (result.status === 'success' && result.message) {
           messageEl.setAttribute('data-msg-id', result.message.id);
           messageEl.removeAttribute('data-pending');
+          _sentChatMessageIds.add(String(result.message.id));
+          setTimeout(() => _sentChatMessageIds.delete(String(result.message.id)), 30000);
           const statusEl = messageEl.querySelector('.chat-msg-status');
           if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
         }
