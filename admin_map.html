@@ -591,6 +591,15 @@
       display: flex;
     }
 
+    .chat-window.minimized {
+      height: auto;
+    }
+
+    .chat-window.minimized .chat-window-content,
+    .chat-window.minimized .chat-window-footer {
+      display: none;
+    }
+
     .chat-window-header {
       background: #28a745;
       color: #fff;
@@ -1074,7 +1083,7 @@
       </div>
       <div class="chat-window-controls">
         <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
-          <i class="fas fa-minus"></i>
+          <i class="fas fa-minus" id="chatMinimizeIcon"></i>
         </button>
         <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
           <i class="fas fa-times"></i>
@@ -3484,6 +3493,9 @@
       window.openChatWindow = function () {
         const chatWindow = document.getElementById('chatWindow');
         chatWindow.classList.add('active');
+        chatWindow.classList.remove('minimized');
+        const icon = document.getElementById('chatMinimizeIcon');
+        if (icon) icon.className = 'fas fa-minus';
         isMinimized = false;
 
         unreadCount = 0;
@@ -3501,20 +3513,23 @@
       window.closeChatWindow = function () {
         const chatWindow = document.getElementById('chatWindow');
         chatWindow.classList.remove('active');
+        chatWindow.classList.remove('minimized');
+        const icon = document.getElementById('chatMinimizeIcon');
+        if (icon) icon.className = 'fas fa-minus';
+        isMinimized = false;
       };
 
       window.minimizeChatWindow = function () {
         const chatWindow = document.getElementById('chatWindow');
-        const content = chatWindow.querySelector('.chat-window-content');
-        const footer = chatWindow.querySelector('.chat-window-footer');
+        const icon = document.getElementById('chatMinimizeIcon');
 
         if (isMinimized) {
-          content.style.display = 'flex';
-          footer.style.display = 'block';
+          chatWindow.classList.remove('minimized');
+          if (icon) icon.className = 'fas fa-minus';
           isMinimized = false;
         } else {
-          content.style.display = 'none';
-          footer.style.display = 'none';
+          chatWindow.classList.add('minimized');
+          if (icon) icon.className = 'fas fa-window-maximize';
           isMinimized = true;
         }
       };
