@@ -601,6 +601,10 @@
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
     let chatUnreadCount = 0; // Unread chat message counter
+    const _recentChatKeys = new Set(); // Deduplication for cross-tab chat messages
+    function _chatDedupKey(sender, text, ts) {
+      return JSON.stringify([sender || '', text || '', Math.floor((typeof ts === 'string' ? new Date(ts).getTime() : (ts || Date.now())) / 5000)]);
+    }
 
     // BroadcastChannel for cross-tab status synchronization
     // Enables real-time status updates between overview.html and index.html tabs
@@ -824,6 +828,11 @@
               const selectedChannel = chatRecipientEl ? chatRecipientEl.value : 'all';
               const msgChannel = msg.channel_id || 'all';
               if (selectedChannel !== 'all' && msgChannel !== selectedChannel) break;
+              // Deduplicate: skip if already received via localStorage broadcast
+              const _dedupKey = _chatDedupKey(msg.username, msg.text, msg.timestamp);
+              if (_recentChatKeys.has(_dedupKey)) break;
+              _recentChatKeys.add(_dedupKey);
+              setTimeout(() => _recentChatKeys.delete(_dedupKey), 10000);
               // Clear placeholder if present
               if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
                 messagesDiv.innerHTML = '';
@@ -2382,6 +2391,12 @@
       // Clear input
       input.value = '';
 
+      // Broadcast to other tabs via localStorage (cross-tab fallback for admin_map.html)
+      try {
+        const broadcastData = JSON.stringify({ sender: senderName, text: message, timestamp: Date.now(), source: 'overview' });
+        localStorage.setItem('lpu5_broadcast_message', broadcastData);
+      } catch (e) { }
+
       // Send message to server via API, with automatic COT fallback
       const channelId = recipient.value || 'all';
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -2662,6 +2677,44 @@
             sync();
           } catch (err) {
             console.warn('Failed to parse status update', err);
+          }
+        }
+
+        // Cross-tab chat message fallback (receives broadcasts from admin_map.html)
+        if (e.key === 'lpu5_broadcast_message' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            // Ignore messages sent from this page
+            if (data.source === 'overview') return;
+            const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
+            if (data.sender === selfName) return;
+            const messagesDiv = document.getElementById('chat-messages');
+            if (!messagesDiv) return;
+            // Deduplicate: skip if already received via WebSocket
+            const _dedupKey = _chatDedupKey(data.sender, data.text, data.timestamp);
+            if (_recentChatKeys.has(_dedupKey)) return;
+            _recentChatKeys.add(_dedupKey);
+            setTimeout(() => _recentChatKeys.delete(_dedupKey), 10000);
+            // Clear placeholder if present
+            if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
+              messagesDiv.innerHTML = '';
+            }
+            const messageEl = document.createElement('div');
+            messageEl.className = 'chat-message incoming';
+            const sender = data.sender || data.from || 'Unknown';
+            const text = data.text || data.message || '';
+            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(sender) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(text) + '</div>';
+            messagesDiv.appendChild(messageEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            // Update unread badge if chat window is not open
+            const chatWin = document.getElementById('chat-window');
+            if (!chatWin || !chatWin.classList.contains('open')) {
+              chatUnreadCount++;
+              updateChatNotificationBadge();
+            }
+          } catch (err) {
+            console.error('Error processing broadcast message:', err);
           }
         }
       });
