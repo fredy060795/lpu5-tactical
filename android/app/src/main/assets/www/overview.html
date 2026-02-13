@@ -1,0 +1,3764 @@
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TACTICAL MAP - PRECISION MOBILE</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-dark: #0a0a0a;
+      --panel-bg: #1a1a1a;
+      --accent-blue: #007bff;
+      --accent-red: #dc3545;
+      --accent-green: #28a745;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body,
+    html {
+      height: 100%;
+      width: 100%;
+      background: #000;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+      position: fixed;
+    }
+
+    /* Login */
+    #login-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #050505;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-container {
+      background: var(--panel-bg);
+      border: 2px solid var(--accent-blue);
+      padding: 30px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 320px;
+      text-align: center;
+    }
+
+    .login-form input {
+      width: 100%;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #000;
+      border: 1px solid #333;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 18px;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 15px;
+      background: var(--accent-blue);
+      border: none;
+      color: white;
+      font-weight: bold;
+      border-radius: 4px;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 40px;
+      height: 40px;
+      z-index: 4000;
+      display: none;
+      pointer-events: none;
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: var(--accent-blue);
+    }
+
+    #crosshair::before {
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      transform: translateY(-50%);
+    }
+
+    #crosshair::after {
+      left: 50%;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      transform: translateX(-50%);
+    }
+
+    /* Set button */
+    #set-btn {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent-green);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      border-radius: 30px;
+      font-weight: bold;
+      font-size: 1.2em;
+      z-index: 6001;
+      display: none;
+      box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+    }
+
+    .top-right-ui {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 6005;
+      background: rgba(20, 20, 20, 0.9);
+      padding: 8px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      display: block;
+    }
+
+    /* Toolbar with proper sizing to cover all icons - removed max-width constraint to ensure full coverage */
+    .bottom-toolbar {
+      position: fixed;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26, 26, 26, 0.95);
+      padding: 8px 12px;
+      border-radius: 50px;
+      display: flex;
+      gap: 8px;
+      z-index: 6005;
+      align-items: center;
+      flex-wrap: nowrap;
+      max-width: calc(100vw - 20px);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      touch-action: pan-x;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .bottom-toolbar::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+
+    .tool-btn {
+      width: 48px;
+      height: 48px;
+      background: #222;
+      border: 2px solid #444;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .tool-btn svg {
+      width: 66%;
+      height: 66%;
+      display: block;
+    }
+
+    .chat-notification-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: #dc3545;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: bold;
+      padding: 2px 5px;
+      border-radius: 10px;
+      min-width: 16px;
+      text-align: center;
+      display: none;
+      z-index: 10;
+    }
+
+    .chat-notification-badge.show {
+      display: block;
+      animation: chatBadgePulse 1.5s infinite;
+    }
+
+    @keyframes chatBadgePulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+
+    #chat-window {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 70%;
+      background: var(--panel-bg);
+      z-index: 9998;
+      display: none;
+      flex-direction: column;
+      border-top: 2px solid var(--accent-blue);
+      transition: height 0.3s ease;
+    }
+
+    #chat-window.open {
+      display: flex;
+    }
+
+    #chat-window.minimized .chat-messages,
+    #chat-window.minimized .chat-input-area {
+      display: none;
+    }
+
+    .chat-header {
+      background: var(--bg-dark);
+      padding: 15px;
+      border-bottom: 1px solid #444;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+
+    .chat-input-area {
+      border-top: 1px solid #444;
+      padding: 15px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 10px;
+      background: #000;
+      border: 1px solid #444;
+      color: white;
+      border-radius: 4px;
+    }
+
+    .chat-send-btn {
+      padding: 10px 20px;
+      background: var(--accent-blue);
+      border: none;
+      color: white;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+
+    .chat-message {
+      padding: 10px 12px;
+      border-radius: 8px;
+      max-width: 85%;
+      word-wrap: break-word;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-message.outgoing {
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 3px;
+    }
+
+    .chat-message.incoming {
+      background: #1a1a1a;
+      color: #d0d0d0;
+      align-self: flex-start;
+      border: 1px solid #333;
+      border-bottom-left-radius: 3px;
+    }
+
+    .chat-message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 0.75rem;
+    }
+
+    .chat-message-sender {
+      font-weight: bold;
+      color: #28a745;
+    }
+
+    .chat-message.outgoing .chat-message-sender {
+      color: #9ad1ff;
+    }
+
+    .chat-message-text {
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: #fff;
+    }
+
+    .chat-message-time {
+      font-size: 0.7em;
+      color: #888;
+      margin-left: 10px;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: block;
+    }
+
+    .tactical-overlay {
+      pointer-events: none !important;
+      transform-origin: center center !important;
+    }
+
+    /* pending marker visuals */
+    .pending-marker {
+      opacity: 0.95;
+      transform: translate3d(0, 0, 0);
+    }
+
+    .pending-icon {
+      border: 2px solid #ffcc00;
+      border-radius: 6px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    /* meshtastic marker label */
+    .meshtastic-label {
+      background: rgba(46, 204, 113, 0.9);
+      color: white;
+      border: none;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-weight: bold;
+      border-radius: 3px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .meshtastic-marker {
+      z-index: 550;
+      /* Override Leaflet's default divIcon styling */
+      background: transparent !important;
+      border: none !important;
+    }
+
+    /* toolbar vertical helper */
+    .ui-vertical {
+      flex-direction: column !important;
+      padding: 6px !important;
+      border-radius: 8px !important;
+    }
+
+    /* Offline Indicator */
+    #offline-indicator {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(220, 53, 69, 0.9);
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      z-index: 9999;
+      display: none;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      border: 2px solid white;
+      font-size: 14px;
+      letter-spacing: 1px;
+    }
+
+    /* Hamburger Menu Styles */
+    #status-menu {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9); z-index: 10001; display: none;
+      flex-direction: column; padding: 20px; color: #fff;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
+      overscroll-behavior: contain; /* prevent scroll leak to body */
+      touch-action: pan-y; /* allow vertical touch scroll */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+    #status-menu::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+    .menu-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-blue); padding-bottom: 10px; margin-bottom: 20px; flex-shrink: 0; }
+    .menu-section { margin-bottom: 20px; background: #111; border: 1px solid #333; padding: 15px; border-radius: 8px; flex-shrink: 0; }
+    .menu-section h3 { font-size: 0.9em; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+    .status-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .status-btn { padding: 10px; border: 1px solid #444; background: #222; color: #fff; text-align: center; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    .status-btn.active-status { background: var(--accent-green); border-color: #fff; }
+    .status-btn.base-status { background: var(--accent-blue); border-color: #fff; }
+    .status-btn.kia-status { background: var(--accent-red); border-color: #fff; }
+
+    .gps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .interval-btn { padding: 8px; background: #222; border: 1px solid #444; color: #ccc; border-radius: 4px; font-size: 0.8em; cursor: pointer; }
+    .interval-btn.active { background: var(--accent-blue); color: #fff; border-color: #fff; }
+
+    .menu-btn { width: 100%; padding: 12px; margin: 5px 0; background: #222; border: 1px solid #444; color: white; border-radius: 4px; text-align: left; display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: 'Courier New', monospace; }
+    .menu-btn i { width: 20px; text-align: center; }
+    .logout-btn { color: var(--accent-red); border-color: var(--accent-red); margin-top: 10px; }
+
+  </style>
+</head>
+
+<body>
+
+  <div id="offline-indicator">
+    <i class="fas fa-plane"></i> OFFLINE MODUS
+  </div>
+
+  <div id="crosshair"></div>
+  <button id="set-btn" onclick="placeMarkerAtCrosshair()">PUNKT SETZEN</button>
+
+  <div class="top-right-ui" id="ui-top">
+    <div id="out-name" style="color:var(--accent-blue); font-weight:bold; text-align:right;">---</div>
+    <div id="out-status" style="font-weight:bold; font-size:0.8em; color:var(--accent-blue); text-align:right;">BASE
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+
+
+  <!-- Chat Window -->
+  <div id="chat-window">
+    <div class="chat-header">
+      <h4 style="color: var(--accent-blue); margin: 0;">Chat / COT Nachrichten</h4>
+      <div style="display: flex; gap: 10px;">
+        <button class="sidebar-close" onclick="toggleMinimizeChatWindow()" title="Minimize/Restore">
+          <i class="fas fa-window-minimize" id="chat-minimize-icon"></i>
+        </button>
+        <button class="sidebar-close" onclick="closeChatWindow()">×</button>
+      </div>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div style="text-align: center; color: #888; padding: 20px;">
+        <p>Keine Nachrichten</p>
+        <p style="font-size: 0.8em; margin-top: 10px;">COT-Nachrichten werden hier angezeigt</p>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <select id="chat-recipient" class="chat-input" style="max-width: 150px;">
+        <option value="all">Alle Einheiten</option>
+        <option value="hq">HQ</option>
+      </select>
+      <input type="text" id="chat-input" class="chat-input" placeholder="Nachricht eingeben...">
+      <button class="chat-send-btn" onclick="sendChatMessage()">Senden</button>
+    </div>
+  </div>
+
+  <div class="bottom-toolbar" id="ui-tools">
+    <!-- Menu first as requested: hamburger/raute/rechteck/viereck/blume/kamera/chat -->
+    <div class="tool-btn" id="s-hamburger" ontouchstart="handleToolInteraction(() => toggleHamburgerMenu(), event)"
+      onclick="handleToolInteraction(() => toggleHamburgerMenu(), event)" title="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </div>
+
+    <!-- Symbol Tools - reordered as requested -->
+    <div class="tool-btn" id="s-raute" ontouchstart="handleToolInteraction(() => setTool('raute'), event)"
+      onclick="handleToolInteraction(() => setTool('raute'), event)"><svg viewBox="0 0 100 100">
+        <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="4" />
+      </svg></div>
+    <div class="tool-btn" id="s-rechteck" ontouchstart="handleToolInteraction(() => setTool('rechteck'), event)"
+      onclick="handleToolInteraction(() => setTool('rechteck'), event)"><svg viewBox="0 0 100 100">
+        <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="4" />
+      </svg></div>
+    <div class="tool-btn" id="s-quadrat" ontouchstart="handleToolInteraction(() => setTool('quadrat'), event)"
+      onclick="handleToolInteraction(() => setTool('quadrat'), event)"><svg viewBox="0 0 100 100">
+        <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="4" />
+      </svg></div>
+    <div class="tool-btn" id="s-blume" ontouchstart="handleToolInteraction(() => setTool('blume'), event)"
+      onclick="handleToolInteraction(() => setTool('blume'), event)"><svg viewBox="0 0 100 100">
+        <path
+          d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
+          fill="#ffff00" stroke="white" stroke-width="4" />
+      </svg></div>
+    <div class="tool-btn" id="s-video" ontouchstart="handleToolInteraction(() => openVideoStream(), event)"
+      onclick="handleToolInteraction(() => openVideoStream(), event)" title="Open Video Stream"><svg viewBox="0 0 24 24"
+        fill="#007bff" stroke="white" stroke-width="1.5">
+        <path d="M23 7l-7 5 7 5V7z" />
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+      </svg></div>
+    <div class="tool-btn" id="s-chat" ontouchstart="handleToolInteraction(() => openChatWindow(), event)"
+      onclick="handleToolInteraction(() => openChatWindow(), event)" title="Chat">
+      <svg viewBox="0 0 24 24" fill="#2ecc71" stroke="white" stroke-width="1.5">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    </div>
+    <div class="tool-btn" id="s-trash" ontouchstart="handleToolInteraction(() => setTool('trash'), event)"
+      onclick="handleToolInteraction(() => setTool('trash'), event)" title="Löschmodus">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6666" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+    </div>
+    <div class="tool-btn" id="s-reload" ontouchstart="handleToolInteraction(() => refreshAllData(), event)"
+      onclick="handleToolInteraction(() => refreshAllData(), event)" title="Seite neu laden">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+      </svg>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+  <script src="assets/api-client.js"></script>
+  <script src="assets/ws-client.js"></script>
+  
+  <!-- Meshtastic PWA Integration -->
+  <script src="meshtastic-web-client.js"></script>
+  <script src="cot-client.js"></script>
+  <script src="message-queue-manager.js"></script>
+  
+  <script>
+    /* Overview map with immediate (optimistic) marker placement and persistent pending markers.
+       Includes BroadcastChannel/storage fallback to broadcast status-change messages
+    */
+
+    const PENDING_KEY = 'pending_map_markers_v1';
+    const DEBOUNCE_THRESHOLD_MS = 500; // Prevent double-firing of touch/click events
+    const IP_GEOLOCATION_TIMEOUT_MS = 5000; // Timeout for external IP geolocation service
+    const SYMBOLS = {
+      raute: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="3"/></svg>',
+      rechteck: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="3"/></svg>',
+      quadrat: '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="3"/></svg>',
+      blume: '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="white" stroke-width="3"/></svg>',
+      marker: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="white" stroke-width="3"/></svg>',
+      friendly: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#2ecc71" stroke="white" stroke-width="3"/></svg>'
+    };
+
+    // Meshtastic-related created_by values — markers from these sources are rendered
+    // exclusively by updateMeshtasticNodes() as blue circles, not by the general sync().
+    const MESHTASTIC_SOURCES = ['import_meshtastic', 'meshtastic_sync', 'ingest_node'];
+
+    let map;
+    let currentTool = '';
+    let currentUserName = '';
+    const pendingLayers = new Map();
+    const serverMarkerLayers = new Map(); // server marker id -> L.marker layer
+    const meshtasticMarkers = new Map(); // mesh_id -> { marker, data }
+    const symbolLayers = new Map(); // symbol id -> L.marker layer (symbols from /api/map/symbols)
+    let serverConnected = false; // Track server connection status
+    const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
+    let chatUnreadCount = 0; // Unread chat message counter
+
+    // BroadcastChannel for cross-tab status synchronization
+    // Enables real-time status updates between overview.html and index.html tabs
+    // Communication pattern: setStatus() broadcasts -> listeners in all tabs receive updates
+    // Channel name 'lpu5_status_updates' is shared across all LPU5 pages
+    let statusChannel;
+    try {
+      statusChannel = new BroadcastChannel('lpu5_status_updates');
+    } catch (e) {
+      console.warn('BroadcastChannel not supported, using localStorage fallback only', e);
+    }
+
+    // Authentication state — data sync and WebSocket only start after login
+    let isLoggedIn = false;
+    let dataSyncStarted = false;
+
+    // WebSocket connection for real-time updates
+    let ws = null;
+    let wsReconnectAttempts = 0;
+    const wsMaxReconnectAttempts = 5;
+    const wsReconnectDelay = 3000;
+
+    function connectWebSocket() {
+      if (!isLoggedIn) return; // Only connect when authenticated
+      if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+        return; // Already connecting or connected
+      }
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log('WebSocket connected');
+          wsReconnectAttempts = 0;
+
+          // Subscribe to relevant channels
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'positions' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'messages' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'chat' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'status' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'markers' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'nodes' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'drawings' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'overlays' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'symbols' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'geofence' }));
+          ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+          } catch (e) {
+            console.error('WebSocket message parse error:', e);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+          console.log('WebSocket disconnected');
+          ws = null;
+
+          // Attempt reconnection
+          if (wsReconnectAttempts < wsMaxReconnectAttempts) {
+            wsReconnectAttempts++;
+            console.log(`Reconnecting WebSocket in ${wsReconnectDelay}ms (attempt ${wsReconnectAttempts}/${wsMaxReconnectAttempts})`);
+            setTimeout(connectWebSocket, wsReconnectDelay);
+          }
+        };
+      } catch (e) {
+        console.error('WebSocket connection failed:', e);
+      }
+    }
+
+    function handleWebSocketMessage(data) {
+      if (!data || !data.type) return;
+
+      switch (data.type) {
+        case 'connection_established':
+          console.log('WebSocket connection established:', data.connection_id);
+          break;
+
+        case 'marker_update':
+          // Refresh markers when updates are broadcast
+          if (data.channel === 'positions') {
+            sync();
+          }
+          break;
+
+        case 'marker_created':
+          // Handle new marker from another client
+          if (data.data && data.channel === 'markers') {
+            console.log('Received marker_created:', data.data);
+            sync();
+          }
+          break;
+
+        case 'marker_updated':
+          // Handle marker update from another client
+          if (data.data && data.channel === 'markers') {
+            console.log('Received marker_updated:', data.data);
+            sync();
+          }
+          break;
+
+        case 'marker_deleted':
+          // Handle marker deletion from another client
+          if (data.data && data.channel === 'markers') {
+            console.log('Received marker_deleted:', data.data);
+            sync();
+          }
+          break;
+
+        case 'symbol_placed':
+        case 'symbol_created':
+          // Handle new symbol from another client
+          console.log('Received symbol update:', data.type, data.data);
+          sync();
+          break;
+
+        case 'drawing_created':
+        case 'drawing_updated':
+        case 'drawing_deleted':
+          // Handle drawing changes from another client - reload from server
+          console.log('Received drawing update:', data.type);
+          if (typeof loadDrawings === 'function') loadDrawings();
+          break;
+
+        case 'overlay_created':
+        case 'overlay_updated':
+        case 'overlay_deleted':
+        case 'overlay_shared':
+          // Handle overlay changes from another client - reload from server
+          console.log('Received overlay update:', data.type);
+          if (typeof loadOverlays === 'function') loadOverlays();
+          break;
+
+        case 'symbol_updated':
+          // Handle symbol update from another client
+          if (data.data && data.channel === 'symbols') {
+            console.log('Received symbol_updated:', data.data);
+            sync();
+          }
+          break;
+
+        case 'symbol_deleted':
+          // Handle symbol deletion from another client
+          if (data.data && data.channel === 'symbols') {
+            console.log('Received symbol_deleted:', data.data);
+            sync();
+          }
+          break;
+
+        case 'node_update':
+        case 'node_created':
+        case 'node_updated':
+          // Handle Meshtastic node updates from another client
+          if (data.data && data.channel === 'nodes') {
+            console.log('Received node update:', data.data);
+            updateMeshtasticNodes(); // Refresh meshtastic markers (not sync which renders them as generic icons)
+          }
+          break;
+
+        case 'geofence_created':
+          // Handle new geofence from another client
+          if (data.data && data.channel === 'geofence') {
+            console.log('Received geofence_created:', data.data);
+          }
+          break;
+
+        case 'geofence_updated':
+          // Handle geofence update from another client
+          if (data.data && data.channel === 'geofence') {
+            console.log('Received geofence_updated:', data.data);
+          }
+          break;
+
+        case 'geofence_deleted':
+          // Handle geofence deletion from another client
+          if (data.data && data.channel === 'geofence') {
+            console.log('Received geofence_deleted:', data.data);
+          }
+          break;
+
+        case 'meshtastic_update':
+          // Update meshtastic nodes
+          if (data.channel === 'positions') {
+            updateMeshtasticNodes();
+          }
+          break;
+
+        case 'chat_message':
+        case 'new_message':
+          // Handle chat messages (from WebSocket broadcast)
+          if (data.data) {
+            const msg = data.data;
+            const messagesDiv = document.getElementById('chat-messages');
+            if (messagesDiv) {
+              // Don't add if sent by self (already shown locally)
+              const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
+              if (msg.username === selfName) {
+                // Update local message with server-assigned id for read receipt tracking
+                const localMsgs = messagesDiv.querySelectorAll('.chat-message[data-pending="true"]');
+                if (localMsgs.length > 0) {
+                  localMsgs[0].setAttribute('data-msg-id', msg.id);
+                  localMsgs[0].removeAttribute('data-pending');
+                  const statusEl = localMsgs[0].querySelector('.chat-msg-status');
+                  if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
+                }
+                break;
+              }
+              // Filter by selected channel
+              const chatRecipientEl = document.getElementById('chat-recipient');
+              const selectedChannel = chatRecipientEl ? chatRecipientEl.value : 'all';
+              const msgChannel = msg.channel_id || 'all';
+              if (selectedChannel !== 'all' && msgChannel !== selectedChannel) break;
+              // Clear placeholder if present
+              if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
+                messagesDiv.innerHTML = '';
+              }
+              const messageEl = document.createElement('div');
+              messageEl.className = 'chat-message incoming';
+              messageEl.setAttribute('data-msg-id', msg.id || '');
+              const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+              messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || msg.message || '') + '</div>';
+              messagesDiv.appendChild(messageEl);
+              messagesDiv.scrollTop = messagesDiv.scrollHeight;
+              // Update unread badge if chat window is not open
+              const chatWin = document.getElementById('chat-window');
+              if (!chatWin || !chatWin.classList.contains('open')) {
+                chatUnreadCount++;
+                updateChatNotificationBadge();
+              }
+              // Mark as delivered
+              if (msg.id) {
+                const tk = localStorage.getItem('token');
+                if (tk) {
+                  fetch('/api/chat/message/' + msg.id + '/delivered', {
+                    method: 'POST', headers: { 'Authorization': 'Bearer ' + tk }
+                  }).catch(() => {});
+                }
+              }
+            }
+          }
+          break;
+
+        case 'channel_created':
+        case 'channel_deleted':
+          // Refresh channel dropdown when channels change
+          if (typeof loadChatUsers === 'function') loadChatUsers();
+          break;
+
+        case 'message_delivered':
+        case 'message_read':
+        case 'messages_read':
+          // Update read receipt checkmarks on messages
+          if (data.data) {
+            const d = data.data;
+            if (d.message_id) {
+              const el = document.querySelector('.chat-message[data-msg-id="' + d.message_id + '"] .chat-msg-status');
+              if (el) {
+                if (d.read_by && d.read_by.length > 0) {
+                  el.innerHTML = '&#10003;&#10003;'; // double check = read
+                  el.style.color = '#4fc3f7';
+                } else if (d.delivered_to && d.delivered_to.length > 0) {
+                  el.innerHTML = '&#10003;&#10003;'; // double check = delivered
+                }
+              }
+            }
+            if (d.message_ids) {
+              d.message_ids.forEach(function(mid) {
+                const el = document.querySelector('.chat-message[data-msg-id="' + mid + '"] .chat-msg-status');
+                if (el) { el.innerHTML = '&#10003;&#10003;'; el.style.color = '#4fc3f7'; }
+              });
+            }
+          }
+          break;
+
+        case 'status_update':
+          // Handle status updates from server (e.g., when admin changes status in index.html)
+          if (data.channel === 'status') {
+            console.log('Received status_update via WebSocket:', data);
+            const statusData = data.data || data;
+            const statusUsername = statusData.username || statusData.unit_id;
+            const newStatus = statusData.status;
+            
+            // Check if this update is for the current user
+            const myUnitId = localStorage.getItem('lpu5_unit_id');
+            const myUsername = localStorage.getItem('lpu5_username');
+            
+            // Apply status if it's for this user/unit
+            if (statusUsername && newStatus && (statusUsername === currentUserName || statusUsername === myUnitId || statusUsername === myUsername)) {
+              // Update the status display
+              const statusEl = document.getElementById('out-status');
+              if (statusEl) {
+                statusEl.innerText = newStatus;
+                
+                // Set color based on status
+                let color = '';
+                if (newStatus === 'AKTIV') color = '#28a745';      // Green
+                else if (newStatus === 'BASE') color = '#007bff';   // Blue
+                else if (newStatus === 'KIA') color = '#dc3545';    // Red
+                statusEl.style.color = color;
+                
+                console.log('Status updated to:', newStatus);
+              }
+            }
+            // Refresh map data to reflect status changes
+            sync();
+          }
+          break;
+
+        case 'stream_share':
+          // Handle stream share (new unified event)
+          if (data.active) {
+            console.log('Stream shared:', data);
+            showCameraStream(data);
+          } else {
+            console.log('Stream sharing stopped');
+            hideCameraStream();
+          }
+          break;
+
+        case 'camera_stream_start':
+          // Handle camera stream start (legacy)
+          if (data.channel === 'camera') {
+            console.log('Camera stream started:', data.cameraInfo);
+            showCameraStream(data);
+          }
+          break;
+
+        case 'camera_frame':
+          // Handle camera frame
+          if (data.frame && data.channel === 'camera') {
+            updateCameraFrame(data.frame);
+          }
+          break;
+
+        case 'camera_stream_stop':
+          // Handle camera stream stop
+          if (data.channel === 'camera') {
+            console.log('Camera stream stopped');
+            hideCameraStream();
+          }
+          break;
+
+        case 'error':
+          console.error('WebSocket error:', data.error);
+          break;
+
+        default:
+          console.log('Unknown WebSocket message type:', data.type);
+      }
+    }
+
+    // Test server connectivity
+    async function testServerConnection() {
+      try {
+        const response = await fetch('/api/users', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+        });
+        // Distinguish between connection and authentication
+        const isConnected = response.ok || response.status === 401 || response.status === 403;
+        const isAuthenticated = response.ok;
+
+        serverConnected = isConnected;
+        if (DEBUG_MODE) {
+          console.log('Server connection test:',
+            isConnected ? 'SUCCESS' : 'FAILED',
+            'Status:', response.status,
+            'Authenticated:', isAuthenticated);
+        }
+        return { connected: isConnected, authenticated: isAuthenticated };
+      } catch (error) {
+        serverConnected = false;
+        console.error('Server connection test FAILED:', error);
+        return { connected: false, authenticated: false };
+      }
+    }
+
+    // persistence helpers
+    function readPending() {
+      try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch (e) { return []; }
+    }
+    function writePending(arr) { localStorage.setItem(PENDING_KEY, JSON.stringify(arr || [])); }
+    function addPendingLocal(obj) {
+      const arr = readPending();
+      arr.push(obj);
+      writePending(arr);
+    }
+    function removePendingLocal(cid) {
+      let arr = readPending();
+      arr = arr.filter(x => x._cid !== cid);
+      writePending(arr);
+    }
+
+    // Map layer switching
+    function setMapLayer(layerType) {
+      if (!map || !baseLayer) return;
+
+      // Remove current base layer
+      map.removeLayer(baseLayer);
+
+      // Set new layer based on type
+      switch (layerType) {
+        case 'satellite':
+          baseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri',
+            maxZoom: 19
+          }).addTo(map);
+          currentLayerType = 'satellite';
+          break;
+        case 'terrain':
+          baseLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenTopoMap contributors',
+            maxZoom: 17
+          }).addTo(map);
+          currentLayerType = 'terrain';
+          break;
+        case 'street':
+        default:
+          baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+          }).addTo(map);
+          currentLayerType = 'street';
+          break;
+      }
+
+      // Save preference to localStorage
+      try {
+        localStorage.setItem('lpu5_map_layer', layerType);
+      } catch (e) {
+        console.warn('Failed to save map layer preference', e);
+      }
+
+      // Close menu
+      const menu = document.getElementById('status-menu');
+      if (menu) menu.style.display = 'none';
+    }
+
+    // UI & login
+    async function validateLogin() {
+      const u = document.getElementById('menu-user') ? document.getElementById('menu-user').value : '';
+      const p = document.getElementById('menu-pass') ? document.getElementById('menu-pass').value : '';
+      if (!u || !p) { alert('Bitte Benutzername und Passwort eingeben'); return; }
+      try {
+        const res = await fetch('/api/login_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+        if (res.ok) {
+          const r = await res.json();
+          currentUserName = r.user.username;
+
+          // Cache credentials and token in localStorage
+          if (r.token) localStorage.setItem('token', r.token);
+          localStorage.setItem('lpu5_cached_user', u);
+          localStorage.setItem('lpu5_cached_pass', p);
+
+          document.getElementById('out-name').innerText = currentUserName.toUpperCase();
+          // Close hamburger menu after login
+          const menu = document.getElementById('status-menu');
+          if (menu) menu.style.display = 'none';
+          isLoggedIn = true;
+          startDataSync();
+        } else {
+          alert('Login fehlgeschlagen');
+        }
+      } catch (e) {
+        console.error('Login error:', e);
+        alert('Netzwerkfehler beim Login: ' + e.message);
+      }
+    }
+
+    // Auto-login from cached credentials
+    async function tryAutoLogin() {
+      const cachedUser = localStorage.getItem('lpu5_cached_user');
+      const cachedPass = localStorage.getItem('lpu5_cached_pass');
+      if (!cachedUser || !cachedPass) return false;
+      try {
+        const res = await fetch('/api/login_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: cachedUser, password: cachedPass }) });
+        if (res.ok) {
+          const r = await res.json();
+          currentUserName = r.user.username;
+          if (r.token) localStorage.setItem('token', r.token);
+          document.getElementById('out-name').innerText = currentUserName.toUpperCase();
+          isLoggedIn = true;
+          startDataSync();
+          return true;
+        }
+      } catch (e) {
+        // Offline: restore username from cache so UI shows the name
+        console.warn('Auto-login failed (offline?), using cached name', e);
+        currentUserName = cachedUser;
+        document.getElementById('out-name').innerText = cachedUser.toUpperCase();
+        // Allow data sync in offline mode with cached credentials
+        if (localStorage.getItem('token')) {
+          isLoggedIn = true;
+          startDataSync();
+        }
+        return true;
+      }
+      return false;
+    }
+
+    // Map init
+    let baseLayer = null; // Track current base layer
+    let currentLayerType = 'street'; // Track current layer type
+
+    function initMap() {
+      if (map) return;
+      map = L.map('map', { zoomSnap: 0.1, zoomControl: false }).setView([51.505, -0.09], 15);
+
+      // Restore saved map layer preference or use street as default
+      let savedLayer = 'street';
+      try {
+        savedLayer = localStorage.getItem('lpu5_map_layer') || 'street';
+      } catch (e) {
+        console.warn('Failed to load map layer preference', e);
+      }
+
+      // Initialize with saved or default layer
+      switch (savedLayer) {
+        case 'satellite':
+          baseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri',
+            maxZoom: 19
+          }).addTo(map);
+          currentLayerType = 'satellite';
+          break;
+        case 'terrain':
+          baseLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenTopoMap contributors',
+            maxZoom: 17
+          }).addTo(map);
+          currentLayerType = 'terrain';
+          break;
+        case 'street':
+        default:
+          baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+          }).addTo(map);
+          currentLayerType = 'street';
+          break;
+      }
+
+      map.createPane('overlayPane').style.zIndex = 300;
+      map.createPane('drawPane').style.zIndex = 600;
+      map.createPane('meshtasticPane').style.zIndex = 650; // Above draw so blue circles always visible
+      map.createPane('pendingPane').style.zIndex = 700;
+      map.getContainer().style.touchAction = 'manipulation';
+      renderPendingLayers();
+
+      // Network Status Listeners
+      window.addEventListener('online', () => {
+        document.getElementById('offline-indicator').style.display = 'none';
+        if (typeof ApiClient !== 'undefined') ApiClient.processSyncQueue();
+      });
+      window.addEventListener('offline', () => {
+        document.getElementById('offline-indicator').style.display = 'block';
+      });
+      if (!navigator.onLine) {
+        document.getElementById('offline-indicator').style.display = 'block';
+      }
+
+      // Register Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('SW registered', reg))
+          .catch(err => console.log('SW registration failed', err));
+      }
+
+      // Restore GPS settings from localStorage
+      try {
+        const savedGpsAuto = localStorage.getItem('lpu5_gps_auto') === 'true';
+        const savedGpsInterval = localStorage.getItem('lpu5_gps_update_interval') || '5';
+
+        gpsUpdateInterval = parseInt(savedGpsInterval) * 1000;
+
+        // Will be set when hamburger menu is opened
+        setTimeout(() => {
+          const autoToggle = document.getElementById('gps-auto-toggle');
+          const intervalSelect = document.getElementById('gps-update-interval');
+
+          if (autoToggle) {
+            autoToggle.checked = savedGpsAuto;
+            if (savedGpsAuto) {
+              startGpsAutoTracking();
+            }
+          }
+
+          if (intervalSelect) {
+            intervalSelect.value = savedGpsInterval;
+          }
+        }, 1000);
+      } catch (e) {
+        console.warn('Failed to restore GPS settings', e);
+      }
+    }
+
+    // Start data sync and WebSocket — called only after successful login
+    let _syncIntervals = [];
+    function startDataSync() {
+      if (dataSyncStarted || !isLoggedIn) return;
+      dataSyncStarted = true;
+      sync();
+      _syncIntervals.push(setInterval(sync, 15000));
+      loadMapSymbols();
+      _syncIntervals.push(setInterval(loadMapSymbols, 30000));
+      updateMeshtasticNodes();
+      _syncIntervals.push(setInterval(updateMeshtasticNodes, 30000));
+      loadOverlays();
+      _syncIntervals.push(setInterval(loadOverlays, 60000));
+      loadDrawings();
+      _syncIntervals.push(setInterval(loadDrawings, 60000));
+      connectWebSocket();
+    }
+
+    function stopDataSync() {
+      _syncIntervals.forEach(id => clearInterval(id));
+      _syncIntervals = [];
+      dataSyncStarted = false;
+      isLoggedIn = false;
+      if (ws) { try { ws.close(); } catch(e){} ws = null; }
+    }
+
+    function crosshairLatLng() {
+      // Use actual crosshair element position so the marker always matches
+      // the visible crosshair, even when viewport and map container differ
+      // (mobile browser chrome, notch safe-areas, etc.)
+      const ch = document.getElementById('crosshair');
+      if (!ch) {
+        // Fallback to map center if crosshair element is missing
+        const size = map.getSize();
+        return map.containerPointToLatLng(L.point(size.x / 2, size.y / 2));
+      }
+      const chRect = ch.getBoundingClientRect();
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const containerPoint = L.point(
+        chRect.left + chRect.width / 2 - mapRect.left,
+        chRect.top + chRect.height / 2 - mapRect.top
+      );
+      return map.containerPointToLatLng(containerPoint);
+    }
+
+    // Helper to prevent double-firing of touch and click events
+    let lastInteraction = { time: 0, target: null };
+    function handleToolInteraction(callback, event) {
+      const now = Date.now();
+      const target = event ? event.currentTarget : null;
+
+      // Prevent double-firing if same target clicked within threshold
+      if (target === lastInteraction.target && now - lastInteraction.time < DEBOUNCE_THRESHOLD_MS) {
+        if (event) event.preventDefault();
+        return;
+      }
+
+      lastInteraction = { time: now, target: target };
+      callback();
+    }
+
+    // immediate placement
+    function setTool(t) {
+      if (currentTool === t) {
+        currentTool = '';
+        togglePrecisionUI(false);
+      } else {
+        currentTool = t;
+        togglePrecisionUI(t !== 'trash');
+      }
+      document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+      if (currentTool) {
+        const el = document.getElementById('s-' + t);
+        if (el) el.classList.add('active');
+      }
+    }
+    function togglePrecisionUI(show) {
+      document.getElementById('crosshair').style.display = show ? 'block' : 'none';
+      document.getElementById('set-btn').style.display = show ? 'block' : 'none';
+    }
+
+    let _lastPlaceTime = 0;
+    function placeMarkerAtCrosshair() {
+      if (!map) return;
+      const now = Date.now();
+      if (now - _lastPlaceTime < 600) return; // Prevent touch+click double-fire
+      _lastPlaceTime = now;
+      if (!currentTool || currentTool === 'trash') return; // No tool selected
+      const latlng = crosshairLatLng();
+      const cid = 'local-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+      const pending = {
+        _cid: cid,
+        lat: latlng.lat,
+        lng: latlng.lng,
+        name: currentTool,
+        created_by: currentUserName || '',
+        ts: Date.now()
+      };
+      addPendingLocal(pending);
+      const icon = L.divIcon({
+        className: 'pending-marker',
+        html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[pending.name] || SYMBOLS.raute}</div>`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+      });
+      const layer = L.marker([pending.lat, pending.lng], { icon, pane: 'pendingPane' }).addTo(map);
+      layer._cid = cid;
+      pendingLayers.set(cid, layer);
+      layer.on('click touchstart', (ev) => {
+        ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+        if (confirm('Ausstehenden Marker entfernen?')) {
+          removePendingLocal(cid);
+          try { map.removeLayer(layer); } catch (e) { }
+          pendingLayers.delete(cid);
+        }
+      });
+      const btn = document.getElementById('set-btn');
+      btn.innerText = 'Setze...';
+      btn.disabled = true;
+      setTimeout(() => { btn.innerText = 'PUNKT SETZEN'; btn.disabled = false; }, 600);
+      togglePrecisionUI(false);
+      setTool('');
+      sendPendingMarkers().catch(() => { });
+    }
+
+    function renderPendingLayers() {
+      if (!map) return;
+      const stored = readPending();
+      const cids = new Set(stored.map(p => p._cid));
+      for (const [cid, layer] of Array.from(pendingLayers.entries())) {
+        if (!cids.has(cid)) {
+          try { map.removeLayer(layer); } catch (e) { }
+          pendingLayers.delete(cid);
+        }
+      }
+      for (const p of stored) {
+        if (pendingLayers.has(p._cid)) continue;
+        const icon = L.divIcon({
+          className: 'pending-marker',
+          html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[p.name] || SYMBOLS.raute}</div>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18]
+        });
+        const layer = L.marker([p.lat, p.lng], { icon, pane: 'pendingPane' }).addTo(map);
+        layer._cid = p._cid;
+        pendingLayers.set(p._cid, layer);
+        layer.on('click touchstart', (ev) => {
+          ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+          if (confirm('Ausstehenden Marker entfernen?')) {
+            removePendingLocal(p._cid);
+            try { map.removeLayer(layer); } catch (e) { }
+            pendingLayers.delete(p._cid);
+          }
+        });
+      }
+    }
+
+    // send pending
+    async function sendPendingMarkers() {
+      const pending = readPending();
+      if (!pending || pending.length === 0) return;
+      for (const p of pending.slice()) {
+        try {
+          // Use map/symbols endpoint for proper symbol sharing
+          const token = localStorage.getItem('token');
+          const symbolData = {
+            lat: p.lat,
+            lng: p.lng,
+            type: p.name,
+            source_page: 'overview',
+            label: '',
+            color: '#3498db',
+            icon: 'fa-map-marker'
+          };
+
+          const res = await fetch('/api/map/symbols', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify(symbolData)
+          });
+
+          if (res.ok) {
+            removePendingLocal(p._cid);
+            const layer = pendingLayers.get(p._cid);
+            if (layer) { try { map.removeLayer(layer); } catch (e) { } pendingLayers.delete(p._cid); }
+          } else {
+            console.warn('Server rejected pending marker', res.status);
+          }
+        } catch (e) {
+          console.warn('Network error sending pending marker, will retry later', e);
+          return;
+        }
+      }
+    }
+
+    /**
+     * Robustly determines if a marker is a Meshtastic node that should be rendered
+     * by updateMeshtasticNodes() rather than the general sync() function.
+     * 
+     * Checks multiple conditions to ensure all Meshtastic nodes are filtered out:
+     * 1. created_by field matches known Meshtastic sources
+     * 2. type field is 'node' (legacy check)
+     * 3. data field contains unit_id or hardware (Meshtastic-specific metadata)
+     * 4. name or description contains 'meshtastic' substring
+     * 
+     * @param {Object} marker - The marker object to check
+     * @returns {boolean} - True if the marker is a Meshtastic node
+     */
+    function isMeshtasticMarker(marker) {
+      if (!marker) return false;
+      
+      // Check 1: created_by field matches known Meshtastic sources
+      if (marker.created_by && MESHTASTIC_SOURCES.includes(marker.created_by)) {
+        return true;
+      }
+      
+      // Check 2: Legacy type='node' check
+      if (marker.type === 'node') {
+        return true;
+      }
+      
+      // Check 3: data field contains Meshtastic-specific metadata (unit_id or hardware)
+      if (marker.data) {
+        if (marker.data.unit_id !== undefined || marker.data.hardware !== undefined) {
+          return true;
+        }
+      }
+      
+      // Check 4: name or description contains 'meshtastic' (case-insensitive)
+      const nameStr = (marker.name || '').toLowerCase();
+      const descStr = (marker.description || '').toLowerCase();
+      if (nameStr.includes('meshtastic') || descStr.includes('meshtastic')) {
+        return true;
+      }
+      
+      return false;
+    }
+
+    // sync
+    async function sync() {
+      if (!map || !isLoggedIn) return;
+      await sendPendingMarkers().catch((e) => {
+        console.warn('Failed to send pending markers:', e);
+      });
+      try {
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch('/api/map_markers', { headers });
+        if (!res.ok) {
+          console.warn('Failed to fetch map markers, status:', res.status);
+          renderPendingLayers();
+          return;
+        }
+        const markers = await res.json();
+        // Remove only previously synced server marker layers (preserve GPS, pending, meshtastic)
+        for (const [id, layer] of serverMarkerLayers) {
+          try { map.removeLayer(layer); } catch (e) { }
+        }
+        serverMarkerLayers.clear();
+
+        const serverIds = new Set();
+        (markers || []).forEach(m => {
+          // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
+          // Use robust filtering to catch all Meshtastic nodes (prevents red diamond fallback icons)
+          if (isMeshtasticMarker(m)) return;
+
+          // Skip GPS position markers — those are rendered by loadMapSymbols() as blue arrows
+          if (m.type === 'gps_position') return;
+
+          serverIds.add(m.id);
+          // Robust icon selection: check m.type, then m.name, then fallback to raute
+          const iconType = m.type || m.name || 'raute';
+          const iconHtml = SYMBOLS[iconType] || SYMBOLS[m.name] || SYMBOLS[m.type] || SYMBOLS.raute;
+          const icon = L.divIcon({
+            className: 'server-marker',
+            html: `<div style="width:36px;height:36px;">${iconHtml}</div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+          });
+          const layer = L.marker([m.lat, m.lng], { icon, pane: 'drawPane' }).addTo(map);
+          layer._serverId = m.id;
+          serverMarkerLayers.set(m.id, layer);
+          layer.on('click touchstart', async (ev) => {
+            ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+            if (currentTool === 'trash') {
+              if (!confirm('Delete marker?')) return;
+              try {
+                const dres = await fetch(`/api/map_markers/${m.id}`, { method: 'DELETE' });
+                if (dres.ok) {
+                  map.removeLayer(layer);
+                  serverMarkerLayers.delete(m.id);
+                } else alert('Delete failed');
+              } catch (e) {
+                console.error('Delete marker error:', e);
+                alert('Network error during delete');
+              }
+            }
+          });
+        });
+        renderPendingLayers();
+      } catch (e) {
+        console.error('Sync error:', e);
+        renderPendingLayers();
+      }
+    }
+
+    // Unified sync handles both markers and symbols
+
+    // Load symbols from server (placed by admin_map or other overview clients)
+    async function loadMapSymbols() {
+      if (!map || !isLoggedIn) return;
+      try {
+        const res = await fetch('/api/map/symbols');
+        if (!res.ok) return;
+        const data = await res.json();
+        const serverSymbols = data.symbols || [];
+
+        // Deduplicate GPS positions: keep only the latest per user
+        const latestGpsPerUser = new Map();
+        for (const s of serverSymbols) {
+          if (s.type === 'gps_position' && s.username) {
+            const existing = latestGpsPerUser.get(s.username);
+            if (!existing || new Date(s.timestamp || 0) > new Date(existing.timestamp || 0)) {
+              latestGpsPerUser.set(s.username, s);
+            }
+          }
+        }
+
+        // Clear previous symbol layers
+        for (const [id, layer] of symbolLayers) {
+          try { map.removeLayer(layer); } catch (e) { }
+        }
+        symbolLayers.clear();
+
+        for (const s of serverSymbols) {
+          // Skip own GPS position marker (already shown locally)
+          if (s.type === 'gps_position' && s.username === currentUserName) continue;
+
+          // Skip meshtastic-synced markers — those are rendered by updateMeshtasticNodes()
+          if (s.type === 'node' || MESHTASTIC_SOURCES.includes(s.username) || MESHTASTIC_SOURCES.includes(s.created_by)) continue;
+
+          // Skip duplicate GPS positions — only show the latest per user
+          if (s.type === 'gps_position' && s.username && latestGpsPerUser.get(s.username) !== s) continue;
+
+          const isGps = (s.type === 'gps_position');
+          const symType = s.type || s.sym || 'raute';
+          let iconHtml;
+          if (isGps) {
+            // Foreign GPS positions shown as blue arrow (unified with Meshtastic node blue)
+            iconHtml = `<i class="fas fa-location-arrow" style="color:#007bff; font-size: 28px;"></i>`;
+          } else {
+            iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.raute;
+            iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
+          }
+          const icon = L.divIcon({
+            className: isGps ? 'gps-marker-arrow' : 'server-symbol',
+            html: iconHtml,
+            iconSize: isGps ? [36, 36] : [32, 32],
+            iconAnchor: isGps ? [18, 18] : [16, 16]
+          });
+          const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
+
+          // Show username label for GPS positions on click, symbol type for others
+          const tooltipText = isGps ? (s.username || s.label || 'GPS') : (s.label || s.type || 'Symbol');
+          if (isGps) {
+            marker.bindPopup(`<strong>${tooltipText}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
+          } else {
+            marker.bindTooltip(tooltipText, {
+              permanent: false,
+              direction: 'right',
+              offset: [10, 0],
+              className: 'symbol-label'
+            });
+          }
+
+          if (!isGps) {
+            marker.on('click touchstart', async (ev) => {
+              ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+              if (currentTool === 'trash') {
+                if (!confirm('Symbol löschen?')) return;
+                try {
+                  const token = localStorage.getItem('token');
+                  const dres = await fetch(`/api/map/symbols/${s.id}`, {
+                    method: 'DELETE',
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                  });
+                  if (dres.ok) { map.removeLayer(marker); symbolLayers.delete(s.id); }
+                } catch (e) { console.error('Delete symbol error:', e); }
+              }
+            });
+          }
+
+          symbolLayers.set(s.id, marker);
+        }
+      } catch (e) {
+        console.warn('loadMapSymbols error', e);
+      }
+    }
+
+    // Refresh all data without full page reload (preserves login state)
+    async function refreshAllData() {
+      try {
+        await sync();
+        await loadMapSymbols();
+        await updateMeshtasticNodes();
+        await loadOverlays();
+      } catch (e) {
+        console.warn('refreshAllData error', e);
+      }
+    }
+
+    // Meshtastic node synchronization
+    async function updateMeshtasticNodes() {
+      if (!map || !isLoggedIn) return;
+      try {
+        const resp = await fetch('/api/meshtastic/nodes');
+        if (!resp.ok) {
+          console.warn('Meshtastic nodes fetch failed, status:', resp.status);
+          return;
+        }
+
+        const nodes = await resp.json();
+        const seen = new Set();
+
+        // Helper to generate ID if missing
+        const genId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+        for (const n of (nodes || [])) {
+          // Extract mesh ID
+          const mesh = n.mesh_id || n.id || (n.raw && (n.raw.mesh_id || n.raw.id)) || genId('unknown');
+          seen.add(mesh);
+
+          // Get coordinates - check multiple possible locations
+          let lat = parseFloat(n.lat);
+          let lng = parseFloat(n.lng);
+
+          // If not found at top level, check nested raw structures
+          if (isNaN(lat) || isNaN(lng)) {
+            if (n.raw) {
+              // Check raw.lat/lng
+              if (isNaN(lat)) lat = parseFloat(n.raw.lat);
+              if (isNaN(lng)) lng = parseFloat(n.raw.lng);
+
+              // Check raw.raw.position (for nested meshtastic data)
+              if ((isNaN(lat) || isNaN(lng)) && n.raw.raw && n.raw.raw.position) {
+                if (isNaN(lat)) lat = parseFloat(n.raw.raw.position.latitude);
+                if (isNaN(lng)) lng = parseFloat(n.raw.raw.position.longitude);
+              }
+
+              // Check raw.position (alternative structure)
+              if ((isNaN(lat) || isNaN(lng)) && n.raw.position) {
+                if (isNaN(lat)) lat = parseFloat(n.raw.position.latitude);
+                if (isNaN(lng)) lng = parseFloat(n.raw.position.longitude);
+              }
+            }
+          }
+
+          if (isNaN(lat) || isNaN(lng)) {
+            // Remove marker if no valid coordinates
+            if (meshtasticMarkers.has(mesh)) {
+              const entry = meshtasticMarkers.get(mesh);
+              try { map.removeLayer(entry.marker); } catch (e) { }
+              meshtasticMarkers.delete(mesh);
+            }
+            continue;
+          }
+
+          // Extract shortName from various possible locations
+          // Note: checking both shortName and shortname for backwards compatibility with different Meshtastic versions
+          let shortName = null;
+          try {
+            const getShortName = (obj) => obj && (obj.shortName || obj.shortname);
+            shortName = n.shortName || n.short_name ||
+              getShortName(n.user) ||
+              (n.raw && getShortName(n.raw.user)) ||
+              (n.raw && n.raw.raw && getShortName(n.raw.raw.user));
+          } catch (e) {
+            console.warn('Failed to extract shortName for meshtastic node:', n.mesh_id || n.id, e);
+          }
+
+          // Extract longName for popup display on click
+          let longName = null;
+          try {
+            const getLongName = (obj) => obj && (obj.longName || obj.longname);
+            longName = n.longName || n.long_name || n.name ||
+              getLongName(n.user) ||
+              (n.raw && getLongName(n.raw.user)) ||
+              (n.raw && n.raw.raw && getLongName(n.raw.raw.user)) ||
+              n.callsign || mesh;
+          } catch (e) {
+            longName = n.name || n.callsign || mesh;
+          }
+
+          // Build blue circle icon with shortName text inside
+          const displayName = shortName || '';
+          const iconHtml = `<div style="width:28px;height:28px;background:#007bff;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;line-height:1;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>`;
+
+          // Update existing marker or create new
+          if (meshtasticMarkers.has(mesh)) {
+            const entry = meshtasticMarkers.get(mesh);
+            entry.marker.setLatLng([lat, lng]);
+            entry.data = n;
+
+            const newIcon = L.divIcon({
+              className: 'meshtastic-marker',
+              html: iconHtml,
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
+            });
+            entry.marker.setIcon(newIcon);
+
+            // Update popup with longName
+            entry.marker.unbindPopup();
+            entry.marker.bindPopup(String(longName));
+          } else {
+            const icon = L.divIcon({
+              className: 'meshtastic-marker',
+              html: iconHtml,
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
+            });
+
+            const marker = L.marker([lat, lng], {
+              icon: icon,
+              pane: 'meshtasticPane'
+            }).addTo(map);
+
+            // Show longName on click via popup
+            marker.bindPopup(String(longName));
+
+            meshtasticMarkers.set(mesh, { marker, data: n });
+          }
+        }
+
+        // Remove markers for nodes no longer in the list
+        for (const [mesh, entry] of Array.from(meshtasticMarkers.entries())) {
+          if (!seen.has(mesh)) {
+            try { map.removeLayer(entry.marker); } catch (e) { }
+            meshtasticMarkers.delete(mesh);
+          }
+        }
+      } catch (e) {
+        console.warn('updateMeshtasticNodes error', e);
+      }
+    }
+
+    // Overlay state for overview page
+    const _overlayLayers = new Map(); // overlay_id -> L.imageOverlay
+
+    async function loadOverlays() {
+      if (!map || !isLoggedIn) return;
+      try {
+        const resp = await fetch('/api/overlays');
+        if (!resp.ok) return;
+        const serverOverlays = await resp.json();
+
+        const serverIds = new Set();
+        for (const o of serverOverlays) {
+          if (!o.imageUrl && !o.imageurl) continue;
+          serverIds.add(o.id);
+          if (_overlayLayers.has(o.id)) continue;
+
+          try {
+            const imgUrl = o.imageUrl || o.imageurl;
+            const b = o.bounds || {};
+            const leafletBounds = [[b.south, b.west], [b.north, b.east]];
+            const leafletOverlay = L.imageOverlay(imgUrl, leafletBounds, { pane: 'overlayPane', interactive: false }).addTo(map);
+            const ovOpacity = o.opacity != null ? o.opacity : 1.0;
+            try { leafletOverlay.setOpacity(ovOpacity); } catch (e) { }
+            _overlayLayers.set(o.id, leafletOverlay);
+          } catch (e) {
+            console.error('Failed to render overlay:', e);
+          }
+        }
+
+        // Remove overlays no longer on server
+        for (const [id, layer] of _overlayLayers) {
+          if (!serverIds.has(id)) {
+            try { map.removeLayer(layer); } catch (e) { }
+            _overlayLayers.delete(id);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load overlays:', e);
+      }
+    }
+
+    // Drawing state for overview page
+    const _drawingLayers = new Map(); // drawing_id -> L.polyline/polygon
+
+    function _escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+
+    function _renderDrawingLayer(d) {
+      try {
+        let layer;
+        const coords = d.coordinates || d.points;
+        if (!coords || coords.length < 2) return null;
+        if (d.type === 'polygon') {
+          layer = L.polygon(coords, { color: d.color || '#0088ff', weight: d.weight || 3, pane: 'drawPane' }).addTo(map);
+        } else {
+          layer = L.polyline(coords, { color: d.color || '#0088ff', weight: d.weight || 3, pane: 'drawPane' }).addTo(map);
+        }
+        layer.bindPopup(`<strong>${_escapeHtml(d.name || 'Drawing')}</strong><div style="font-size:.8rem;color:#999">by ${_escapeHtml(d.created_by || d.creator || 'unknown')}</div>`);
+        return layer;
+      } catch (e) {
+        console.error('Failed to render drawing layer:', e);
+        return null;
+      }
+    }
+
+    async function loadDrawings() {
+      if (!map || !isLoggedIn) return;
+      try {
+        const resp = await fetch('/api/drawings');
+        if (!resp.ok) return;
+        const serverDrawings = await resp.json();
+
+        const serverIds = new Set();
+        for (const d of serverDrawings) {
+          serverIds.add(d.id);
+          if (_drawingLayers.has(d.id)) continue;
+          const layer = _renderDrawingLayer(d);
+          if (layer) _drawingLayers.set(d.id, layer);
+        }
+
+        // Remove drawings no longer on server
+        for (const [id, layer] of _drawingLayers) {
+          if (!serverIds.has(id)) {
+            try { map.removeLayer(layer); } catch (e) { }
+            _drawingLayers.delete(id);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load drawings:', e);
+      }
+    }
+
+    // GPS & helpers
+    let gpsMarker = null; // Track GPS marker globally
+    let gpsWatchId = null; // Track GPS watch ID for auto-update
+    let gpsUpdateInterval = 5000; // Default 5 seconds
+    let gpsAutoEnabled = false; // Auto GPS tracking state
+
+    function createGpsArrowIconHtml(color) {
+      return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`;
+    }
+
+    // Send GPS position to server so admin_map.html can see it
+    let _lastGpsSendId = localStorage.getItem('lpu5_last_gps_send_id') || null; // track the server symbol id for upsert
+    async function sendGpsToServer(lat, lng) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        // Delete previous GPS position marker to avoid duplicates
+        if (_lastGpsSendId) {
+          try {
+            await fetch(`/api/map/symbols/${_lastGpsSendId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+          } catch (e) { }
+        }
+        const res = await fetch('/api/map/symbols', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            lat: lat,
+            lng: lng,
+            type: 'gps_position',
+            source_page: 'overview',
+            label: currentUserName || 'GPS',
+            color: '#007bff',
+            icon: 'fa-location-arrow'
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.symbol && data.symbol.id) {
+            _lastGpsSendId = data.symbol.id;
+            try { localStorage.setItem('lpu5_last_gps_send_id', _lastGpsSendId); } catch (e) { }
+          }
+        }
+      } catch (e) {
+        console.warn('sendGpsToServer failed', e);
+      }
+    }
+
+    // GPS Auto-tracking functions
+    function startGpsAutoTracking() {
+      if (!navigator.geolocation) {
+        alert('Geolocation not supported by browser');
+        return;
+      }
+
+      gpsAutoEnabled = true;
+      localStorage.setItem('lpu5_gps_auto', 'true');
+
+      gpsWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          // Update or create GPS marker
+          if (gpsMarker) {
+            gpsMarker.setLatLng([lat, lng]);
+          } else {
+            gpsMarker = L.marker([lat, lng], {
+              icon: L.divIcon({
+                className: 'gps-marker-arrow',
+                html: createGpsArrowIconHtml('#007bff'),
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+              }),
+              pane: 'drawPane'
+            }).addTo(map).bindPopup('GPS Position (Auto-tracking)', {
+              closeButton: true
+            });
+          }
+
+          // Send GPS position to server for admin_map visibility
+          sendGpsToServer(lat, lng);
+        },
+        (error) => {
+          console.warn('GPS auto-tracking error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: gpsUpdateInterval,
+          maximumAge: 0
+        }
+      );
+    }
+
+    function stopGpsAutoTracking() {
+      gpsAutoEnabled = false;
+      localStorage.setItem('lpu5_gps_auto', 'false');
+
+      if (gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+      }
+    }
+
+    function setGpsUpdateInterval(seconds) {
+      gpsUpdateInterval = seconds * 1000;
+      localStorage.setItem('lpu5_gps_update_interval', seconds);
+
+      // Restart tracking if active
+      if (gpsAutoEnabled) {
+        stopGpsAutoTracking();
+        startGpsAutoTracking();
+      }
+    }
+
+    function manualSetGpsMarker() {
+      const lat = prompt('Enter Latitude:', '50.0');
+      const lng = prompt('Enter Longitude:', '8.0');
+
+      if (lat && lng) {
+        const latNum = parseFloat(lat);
+        const lngNum = parseFloat(lng);
+
+        if (isNaN(latNum) || isNaN(lngNum)) {
+          alert('Invalid coordinates');
+          return;
+        }
+
+        // Remove old GPS marker if exists
+        if (gpsMarker) {
+          try { map.removeLayer(gpsMarker); } catch (e) { }
+        }
+
+        gpsMarker = L.marker([latNum, lngNum], {
+          icon: L.divIcon({
+            className: 'gps-marker-arrow',
+            html: createGpsArrowIconHtml('#007bff'),
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+          }),
+          pane: 'drawPane'
+        }).addTo(map).bindPopup('GPS Position (Manual)', {
+          closeButton: true
+        });
+
+        map.setView([latNum, lngNum], Math.max(map.getZoom(), 15));
+        sendGpsToServer(latNum, lngNum);
+      }
+    }
+
+    function flashBtn(btn, color = '#0f0') {
+      if (!btn) return;
+      const orig = btn.style.boxShadow;
+      btn.style.boxShadow = `0 0 18px ${color}`;
+      setTimeout(() => btn.style.boxShadow = orig, 800);
+    }
+
+    function gpsRefreshWithFallback() {
+      const btn = document.getElementById('gps-btn');
+      if (!navigator.geolocation) {
+        alert('Geolocation wird von diesem Browser nicht unterstÃ¼tzt. Versuche IP-Geolocation als Fallback.');
+        tryIpFallback(btn);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async (p) => {
+        const lat = p.coords.latitude, lng = p.coords.longitude;
+        // Remove old GPS marker if exists
+        if (gpsMarker) {
+          try { map.removeLayer(gpsMarker); } catch (e) { }
+        }
+        // Create persistent GPS marker with arrow icon (matching admin_map.html)
+        gpsMarker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: 'gps-marker-arrow',
+            html: createGpsArrowIconHtml('#007bff'),
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+          }),
+          pane: 'drawPane'
+        }).addTo(map).bindPopup('GPS Position', {
+          closeButton: true
+        }).openPopup();
+
+        map.setView([lat, lng], Math.max(map.getZoom(), 15));
+        flashBtn(btn, '#28a745');
+        sendGpsToServer(lat, lng);
+      }, async (err) => {
+        console.warn('geolocation error', err);
+        const msg = (err && err.message) ? err.message : '';
+        if (msg.includes('Only secure origins')) {
+          if (confirm('GPS requires HTTPS. Try IP-based location as fallback?')) {
+            await tryIpFallback(btn);
+          } else manualCoordinatePrompt();
+        } else {
+          if (confirm('GPS not available: ' + msg + '\nTry IP-based location?')) {
+            await tryIpFallback(btn);
+          } else manualCoordinatePrompt();
+        }
+      }, { enableHighAccuracy: true, timeout: 10000 });
+    }
+
+    async function tryIpFallback(btn) {
+      try {
+        // Try external IP geolocation service (only works with internet access)
+        // Use AbortController for better browser compatibility
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), IP_GEOLOCATION_TIMEOUT_MS);
+
+        try {
+          const r = await fetch('https://ipapi.co/json/', {
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (!r.ok) throw new Error('IP-Service nicht erreichbar');
+          const j = await r.json();
+          const lat = parseFloat(j.latitude || j.lat || 0);
+          const lng = parseFloat(j.longitude || j.lon || 0);
+          if (!lat || !lng) throw new Error('keine Koordinaten in IP-Antwort');
+
+          // Remove old GPS marker if exists
+          if (gpsMarker) {
+            try { map.removeLayer(gpsMarker); } catch (e) { }
+          }
+
+          // Create persistent marker with arrow icon
+          gpsMarker = L.marker([lat, lng], {
+            icon: L.divIcon({
+              className: 'gps-marker-arrow',
+              html: createGpsArrowIconHtml('#ffaa00'),
+              iconSize: [40, 40],
+              iconAnchor: [20, 20]
+            }),
+            pane: 'drawPane'
+          }).addTo(map).bindPopup('IP-based position (approximate)', {
+            closeButton: true
+          }).openPopup();
+
+          map.setView([lat, lng], Math.max(map.getZoom(), 12));
+          flashBtn(btn, '#ffaa00');
+          sendGpsToServer(lat, lng);
+          return true;
+        } catch (fetchError) {
+          // Check if it's an abort error (timeout)
+          if (fetchError.name === 'AbortError') {
+            throw new Error(`IP-Service Timeout (${IP_GEOLOCATION_TIMEOUT_MS / 1000}s) - wahrscheinlich kein Internet verfügbar`);
+          }
+          throw fetchError;
+        }
+      } catch (e) {
+        if (DEBUG_MODE) {
+          console.warn('IP fallback failed (normal on local networks):', e.message || e);
+        }
+        // Silently fall back to manual coordinate prompt - don't show error for local network usage
+        manualCoordinatePrompt();
+        return false;
+      }
+    }
+
+    function manualCoordinatePrompt() {
+      const latStr = prompt('Koordinaten manuell eingeben: Breitengrad (z.B. 51.505)');
+      if (!latStr) return;
+      const lonStr = prompt('Koordinaten manuell eingeben: LÃ¤ngengrad (z.B. -0.09)');
+      if (!lonStr) return;
+      const lat = parseFloat(latStr.replace(',', '.'));
+      const lng = parseFloat(lonStr.replace(',', '.'));
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        // Remove old GPS marker if exists
+        if (gpsMarker) {
+          try { map.removeLayer(gpsMarker); } catch (e) { }
+        }
+
+        // Create persistent marker with arrow icon
+        gpsMarker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: 'gps-marker-arrow',
+            html: createGpsArrowIconHtml('#ffcc00'),
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+          }),
+          pane: 'drawPane'
+        }).addTo(map).bindPopup('Manually entered position', {
+          closeButton: true
+        }).openPopup();
+
+        map.setView([lat, lng], Math.max(map.getZoom(), 14));
+        sendGpsToServer(lat, lng);
+      } else alert('UngÃ¼ltige Koordinaten.');
+    }
+
+    // Status menu toggle
+    // Set status and update UI with BroadcastChannel sync
+    function setStatus(status, color) {
+      const el = document.getElementById('out-status');
+      if (el) {
+        el.innerText = status;
+        el.style.color = color;
+      }
+
+      // Broadcast status update to other tabs/windows
+      // updateData structure (cross-tab communication protocol):
+      // - type: 'status_change' (discriminator for message type)
+      // - status: Status text (e.g., 'AKTIV', 'BASE', 'KIA', 'INAKTIV')
+      // - color: CSS color string for display
+      // - username: Current user to prevent cross-user updates
+      // - timestamp: ISO timestamp for change tracking
+      const updateData = {
+        type: 'status_change',
+        status: status,
+        color: color,
+        username: currentUserName,
+        timestamp: new Date().toISOString()
+      };
+
+      // BroadcastChannel (modern browsers)
+      if (statusChannel) {
+        try {
+          statusChannel.postMessage(updateData);
+        } catch (e) {
+          console.warn('BroadcastChannel postMessage failed', e);
+        }
+      }
+
+      // localStorage fallback for cross-window sync
+      try {
+        localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
+      } catch (e) {
+        console.warn('localStorage not available', e);
+      }
+    }
+
+    // Life Status Update Function
+    // This function is called from the hamburger menu to update unit status
+    // It integrates with server API and broadcasts the change to other tabs
+    async function setLifeStatus(status) {
+      console.log('setLifeStatus called with:', status);
+      
+      // Get unit ID from localStorage
+      const unitId = localStorage.getItem('lpu5_unit_id');
+      if (!unitId) {
+        console.warn('No unit ID found in localStorage');
+        alert('Fehler: Keine Einheiten-ID gefunden. Bitte melde dich erneut an.');
+        return;
+      }
+
+      // Determine color based on status
+      let color = '';
+      if (status === 'AKTIV') color = '#28a745';      // Green
+      else if (status === 'BASE') color = '#007bff';   // Blue
+      else if (status === 'KIA') color = '#dc3545';    // Red
+      
+      try {
+        // 1. Update UI immediately for better UX
+        const el = document.getElementById('out-status');
+        if (el) {
+          el.innerText = status;
+          el.style.color = color;
+        }
+        
+        // 2. Send status update to server API
+        const response = await fetch(`/api/status/${encodeURIComponent(unitId)}/${encodeURIComponent(status)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to update status on server:', await response.text());
+          // Don't show error to user as the UI is already updated
+          // The status will be corrected on next sync if needed
+        } else {
+          console.log('Status successfully updated on server');
+        }
+        
+        // 3. Broadcast to other tabs using BroadcastChannel and localStorage fallback
+        const updateData = {
+          type: 'status_change',
+          status: status,
+          color: color,
+          username: currentUserName,
+          timestamp: new Date().toISOString()
+        };
+        
+        // BroadcastChannel (modern browsers)
+        if (statusChannel) {
+          try {
+            statusChannel.postMessage(updateData);
+          } catch (e) {
+            console.warn('BroadcastChannel postMessage failed', e);
+          }
+        }
+        
+        // localStorage fallback for cross-window sync
+        try {
+          localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
+        } catch (e) {
+          console.warn('localStorage not available', e);
+        }
+        
+        // Also broadcast via setStatus to ensure lpu5_global_status channel
+        // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
+        try { setStatus(status, color); } catch (e) { }
+        
+        // Close the hamburger menu
+        toggleHamburgerMenu();
+        
+      } catch (error) {
+        console.error('Error updating life status:', error);
+        alert('Fehler beim Aktualisieren des Status. Bitte versuche es erneut.');
+      }
+    }
+
+    // Health Display Toggle Function
+    function toggleHealthDisplay() {
+      // This function toggles the visibility of health/life indicators
+      // TODO: Implement full health display functionality
+      // For now, we'll show a non-intrusive console log instead of an alert
+      console.log('Health display toggle requested - Feature planned for future release');
+
+      // Provide feedback in the UI instead of an alert
+      const statusEl = document.getElementById('out-status');
+      if (statusEl) {
+        const originalText = statusEl.textContent;
+        statusEl.textContent = 'Health Display: Coming Soon';
+        setTimeout(() => {
+          statusEl.textContent = originalText;
+        }, 2000);
+      }
+    }
+
+    // Chat Window Functions
+    function updateChatNotificationBadge() {
+      const chatBtn = document.getElementById('s-chat');
+      if (!chatBtn) return;
+      let badge = chatBtn.querySelector('.chat-notification-badge');
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.className = 'chat-notification-badge';
+        chatBtn.appendChild(badge);
+      }
+      if (chatUnreadCount > 0) {
+        badge.textContent = chatUnreadCount > 99 ? '99+' : chatUnreadCount;
+        badge.classList.add('show');
+      } else {
+        badge.classList.remove('show');
+      }
+    }
+
+    function openChatWindow() {
+      const chatWindow = document.getElementById('chat-window');
+      if (chatWindow) {
+        chatWindow.classList.add('open');
+        chatWindow.classList.remove('minimized');
+        // Reset unread badge
+        chatUnreadCount = 0;
+        updateChatNotificationBadge();
+        // Load channels for chat recipient dropdown, then load messages
+        loadChatUsers().then(() => loadChatMessages());
+      }
+    }
+
+    function toggleMinimizeChatWindow() {
+      const chatWindow = document.getElementById('chat-window');
+      const icon = document.getElementById('chat-minimize-icon');
+      if (chatWindow) {
+        if (chatWindow.classList.contains('minimized')) {
+          // Restore
+          chatWindow.classList.remove('minimized');
+          chatWindow.style.height = '70%';
+          if (icon) {
+            icon.className = 'fas fa-window-minimize';
+          }
+        } else {
+          // Minimize
+          chatWindow.classList.add('minimized');
+          chatWindow.style.height = '50px';
+          if (icon) {
+            icon.className = 'fas fa-window-maximize';
+          }
+        }
+      }
+    }
+
+    function closeChatWindow() {
+      const chatWindow = document.getElementById('chat-window');
+      if (chatWindow) {
+        chatWindow.classList.remove('open');
+      }
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('chat-input');
+      const recipient = document.getElementById('chat-recipient');
+      const messagesDiv = document.getElementById('chat-messages');
+
+      if (!input || !recipient || !messagesDiv) return;
+
+      const message = input.value.trim();
+      if (!message) return;
+
+      // Clear initial "no messages" placeholder if present
+      const placeholder = messagesDiv.querySelector('.chat-placeholder');
+      if (placeholder) placeholder.style.display = 'none';
+      if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
+        messagesDiv.innerHTML = '';
+      }
+
+      // Create message element with outgoing style
+      const messageEl = document.createElement('div');
+      messageEl.className = 'chat-message outgoing';
+      messageEl.setAttribute('data-pending', 'true');
+      const senderName = currentUserName || sessionStorage.getItem('currentUser') || 'Me';
+      const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      messageEl.innerHTML = `
+    <div class="chat-message-header">
+      <span class="chat-message-sender">${_escapeHtml(senderName)}</span>
+      <span class="chat-message-time">${time}</span>
+    </div>
+    <div class="chat-message-text">${_escapeHtml(message)}</div>
+    <div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:#888;">&#9711;</div>
+  `;
+
+      messagesDiv.appendChild(messageEl);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      // Clear input
+      input.value = '';
+
+      // Send message to server via API, with automatic COT fallback
+      const channelId = recipient.value || 'all';
+      const token = localStorage.getItem('token');
+
+      // Helper: send via Meshtastic COT as fallback
+      function sendViaMeshtasticCOT(msgEl) {
+        if (meshtasticConnected && meshtasticClient) {
+          const mapCenter = map ? map.getCenter() : null;
+          // Send as COT with position if available, otherwise as plain text
+          let sendPromise;
+          if (mapCenter) {
+            const cotEvent = new COTEvent({
+              lat: mapCenter.lat,
+              lon: mapCenter.lng,
+              callsign: currentUserName || 'MESH-USER',
+              remarks: message
+            });
+            sendPromise = meshtasticClient.sendCOT(cotEvent.toXML());
+          } else {
+            sendPromise = meshtasticClient.sendText(message);
+          }
+          sendPromise.then(() => {
+            console.log('[Chat] Message sent via Meshtastic COT fallback');
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '📡'; statusEl.title = 'Gesendet via Meshtastic COT'; }
+          }).catch(cotErr => {
+            console.error('[Chat] Meshtastic COT fallback also failed:', cotErr);
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+          });
+        } else {
+          // No Meshtastic connection, queue for later
+          if (messageQueue) {
+            messageQueue.addPendingMessage({ text: message, type: 'cot', timestamp: Date.now() });
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In Warteschlange'; }
+          } else {
+            const statusEl = msgEl.querySelector('.chat-msg-status');
+            if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
+          }
+        }
+      }
+
+      if (!token || !navigator.onLine) {
+        // No token or offline: send directly via Meshtastic COT
+        console.log('[Chat] No server connection, using Meshtastic COT');
+        sendViaMeshtasticCOT(messageEl);
+        return;
+      }
+      const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+      fetch('/api/chat/message', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ channel_id: channelId, text: message })
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('Server responded with ' + r.status);
+        return r.json();
+      })
+      .then(result => {
+        if (result.status === 'success' && result.message) {
+          messageEl.setAttribute('data-msg-id', result.message.id);
+          messageEl.removeAttribute('data-pending');
+          const statusEl = messageEl.querySelector('.chat-msg-status');
+          if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
+        }
+      })
+      .catch(e => {
+        console.error('Failed to send chat message via server, falling back to COT:', e);
+        sendViaMeshtasticCOT(messageEl);
+      });
+    }
+
+    function loadChatUsers() {
+      // Load channels from API for chat recipient dropdown
+      const token = localStorage.getItem('token');
+      if (!token) return Promise.resolve();
+
+      return fetch('/api/chat/channels', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+        .then(r => r.json())
+        .then(result => {
+          const select = document.getElementById('chat-recipient');
+          if (!select) return;
+          const channels = (result && result.channels) ? result.channels : [];
+          select.innerHTML = '';
+          channels.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch.id;
+            opt.textContent = ch.name || ch.id;
+            if (ch.color) opt.style.color = ch.color;
+            select.appendChild(opt);
+          });
+          // Also load user list for direct messages
+          return fetch('/api/users', { headers: { 'Authorization': 'Bearer ' + token } });
+        })
+        .then(r => r ? r.json() : [])
+        .then(users => {
+          if (!users || !Array.isArray(users)) return;
+          const select = document.getElementById('chat-recipient');
+          if (!select) return;
+          users.forEach(user => {
+            const opt = document.createElement('option');
+            opt.value = user.id;
+            opt.textContent = user.username || user.unit || user.id;
+            select.appendChild(opt);
+          });
+        })
+        .catch(err => {
+          console.error('Error loading channels/users for chat:', err);
+        });
+    }
+
+    function loadChatMessages() {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const select = document.getElementById('chat-recipient');
+      const channelId = (select && select.value) ? select.value : 'all';
+      const messagesDiv = document.getElementById('chat-messages');
+      if (!messagesDiv) return;
+
+      fetch('/api/chat/messages/' + encodeURIComponent(channelId), {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+        .then(r => r.json())
+        .then(result => {
+          const messages = (result && result.messages) ? result.messages : [];
+          const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
+          messagesDiv.innerHTML = '';
+          if (messages.length === 0) {
+            messagesDiv.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;"><p>Keine Nachrichten</p><p style="font-size: 0.8em; margin-top: 10px;">COT-Nachrichten werden hier angezeigt</p></div>';
+            return;
+          }
+          messages.forEach(msg => {
+            const isOutgoing = msg.username === selfName;
+            const messageEl = document.createElement('div');
+            messageEl.className = 'chat-message ' + (isOutgoing ? 'outgoing' : 'incoming');
+            messageEl.setAttribute('data-msg-id', msg.id || '');
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : '';
+            let statusHtml = '';
+            if (isOutgoing) {
+              let icon = '&#10003;', color = '#888';
+              if (msg.read_by && msg.read_by.length > 0) { icon = '&#10003;&#10003;'; color = '#4fc3f7'; }
+              else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
+              statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
+            }
+            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || '') + '</div>' + statusHtml;
+            messagesDiv.appendChild(messageEl);
+          });
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          // Mark messages as read
+          const unreadIds = messages.filter(m => m.username !== selfName && m.id).map(m => m.id);
+          if (unreadIds.length > 0) {
+            fetch('/api/chat/messages/mark-read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ message_ids: unreadIds })
+            }).catch(() => {});
+          }
+        })
+        .catch(e => {
+          console.error('Error loading chat messages:', e);
+        });
+    }
+
+    // Reload messages when channel selection changes
+    const chatRecipientEl = document.getElementById('chat-recipient');
+    if (chatRecipientEl) {
+      chatRecipientEl.addEventListener('change', function () {
+        loadChatMessages();
+      });
+    }
+
+    // BLE Pairing Function (Placeholder)
+    function openBLEPairing() {
+      // TODO: Implement BLE pairing with Meshtastic devices using Web Bluetooth API
+      // For now, show a user-friendly message in the console
+      console.log('BLE Pairing: This feature will enable pairing with Meshtastic devices via Bluetooth Low Energy (Web Bluetooth API)');
+
+      // Show a temporary notification (better UX than alert)
+      const notification = document.createElement('div');
+      notification.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#2ecc71;color:white;padding:15px 30px;border-radius:8px;z-index:10001;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      notification.textContent = 'BLE Pairing - Feature in Entwicklung';
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
+    }
+
+    // toolbar layout & init
+    function layoutToolbar() {
+      const tb = document.getElementById('ui-tools');
+      if (!tb) return;
+
+      // ALWAYS keep toolbar at bottom, horizontally centered (better for touch)
+      tb.style.position = 'fixed';
+      tb.style.bottom = '15px';
+      tb.style.left = '50%';
+      tb.style.right = 'auto';
+      tb.style.top = 'auto';
+      tb.style.transform = 'translateX(-50%)';
+      tb.style.flexDirection = 'row';
+      tb.style.padding = '8px 12px';
+      tb.style.gap = '8px';
+      tb.style.borderRadius = '50px';
+      tb.classList.remove('ui-vertical');
+    }
+    window.addEventListener('resize', layoutToolbar);
+    window.addEventListener('orientationchange', layoutToolbar);
+    layoutToolbar();
+
+    // Add Enter key handler for chat input
+    document.addEventListener('DOMContentLoaded', async function () {
+      // Initialize map immediately (no login gate)
+      initMap();
+
+      // Try auto-login from cached credentials
+      await tryAutoLogin();
+
+      const chatInput = document.getElementById('chat-input');
+      if (chatInput) {
+        chatInput.addEventListener('keypress', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            sendChatMessage();
+          }
+        });
+      }
+
+      // Listen for status updates from other tabs via BroadcastChannel
+      if (statusChannel) {
+        statusChannel.addEventListener('message', (event) => {
+          const data = event.data;
+          if (data.type === 'status_change') {
+            // Update own status display if it concerns the current user
+            if (data.username === currentUserName) {
+              const outStatus = document.getElementById('out-status');
+              if (outStatus) {
+                outStatus.textContent = data.status;
+                outStatus.style.color = data.color;
+              }
+            }
+            // Refresh map data to reflect any status changes
+            sync();
+          }
+        });
+
+        // Cleanup handler: close BroadcastChannel when page unloads
+        window.addEventListener('beforeunload', () => {
+          if (statusChannel) {
+            statusChannel.close();
+          }
+        });
+      }
+
+      // localStorage listener (fallback for older browsers)
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'lpu5_last_status_update' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            // Update own status display if it concerns the current user
+            if (data.username === currentUserName) {
+              const outStatus = document.getElementById('out-status');
+              if (outStatus) {
+                outStatus.textContent = data.status;
+                outStatus.style.color = data.color;
+              }
+            }
+            // Refresh map data to reflect any status changes
+            sync();
+          } catch (err) {
+            console.warn('Failed to parse status update', err);
+          }
+        }
+      });
+    });
+
+    // GPS button removed - functionality available in hamburger menu sidebar
+    window.addEventListener('DOMContentLoaded', () => {
+      const setBtn = document.getElementById('set-btn');
+      if (setBtn) setBtn.addEventListener('touchstart', (ev) => { ev.preventDefault(); placeMarkerAtCrosshair(); }, { passive: false });
+    });
+
+    // on load ensure pending visible
+    window.addEventListener('load', () => {
+      try { if (window.map) renderPendingLayers(); } catch (e) { }
+
+      // Log initialization status for debugging mobile issues (only in debug mode)
+      if (DEBUG_MODE) {
+        console.log('LPU5 Tactical loaded successfully');
+        console.log('User Agent:', navigator.userAgent);
+        console.log('Window size:', window.innerWidth, 'x', window.innerHeight);
+        console.log('Device pixel ratio:', window.devicePixelRatio);
+        console.log('Touch support:', 'ontouchstart' in window);
+      }
+
+      // Test server connection after a short delay
+      setTimeout(() => {
+        testServerConnection().then(result => {
+          if (!result.connected) {
+            console.error('WARNING: Cannot connect to server. Check network connection and server URL.');
+          }
+        });
+      }, 2000);
+    });
+
+    /* ----------------- STATUS BROADCAST (overview) -----------------
+       Wraps setStatus to broadcast status-change across tabs (BroadcastChannel + storage fallback).
+       Also listens for incoming status-change and applies UI update.
+    */
+    (function () {
+      const CHANNEL = 'lpu5_global_status';
+      let bc = null;
+      try {
+        bc = new BroadcastChannel(CHANNEL);
+        bc.onmessage = (e) => { if (e.data && e.data.type === 'status-change') applyRemoteStatus(e.data.status); };
+      } catch (e) { }
+
+      window.addEventListener('storage', (ev) => {
+        if (ev.key === 'lpu5_status' && ev.newValue) {
+          try {
+            const msg = JSON.parse(ev.newValue);
+            if (msg && msg.type === 'status-change') applyRemoteStatus(msg.status);
+          } catch (e) { }
+        }
+      });
+
+      function broadcastStatus(status) {
+        const msg = { type: 'status-change', status };
+        if (bc) try { bc.postMessage(msg); } catch (e) { }
+        try { localStorage.setItem('lpu5_status', JSON.stringify(msg)); } catch (e) { }
+      }
+
+      function applyRemoteStatus(status) {
+        const el = document.getElementById('out-status');
+        if (!el) return;
+        el.innerText = status;
+        let color = '';
+        if (status === 'AKTIV') color = '#28a745';
+        else if (status === 'BASE') color = '#007bff';
+        else if (status === 'KIA') color = '#dc3545';
+        el.style.color = color;
+      }
+
+      // wrap existing setStatus
+      const origSetStatus = window.setStatus;
+      window.setStatus = function (status, color) {
+        try { if (typeof origSetStatus === 'function') origSetStatus(status, color); } catch (e) { }
+        try { broadcastStatus(status); } catch (e) { console.warn('broadcast failed', e); }
+      };
+
+      // initialize from last known
+      try {
+        const last = JSON.parse(localStorage.getItem('lpu5_status') || 'null');
+        if (last && last.type === 'status-change') applyRemoteStatus(last.status);
+      } catch (e) { }
+    })();
+
+    /* ----------------- STREAM VIEWER FOR SHARED STREAMS -----------------
+       Receives and displays streams shared from admin_map
+    */
+    (function () {
+      // Check for shared stream periodically
+      setInterval(checkForSharedStream, 10000);
+
+      // Also check on storage event (cross-tab communication)
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'lpu5_overview_stream') {
+          checkForSharedStream();
+        }
+      });
+
+      function checkForSharedStream() {
+        try {
+          const streamData = localStorage.getItem('lpu5_overview_stream');
+          if (streamData) {
+            const data = JSON.parse(streamData);
+            // Check if it's recent (within last 10 seconds)
+            if (Date.now() - data.timestamp < 10000) {
+              showStreamViewer(data);
+              // Clear the flag so we don't load it again
+              localStorage.removeItem('lpu5_overview_stream');
+            }
+          }
+        } catch (e) {
+          console.error('Error checking for shared stream:', e);
+        }
+      }
+
+      function showStreamViewer(data) {
+        // Create stream viewer if it doesn't exist
+        let viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) {
+          viewer = createStreamViewer();
+          document.body.appendChild(viewer);
+        }
+
+        // Load stream
+        const video = viewer.querySelector('#overviewStreamVideo');
+        const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
+        const content = viewer.querySelector('.overview-stream-content');
+
+        if (data.videoSrc) {
+          video.src = data.videoSrc;
+          video.style.display = 'block';
+          placeholder.style.display = 'none';
+
+          // Show the viewer
+          viewer.classList.add('active');
+        } else if (data.isCamera || data.source === 'camera') {
+          // Embed stream_share.html in iframe
+          if (content) {
+            const iframe = document.createElement('iframe');
+            iframe.id = 'overviewStreamFrame';
+            iframe.src = '/stream_share.html';
+            iframe.style.cssText = 'width: 100%; height: 100%; min-height: 225px; border: none; display: block; background: #000; overflow: hidden;';
+            iframe.scrolling = 'no';
+            iframe.allow = 'camera; microphone';
+
+            content.innerHTML = '';
+            content.appendChild(iframe);
+          }
+
+          // Show the viewer
+          viewer.classList.add('active');
+        }
+      }
+
+      function createStreamViewer() {
+        const viewer = document.createElement('div');
+        viewer.id = 'overviewStreamViewer';
+        viewer.className = 'overview-stream-viewer';
+        viewer.innerHTML = `
+      <style>
+        .overview-stream-viewer {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          width: 400px;
+          max-width: calc(100vw - 40px);
+          background: #111;
+          border: 2px solid #28a745;
+          border-radius: 8px;
+          box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+          z-index: 11200;
+          display: none;
+          flex-direction: column;
+          overflow: hidden;
+          transition: all 0.3s ease;
+        }
+        
+        .overview-stream-viewer.active {
+          display: flex;
+        }
+        
+        .overview-stream-viewer[data-minimized="true"] .overview-stream-content {
+          display: none;
+        }
+        
+        .overview-stream-header {
+          background: #28a745;
+          color: #fff;
+          padding: 10px 15px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: move;
+          user-select: none;
+        }
+        
+        .overview-stream-title {
+          font-weight: bold;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .overview-stream-close-btn {
+          background: rgba(255,255,255,0.2);
+          border: none;
+          color: #fff;
+          width: 24px;
+          height: 24px;
+          border-radius: 4px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.2s;
+        }
+        
+        .overview-stream-close-btn:hover {
+          background: rgba(255,255,255,0.3);
+        }
+        
+        .overview-stream-content {
+          background: #000;
+          min-height: 225px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .overview-stream-video {
+          width: 100%;
+          height: 100%;
+          min-height: 225px;
+          object-fit: cover;
+          display: block;
+        }
+        
+        .overview-stream-placeholder {
+          color: #666;
+          text-align: center;
+          padding: 40px 20px;
+        }
+        
+        @media (max-width: 768px) {
+          .overview-stream-viewer {
+            width: 300px;
+            bottom: 80px;
+            right: 10px;
+          }
+        }
+      </style>
+      <div class="overview-stream-header">
+        <div class="overview-stream-title">
+          <i class="fas fa-video"></i>
+          <span>Geteilter Stream</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="overview-stream-close-btn" onclick="minimizeOverviewStreamViewer()" title="Minimize">
+            <i class="fas fa-window-minimize"></i>
+          </button>
+          <button class="overview-stream-close-btn" onclick="closeOverviewStreamViewer()" title="Close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div class="overview-stream-content">
+        <video id="overviewStreamVideo" class="overview-stream-video" autoplay muted controls></video>
+        <img id="overviewStreamImage" class="overview-stream-video" style="display:none;" alt="Camera Stream">
+        <div class="overview-stream-placeholder" id="overviewStreamPlaceholder">
+          <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
+          <div>Kein Stream</div>
+        </div>
+      </div>
+    `;
+
+        // Make draggable
+        const header = viewer.querySelector('.overview-stream-header');
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
+
+        header.addEventListener('mousedown', function (e) {
+          if (e.target.closest('.overview-stream-close-btn')) return;
+
+          isDragging = true;
+          const rect = viewer.getBoundingClientRect();
+          dragOffset.x = e.clientX - rect.left;
+          dragOffset.y = e.clientY - rect.top;
+          viewer.style.transition = 'none';
+        });
+
+        document.addEventListener('mousemove', function (e) {
+          if (!isDragging) return;
+
+          let newX = e.clientX - dragOffset.x;
+          let newY = e.clientY - dragOffset.y;
+
+          // Keep window in bounds
+          const maxX = window.innerWidth - viewer.offsetWidth;
+          const maxY = window.innerHeight - viewer.offsetHeight;
+
+          newX = Math.max(0, Math.min(newX, maxX));
+          newY = Math.max(0, Math.min(newY, maxY));
+
+          viewer.style.right = 'auto';
+          viewer.style.bottom = 'auto';
+          viewer.style.left = newX + 'px';
+          viewer.style.top = newY + 'px';
+        });
+
+        document.addEventListener('mouseup', function () {
+          if (isDragging) {
+            isDragging = false;
+            viewer.style.transition = '';
+          }
+        });
+
+        return viewer;
+      }
+
+      window.minimizeOverviewStreamViewer = function () {
+        const viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) return;
+
+        // Toggle minimize state
+        if (viewer.dataset.minimized === 'true') {
+          // Restore
+          viewer.style.width = viewer.dataset.originalWidth || '400px';
+          viewer.style.height = viewer.dataset.originalHeight || '300px';
+          viewer.style.bottom = viewer.dataset.originalBottom || '20px';
+          viewer.dataset.minimized = 'false';
+
+          // Show content
+          const content = viewer.querySelector('.overview-stream-content');
+          if (content) content.style.display = 'block';
+        } else {
+          // Store original size
+          viewer.dataset.originalWidth = viewer.style.width || '400px';
+          viewer.dataset.originalHeight = viewer.style.height || '300px';
+          viewer.dataset.originalBottom = viewer.style.bottom || '20px';
+
+          // Minimize
+          viewer.style.width = '250px';
+          viewer.style.height = '40px';
+          viewer.style.bottom = '10px';
+          viewer.dataset.minimized = 'true';
+
+          // Hide content
+          const content = viewer.querySelector('.overview-stream-content');
+          if (content) content.style.display = 'none';
+        }
+      };
+
+      // Manual function to open video stream
+      window.openVideoStream = function () {
+        console.log('Opening video stream manually from overview.html');
+
+        // Create stream viewer if it doesn't exist
+        let viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) {
+          viewer = createStreamViewer();
+          document.body.appendChild(viewer);
+        }
+
+        // Load stream_share.html in iframe
+        const content = viewer.querySelector('.overview-stream-content');
+        if (content && !content.querySelector('#overviewStreamFrame')) {
+          const iframe = document.createElement('iframe');
+          iframe.id = 'overviewStreamFrame';
+          iframe.src = '/stream_share.html';
+          iframe.style.cssText = 'width: 100%; height: 100%; min-height: 225px; border: none; display: block; background: #000; overflow: hidden;';
+          iframe.scrolling = 'no';
+          iframe.allow = 'camera; microphone';
+
+          content.innerHTML = '';
+          content.appendChild(iframe);
+        }
+
+        // Show the viewer
+        viewer.classList.add('active');
+        viewer.dataset.minimized = 'false';
+      };
+
+      // Keep for backwards compatibility but now just minimizes
+      window.closeOverviewStreamViewer = function () {
+        const viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) return;
+
+        // Actually close/remove the viewer
+        viewer.classList.remove('active');
+
+        // Stop any video streams
+        const video = viewer.querySelector('#overviewStreamVideo');
+        if (video && video.srcObject) {
+          const tracks = video.srcObject.getTracks();
+          tracks.forEach(track => track.stop());
+          video.srcObject = null;
+        }
+
+        // Remove iframe if it exists
+        const iframe = viewer.querySelector('#overviewStreamFrame');
+        if (iframe) {
+          iframe.remove();
+        }
+
+        // Optionally remove the viewer element completely
+        viewer.remove();
+      };
+
+      // Camera stream functions
+      function showCameraStream(streamData) {
+        console.log('📹 Showing camera stream in overview.html:', streamData);
+
+        let viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) {
+          viewer = createStreamViewer();
+          document.body.appendChild(viewer);
+        }
+
+        const video = viewer.querySelector('#overviewStreamVideo');
+        const img = viewer.querySelector('#overviewStreamImage');
+        const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
+
+        // Try to get the real MediaStream from the opener/parent window
+        let stream = null;
+        try {
+          stream = window.opener?.sharedStream || window.parent?.sharedStream;
+        } catch (e) {
+          console.log('Could not access sharedStream from opener/parent:', e);
+        }
+
+        if (stream && video) {
+          // We have a real MediaStream - display it directly
+          console.log('✅ Using direct MediaStream');
+          video.srcObject = stream;
+          video.style.display = 'block';
+          if (img) img.style.display = 'none';
+          if (placeholder) placeholder.style.display = 'none';
+          video.play().catch(e => console.error('Error playing stream:', e));
+        } else {
+          // Fallback to image frames via WebSocket
+          console.log('📡 Using WebSocket frame capture mode');
+          if (video) video.style.display = 'none';
+          if (img) img.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+        }
+
+        viewer.classList.add('active');
+      }
+
+      function updateCameraFrame(frameData) {
+        const viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) return;
+
+        const img = viewer.querySelector('#overviewStreamImage');
+        if (img) {
+          img.src = frameData;
+        }
+      }
+
+      function hideCameraStream() {
+        const viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) return;
+
+        const img = viewer.querySelector('#overviewStreamImage');
+        const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
+
+        if (img) {
+          img.style.display = 'none';
+          img.src = '';
+        }
+
+        if (placeholder) {
+          placeholder.style.display = 'flex';
+        }
+      }
+    })();
+
+    /* ----------------- LIFE STATUS FUNCTIONS -----------------
+       Functions for setting life status (Active, Base, KIA)
+    */
+    window.setLifeStatus = async function (status) {
+      console.log('Setting life status to:', status);
+
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          alert('Please login first');
+          return;
+        }
+
+        // Get current user info
+        const userRes = await fetch('/api/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const userData = await userRes.json();
+        const userId = userData.id || userData.username;
+
+        if (!userId) {
+          alert('Could not get user information');
+          return;
+        }
+
+        // Update status via API
+        const statusRes = await fetch(`/api/status/${userId}/${status}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (statusRes.ok) {
+          console.log('Status updated successfully');
+
+          // Update the visual life indicator in top-right corner
+          const statusElement = document.getElementById('out-status');
+          if (statusElement) {
+            statusElement.textContent = status;
+            // Update color based on status
+            if (status === 'AKTIV') {
+              statusElement.style.color = '#28a745'; // green
+            } else if (status === 'BASE') {
+              statusElement.style.color = '#007bff'; // blue
+            } else if (status === 'KIA') {
+              statusElement.style.color = '#dc3545'; // red
+            }
+          }
+
+          // Persist status to localStorage for page reload
+          try {
+            localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
+          } catch (e) { }
+
+          // Broadcast to other tabs (index.html) via BroadcastChannel and localStorage
+          const updateData = {
+            type: 'status_change',
+            status: status,
+            color: statusElement ? statusElement.style.color : '',
+            username: currentUserName,
+            timestamp: new Date().toISOString()
+          };
+          if (statusChannel) {
+            try { statusChannel.postMessage(updateData); } catch (e) { }
+          }
+          try {
+            localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
+          } catch (e) { }
+
+          // Also broadcast via setStatus to ensure lpu5_global_status channel
+          // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
+          try { if (typeof setStatus === 'function') setStatus(status, statusElement ? statusElement.style.color : ''); } catch (e) { }
+
+          // Visual feedback on toolbar buttons if they exist
+          document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
+          const statusBtn = document.getElementById(`s-status-${status.toLowerCase()}`);
+          if (statusBtn) statusBtn.classList.add('active');
+        } else {
+          alert('Failed to update status');
+        }
+      } catch (error) {
+        console.error('Error setting life status:', error);
+        alert('Error updating status');
+      }
+      
+      // Close the menu after setting status
+      toggleHamburgerMenu();
+    };
+
+    /* ----------------- HAMBURGER MENU FUNCTIONS -----------------
+       Functions for hamburger menu navigation
+    */
+    window.toggleHamburgerMenu = function() {
+      let menu = document.getElementById('status-menu');
+      if (!menu) {
+        menu = document.createElement('div');
+        menu.id = 'status-menu';
+        document.body.appendChild(menu);
+      }
+
+      if (menu.style.display === 'flex') {
+        menu.style.display = 'none';
+        return;
+      }
+
+      const isLoggedIn = !!currentUserName;
+      const currentStatus = document.getElementById('out-status').innerText;
+      const currentInterval = (gpsUpdateInterval / 1000) || 5;
+
+      // Login section (shown only when not logged in)
+      const loginSection = !isLoggedIn ? `
+        <div class="menu-section">
+          <h3>Anmelden</h3>
+          <input type="text" id="menu-user" placeholder="Rufname" autocomplete="off"
+            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+          <input type="password" id="menu-pass" placeholder="Passwort"
+            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+          <button class="menu-btn" style="background:var(--accent-blue);border-color:var(--accent-blue);justify-content:center;font-weight:bold;" onclick="event.stopPropagation(); validateLogin()">
+            <i class="fas fa-sign-in-alt"></i> LOGIN
+          </button>
+        </div>
+      ` : '';
+
+      // Main menu sections (shown only when logged in)
+      const mainSections = isLoggedIn ? `
+        <div class="menu-section">
+          <h3>Lebensstatus</h3>
+          <div class="status-grid">
+            <div class="status-btn ${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('AKTIV')">AKTIV</div>
+            <div class="status-btn ${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('BASE')">BASE</div>
+            <div class="status-btn ${currentStatus === 'KIA' ? 'kia-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('KIA')">KIA</div>
+          </div>
+        </div>
+
+        <div class="menu-section">
+          <h3>GPS Einstellungen</h3>
+          <button class="menu-btn" onclick="event.stopPropagation(); toggleGpsAuto()">
+            <i class="fas fa-sync-alt"></i> GPS Automatisch aktualisieren
+          </button>
+          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Zeit:</div>
+          <div class="gps-grid">
+            <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sek</button>
+            <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sek</button>
+            <button class="interval-btn ${currentInterval == 30 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(30)">30 Sek</button>
+            <button class="interval-btn ${currentInterval == 60 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(60)">60 Sek</button>
+          </div>
+          <button class="menu-btn" style="margin-top:15px;" onclick="event.stopPropagation(); setManualGps()">
+            <i class="fas fa-crosshairs"></i> Manuell GPS setzen
+          </button>
+        </div>
+
+        <div class="menu-section">
+          <h3>Karten Einstellungen</h3>
+          <button class="menu-btn" onclick="setMapLayer('satellite')"><i class="fas fa-globe"></i> Satellit</button>
+          <button class="menu-btn" onclick="setMapLayer('street')"><i class="fas fa-road"></i> Straße</button>
+          <button class="menu-btn" onclick="setMapLayer('terrain')"><i class="fas fa-mountain"></i> Gelände</button>
+          <div style="font-size: 0.7em; color: #555; margin-top: 10px; text-align: center;">
+            Karten werden automatisch im Cache gespeichert
+          </div>
+        </div>
+
+        <div class="menu-section">
+          <h3>Meshtastic</h3>
+          <div id="menu-mesh-status" style="font-size: 0.85em; color: #888; margin-bottom: 10px;">
+            <i class="fab fa-bluetooth-b"></i> Status: <span id="menu-mesh-status-text">Nicht verbunden</span>
+          </div>
+          <button class="menu-btn" id="menu-mesh-connect-btn" onclick="event.stopPropagation(); connectMeshtastic(); toggleHamburgerMenu();">
+            <i class="fab fa-bluetooth-b"></i> Mesh Gerät verbinden
+          </button>
+          <button class="menu-btn" id="menu-mesh-disconnect-btn" onclick="event.stopPropagation(); disconnectMeshtastic(); toggleHamburgerMenu();" style="display:none;">
+            <i class="fas fa-times"></i> Mesh Gerät trennen
+          </button>
+        </div>
+
+        <div class="menu-section">
+          <button class="menu-btn logout-btn" onclick="logoutOverview()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+      ` : '';
+
+      menu.innerHTML = `
+        <div class="menu-header">
+          <h2 style="color:var(--accent-blue)">COMMAND MENU</h2>
+          <div onclick="toggleHamburgerMenu()" style="font-size:24px; padding:10px; cursor:pointer;">×</div>
+        </div>
+        ${loginSection}
+        ${mainSections}
+      `;
+      menu.style.display = 'flex';
+    };
+
+    // Logout: clear cached credentials and reload
+    window.logoutOverview = function() {
+      stopDataSync();
+      localStorage.removeItem('token');
+      localStorage.removeItem('lpu5_cached_user');
+      localStorage.removeItem('lpu5_cached_pass');
+      currentUserName = '';
+      document.getElementById('out-name').innerText = '---';
+      const menu = document.getElementById('status-menu');
+      if (menu) menu.style.display = 'none';
+    };
+
+    window.setGpsInterval = function(sec) {
+      gpsUpdateInterval = sec * 1000;
+      localStorage.setItem('lpu5_gps_update_interval', sec);
+      alert('Update Intervall auf ' + sec + 's gesetzt');
+      toggleHamburgerMenu();
+    };
+
+    window.toggleGpsAuto = function() {
+      const active = localStorage.getItem('lpu5_gps_auto') === 'true';
+      if (active) {
+        stopGpsAutoTracking();
+        alert('Auto-GPS: AUS');
+      } else {
+        startGpsAutoTracking();
+        alert('Auto-GPS: AN');
+      }
+      toggleHamburgerMenu();
+    };
+
+    // Legacy alias - now connects Meshtastic directly
+    window.openBleSettings = function() {
+      connectMeshtastic();
+    };
+
+    window.setManualGps = function() {
+      alert('Manueller GPS-Modus aktiviert. Nutze das Fadenkreuz zum Setzen der Position.');
+      toggleHamburgerMenu();
+    };
+
+    /* ----------------- SERVICE WORKER FOR OFFLINE MAPS -----------------
+       Registers service worker for map tile caching
+    */
+    (function () {
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/map-cache-sw.js')
+            .then((registration) => {
+              console.log('Map cache service worker registered:', registration.scope);
+            })
+            .catch((error) => {
+              console.warn('Service worker registration failed:', error);
+            });
+        });
+      }
+
+      // Add cache management functions
+      window.clearMapCache = async function () {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+          alert('Map cache will be cleared...');
+          // Close menu
+          const menu = document.getElementById('status-menu');
+          if (menu) menu.style.display = 'none';
+        } else {
+          alert('Service Worker nicht verfügbar');
+        }
+      };
+
+      window.getMapCacheStatus = async function () {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          const messageChannel = new MessageChannel();
+          return new Promise((resolve) => {
+            messageChannel.port1.onmessage = (event) => {
+              resolve(event.data);
+            };
+            navigator.serviceWorker.controller.postMessage(
+              { type: 'CACHE_STATUS' },
+              [messageChannel.port2]
+            );
+          });
+        }
+        return null;
+      };
+
+      window.showCacheStatus = async function () {
+        const status = await window.getMapCacheStatus();
+        if (status) {
+          alert(`Karten-Cache:\n\nGespeicherte Kacheln: ${status.cacheSize}\nCache-Name: ${status.cacheName}\n\nDie Karten werden automatisch beim Navigieren zwischengespeichert.`);
+        } else {
+          alert('Cache-Status nicht verfügbar.\nService Worker ist möglicherweise noch nicht aktiv.');
+        }
+        // Close menu
+        const menu = document.getElementById('status-menu');
+        if (menu) menu.style.display = 'none';
+      };
+
+    })();
+  </script>
+
+  <!-- Meshtastic Integration Script -->
+  <script>
+    // Initialize Meshtastic client and message queue
+    let meshtasticClient = null;
+    let messageQueue = null;
+    let meshtasticConnected = false;
+
+    // Initialize on page load
+    (function initMeshtastic() {
+      console.log('[Meshtastic] Initializing...');
+      
+      // Initialize message queue (works regardless of BLE support)
+      messageQueue = new MessageQueueManager();
+      messageQueue.init().then(() => {
+        console.log('[Meshtastic] Message queue initialized');
+      }).catch(err => {
+        console.error('[Meshtastic] Failed to initialize queue:', err);
+      });
+
+      // Check for Web Bluetooth support
+      if (!navigator.bluetooth) {
+        console.warn('[Meshtastic] Web Bluetooth not supported — please use Chrome/Edge/Opera');
+        updateMeshStatus('BLE nicht verfügbar — bitte Chrome/Edge/Opera verwenden', false);
+      } else {
+        // Initialize Meshtastic BLE client
+        meshtasticClient = new MeshtasticWebClient();
+
+        // Set up callbacks
+        meshtasticClient.onMessage((message) => {
+          console.log('[Meshtastic] Message received:', message);
+          handleIncomingMessage(message);
+        });
+
+        meshtasticClient.onNodeUpdate((node) => {
+          console.log('[Meshtastic] Node updated:', node);
+          handleNodeUpdate(node);
+        });
+
+        meshtasticClient.onStatus((status) => {
+          console.log('[Meshtastic] Status:', status);
+          updateMeshStatus(status, meshtasticConnected);
+        });
+      }
+
+      console.log('[Meshtastic] Ready');
+    })();
+
+    // Connect to Meshtastic device
+    // overview.html connects ONLY via Web Bluetooth (BLE) directly to local Meshtastic devices.
+    // It does NOT use the server gateway or any server-side Meshtastic logic.
+    // The server gateway is managed exclusively by meshtastic.html / import_nodes.html.
+
+    window.connectMeshtastic = async function() {
+      // overview.html ONLY supports Web BLE — no server gateway fallback
+      if (!meshtasticClient || !meshtasticClient.isSupported()) {
+        console.warn('[Meshtastic] Web Bluetooth not supported in this browser');
+        updateMeshStatus('Web Bluetooth nicht unterstützt', false);
+        alert(
+          'Web Bluetooth wird von diesem Browser nicht unterstützt.\n\n' +
+          'Bitte verwenden Sie einen der folgenden Browser:\n' +
+          '• Chrome (Android, Windows, ChromeOS)\n' +
+          '• Edge (Windows)\n' +
+          '• Opera (Android, Windows)\n\n' +
+          'Stellen Sie sicher, dass Bluetooth aktiviert ist.'
+        );
+        return;
+      }
+
+      try {
+        updateMeshStatus('Verbinde...', false);
+        const statusIndicator = document.getElementById('mesh-status-indicator');
+        const connectBtn = document.getElementById('mesh-connect-btn');
+        const disconnectBtn = document.getElementById('mesh-disconnect-btn');
+        if (statusIndicator) statusIndicator.classList.add('connecting');
+        if (connectBtn) connectBtn.disabled = true;
+
+        await meshtasticClient.connect();
+        
+        meshtasticConnected = true;
+        updateMeshStatus('Verbunden mit Meshtastic Gerät', true);
+        if (statusIndicator) {
+          statusIndicator.classList.remove('connecting');
+          statusIndicator.classList.add('connected');
+        }
+        if (connectBtn) connectBtn.style.display = 'none';
+        if (disconnectBtn) disconnectBtn.style.display = 'block';
+
+        // Update hamburger menu buttons
+        updateMenuMeshButtons(true);
+
+        // Process any pending messages
+        processPendingMessages();
+
+      } catch (error) {
+        console.error('[Meshtastic] BLE connection failed:', error);
+        const statusIndicator = document.getElementById('mesh-status-indicator');
+        const connectBtn = document.getElementById('mesh-connect-btn');
+        if (statusIndicator) statusIndicator.classList.remove('connecting');
+        if (connectBtn) connectBtn.disabled = false;
+        
+        if (error.message.includes('cancelled')) {
+          updateMeshStatus('Verbindung vom Benutzer abgebrochen', false);
+        } else {
+          // BLE failed (device busy, already paired with Meshtastic app, etc.)
+          updateMeshStatus('BLE-Verbindung fehlgeschlagen', false);
+          alert(
+            'BLE-Verbindung fehlgeschlagen: ' + error.message + '\n\n' +
+            'Mögliche Ursachen:\n' +
+            '• Das Gerät ist bereits mit der Meshtastic App verbunden\n' +
+            '• Bluetooth ist nicht aktiviert\n' +
+            '• Das Gerät ist außer Reichweite\n\n' +
+            'Bitte prüfen Sie die Bluetooth-Verbindung und versuchen Sie es erneut.'
+          );
+        }
+      }
+    };
+
+    // Disconnect from Meshtastic device
+    window.disconnectMeshtastic = async function() {
+      if (meshtasticClient) {
+        await meshtasticClient.disconnect();
+      }
+      
+      meshtasticConnected = false;
+      updateMeshStatus('Getrennt', false);
+      const si = document.getElementById('mesh-status-indicator');
+      const cb = document.getElementById('mesh-connect-btn');
+      const db = document.getElementById('mesh-disconnect-btn');
+      if (si) si.classList.remove('connected');
+      if (cb) { cb.style.display = 'block'; cb.disabled = false; }
+      if (db) db.style.display = 'none';
+
+      // Update hamburger menu buttons
+      updateMenuMeshButtons(false);
+    };
+
+    // Handle incoming messages
+    function handleIncomingMessage(message) {
+      // Store in queue
+      if (messageQueue) {
+        messageQueue.addReceivedMessage(message);
+      }
+
+      // Display in chat window
+      displayMessageInChat({
+        text: message.text,
+        from: 'Node-' + (message.from ? message.from.toString(16) : 'Unknown'),
+        timestamp: message.timestamp,
+        type: message.isCOT ? 'cot' : 'text'
+      });
+
+      // Update chat notification badge if chat window is closed
+      const chatWin = document.getElementById('chat-window');
+      if (!chatWin || !chatWin.classList.contains('open')) {
+        if (typeof chatUnreadCount !== 'undefined') {
+          chatUnreadCount++;
+          if (typeof updateChatNotificationBadge === 'function') updateChatNotificationBadge();
+        }
+      }
+
+      // If it's a COT message, add marker to map
+      if (message.isCOT && COTProtocolHandler) {
+        try {
+          const cotEvent = COTEvent.fromXML(message.text);
+          if (cotEvent) {
+            const marker = COTProtocolHandler.cotToMarker(cotEvent);
+            addMeshMarkerToMap(marker);
+          }
+        } catch (error) {
+          console.error('[Meshtastic] Failed to parse COT:', error);
+        }
+      }
+    }
+
+    // Handle node updates
+    function handleNodeUpdate(node) {
+      // Store in queue
+      if (messageQueue) {
+        messageQueue.updateNode(node);
+      }
+
+      // Add/update node on map if it has position
+      if (node.lat && node.lon) {
+        addMeshNodeToMap(node);
+      }
+    }
+
+    // Update mesh status display
+    function updateMeshStatus(status, connected) {
+      const statusText = document.getElementById('mesh-status-text');
+      if (statusText) {
+        statusText.textContent = status;
+        statusText.style.color = connected ? '#28a745' : '#aaa';
+      }
+      // Also update hamburger menu status text
+      const menuStatusText = document.getElementById('menu-mesh-status-text');
+      if (menuStatusText) {
+        menuStatusText.textContent = connected ? 'Verbunden' : 'Nicht verbunden';
+        menuStatusText.style.color = connected ? '#28a745' : '#888';
+      }
+    }
+
+    // Update hamburger menu mesh connect/disconnect buttons
+    function updateMenuMeshButtons(connected) {
+      const connectBtn = document.getElementById('menu-mesh-connect-btn');
+      const disconnectBtn = document.getElementById('menu-mesh-disconnect-btn');
+      if (connectBtn) connectBtn.style.display = connected ? 'none' : 'flex';
+      if (disconnectBtn) disconnectBtn.style.display = connected ? 'flex' : 'none';
+    }
+
+    // Process pending messages
+    async function processPendingMessages() {
+      if (!messageQueue || !meshtasticClient || !meshtasticConnected) return;
+
+      try {
+        const pending = await messageQueue.getPendingMessages();
+        
+        for (const msg of pending) {
+          if (msg.status === 'failed') continue;
+          
+          try {
+            if (msg.type === 'cot') {
+              await meshtasticClient.sendCOT(msg.text);
+            } else {
+              await meshtasticClient.sendText(msg.text);
+            }
+            
+            await messageQueue.markAsSent(msg.id);
+            console.log('[Meshtastic] Pending message sent:', msg.id);
+            
+          } catch (error) {
+            console.error('[Meshtastic] Failed to send pending message:', error);
+            const canRetry = await messageQueue.incrementRetry(msg.id);
+            if (!canRetry) {
+              console.warn('[Meshtastic] Message max retries exceeded:', msg.id);
+            }
+          }
+        }
+        
+      } catch (error) {
+        console.error('[Meshtastic] Failed to process pending messages:', error);
+      }
+    }
+
+    // Display message in chat window
+    function displayMessageInChat(message) {
+      const chatMessages = document.getElementById('chat-messages');
+      if (!chatMessages) return;
+
+      // Remove "no messages" placeholder if it exists
+      const placeholder = chatMessages.querySelector('[style*="text-align: center"]');
+      if (placeholder) {
+        placeholder.remove();
+      }
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'chat-message ' + (message.from === 'You' ? 'outgoing' : 'incoming');
+      
+      const time = new Date(message.timestamp).toLocaleTimeString('de-DE', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+
+      let contentHTML = `
+        <div class="chat-message-header">
+          <span class="chat-message-sender">${_escapeHtml(message.from)}</span>
+          <span class="chat-message-time">${_escapeHtml(time)}</span>
+        </div>
+        <div class="chat-message-text">${_escapeHtml(message.text)}</div>
+      `;
+
+      if (message.type === 'cot') {
+        contentHTML += '<div style="color: #28a745; font-size: 0.75em; margin-top: 4px;">📡 COT Message</div>';
+      }
+
+      messageDiv.innerHTML = contentHTML;
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Add mesh marker to map
+    function addMeshMarkerToMap(markerData) {
+      if (!map) return;
+
+      const icon = L.divIcon({
+        className: 'mesh-marker',
+        html: '<div style="background: #2ecc71; border: 2px solid white; border-radius: 50%; width: 20px; height: 20px;"></div>',
+        iconSize: [20, 20]
+      });
+
+      const marker = L.marker([markerData.lat, markerData.lng], { icon: icon })
+        .addTo(map)
+        .bindPopup(`
+          <strong>${markerData.name || markerData.callsign}</strong><br>
+          ${markerData.description || ''}<br>
+          <small>Source: Meshtastic COT</small>
+        `);
+
+      console.log('[Meshtastic] Marker added to map:', markerData.name);
+    }
+
+    // Add mesh node to map
+    function addMeshNodeToMap(node) {
+      if (!map || !node.lat || !node.lon) return;
+
+      const icon = L.divIcon({
+        className: 'mesh-node-marker',
+        html: '<div style="background: #007bff; border: 2px solid white; border-radius: 50%; width: 16px; height: 16px;"></div>',
+        iconSize: [16, 16]
+      });
+
+      const marker = L.marker([node.lat, node.lon], { icon: icon })
+        .addTo(map)
+        .bindPopup(`
+          <strong>${node.name || 'Node-' + node.id.toString(16)}</strong><br>
+          Role: ${node.role || 'CLIENT'}<br>
+          <small>Meshtastic Node</small>
+        `);
+
+      console.log('[Meshtastic] Node added to map:', node.name);
+    }
+
+    // Periodically check connection and process pending messages
+    setInterval(() => {
+      if (meshtasticConnected && meshtasticClient) {
+        processPendingMessages();
+      }
+    }, 30000); // Every 30 seconds
+
+  </script>
+
+  <!-- Load global navigation - DISABLED per requirements -->
+  <!-- <script src="load-global-nav.js"></script> -->
+
+</body>
+
+</html>
