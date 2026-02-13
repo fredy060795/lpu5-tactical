@@ -29,7 +29,6 @@
 
     body,
     html {
-      height: 100%;
       height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for iOS */
       width: 100%;
       background: #000;
@@ -459,7 +458,6 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 100%;
       height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for iOS */
       z-index: 1;
       display: block;
@@ -1302,6 +1300,8 @@
 
       // Handle map resize on orientation and viewport changes
       let resizeTimeouts = [];
+      let isResizeScheduled = false;
+      
       function handleMapResize() {
         if (map) {
           try {
@@ -1314,15 +1314,25 @@
 
       // Debounced resize handler with retry attempts for iOS orientation settling
       function scheduleMapResize() {
+        // Skip if already scheduled
+        if (isResizeScheduled) {
+          return;
+        }
+        
+        isResizeScheduled = true;
+        
         // Clear any pending resize timeouts
         resizeTimeouts.forEach(id => clearTimeout(id));
         resizeTimeouts = [];
         
         // Schedule resize with multiple attempts (iOS needs time to settle)
-        resizeTimeouts.push(setTimeout(handleMapResize, 0));
-        resizeTimeouts.push(setTimeout(handleMapResize, 100));
-        resizeTimeouts.push(setTimeout(handleMapResize, 300));
-        resizeTimeouts.push(setTimeout(handleMapResize, 500));
+        resizeTimeouts.push(setTimeout(() => { handleMapResize(); }, 0));
+        resizeTimeouts.push(setTimeout(() => { handleMapResize(); }, 100));
+        resizeTimeouts.push(setTimeout(() => { handleMapResize(); }, 300));
+        resizeTimeouts.push(setTimeout(() => { 
+          handleMapResize(); 
+          isResizeScheduled = false; // Allow next schedule after last timeout
+        }, 500));
       }
 
       // Trigger map resize on resize and orientation changes

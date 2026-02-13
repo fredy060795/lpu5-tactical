@@ -9,6 +9,7 @@ const WsClient = {
   maxReconnectAttempts: 5,
   reconnectDelay: 3000,
   isConnecting: false,
+  shouldReconnect: true,  // Flag to control reconnection behavior
   messageHandlers: [],
   
   /**
@@ -72,8 +73,8 @@ const WsClient = {
    * Schedule reconnection attempt
    */
   scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.warn('[WsClient] Max reconnect attempts reached');
+    if (!this.shouldReconnect || this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.warn('[WsClient] Not reconnecting (shouldReconnect:', this.shouldReconnect, 'attempts:', this.reconnectAttempts, ')');
       return;
     }
     
@@ -147,8 +148,8 @@ const WsClient = {
    * Disconnect from server
    */
   disconnect() {
+    this.shouldReconnect = false; // Prevent reconnection
     if (this.ws) {
-      this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnect
       this.ws.close();
       this.ws = null;
     }
