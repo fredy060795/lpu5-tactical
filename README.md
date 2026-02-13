@@ -2,40 +2,56 @@
 
 ## LPU5 Tactical Tracker
 
-A comprehensive tactical tracking system with integrated Meshtastic support for real-time mesh network communication, COT (Cursor on Target) protocol, and position tracking. Now includes a fully off-grid Progressive Web App (PWA) integration for direct device connectivity.
+A comprehensive tactical tracking system with integrated Meshtastic support for real-time mesh network communication, COT (Cursor on Target) protocol, and position tracking. **Now split into multi-platform implementations**: iOS Progressive Web App (PWA) for HQ access and Android Native App for direct mesh communication.
+
+## 🚀 Multi-Platform Architecture
+
+This system provides **two optimized implementations**:
+
+### 📱 iOS PWA (Progressive Web App)
+- **Use Case**: HQ personnel, remote coordination
+- **Access**: Via HQ's public IP using Safari
+- **Communication**: REST API + WebSocket to HQ server
+- **Limitations**: No direct Bluetooth (Safari restriction)
+- **Deployment**: Add to Home Screen from web browser
+- **See**: [pwa/README.md](pwa/README.md)
+
+### 🤖 Android Native App
+- **Use Case**: Field operators, direct mesh communication
+- **Access**: Native APK with embedded WebView
+- **Communication**: Native BLE/Serial to Meshtastic devices
+- **Features**: Full offline mesh, GPS tracking, COT exchange
+- **Deployment**: Install APK or distribute via Play Store
+- **See**: [android/README.md](android/README.md)
 
 ## Features
 
-### Core Features
+### Core Features (Both Platforms)
 - **Real-time Map Display**: Live tactical map with markers, drawings, and overlays
 - **User Management**: Role-based access control with authentication
 - **Mission Planning**: Create and manage tactical missions
 - **WebSocket Support**: Real-time updates across all connected clients
 - **QR Code System**: Secure access via QR codes with expiration and usage limits
-- **PWA Support**: Installable as offline-first Progressive Web App
+- **COT Protocol**: Full ATAK/WinTAK compatibility
 
-### Meshtastic PWA Integration (New) 🆕
-The integrated Meshtastic PWA enables **fully off-grid** operation with direct Bluetooth connectivity to Meshtastic devices. Works completely without internet or backend server.
+### iOS PWA Features
+- **Remote HQ Access**: Connect via HTTPS to HQ server
+- **WebSocket Updates**: Real-time marker and message updates
+- **Offline Caching**: Service Worker for offline map viewing
+- **COT Display**: View COT messages from mesh network (via gateway)
+- **Installable**: Add to home screen for native feel
+- **Gateway Integration**: Receive mesh updates through HQ gateway
+- **See**: [pwa/README.md](pwa/README.md) for iOS-specific guide
 
-#### PWA Features:
-- **Web Bluetooth**: Direct BLE connection to Meshtastic devices (no backend required)
-- **Off-Grid Operation**: 100% offline capable - no internet connection needed
-- **COT Protocol**: Full ATAK/WinTAK compatibility for tactical coordination
-- **Offline Queue**: IndexedDB-based message queue with automatic retry
-- **Real-time Map**: Mesh nodes and COT messages displayed on Leaflet map
-- **Cross-Platform**: Works on Android, iOS, Windows, ChromeOS
-- **PWA Installable**: Add to home screen for native-like experience
-- **Easy Distribution**: Static HTML files - no server installation needed
-
-#### Quick Start (PWA):
-1. Open `overview.html` in Chrome/Edge/Opera
-2. Click "Install" or "Add to Home Screen"
-3. Launch the app (works offline!)
-4. Click the Meshtastic icon (green mesh circle)
-5. Click "Connect Device" and select your Meshtastic device
-6. Send text or COT messages via LoRa mesh network
-
-See [MESHTASTIC_GUIDE.md](MESHTASTIC_GUIDE.md) for detailed instructions.
+### Android Native App Features
+- **Native Meshtastic SDK**: Direct BLE/Serial connection to mesh devices
+- **Full Offline Operation**: 100% offline mesh networking
+- **Native GPS**: High-accuracy position tracking
+- **WebView Integration**: Embedded web UI with native bridge
+- **COT Exchange**: Send and receive COT messages directly
+- **Background Service**: Mesh connection persists in background
+- **JavaScript Bridge**: Seamless web ↔ native communication
+- **See**: [android/README.md](android/README.md) for Android-specific guide
 
 ### Meshtastic Gateway Service (Backend)
 The integrated Meshtastic Gateway Service enables real-time hardware connection to Meshtastic devices for automatic data import and live tracking.
@@ -46,6 +62,7 @@ The integrated Meshtastic Gateway Service enables real-time hardware connection 
 - **Real-time Updates**: Live WebSocket broadcasts for position updates
 - **Message Handling**: Send and receive messages through the gateway
 - **Node Tracking**: Automatic import of discovered Meshtastic nodes with GPS data
+- **iOS Integration**: Enables iOS PWA to access mesh network via HQ
 
 #### Gateway API Endpoints:
 - `POST /api/gateway/start` - Start gateway service on specified port
@@ -89,6 +106,43 @@ python meshtastic_gateway_service.py --port COM7 --auto-sync --sync-interval 300
 # List available ports
 python meshtastic_gateway_service.py --list-ports
 ```
+
+## Quick Start
+
+### For iOS Users (PWA)
+1. **Server must be running at HQ** (see Installation below)
+2. On iOS device, open Safari
+3. Navigate to `https://your-hq-ip:8001/pwa/overview.html`
+4. Tap Share → Add to Home Screen
+5. Launch app from home screen
+6. Login and start using
+
+**See**: [pwa/README.md](pwa/README.md) for detailed iOS installation
+
+### For Android Users (Native App)
+1. **Build APK** (see [android/README.md](android/README.md))
+2. Install APK on Android device
+3. Grant Bluetooth and Location permissions
+4. Connect to Meshtastic device via BLE
+5. Start sending/receiving mesh messages
+
+**See**: [android/README.md](android/README.md) for detailed Android setup
+
+### For Backend/HQ Server
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the API server
+uvicorn api:app --host 0.0.0.0 --port 8001 --ssl-keyfile key.pem --ssl-certfile cert.pem
+
+# Optional: Start Meshtastic Gateway (for iOS PWA mesh access)
+curl -X POST http://localhost:8001/api/gateway/start \
+  -H "Content-Type: application/json" \
+  -d '{"port": "COM7", "auto_sync": true, "sync_interval": 300}'
+```
+
+**See**: [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment guide
 
 ## Installation
 
@@ -237,50 +291,102 @@ ws.onmessage = (event) => {
 - Status polling: 5 seconds interval in UI
 - PWA: IndexedDB for offline storage, Service Worker caching
 
-## PWA Browser Compatibility
+## Platform Compatibility
 
-### Fully Supported ✅
-- **Chrome (Android, Windows, ChromeOS)**: Full Web Bluetooth and PWA support
-- **Edge (Windows)**: Full Web Bluetooth and PWA support
-- **Opera (Android, Windows)**: Full Web Bluetooth and PWA support
+### iOS PWA ✅
+- **iOS 11.3+** with Safari
+- Add to Home Screen for best experience
+- HTTPS required
+- **Note**: No direct Bluetooth (Safari limitation)
+- Uses HQ server via REST API
 
-### Partial Support ⚠️
-- **Chrome (macOS, Linux)**: Web Bluetooth available with limitations
-- **iOS Safari**: Limited - no Web Bluetooth support (use backend gateway instead)
+### Android Native App ✅
+- **Android 7.0+** (API 24+)
+- Direct BLE via Meshtastic SDK
+- Full offline mesh networking
+- Native GPS integration
 
-### Not Supported ❌
-- **Firefox**: Web Bluetooth not implemented
-- **Older Browsers**: Requires Chrome 56+ or equivalent
+### Legacy Web (overview.html) ⚠️
+For development or non-mobile access:
+- **Chrome/Edge/Opera**: Full Web Bluetooth
+- **Firefox**: No Web Bluetooth
+- **Safari (macOS)**: Limited Bluetooth
 
-For detailed compatibility and troubleshooting, see [MESHTASTIC_GUIDE.md](MESHTASTIC_GUIDE.md).
+**Recommendation**: Use platform-specific implementations (iOS PWA or Android Native) for production.
+
+For detailed compatibility, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Development
 
 ### Project Structure
 ```
 lpu5-tactical/
-├── api.py                          # Main API server
-├── meshtastic_gateway_service.py   # Backend gateway service
-├── websocket_manager.py            # WebSocket handler
-├── database.py                     # Database connection
-├── models.py                       # SQLAlchemy models
-├── meshtastic.html                 # Backend gateway UI
-├── overview.html                   # PWA with Meshtastic integration
-├── meshtastic-web-client.js        # Web Bluetooth client
-├── cot-client.js                   # COT protocol implementation
-├── message-queue-manager.js        # Offline message queue
-├── MESHTASTIC_GUIDE.md             # User guide for PWA integration
-├── MESHTASTIC_TECHNICAL.md         # Technical documentation
-├── index.html                      # Main map UI
-├── requirements.txt                # Python dependencies
-└── README.md                       # This file
+├── pwa/                             # iOS Progressive Web App
+│   ├── overview.html                # PWA main UI
+│   ├── manifest.json                # iOS-optimized manifest
+│   ├── sw.js                        # Service Worker
+│   ├── *.js                         # Client libraries
+│   └── README.md                    # iOS PWA guide
+│
+├── android/                         # Android Native Application
+│   ├── app/                         # Android app module
+│   │   ├── build.gradle             # App build config
+│   │   └── src/main/
+│   │       ├── AndroidManifest.xml  # Permissions & config
+│   │       ├── java/.../MainActivity.kt  # Main activity
+│   │       ├── res/                 # Resources
+│   │       └── assets/www/          # Embedded web UI
+│   ├── build.gradle                 # Project build config
+│   └── README.md                    # Android app guide
+│
+├── api.py                           # Main API server
+├── meshtastic_gateway_service.py    # Backend gateway service
+├── websocket_manager.py             # WebSocket handler
+├── database.py                      # Database connection
+├── models.py                        # SQLAlchemy models
+├── meshtastic.html                  # Backend gateway UI
+├── overview.html                    # Original/legacy web UI
+├── meshtastic-web-client.js         # Web Bluetooth client
+├── cot-client.js                    # COT protocol implementation
+├── message-queue-manager.js         # Offline message queue
+│
+├── DEPLOYMENT.md                    # Multi-platform deployment guide
+├── MULTI_PLATFORM_ARCHITECTURE.md   # Architecture documentation
+├── MESHTASTIC_GUIDE.md              # Meshtastic user guide
+├── MESHTASTIC_TECHNICAL.md          # Technical documentation
+├── index.html                       # Main map UI
+├── requirements.txt                 # Python dependencies
+└── README.md                        # This file
 ```
 
 ### Adding Features
 1. API endpoints: Add to `api.py`
 2. Database models: Add to `models.py`
 3. Gateway features: Modify `meshtastic_gateway_service.py`
-4. UI: Update relevant HTML files
+4. iOS PWA: Update files in `pwa/` directory
+5. Android Native: Modify files in `android/` directory
+
+## Documentation
+
+### Platform-Specific Guides
+- **[iOS PWA Guide](pwa/README.md)** - Complete iOS installation and usage
+- **[Android Native Guide](android/README.md)** - Android app development and deployment
+- **[Deployment Guide](DEPLOYMENT.md)** - Detailed deployment for both platforms
+- **[Architecture Guide](MULTI_PLATFORM_ARCHITECTURE.md)** - System architecture and design
+
+### Technical Documentation
+- **[Meshtastic User Guide](MESHTASTIC_GUIDE.md)** - Using Meshtastic features
+- **[Meshtastic Technical](MESHTASTIC_TECHNICAL.md)** - Technical implementation details
+
+### Quick Reference
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| [README.md](README.md) | Project overview | Everyone |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Installation & deployment | Administrators |
+| [pwa/README.md](pwa/README.md) | iOS PWA usage | iOS users |
+| [android/README.md](android/README.md) | Android app | Android users & developers |
+| [MULTI_PLATFORM_ARCHITECTURE.md](MULTI_PLATFORM_ARCHITECTURE.md) | System design | Developers & architects |
+| [MESHTASTIC_GUIDE.md](MESHTASTIC_GUIDE.md) | Meshtastic features | All users |
 
 ## License
 
@@ -293,3 +399,25 @@ For issues and questions, please open an issue on GitHub.
 ---
 
 **Note**: This system is designed for tactical operations and mesh network communication. Ensure proper security measures when deploying in production environments.
+
+## Platform Selection Guide
+
+### Choose iOS PWA if:
+- ✅ You're at HQ with reliable internet
+- ✅ You need remote access to the system
+- ✅ You don't need direct mesh device connection
+- ✅ You want automatic updates
+- ✅ Quick deployment is priority
+
+### Choose Android Native if:
+- ✅ You're in the field without internet
+- ✅ You need direct Meshtastic BLE connection
+- ✅ You require offline mesh networking
+- ✅ GPS tracking is critical
+- ✅ Background operation is needed
+
+### Deploy Both for:
+- ✅ Complete tactical solution
+- ✅ HQ coordination + field operations
+- ✅ Redundant communication paths
+- ✅ Maximum flexibility
