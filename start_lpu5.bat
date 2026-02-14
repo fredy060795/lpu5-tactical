@@ -16,19 +16,19 @@ if "%SKIP_UPDATE%" == "1" (
     goto :start_server
 )
 
-REM Warnung, falls lokale meshtastic.py die Paket-Importe überschattet
+REM Warning if local meshtastic.py shadows package imports
 if exist "meshtastic.py" (
-    echo [WARN] Es existiert eine lokale Datei meshtastic.py im Projektordner.
-    echo [WARN] Das kann Paketimporte verhindern. Bitte ein virtuelles Environment nutzen.
+    echo [WARN] A local file meshtastic.py exists in the project directory.
+    echo [WARN] This can prevent package imports. Please use a virtual environment.
 )
 
 REM Create virtualenv if not exists
 set "VENV_DIR=.venv"
 if not exist "%VENV_DIR%\Scripts\python.exe" (
-    echo [*] Erzeuge virtuelles Environment ".venv"...
+    echo [*] Creating virtual environment ".venv"...
     py -3 -m venv "%VENV_DIR%"
     if errorlevel 1 (
-        echo [ERROR] Virtuelles Environment konnte nicht erstellt werden.
+        echo [ERROR] Could not create virtual environment.
         pause
         exit /b 1
     )
@@ -36,17 +36,17 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
     echo [OK] Virtualenv exists: .venv
 )
 
-echo [*] Aktiviere virtuelles Environment...
+echo [*] Activating virtual environment...
 call "%VENV_DIR%\Scriptsctivate.bat"
 
-echo [*] Installiere/Aktualisiere Abhaengigkeiten...
+echo [*] Installing/updating dependencies...
 pip install --upgrade pip >nul 2>&1
 pip install -r requirements.txt
 
 :start_server
 echo.
-echo [*] Starte Server (api.py)...
-echo [*] Druecke STRG+C zum Beenden
+echo [*] Starting server (api.py)...
+echo [*] Press CTRL+C to stop
 echo.
 python api.py
 pause

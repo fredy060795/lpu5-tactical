@@ -286,7 +286,7 @@ class CoTProtocolHandler:
             # Determine CoT type based on marker properties
             status = marker.get("status", "unknown").lower()
             affiliation = "unknown"
-            if "friendly" in status or "aktiv" in status:
+            if "friendly" in status or "active" in status or "aktiv" in status:
                 affiliation = "friendly"
             elif "hostile" in status or "kia" in status:
                 affiliation = "hostile"

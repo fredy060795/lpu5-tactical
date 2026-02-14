@@ -600,7 +600,7 @@
     <div class="chat-window-header" id="chatWindowHeader">
       <div class="chat-window-title">
         <i class="fas fa-comments"></i>
-        <span>Chat / COT Nachrichten</span>
+        <span>Chat / COT Messages</span>
       </div>
       <div class="chat-window-controls">
         <button class="chat-window-btn" onclick="toggleMinimizeChatWindow()" title="Minimize">
@@ -615,20 +615,20 @@
       <div class="chat-messages" id="chat-messages">
         <div class="chat-placeholder" id="chatPlaceholder">
           <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
-          <div style="color: #666;">Keine Nachrichten</div>
-          <small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small>
+          <div style="color: #666;">No messages</div>
+          <small style="color: #555; margin-top: 5px;">Chat and COT messages will appear here</small>
         </div>
       </div>
     </div>
     <div class="chat-window-footer">
       <div class="chat-input-area">
         <select id="chat-recipient" class="chat-select">
-          <option value="all">Alle Einheiten</option>
+          <option value="all">All Units</option>
           <option value="hq">HQ</option>
         </select>
         <button class="chat-channel-btn" onclick="createChatChannel()" title="Create Channel"><i class="fas fa-plus"></i></button>
         <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Delete Channel"><i class="fas fa-trash"></i></button>
-        <input type="text" id="chat-input" class="chat-input" placeholder="Nachricht eingeben...">
+        <input type="text" id="chat-input" class="chat-input" placeholder="Type message...">
         <button class="chat-send-btn" onclick="sendChatMessage()">
           <i class="fas fa-paper-plane"></i> Send
         </button>
@@ -688,7 +688,7 @@
       </svg>
     </div>
     <div class="tool-btn" id="s-reload" ontouchstart="handleToolInteraction(() => refreshAllData(), event)"
-      onclick="handleToolInteraction(() => refreshAllData(), event)" title="Seite neu laden">
+      onclick="handleToolInteraction(() => refreshAllData(), event)" title="Reload page">
       <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
       </svg>
@@ -982,7 +982,7 @@
               const messageEl = document.createElement('div');
               messageEl.className = 'chat-message incoming';
               messageEl.setAttribute('data-msg-id', msg.id || '');
-              const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+              const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
               messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || msg.message || '') + '</div>';
               messagesDiv.appendChild(messageEl);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -1204,7 +1204,7 @@
     async function validateLogin() {
       const u = document.getElementById('menu-user') ? document.getElementById('menu-user').value : '';
       const p = document.getElementById('menu-pass') ? document.getElementById('menu-pass').value : '';
-      if (!u || !p) { alert('Bitte Benutzername und Passwort eingeben'); return; }
+      if (!u || !p) { alert('Please enter username and password'); return; }
       try {
         const res = await fetch('/api/login_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
         if (res.ok) {
@@ -1224,11 +1224,11 @@
           isLoggedIn = true;
           startDataSync();
         } else {
-          alert('Login fehlgeschlagen');
+          alert('Login failed');
         }
       } catch (e) {
         console.error('Login error:', e);
-        alert('Netzwerkfehler beim Login: ' + e.message);
+        alert('Network error during login: ' + e.message);
       }
     }
 
@@ -1743,7 +1743,7 @@
             marker.on('click touchstart', async (ev) => {
               ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
               if (currentTool === 'trash') {
-                if (!confirm('Symbol löschen?')) return;
+                if (!confirm('Delete symbol?')) return;
                 try {
                   const token = localStorage.getItem('token');
                   const dres = await fetch(`/api/map/symbols/${s.id}`, {
@@ -2166,7 +2166,7 @@
     function gpsRefreshWithFallback() {
       const btn = document.getElementById('gps-btn');
       if (!navigator.geolocation) {
-        alert('Geolocation wird von diesem Browser nicht unterstÃ¼tzt. Versuche IP-Geolocation als Fallback.');
+        alert('Geolocation is not supported by this browser. Trying IP geolocation as fallback.');
         tryIpFallback(btn);
         return;
       }
@@ -2220,11 +2220,11 @@
           });
           clearTimeout(timeoutId);
 
-          if (!r.ok) throw new Error('IP-Service nicht erreichbar');
+          if (!r.ok) throw new Error('IP service not reachable');
           const j = await r.json();
           const lat = parseFloat(j.latitude || j.lat || 0);
           const lng = parseFloat(j.longitude || j.lon || 0);
-          if (!lat || !lng) throw new Error('keine Koordinaten in IP-Antwort');
+          if (!lat || !lng) throw new Error('no coordinates in IP response');
 
           // Remove old GPS marker if exists
           if (gpsMarker) {
@@ -2251,7 +2251,7 @@
         } catch (fetchError) {
           // Check if it's an abort error (timeout)
           if (fetchError.name === 'AbortError') {
-            throw new Error(`IP-Service Timeout (${IP_GEOLOCATION_TIMEOUT_MS / 1000}s) - wahrscheinlich kein Internet verfügbar`);
+            throw new Error(`IP-Service Timeout (${IP_GEOLOCATION_TIMEOUT_MS / 1000}s) - probably no internet available`);
           }
           throw fetchError;
         }
@@ -2266,9 +2266,9 @@
     }
 
     function manualCoordinatePrompt() {
-      const latStr = prompt('Koordinaten manuell eingeben: Breitengrad (z.B. 51.505)');
+      const latStr = prompt('Enter coordinates manually: Latitude (e.g. 51.505)');
       if (!latStr) return;
-      const lonStr = prompt('Koordinaten manuell eingeben: LÃ¤ngengrad (z.B. -0.09)');
+      const lonStr = prompt('Enter coordinates manually: Longitude (e.g. -0.09)');
       if (!lonStr) return;
       const lat = parseFloat(latStr.replace(',', '.'));
       const lng = parseFloat(lonStr.replace(',', '.'));
@@ -2293,7 +2293,7 @@
 
         map.setView([lat, lng], Math.max(map.getZoom(), 14));
         sendGpsToServer(lat, lng);
-      } else alert('UngÃ¼ltige Koordinaten.');
+      } else alert('Invalid coordinates.');
     }
 
     // Status menu toggle
@@ -2347,7 +2347,7 @@
       const unitId = localStorage.getItem('lpu5_unit_id');
       if (!unitId) {
         console.warn('No unit ID found in localStorage');
-        alert('Fehler: Keine Einheiten-ID gefunden. Bitte melde dich erneut an.');
+        alert('Error: No unit ID found. Please log in again.');
         return;
       }
 
@@ -2413,7 +2413,7 @@
         
       } catch (error) {
         console.error('Error updating life status:', error);
-        alert('Fehler beim Aktualisieren des Status. Bitte versuche es erneut.');
+        alert('Error updating status. Please try again.');
       }
     }
 
@@ -2516,7 +2516,7 @@
       messageEl.className = 'chat-message outgoing';
       messageEl.setAttribute('data-pending', 'true');
       const senderName = currentUserName || sessionStorage.getItem('currentUser') || 'Me';
-      const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       messageEl.innerHTML = `
     <div class="chat-message-header">
       <span class="chat-message-sender">${_escapeHtml(senderName)}</span>
@@ -2573,7 +2573,7 @@
           if (messageQueue) {
             messageQueue.addPendingMessage({ text: message, type: 'cot', timestamp: Date.now() });
             const statusEl = msgEl.querySelector('.chat-msg-status');
-            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In Warteschlange'; }
+            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In queue'; }
           } else {
             const statusEl = msgEl.querySelector('.chat-msg-status');
             if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
@@ -2632,7 +2632,7 @@
           const channels = (result && result.channels) ? result.channels : [];
           select.innerHTML = '';
           if (channels.length === 0) {
-            select.innerHTML = '<option value="all">Alle Einheiten</option>';
+            select.innerHTML = '<option value="all">All Units</option>';
           } else {
             channels.forEach(ch => {
               const opt = document.createElement('option');
@@ -2658,7 +2658,7 @@
         .catch(err => {
           console.error('Error loading channels/users for chat:', err);
           if (select && select.options.length === 0) {
-            select.innerHTML = '<option value="all">Alle Einheiten</option>';
+            select.innerHTML = '<option value="all">All Units</option>';
           }
         });
     }
@@ -2680,7 +2680,7 @@
           const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
           messagesDiv.innerHTML = '';
           if (messages.length === 0) {
-            messagesDiv.innerHTML = '<div class="chat-placeholder"><i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i><div style="color: #666;">Keine Nachrichten</div><small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small></div>';
+            messagesDiv.innerHTML = '<div class="chat-placeholder"><i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i><div style="color: #666;">No messages</div><small style="color: #555; margin-top: 5px;">Chat and COT messages will appear here</small></div>';
             return;
           }
           messages.forEach(msg => {
@@ -2688,7 +2688,7 @@
             const messageEl = document.createElement('div');
             messageEl.className = 'chat-message ' + (isOutgoing ? 'outgoing' : 'incoming');
             messageEl.setAttribute('data-msg-id', msg.id || '');
-            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : '';
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : '';
             let statusHtml = '';
             if (isOutgoing) {
               let icon = '&#10003;', color = '#888';
@@ -2716,14 +2716,14 @@
     }
 
     function createChatChannel() {
-      var name = prompt('Neuer Kanal – Name eingeben:');
+      var name = prompt('New channel – Enter name:');
       if (!name || !name.trim()) return;
       name = name.trim();
-      var color = prompt('Farbe (Hex, z.B. #ff9900):', '#ffffff');
+      var color = prompt('Color (Hex, e.g. #ff9900):', '#ffffff');
       if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#ffffff';
-      var description = prompt('Beschreibung (optional):', '');
+      var description = prompt('Description (optional):', '');
       var token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      if (!token) { alert('Nicht angemeldet'); return; }
+      if (!token) { alert('Not logged in'); return; }
       fetch('/api/chat/channels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -2739,7 +2739,7 @@
             if (sel && result.channel) sel.value = result.channel.id;
           });
         })
-        .catch(function (e) { alert('Kanal erstellen fehlgeschlagen: ' + e.message); });
+        .catch(function (e) { alert('Failed to create channel: ' + e.message); });
     }
 
     function deleteChatChannel() {
@@ -2747,9 +2747,9 @@
       if (!sel || !sel.value) return;
       var channelId = sel.value;
       var channelName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : channelId;
-      if (!confirm('Kanal "' + channelName + '" wirklich löschen?')) return;
+      if (!confirm('Really delete channel "' + channelName + '"?')) return;
       var token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      if (!token) { alert('Nicht angemeldet'); return; }
+      if (!token) { alert('Not logged in'); return; }
       fetch('/api/chat/channels/' + encodeURIComponent(channelId), {
         method: 'DELETE',
         headers: { 'Authorization': 'Bearer ' + token }
@@ -2761,7 +2761,7 @@
         .then(function () {
           if (typeof loadChatUsers === 'function') loadChatUsers().then(function () { loadChatMessages(); });
         })
-        .catch(function (e) { alert('Kanal löschen fehlgeschlagen: ' + e.message); });
+        .catch(function (e) { alert('Failed to delete channel: ' + e.message); });
     }
 
     // Reload messages when channel selection changes
@@ -2894,7 +2894,7 @@
             messageEl.className = 'chat-message incoming';
             const sender = data.sender || data.from || 'Unknown';
             const text = data.text || data.message || '';
-            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
             messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(sender) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(text) + '</div>';
             messagesDiv.appendChild(messageEl);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -3181,7 +3181,7 @@
         <img id="overviewStreamImage" class="overview-stream-video" style="display:none;" alt="Camera Stream">
         <div class="overview-stream-placeholder" id="overviewStreamPlaceholder">
           <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
-          <div>Kein Stream</div>
+          <div>No Stream</div>
         </div>
       </div>
     `;
@@ -3502,10 +3502,10 @@
       // Login section (shown only when not logged in)
       const loginSection = !isLoggedIn ? `
         <div class="menu-section">
-          <h3>Anmelden</h3>
-          <input type="text" id="menu-user" placeholder="Rufname" autocomplete="off"
+          <h3>Login</h3>
+          <input type="text" id="menu-user" placeholder="Callsign" autocomplete="off"
             style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
-          <input type="password" id="menu-pass" placeholder="Passwort"
+          <input type="password" id="menu-pass" placeholder="Password"
             style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
           <button class="menu-btn" style="background:var(--accent-blue);border-color:var(--accent-blue);justify-content:center;font-weight:bold;" onclick="event.stopPropagation(); validateLogin()">
             <i class="fas fa-sign-in-alt"></i> LOGIN
@@ -3516,7 +3516,7 @@
       // Main menu sections (shown only when logged in)
       const mainSections = isLoggedIn ? `
         <div class="menu-section">
-          <h3>Lebensstatus</h3>
+          <h3>Life Status</h3>
           <div class="status-grid">
             <div class="status-btn ${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('AKTIV')">AKTIV</div>
             <div class="status-btn ${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('BASE')">BASE</div>
@@ -3525,11 +3525,11 @@
         </div>
 
         <div class="menu-section">
-          <h3>GPS Einstellungen</h3>
+          <h3>GPS Settings</h3>
           <button class="menu-btn" onclick="event.stopPropagation(); toggleGpsAuto()">
-            <i class="fas fa-sync-alt"></i> GPS Automatisch aktualisieren
+            <i class="fas fa-sync-alt"></i> GPS Auto Update
           </button>
-          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Zeit:</div>
+          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Interval:</div>
           <div class="gps-grid">
             <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sec</button>
             <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sec</button>
@@ -3537,30 +3537,30 @@
             <button class="interval-btn ${currentInterval == 60 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(60)">60 Sec</button>
           </div>
           <button class="menu-btn" style="margin-top:15px;" onclick="event.stopPropagation(); setManualGps()">
-            <i class="fas fa-crosshairs"></i> Manuell GPS setzen
+            <i class="fas fa-crosshairs"></i> Set GPS Manually
           </button>
         </div>
 
         <div class="menu-section">
-          <h3>Karten Einstellungen</h3>
+          <h3>Map Settings</h3>
           <button class="menu-btn" onclick="setMapLayer('satellite')"><i class="fas fa-globe"></i> Satellite</button>
           <button class="menu-btn" onclick="setMapLayer('street')"><i class="fas fa-road"></i> Street</button>
           <button class="menu-btn" onclick="setMapLayer('terrain')"><i class="fas fa-mountain"></i> Terrain</button>
           <div style="font-size: 0.7em; color: #555; margin-top: 10px; text-align: center;">
-            Karten werden automatisch im Cache gespeichert
+            Maps are automatically cached
           </div>
         </div>
 
         <div class="menu-section">
           <h3>Meshtastic</h3>
           <div id="menu-mesh-status" style="font-size: 0.85em; color: #888; margin-bottom: 10px;">
-            <i class="fab fa-bluetooth-b"></i> Status: <span id="menu-mesh-status-text">Nicht verbunden</span>
+            <i class="fab fa-bluetooth-b"></i> Status: <span id="menu-mesh-status-text">Not connected</span>
           </div>
           <button class="menu-btn" id="menu-mesh-connect-btn" onclick="event.stopPropagation(); connectMeshtastic(); toggleHamburgerMenu();">
-            <i class="fab fa-bluetooth-b"></i> Mesh Gerät verbinden
+            <i class="fab fa-bluetooth-b"></i> Connect Mesh Device
           </button>
           <button class="menu-btn" id="menu-mesh-disconnect-btn" onclick="event.stopPropagation(); disconnectMeshtastic(); toggleHamburgerMenu();" style="display:none;">
-            <i class="fas fa-times"></i> Mesh Gerät trennen
+            <i class="fas fa-times"></i> Disconnect Mesh Device
           </button>
         </div>
 
@@ -3595,7 +3595,7 @@
     window.setGpsInterval = function(sec) {
       gpsUpdateInterval = sec * 1000;
       localStorage.setItem('lpu5_gps_update_interval', sec);
-      alert('Update Intervall auf ' + sec + 's gesetzt');
+      alert('Update interval set to ' + sec + 's');
       toggleHamburgerMenu();
     };
 
@@ -3617,7 +3617,7 @@
     };
 
     window.setManualGps = function() {
-      alert('Manueller GPS-Modus aktiviert. Nutze das Fadenkreuz zum Setzen der Position.');
+      alert('Manual GPS mode activated. Use the crosshair to set the position.');
       toggleHamburgerMenu();
     };
 
@@ -3646,7 +3646,7 @@
           const menu = document.getElementById('status-menu');
           if (menu) menu.style.display = 'none';
         } else {
-          alert('Service Worker nicht verfügbar');
+          alert('Service Worker not available');
         }
       };
 
@@ -3669,9 +3669,9 @@
       window.showCacheStatus = async function () {
         const status = await window.getMapCacheStatus();
         if (status) {
-          alert(`Karten-Cache:\n\nGespeicherte Kacheln: ${status.cacheSize}\nCache-Name: ${status.cacheName}\n\nDie Karten werden automatisch beim Navigieren zwischengespeichert.`);
+          alert(`Map Cache:\n\nCached tiles: ${status.cacheSize}\nCache name: ${status.cacheName}\n\nMaps are automatically cached while navigating.`);
         } else {
-          alert('Cache-Status nicht verfügbar.\nService Worker ist möglicherweise noch nicht aktiv.');
+          alert('Cache status not available.\nService Worker may not be active yet.');
         }
         // Close menu
         const menu = document.getElementById('status-menu');
@@ -3703,7 +3703,7 @@
       // Check for Web Bluetooth support
       if (!navigator.bluetooth) {
         console.warn('[Meshtastic] Web Bluetooth not supported — please use Chrome/Edge/Opera');
-        updateMeshStatus('BLE nicht verfügbar — bitte Chrome/Edge/Opera verwenden', false);
+        updateMeshStatus('BLE not available — please use Chrome/Edge/Opera', false);
       } else {
         // Initialize Meshtastic BLE client
         meshtasticClient = new MeshtasticWebClient();
@@ -3737,20 +3737,20 @@
       // overview.html ONLY supports Web BLE — no server gateway fallback
       if (!meshtasticClient || !meshtasticClient.isSupported()) {
         console.warn('[Meshtastic] Web Bluetooth not supported in this browser');
-        updateMeshStatus('Web Bluetooth nicht unterstützt', false);
+        updateMeshStatus('Web Bluetooth not supported', false);
         alert(
-          'Web Bluetooth wird von diesem Browser nicht unterstützt.\n\n' +
-          'Bitte verwenden Sie einen der folgenden Browser:\n' +
+          'Web Bluetooth is not supported by this browser.\n\n' +
+          'Please use one of the following browsers:\n' +
           '• Chrome (Android, Windows, ChromeOS)\n' +
           '• Edge (Windows)\n' +
           '• Opera (Android, Windows)\n\n' +
-          'Stellen Sie sicher, dass Bluetooth aktiviert ist.'
+          'Make sure Bluetooth is enabled.'
         );
         return;
       }
 
       try {
-        updateMeshStatus('Verbinde...', false);
+        updateMeshStatus('Connecting...', false);
         const statusIndicator = document.getElementById('mesh-status-indicator');
         const connectBtn = document.getElementById('mesh-connect-btn');
         const disconnectBtn = document.getElementById('mesh-disconnect-btn');
@@ -3760,7 +3760,7 @@
         await meshtasticClient.connect();
         
         meshtasticConnected = true;
-        updateMeshStatus('Verbunden mit Meshtastic Gerät', true);
+        updateMeshStatus('Connected to Meshtastic device', true);
         if (statusIndicator) {
           statusIndicator.classList.remove('connecting');
           statusIndicator.classList.add('connected');
@@ -3782,17 +3782,17 @@
         if (connectBtn) connectBtn.disabled = false;
         
         if (error.message.includes('cancelled')) {
-          updateMeshStatus('Verbindung vom Benutzer abgebrochen', false);
+          updateMeshStatus('Connection cancelled by user', false);
         } else {
           // BLE failed (device busy, already paired with Meshtastic app, etc.)
-          updateMeshStatus('BLE-Verbindung fehlgeschlagen', false);
+          updateMeshStatus('BLE connection failed', false);
           alert(
-            'BLE-Verbindung fehlgeschlagen: ' + error.message + '\n\n' +
-            'Mögliche Ursachen:\n' +
-            '• Das Gerät ist bereits mit der Meshtastic App verbunden\n' +
-            '• Bluetooth ist nicht aktiviert\n' +
-            '• Das Gerät ist außer Reichweite\n\n' +
-            'Bitte prüfen Sie die Bluetooth-Verbindung und versuchen Sie es erneut.'
+            'BLE connection failed: ' + error.message + '\n\n' +
+            'Possible causes:\n' +
+            '• The device is already connected to the Meshtastic App\n' +
+            '• Bluetooth is not enabled\n' +
+            '• The device is out of range\n\n' +
+            'Please check the Bluetooth connection and try again.'
           );
         }
       }
@@ -3878,7 +3878,7 @@
       // Also update hamburger menu status text
       const menuStatusText = document.getElementById('menu-mesh-status-text');
       if (menuStatusText) {
-        menuStatusText.textContent = connected ? 'Verbunden' : 'Nicht verbunden';
+        menuStatusText.textContent = connected ? 'Connected' : 'Not connected';
         menuStatusText.style.color = connected ? '#28a745' : '#888';
       }
     }
@@ -3939,7 +3939,7 @@
       const messageDiv = document.createElement('div');
       messageDiv.className = 'chat-message ' + (message.from === 'You' ? 'outgoing' : 'incoming');
       
-      const time = new Date(message.timestamp).toLocaleTimeString('de-DE', { 
+      const time = new Date(message.timestamp).toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit' 
       });

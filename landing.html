@@ -467,7 +467,7 @@
 
 <body>
 
-    <!-- ===== GLOBAL NAV (1:1 eingefügt) ===== -->
+    <!-- ===== GLOBAL NAV (1:1 inserted) ===== -->
     <!-- Global Navigation loaded from _global_nav.html -->
     <script src="load-global-nav.js"></script>
 
@@ -650,7 +650,7 @@
                 showLogin();
             }
 
-            // Enter-Taste zum Anmelden
+            // Enter key to login
             const pwd = document.getElementById('password');
             if (pwd) {
                 pwd.addEventListener('keypress', (e) => {
@@ -668,9 +668,9 @@
         /**
          * Update sidebar user display from login data.
          * - Reads localStorage.lpu5_user (expected JSON { username, name, fullname, ... })
-         * - Falls nicht vorhanden: liest localStorage.lpu5_token (evtl. username)
-         * - Optional: versucht /api/me wenn weder vorhanden ist (nicht zwingend)
-         * - Reagiert auf 'storage' events (anderes Tab loggt ein/aus)
+         * - If not available: reads localStorage.lpu5_token (possibly username)
+         * - Optional: tries /api/me if neither is available (not mandatory)
+         * - Reacts to 'storage' events (another tab logs in/out)
          */
         async function updateUserNameDisplay() {
             const el = document.getElementById('userName');

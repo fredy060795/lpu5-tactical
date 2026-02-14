@@ -31,7 +31,7 @@
 
         body {
             margin: 0;
-            padding-left: var(--sb-collapsed); /* Platz für Sidebar */
+            padding-left: var(--sb-collapsed); /* Space for Sidebar */
             background: #1e1e1e;
             color: #fff;
             font-family: "Courier New", monospace;
@@ -504,7 +504,7 @@
                 <button onclick="openCreateChannelModal()" title="Create New Channel"><i class="fas fa-plus"></i></button>
             </div>
             <div class="channel-list" id="channelList">
-                <div class="small" style="padding:16px;text-align:center">Lade Channels...</div>
+                <div class="small" style="padding:16px;text-align:center">Loading channels...</div>
             </div>
         </aside>
 
@@ -513,7 +513,7 @@
             <div class="chat-main-header">
                 <div class="ch-title">
                     <span class="ch-color-dot" id="activeChDot" style="background:#fff"></span>
-                    <span id="activeChName">Alle Einheiten</span>
+                    <span id="activeChName">All Units</span>
                 </div>
                 <div>
                     <button class="btn btn-sm" onclick="openChannelInfoModal()" title="Channel Info"><i class="fas fa-info-circle"></i></button>
@@ -521,12 +521,12 @@
             </div>
 
             <div id="messages" class="messages" aria-live="polite" aria-relevant="additions" style="flex:1;max-height:none;border-radius:0;border:none;border-bottom:1px solid #222">
-                <div class="small empty-state">Lade Nachrichten...</div>
+                <div class="small empty-state">Loading messages...</div>
             </div>
 
             <div class="composer" style="padding:12px 16px;margin-top:0">
                 <div class="composer-left">
-                    <textarea id="messageText" placeholder="Nachricht eingeben..." style="min-height:70px"></textarea>
+                    <textarea id="messageText" placeholder="Enter message..." style="min-height:70px"></textarea>
                     <div class="controls">
                         <select id="messageMode" class="input" aria-label="Message mode" style="max-width:180px">
                             <option value="text">Text</option>
@@ -546,12 +546,12 @@
 <!-- Create Channel Modal -->
 <div class="modal-overlay" id="createChannelModal">
     <div class="modal-box">
-        <h3><i class="fas fa-plus-circle"></i> Neuen Channel erstellen</h3>
+        <h3><i class="fas fa-plus-circle"></i> Create New Channel</h3>
         <label>Channel Name *</label>
-        <input id="newChName" type="text" placeholder="z.B. Delta Team" maxlength="50" />
-        <label>Beschreibung</label>
-        <textarea id="newChDesc" placeholder="Optionale Beschreibung..."></textarea>
-        <label>Farbe</label>
+        <input id="newChName" type="text" placeholder="e.g. Delta Team" maxlength="50" />
+        <label>Description</label>
+        <textarea id="newChDesc" placeholder="Optional description..."></textarea>
+        <label>Color</label>
         <div class="color-picker-row" id="colorPicker">
             <div class="color-swatch selected" data-color="#ffffff" style="background:#ffffff"></div>
             <div class="color-swatch" data-color="#3498db" style="background:#3498db"></div>
@@ -580,11 +580,11 @@
                 <span id="infoChName" style="font-size:1.1rem;color:#eee;font-weight:bold"></span>
             </div>
             <div style="color:#999;font-size:0.85rem;margin-bottom:12px" id="infoChDesc"></div>
-            <label>Erstellt von</label>
+            <label>Created by</label>
             <div id="infoChCreator" style="color:#ccc;font-size:0.9rem;margin-bottom:8px">—</div>
-            <label>Mitglieder</label>
+            <label>Members</label>
             <div class="members-list" id="infoMembersList">
-                <div class="small">Keine Mitglieder zugewiesen</div>
+                <div class="small">No members assigned</div>
             </div>
             <div style="margin-top:12px" id="infoChActions"></div>
         </div>
@@ -597,9 +597,9 @@
 <!-- Delete Confirmation Modal -->
 <div class="modal-overlay" id="deleteChannelModal">
     <div class="modal-box">
-        <h3><span data-icon="warning"></span> Channel löschen</h3>
-        <p style="color:#ccc">Möchten Sie den Channel <strong id="deleteChName"></strong> wirklich löschen?</p>
-        <p style="color:#999;font-size:0.85rem">Alle Nachrichten in diesem Channel gehen verloren.</p>
+        <h3><span data-icon="warning"></span> Delete Channel</h3>
+        <p style="color:#ccc">Are you sure you want to delete the channel <strong id="deleteChName"></strong>?</p>
+        <p style="color:#999;font-size:0.85rem">All messages in this channel will be lost.</p>
         <div class="modal-actions">
             <button class="btn btn-cancel" onclick="closeDeleteChannelModal()">Cancel</button>
             <button class="btn btn-danger" onclick="confirmDeleteChannel()"><span data-icon="trash"></span> Delete</button>
@@ -607,13 +607,13 @@
     </div>
 </div>
 
-<!-- Channel-Verwaltung Modal -->
+<!-- Channel Management Modal -->
 <div class="modal-overlay" id="channelAdminModal">
     <div class="modal-box" style="max-width:650px;max-height:80vh;overflow-y:auto">
-        <h3><span data-icon="users"></span> Channel-Verwaltung</h3>
-        <p style="color:#999;font-size:0.9rem;margin-bottom:16px;">Benutzer zu Channels hinzufügen, um Gruppen zu bilden die Nachrichten empfangen können.</p>
+        <h3><span data-icon="users"></span> Channel Management</h3>
+        <p style="color:#999;font-size:0.9rem;margin-bottom:16px;">Add users to channels to form groups that can receive messages.</p>
         <div id="channelAdminList">
-            <div class="small" style="padding:16px;text-align:center">Lade Channels...</div>
+            <div class="small" style="padding:16px;text-align:center">Loading channels...</div>
         </div>
         <div class="modal-actions">
             <button class="btn btn-cancel" onclick="closeChannelAdminModal()">Close</button>
@@ -635,10 +635,10 @@
     // ===========================
     // SVG Icon Constants
     // ===========================
-    const TRASH_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Löschen"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
-    const TRASH_ICON_WITH_MARGIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle;margin-right:4px" role="img" aria-label="Löschen"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
-    const WARNING_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Warnung"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
-    const USERS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Benutzer"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>';
+    const TRASH_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Delete"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+    const TRASH_ICON_WITH_MARGIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle;margin-right:4px" role="img" aria-label="Delete"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+    const WARNING_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-red)" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Warning"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+    const USERS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:1em;height:1em;display:inline-block;vertical-align:middle" role="img" aria-label="Users"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>';
 
     // ===========================
     // Init
@@ -741,7 +741,7 @@
         const list = document.getElementById('channelList');
         if (!list) return;
         if (channels.length === 0) {
-            list.innerHTML = '<div class="small" style="padding:16px;text-align:center">Keine Channels</div>';
+            list.innerHTML = '<div class="small" style="padding:16px;text-align:center">No channels</div>';
             return;
         }
         list.innerHTML = channels.map(ch => {
@@ -819,7 +819,7 @@
 
     async function createChannel() {
         const name = document.getElementById('newChName').value.trim();
-        if (!name) { alert('Bitte Channel-Name eingeben'); return; }
+        if (!name) { alert('Please enter a channel name'); return; }
         const desc = document.getElementById('newChDesc').value.trim();
         try {
             const resp = await fetch('/api/chat/channels', {
@@ -830,15 +830,15 @@
             const data = await resp.json();
             if (resp.ok && data.status === 'success') {
                 closeCreateChannelModal();
-                addLog('success', 'Channel erstellt: ' + name);
+                addLog('success', 'Channel created: ' + name);
                 await loadChatChannels();
                 if (data.channel) setActiveChannel(data.channel.id);
             } else {
-                alert(data.detail || 'Fehler beim Erstellen');
+                alert(data.detail || 'Error creating channel');
             }
         } catch (e) {
             console.error('Create channel error:', e);
-            alert('Fehler: ' + e.message);
+            alert('Error: ' + e.message);
         }
     }
 
@@ -865,15 +865,15 @@
             const data = await resp.json();
             if (resp.ok && data.status === 'success') {
                 closeDeleteChannelModal();
-                addLog('info', 'Channel gelöscht');
+                addLog('info', 'Channel deleted');
                 if (activeChannelId === deleteTargetChannelId) activeChannelId = 'all';
                 await loadChatChannels();
             } else {
-                alert(data.detail || 'Fehler beim Löschen');
+                alert(data.detail || 'Error deleting channel');
             }
         } catch (e) {
             console.error('Delete channel error:', e);
-            alert('Fehler: ' + e.message);
+            alert('Error: ' + e.message);
         }
     }
 
@@ -885,7 +885,7 @@
         if (!ch) return;
         document.getElementById('infoChDot').style.background = ch.color || '#fff';
         document.getElementById('infoChName').textContent = ch.name || ch.id;
-        document.getElementById('infoChDesc').textContent = ch.description || 'Keine Beschreibung';
+        document.getElementById('infoChDesc').textContent = ch.description || 'No description';
         document.getElementById('infoChCreator').textContent = ch.created_by || '—';
 
         const membersList = document.getElementById('infoMembersList');
@@ -896,14 +896,14 @@
                     <span class="member-name">${escapeHtml(m)}</span>
                 </div>`).join('');
         } else {
-            membersList.innerHTML = '<div class="small" style="padding:8px">Alle Benutzer (kein Filter)</div>';
+            membersList.innerHTML = '<div class="small" style="padding:8px">All users (no filter)</div>';
         }
 
         const actions = document.getElementById('infoChActions');
         if (!ch.is_default) {
             actions.innerHTML = `<button class="btn btn-danger btn-sm" onclick="closeChannelInfoModal();openDeleteChannelModal('${escapeAttr(ch.id)}','${escapeAttr(ch.name)}')"><i class="fas fa-trash"></i> Delete Channel</button>`;
         } else {
-            actions.innerHTML = '<div class="small">Standard-Channel (kann nicht gelöscht werden)</div>';
+            actions.innerHTML = '<div class="small">Default channel (cannot be deleted)</div>';
         }
 
         document.getElementById('channelInfoModal').classList.add('active');
@@ -932,7 +932,7 @@
             if (!select) return;
             const response = await fetch('/api/gateway/ports');
             const data = await response.json();
-            select.innerHTML = '<option value="">Port wählen...</option>';
+            select.innerHTML = '<option value="">Select port...</option>';
             if (data.ports && data.ports.length > 0) {
                 data.ports.forEach(port => {
                     const option = document.createElement('option');
@@ -940,21 +940,21 @@
                     option.textContent = `${port.device} - ${port.description}`;
                     select.appendChild(option);
                 });
-                addLog('info', `${data.ports.length} Port(s) gefunden`);
+                addLog('info', `${data.ports.length} port(s) found`);
             } else {
-                addLog('warning', 'Keine Ports gefunden');
+                addLog('warning', 'No ports found');
             }
         } catch (error) {
             console.error('Failed to scan ports:', error);
-            addLog('error', 'Port-Scan fehlgeschlagen: ' + error.message);
+            addLog('error', 'Port scan failed: ' + error.message);
         }
     }
 
     async function connectGateway() {
         const select = document.getElementById('comPortSelect');
         const port = select ? select.value : '';
-        if (!port) { alert('Bitte Port auswählen'); return; }
-        addLog('info', `Verbinde mit ${port}...`);
+        if (!port) { alert('Please select a port'); return; }
+        addLog('info', `Connecting to ${port}...`);
         try {
             const response = await fetch('/api/gateway/start', {
                 method: 'POST',
@@ -963,36 +963,36 @@
             });
             const data = await response.json();
             if (data.status === 'success' || data.status === 'already_running') {
-                addLog('success', `Verbunden mit ${port}`);
+                addLog('success', `Connected to ${port}`);
                 updateConnectionUI(true);
                 startStatusPolling();
                 loadGatewayMessages();
             } else {
-                addLog('error', data.message || 'Verbindung fehlgeschlagen');
-                alert(data.message || 'Verbindung fehlgeschlagen');
+                addLog('error', data.message || 'Connection failed');
+                alert(data.message || 'Connection failed');
             }
         } catch (error) {
             console.error('Connection error:', error);
-            addLog('error', 'Verbindungsfehler: ' + error.message);
-            alert('Verbindung fehlgeschlagen: ' + error.message);
+            addLog('error', 'Connection error: ' + error.message);
+            alert('Connection failed: ' + error.message);
         }
     }
 
     async function disconnectGateway() {
-        addLog('info', 'Trenne Verbindung...');
+        addLog('info', 'Disconnecting...');
         try {
             const response = await fetch('/api/gateway/stop', { method: 'POST' });
             const data = await response.json();
             if (data.status === 'success' || data.status === 'not_running') {
-                addLog('info', 'Getrennt');
+                addLog('info', 'Disconnected');
                 updateConnectionUI(false);
                 stopStatusPolling();
             } else {
-                addLog('error', 'Trennen fehlgeschlagen');
+                addLog('error', 'Disconnect failed');
             }
         } catch (error) {
             console.error('Disconnect error:', error);
-            addLog('error', 'Trennungsfehler: ' + error.message);
+            addLog('error', 'Disconnect error: ' + error.message);
         }
     }
 
@@ -1002,12 +1002,12 @@
         const connectBtn = document.getElementById('connectGatewayBtn');
         const disconnectBtn = document.getElementById('disconnectGatewayBtn');
         if (connected) {
-            if (statusText) { statusText.textContent = '✓ Verbunden'; statusText.style.color = '#28a745'; }
+            if (statusText) { statusText.textContent = '✓ Connected'; statusText.style.color = '#28a745'; }
             if (stats) stats.style.display = 'block';
             if (connectBtn) connectBtn.style.display = 'none';
             if (disconnectBtn) disconnectBtn.style.display = 'block';
         } else {
-            if (statusText) { statusText.textContent = 'Nicht verbunden'; statusText.style.color = '#999'; }
+            if (statusText) { statusText.textContent = 'Not connected'; statusText.style.color = '#999'; }
             if (stats) stats.style.display = 'none';
             if (connectBtn) connectBtn.style.display = 'block';
             if (disconnectBtn) disconnectBtn.style.display = 'none';
@@ -1138,7 +1138,7 @@
                     }
                 }
             } else {
-                messagesEl.innerHTML = '<div class="small empty-state" style="padding:40px;text-align:center"><i class="fas fa-comments" style="font-size:2rem;display:block;margin-bottom:10px;color:#333"></i>Keine Nachrichten in diesem Channel</div>';
+                messagesEl.innerHTML = '<div class="small empty-state" style="padding:40px;text-align:center"><i class="fas fa-comments" style="font-size:2rem;display:block;margin-bottom:10px;color:#333"></i>No messages in this channel</div>';
             }
         } catch (error) {
             console.error('Failed to load messages:', error);
@@ -1161,7 +1161,7 @@
 
     async function sendMessage() {
         const text = document.getElementById('messageText').value.trim();
-        if (!text) { alert('Bitte Nachricht eingeben'); return; }
+        if (!text) { alert('Please enter a message'); return; }
 
         const channelId = activeChannelId || 'all';
         const messageMode = document.getElementById('messageMode') ? document.getElementById('messageMode').value : 'text';
@@ -1197,7 +1197,7 @@
             });
             const data = await resp.json();
             if (data.status === 'success' && data.message) {
-                addLog('success', 'Nachricht gesendet: ' + text.substring(0, 30));
+                addLog('success', 'Message sent: ' + text.substring(0, 30));
                 if (pendingEl) {
                     pendingEl.setAttribute('data-msg-id', data.message.id);
                     pendingEl.removeAttribute('data-pending');
@@ -1205,7 +1205,7 @@
                     if (st) st.innerHTML = '&#10003;';
                 }
             } else {
-                addLog('error', 'Senden fehlgeschlagen');
+                addLog('error', 'Send failed');
                 if (pendingEl) {
                     const st = pendingEl.querySelector('.chat-msg-status');
                     if (st) { st.innerHTML = '&#10007;'; st.style.color = '#f44'; }
@@ -1224,7 +1224,7 @@
             }
         } catch (error) {
             console.error('Send error:', error);
-            addLog('error', 'Sendefehler: ' + error.message);
+            addLog('error', 'Send error: ' + error.message);
             if (pendingEl) {
                 const st = pendingEl.querySelector('.chat-msg-status');
                 if (st) { st.innerHTML = '&#10007;'; st.style.color = '#f44'; }
@@ -1272,7 +1272,7 @@
             case 'gateway_message':
                 if (data.direction === 'incoming' && data.text) {
                     const preview = data.text.substring(0, 30);
-                    addLog('info', `📨 Nachricht: ${preview}${data.text.length > 30 ? '...' : ''}`);
+                    addLog('info', `📨 Message: ${preview}${data.text.length > 30 ? '...' : ''}`);
                     loadGatewayMessages();
                 }
                 break;
@@ -1350,12 +1350,12 @@
                 break;
 
             case 'channel_created':
-                addLog('info', 'Neuer Channel erstellt');
+                addLog('info', 'New channel created');
                 loadChatChannels();
                 break;
 
             case 'channel_deleted':
-                addLog('info', 'Channel gelöscht');
+                addLog('info', 'Channel deleted');
                 if (data.data && data.data.id === activeChannelId) {
                     activeChannelId = 'all';
                 }
@@ -1365,7 +1365,7 @@
     }
 
     // ===========================
-    // Channel-Verwaltung (Admin)
+    // Channel Management (Admin)
     // ===========================
     let _channelAdminAllUsers = [];
 
@@ -1392,7 +1392,7 @@
         if (!container) return;
 
         if (chList.length === 0) {
-          container.innerHTML = '<div class="small" style="padding:16px;text-align:center">Keine Channels vorhanden.</div>';
+          container.innerHTML = '<div class="small" style="padding:16px;text-align:center">No channels available.</div>';
           return;
         }
 
@@ -1400,7 +1400,7 @@
           const members = Array.isArray(ch.members) ? ch.members : [];
           const memberTags = members.length > 0
             ? members.map(m => '<span class="channel-admin-member-tag">' + escapeHtml(m) + ' <span class="remove-member" onclick="removeChannelAdminMember(\'' + escapeAttr(ch.id) + '\',\'' + escapeAttr(m) + '\')" title="Remove">&times;</span></span>').join('')
-            : '<span class="channel-admin-no-members">Keine Mitglieder</span>';
+            : '<span class="channel-admin-no-members">No members</span>';
           const userOptions = _channelAdminAllUsers
             .filter(u => !members.includes(u.username))
             .map(u => '<option value="' + escapeAttr(u.username) + '">' + escapeHtml(u.username || u.id) + '</option>')
@@ -1415,11 +1415,11 @@
               '<span class="channel-admin-card-desc">' + escapeHtml(ch.description || '') + '</span>' +
               deleteAdminBtn +
             '</div>' +
-            '<div style="font-size:0.85rem;color:#aaa;margin-bottom:4px;">Mitglieder:</div>' +
+            '<div style="font-size:0.85rem;color:#aaa;margin-bottom:4px;">Members:</div>' +
             '<div class="channel-admin-members-list">' + memberTags + '</div>' +
             '<div class="channel-admin-add-member">' +
               '<select id="addAdminMemberSelect-' + escapeAttr(ch.id) + '">' +
-                '<option value="">— Benutzer wählen —</option>' +
+                '<option value="">— Select user —</option>' +
                 userOptions +
               '</select>' +
               '<button class="btn btn-sm" onclick="addChannelAdminMember(\'' + escapeAttr(ch.id) + '\')"><i class="fas fa-user-plus"></i> Add</button>' +
@@ -1429,22 +1429,22 @@
       } catch (e) {
         console.error('loadChannelAdmin error:', e);
         const container = document.getElementById('channelAdminList');
-        if (container) container.innerHTML = '<div class="small" style="padding:16px;text-align:center;color:#f55;">Fehler beim Laden der Channels</div>';
+        if (container) container.innerHTML = '<div class="small" style="padding:16px;text-align:center;color:#f55;">Error loading channels</div>';
       }
     }
 
     async function addChannelAdminMember(channelId) {
       const select = document.getElementById('addAdminMemberSelect-' + channelId);
-      if (!select || !select.value) { alert('Bitte einen Benutzer auswählen.'); return; }
+      if (!select || !select.value) { alert('Please select a user.'); return; }
       const username = select.value;
       try {
         const chRes = await fetch('/api/chat/channels', { headers: getAuthHeaders() });
         const chData = chRes.ok ? await chRes.json() : {};
         const chList = (chData && chData.channels) ? chData.channels : [];
         const ch = chList.find(c => c.id === channelId);
-        if (!ch) { alert('Channel nicht gefunden.'); return; }
+        if (!ch) { alert('Channel not found.'); return; }
         const members = Array.isArray(ch.members) ? [...ch.members] : [];
-        if (members.includes(username)) { alert('Benutzer ist bereits Mitglied.'); return; }
+        if (members.includes(username)) { alert('User is already a member.'); return; }
         members.push(username);
         const res = await fetch('/api/chat/channels/' + encodeURIComponent(channelId) + '/members', {
           method: 'PUT',
@@ -1455,22 +1455,22 @@
           await loadChannelAdmin();
         } else {
           const err = await res.json().catch(() => ({}));
-          alert('Fehler: ' + (err.detail || 'Unbekannter Fehler'));
+          alert('Error: ' + (err.detail || 'Unknown error'));
         }
       } catch (e) {
         console.error('addChannelAdminMember error:', e);
-        alert('Fehler: ' + e.message);
+        alert('Error: ' + e.message);
       }
     }
 
     async function removeChannelAdminMember(channelId, username) {
-      if (!confirm('Benutzer "' + username + '" aus dem Channel entfernen?')) return;
+      if (!confirm('Remove user "' + username + '" from the channel?')) return;
       try {
         const chRes = await fetch('/api/chat/channels', { headers: getAuthHeaders() });
         const chData = chRes.ok ? await chRes.json() : {};
         const chList = (chData && chData.channels) ? chData.channels : [];
         const ch = chList.find(c => c.id === channelId);
-        if (!ch) { alert('Channel nicht gefunden.'); return; }
+        if (!ch) { alert('Channel not found.'); return; }
         const members = Array.isArray(ch.members) ? ch.members.filter(m => m !== username) : [];
         const res = await fetch('/api/chat/channels/' + encodeURIComponent(channelId) + '/members', {
           method: 'PUT',
@@ -1481,11 +1481,11 @@
           await loadChannelAdmin();
         } else {
           const err = await res.json().catch(() => ({}));
-          alert('Fehler: ' + (err.detail || 'Unbekannter Fehler'));
+          alert('Error: ' + (err.detail || 'Unknown error'));
         }
       } catch (e) {
         console.error('removeChannelAdminMember error:', e);
-        alert('Fehler: ' + e.message);
+        alert('Error: ' + e.message);
       }
     }
 
