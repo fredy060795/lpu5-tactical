@@ -139,7 +139,7 @@
   <input type="color" id="gpsColor_fly" value="#ff4444">
   <div class="row">
     <div class="col"><button class="btn ghost" onclick="gpsRefresh(); closeFlyout()">Refresh</button></div>
-    <div class="col"><button class="btn primary" onclick="gpsFix(); closeFlyout()">Fixieren</button></div>
+    <div class="col"><button class="btn primary" onclick="gpsFix(); closeFlyout()">Fix</button></div>
   </div>
   <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="gpsFlyInfo">Kein GPS geladen</div>
 </div>
@@ -171,8 +171,8 @@
   <input type="number" id="ovOffsetY_fly" value="0" step="1" oninput="syncOverlayInputs(); applyRotation()">
 
   <div style="margin-top:8px;">
-    <button class="btn primary" onclick="saveOverlayConfig(); closeFlyout()">FIXIEREN & TEILEN</button>
-    <button class="btn ghost" style="margin-top:8px;" onclick="resetOverlayInputs()">ZurÃ¼cksetzen</button>
+    <button class="btn primary" onclick="saveOverlayConfig(); closeFlyout()">FIX & SHARE</button>
+    <button class="btn ghost" style="margin-top:8px;" onclick="resetOverlayInputs()">Reset</button>
   </div>
 </div>
 
@@ -182,7 +182,7 @@
   <label>Zeichnen starten</label>
   <div class="row">
     <div class="col"><button class="btn primary" onclick="startDrawing(); openFlyout('fly-draw');">Start</button></div>
-    <div class="col"><button class="btn ghost" onclick="finishDrawing(); closeFlyout()">Fertig</button></div>
+    <div class="col"><button class="btn ghost" onclick="finishDrawing(); closeFlyout()">Finish</button></div>
   </div>
   <div style="margin-top:8px;">
     <label>Name</label>
@@ -201,8 +201,8 @@
     <button class="icon-btn" onclick="selectSymbol('blume', this);"> <i class="fas fa-leaf"></i> </button>
   </div>
   <div style="margin-top:8px;" class="row">
-    <div class="col"><button class="btn primary" onclick="startSymbolPlace(); closeFlyout()">Symbol setzen</button></div>
-    <div class="col"><button class="btn ghost" onclick="closeFlyout()">Abbrechen</button></div>
+    <div class="col"><button class="btn primary" onclick="startSymbolPlace(); closeFlyout()">Place Symbol</button></div>
+    <div class="col"><button class="btn ghost" onclick="closeFlyout()">Cancel</button></div>
   </div>
 </div>
 
@@ -211,12 +211,12 @@
   <h4>Einstellungen</h4>
   <label>Refresh Map</label>
   <div class="row">
-    <div class="col"><button class="btn ghost" onclick="map.invalidateSize(); closeFlyout()">Neuladen</button></div>
-    <div class="col"><button class="btn ghost" onclick="scheduleReapply(); closeFlyout()">Rotation neu anwenden</button></div>
+    <div class="col"><button class="btn ghost" onclick="map.invalidateSize(); closeFlyout()">Reload</button></div>
+    <div class="col"><button class="btn ghost" onclick="scheduleReapply(); closeFlyout()">Reapply Rotation</button></div>
   </div>
   <div style="margin-top:10px;">
     <label>Sonstiges</label>
-    <button class="btn ghost" onclick="localStorage.clear(); alert('Lokale Daten gelöscht'); closeFlyout()">Lokal löschen</button>
+    <button class="btn ghost" onclick="localStorage.clear(); alert('Local data cleared'); closeFlyout()">Clear Local Data</button>
   </div>
 </div>
 
@@ -225,11 +225,11 @@
   <h4>Kamera Stream</h4>
   <label>Stream Kontrolle</label>
   <div class="row">
-    <div class="col"><button class="btn primary" onclick="openStreamWindow(); closeFlyout()">Stream anzeigen</button></div>
-    <div class="col"><button class="btn ghost" onclick="closeStreamWindow(); closeFlyout()">Schließen</button></div>
+    <div class="col"><button class="btn primary" onclick="openStreamWindow(); closeFlyout()">Show Stream</button></div>
+    <div class="col"><button class="btn ghost" onclick="closeStreamWindow(); closeFlyout()">Close</button></div>
   </div>
   <div style="margin-top:10px;">
-    <button class="btn ghost" onclick="shareStreamToOverview(); closeFlyout()">An Overview teilen</button>
+    <button class="btn ghost" onclick="shareStreamToOverview(); closeFlyout()">Share to Overview</button>
   </div>
   <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="cameraFlyInfo">Kein Stream verfügbar</div>
 </div>
@@ -239,11 +239,11 @@
   <h4>Chat / Nachrichten</h4>
   <label>Chat Kontrolle</label>
   <div class="row">
-    <div class="col"><button class="btn primary" onclick="openChatWindow(); closeFlyout()">Chat öffnen</button></div>
-    <div class="col"><button class="btn ghost" onclick="closeChatWindow(); closeFlyout()">Schließen</button></div>
+    <div class="col"><button class="btn primary" onclick="openChatWindow(); closeFlyout()">Open Chat</button></div>
+    <div class="col"><button class="btn ghost" onclick="closeChatWindow(); closeFlyout()">Close</button></div>
   </div>
   <div style="margin-top:10px;">
-    <button class="btn ghost" onclick="markAllMessagesRead(); closeFlyout()">Alle als gelesen</button>
+    <button class="btn ghost" onclick="markAllMessagesRead(); closeFlyout()">Mark All as Read</button>
   </div>
   <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">Keine neuen Nachrichten</div>
 </div>
@@ -409,10 +409,10 @@
       <span>Live Stream</span>
     </div>
     <div class="stream-window-controls">
-      <button class="stream-window-btn" onclick="minimizeStreamWindow()" title="Minimieren">
+      <button class="stream-window-btn" onclick="minimizeStreamWindow()" title="Minimize">
         <i class="fas fa-minus"></i>
       </button>
-      <button class="stream-window-btn" onclick="closeStreamWindow()" title="Schließen">
+      <button class="stream-window-btn" onclick="closeStreamWindow()" title="Close">
         <i class="fas fa-times"></i>
       </button>
     </div>
@@ -430,7 +430,7 @@
       <span>Offline</span>
     </div>
     <button class="stream-share-btn" id="streamShareBtn" onclick="shareStreamToOverview()" disabled>
-      <i class="fas fa-share-alt"></i> Teilen
+      <i class="fas fa-share-alt"></i> Share
     </button>
   </div>
 </div>
@@ -443,10 +443,10 @@
       <span>Chat / COT Nachrichten</span>
     </div>
     <div class="chat-window-controls">
-      <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
+      <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimize">
         <i class="fas fa-minus"></i>
       </button>
-      <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
+      <button class="chat-window-btn" onclick="closeChatWindow()" title="Close">
         <i class="fas fa-times"></i>
       </button>
     </div>
@@ -468,7 +468,7 @@
       </select>
       <input type="text" id="chatInput" class="chat-input" placeholder="Nachricht eingeben...">
       <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
-        <i class="fas fa-paper-plane"></i> Senden
+        <i class="fas fa-paper-plane"></i> Send
       </button>
     </div>
   </div>
