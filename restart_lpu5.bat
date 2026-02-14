@@ -30,33 +30,33 @@ for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /FO LIST ^| fi
     )
 )
 
-REM Check if port 8001 is still in use
-netstat -ano | findstr ":8001.*LISTENING" >nul
+REM Check if port 8101 is still in use
+netstat -ano | findstr ":8101.*LISTENING" >nul
 if not errorlevel 1 (
-    echo [WARN] Port 8001 is still in use
-    echo [*] Trying to stop all processes on port 8001...
+    echo [WARN] Port 8101 is still in use
+    echo [*] Trying to stop all processes on port 8101...
     
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8001.*LISTENING"') do (
+    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8101.*LISTENING"') do (
         echo [*] Stopping process: %%a
         taskkill /PID %%a /F >nul 2>&1
     )
 )
 
 REM Wait for port to be released
-echo [*] Waiting for port 8001 to be released...
+echo [*] Waiting for port 8101 to be released...
 timeout /t 3 /nobreak >nul
 
 REM Verify port is free
-netstat -ano | findstr ":8001.*LISTENING" >nul
+netstat -ano | findstr ":8101.*LISTENING" >nul
 if not errorlevel 1 (
-    echo [ERROR] Port 8001 is still in use!
+    echo [ERROR] Port 8101 is still in use!
     echo [ERROR] Please check manually:
-    echo [ERROR]   netstat -ano ^| findstr :8001
+    echo [ERROR]   netstat -ano ^| findstr :8101
     pause
     exit /b 1
 )
 
-echo [OK] Port 8001 is free
+echo [OK] Port 8101 is free
 echo.
 echo [*] Restarting server...
 echo.

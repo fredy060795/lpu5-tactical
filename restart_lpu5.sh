@@ -26,11 +26,11 @@ echo ""
 stop_server() {
     echo -e "${BLUE}[*]${NC} Checking for running LPU5 server..."
     
-    # Find process using port 8001
-    PID=$(lsof -ti:8001 2>/dev/null || echo "")
+    # Find process using port 8101
+    PID=$(lsof -ti:8101 2>/dev/null || echo "")
     
     if [ -z "$PID" ]; then
-        echo -e "${YELLOW}[INFO]${NC} No server is currently running on port 8001"
+        echo -e "${YELLOW}[INFO]${NC} No server is currently running on port 8101"
         return 0
     fi
     
@@ -68,7 +68,7 @@ stop_server() {
 
 # Function to check if port is available
 check_port() {
-    if lsof -Pi :8001 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    if lsof -Pi :8101 -sTCP:LISTEN -t >/dev/null 2>&1; then
         return 1
     fi
     return 0
@@ -82,9 +82,9 @@ sleep 2
 
 # Verify port is available
 if ! check_port; then
-    echo -e "${RED}[ERROR]${NC} Port 8001 is still in use after stopping server"
-    echo -e "${RED}[ERROR]${NC} Please check for other processes using port 8001:"
-    echo -e "${RED}[ERROR]${NC}   lsof -i :8001"
+    echo -e "${RED}[ERROR]${NC} Port 8101 is still in use after stopping server"
+    echo -e "${RED}[ERROR]${NC} Please check for other processes using port 8101:"
+    echo -e "${RED}[ERROR]${NC}   lsof -i :8101"
     exit 1
 fi
 

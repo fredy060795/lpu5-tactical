@@ -308,7 +308,7 @@
             </div>
             <div class="network-info-item">
                 <span class="network-info-label">Port:</span>
-                <span class="network-info-value" id="portDisplay">8001</span>
+                <span class="network-info-value" id="portDisplay">8101</span>
             </div>
             <div class="network-info-item">
                 <span class="network-info-label">Server URL:</span>
@@ -339,7 +339,7 @@
 
             <div class="form-group">
                 <label class="form-label">Target Server URL</label>
-                <input type="text" class="form-input" id="forwardingUrl" placeholder="https://example.com:8001" disabled>
+                <input type="text" class="form-input" id="forwardingUrl" placeholder="https://example.com:8101" disabled>
             </div>
 
             <div class="form-group">
@@ -389,7 +389,7 @@
 
             <div class="form-group">
                 <label class="form-label">Public Port</label>
-                <input type="number" class="form-input" id="publicPort" placeholder="8001" disabled>
+                <input type="number" class="form-input" id="publicPort" placeholder="8101" disabled>
             </div>
 
             <div class="warning-box">
@@ -587,7 +587,7 @@ async function loadServerInfo() {
         if (response.ok) {
             const data = await response.json();
             document.getElementById('localIpDisplay').textContent = data.local_ip || 'N/A';
-            document.getElementById('portDisplay').textContent = data.port || '8001';
+            document.getElementById('portDisplay').textContent = data.port || '8101';
             document.getElementById('serverUrlDisplay').textContent = data.base_url || 'N/A';
         }
     } catch (error) {
@@ -616,7 +616,7 @@ async function loadNetworkSettings() {
             // Public IP
             document.getElementById('usePublicIp').checked = networkConfig.usePublicIp || false;
             document.getElementById('publicIp').value = networkConfig.publicIp || '';
-            document.getElementById('publicPort').value = networkConfig.publicPort || '8001';
+            document.getElementById('publicPort').value = networkConfig.publicPort || '8101';
 
             // Security
             document.getElementById('allowedIpRanges').value = networkConfig.allowedIpRanges || '';

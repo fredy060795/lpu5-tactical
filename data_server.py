@@ -42,7 +42,7 @@ logger = logging.getLogger("lpu5-data-server")
 # -------------------------
 # Data Server Configuration
 # -------------------------
-DATA_SERVER_PORT = 8002
+DATA_SERVER_PORT = 8102
 DATA_SERVER_HOST = "0.0.0.0"
 
 # -------------------------
