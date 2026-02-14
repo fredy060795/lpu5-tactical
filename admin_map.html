@@ -884,7 +884,7 @@
     <div class="icon-btn" data-flyout="fly-draw" title="Zeichnen"><i class="fas fa-pen-nib"></i></div>
     <div class="icon-btn" data-flyout="fly-symbols" title="Symbole"><i class="fas fa-map-marker-alt"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
-    <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Nachrichten"><i class="fas fa-comments"></i></div>
+    <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
   </div>
 
@@ -915,14 +915,14 @@
 
   <div id="fly-overlay" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>Map Overlay</h4>
-    <label>Bild Import (mehrere möglich)</label>
+    <label>Image Import (multiple possible)</label>
     <input type="file" id="ovFile_fly" accept="image/*" multiple>
-    <div id="ovFileName_fly" style="font-size:.85rem;color:#bbb;margin-bottom:8px">Keine ausgewählt</div>
+    <div id="ovFileName_fly" style="font-size:.85rem;color:#bbb;margin-bottom:8px">None selected</div>
 
-    <label>Breite (Meter)</label><input id="ovW_fly" type="number" value="500" step="1">
-    <label>Höhe (Meter)</label><input id="ovH_fly" type="number" value="500" step="1">
+    <label>Width (meters)</label><input id="ovW_fly" type="number" value="500" step="1">
+    <label>Height (meters)</label><input id="ovH_fly" type="number" value="500" step="1">
 
-    <label style="margin-top:6px">Transparenz (Opacity)</label>
+    <label style="margin-top:6px">Transparency (Opacity)</label>
     <input id="ovOpacity_fly" type="range" min="0" max="100" value="100">
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
       <input id="ovOpacityNum_fly" type="number" value="100" style="width:70px;">
@@ -936,7 +936,7 @@
     </div>
 
     <div class="overlay-list" id="overlayList">
-      <div style="color:#888">Keine Overlays</div>
+      <div style="color:#888">No overlays</div>
     </div>
   </div>
 
@@ -1012,7 +1012,7 @@
 
   <!-- Flyout: Chat -->
   <div id="fly-chat" class="icon-flyout" role="dialog" aria-hidden="true">
-    <h4>Chat / Nachrichten</h4>
+    <h4>Chat / Messages</h4>
     <label>Chat Kontrolle</label>
     <div style="display:flex; gap:8px; margin-top:8px;">
       <button class="btn primary" style="flex:1" onclick="openChatWindow(); closeFlyout()">Open Chat</button>
@@ -1022,7 +1022,7 @@
       <button class="btn ghost" style="width:100%" onclick="markAllMessagesRead(); closeFlyout()">Mark All as
         Read</button>
     </div>
-    <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">Keine neuen Nachrichten</div>
+    <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">No new messages</div>
   </div>
 
   <!-- Flyout: Camera Stream -->
@@ -1036,7 +1036,7 @@
     <div style="margin-top:10px;">
       <button class="btn ghost" onclick="shareStreamToOverview()">Share to Overview</button>
     </div>
-    <div id="cameraFlyInfo" style="margin-top:8px;color:#bbb;font-size:.85rem">Kein Stream verfügbar</div>
+    <div id="cameraFlyInfo" style="margin-top:8px;color:#bbb;font-size:.85rem">No stream available</div>
   </div>
 
   <!-- Floating Stream Window -->
@@ -1060,7 +1060,7 @@
       <img id="streamWindowImage" class="stream-window-video" style="display:none;" alt="Camera Stream">
       <div class="stream-window-placeholder" id="streamWindowPlaceholder" style="display:flex;">
         <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
-        <div>Kein Stream</div>
+        <div>No stream</div>
       </div>
     </div>
     <div class="stream-window-footer">
@@ -1079,7 +1079,7 @@
     <div class="chat-window-header" id="chatWindowHeader">
       <div class="chat-window-title">
         <i class="fas fa-comments"></i>
-        <span>Chat / COT Nachrichten</span>
+        <span>Chat / COT Messages</span>
       </div>
       <div class="chat-window-controls">
         <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimize">
@@ -1094,8 +1094,8 @@
       <div class="chat-messages-container" id="chatMessagesContainer">
         <div class="chat-placeholder" id="chatPlaceholder">
           <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
-          <div style="color: #666;">Keine Nachrichten</div>
-          <small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small>
+          <div style="color: #666;">No messages</div>
+          <small style="color: #555; margin-top: 5px;">Chat and COT messages will appear here</small>
         </div>
       </div>
     </div>
@@ -1105,7 +1105,7 @@
           <option value="all">Alle Einheiten</option>
           <option value="hq">HQ</option>
         </select>
-        <input type="text" id="chatInput" class="chat-input" placeholder="Nachricht eingeben...">
+        <input type="text" id="chatInput" class="chat-input" placeholder="Enter message...">
         <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
           <i class="fas fa-paper-plane"></i> Send
         </button>
@@ -2114,7 +2114,7 @@
       const ovFileName = document.getElementById('ovFileName_fly');
       overlayFileInput.addEventListener('change', (ev) => {
         const list = ev.target.files;
-        ovFileName.textContent = (list && list.length) ? Array.from(list).map(f => f.name).join(', ') : 'Keine ausgewählt';
+        ovFileName.textContent = (list && list.length) ? Array.from(list).map(f => f.name).join(', ') : 'None selected';
       });
 
       const ovW = document.getElementById('ovW_fly'), ovH = document.getElementById('ovH_fly');
@@ -2192,21 +2192,21 @@
 
       document.getElementById('ovAddBtn').addEventListener('click', async () => {
         const files = overlayFileInput.files;
-        if (!files || files.length === 0) { alert('Bitte mindestens eine Datei auswählen.'); return; }
+        if (!files || files.length === 0) { alert('Please select at least one file.'); return; }
         const defaultW = parseFloat(ovW.value) || 500;
         const defaultH = parseFloat(ovH.value) || 500;
         const defaultR = 0; // rotation UI hidden; set default 0
         const defaultOp = (parseFloat(ovOpacity.value) || 100) / 100.0;
         for (let i = 0; i < files.length; i++) { await addOverlay(files[i], defaultW, defaultH, defaultR, defaultOp); }
         overlayFileInput.value = '';
-        ovFileName.textContent = 'Keine ausgewählt';
+        ovFileName.textContent = 'None selected';
         refreshOverlayList(); renderSettingsList();
       });
 
       function refreshOverlayList() {
         const overlayListEl = document.getElementById('overlayList');
         overlayListEl.innerHTML = '';
-        if (overlays.length === 0) { overlayListEl.innerHTML = '<div style="color:#888">Keine Overlays</div>'; return; }
+        if (overlays.length === 0) { overlayListEl.innerHTML = '<div style="color:#888">No overlays</div>'; return; }
         overlays.forEach(o => {
           const div = document.createElement('div'); div.className = 'overlay-item';
           div.innerHTML = `<div style="flex:1"><strong>${escapeHtml(o.name)}</strong><div style="font-size:.8rem;color:#999">by ${escapeHtml(o.creator || 'unknown')}</div></div>
@@ -2225,16 +2225,16 @@
 
       function removeOverlay(id) { const idx = overlays.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(overlays[idx].overlay); } catch (e) { } overlays.splice(idx, 1); renderSettingsList(); ensureMapVisible(); saveStateToLocalStorage(); const token = localStorage.getItem('token'); fetch(`/api/overlays/${id}`, { method: 'DELETE', headers: { 'Authorization': token ? `Bearer ${token}` : '' } }).catch(e => console.error('Failed to delete overlay from server:', e)); }
 
-      document.getElementById('ovResetBtn').addEventListener('click', () => { overlayFileInput.value = ''; ovFileName.textContent = 'Keine ausgewählt'; ovW.value = 500; ovH.value = 500; ovOpacity.value = 100; ovOpacityNum.value = 100; });
+      document.getElementById('ovResetBtn').addEventListener('click', () => { overlayFileInput.value = ''; ovFileName.textContent = 'None selected'; ovW.value = 500; ovH.value = 500; ovOpacity.value = 100; ovOpacityNum.value = 100; });
 
-      document.getElementById('ovClearBtn').addEventListener('click', () => { if (!confirm('Alle Overlays entfernen?')) return; overlays.slice().forEach(o => removeOverlay(o.id)); refreshOverlayList(); renderSettingsList(); saveStateToLocalStorage(); });
+      document.getElementById('ovClearBtn').addEventListener('click', () => { if (!confirm('Remove all overlays?')) return; overlays.slice().forEach(o => removeOverlay(o.id)); refreshOverlayList(); renderSettingsList(); saveStateToLocalStorage(); });
 
       // ---------------- Overlay editor (rotation hidden) ----------------
       let currentOverlayEdit = null;
       function openOverlayEditor(id) {
         closeOverlayEditor();
         const obj = overlays.find(o => o.id === id);
-        if (!obj) { alert('Overlay nicht gefunden'); return; }
+        if (!obj) { alert('Overlay not found'); return; }
 
         const panel = document.createElement('div');
         panel.id = 'overlayEditorPanel';
@@ -2255,11 +2255,11 @@
           <input id="ovEditH" type="number" style="flex:1; padding:6px;" value="" />
         </div>
 
-        <label style="margin-top:8px">Transparenz (Opacity)</label>
+        <label style="margin-top:8px">Transparency (Opacity)</label>
         <input id="ovEditOpacity" type="range" min="0" max="100" value="100" />
         <input id="ovEditOpacityNum" type="number" value="100" style="width:70px;margin-top:6px;" />
 
-        <label style="margin-top:8px">Datei ersetzen</label>
+        <label style="margin-top:8px">Replace file</label>
         <input id="ovReplaceFile" type="file" accept="image/*" style="margin-bottom:8px;" />
 
         <div style="display:flex; gap:8px; margin-top:10px;">
@@ -2320,7 +2320,7 @@
 
         document.getElementById('ovSaveBtn').addEventListener('click', async () => {
           const o = overlays.find(x => x.id === currentOverlayEdit.id);
-          if (!o) { alert('Overlay nicht gefunden'); closeOverlayEditor(); return; }
+          if (!o) { alert('Overlay not found'); closeOverlayEditor(); return; }
 
           o.opacity = currentOverlayEdit.tempOpacity != null ? currentOverlayEdit.tempOpacity : (o.opacity || 1.0);
           try { o.overlay.setOpacity(o.opacity); } catch (e) { }
@@ -2370,7 +2370,7 @@
             console.error('Failed to save overlay changes to server:', e);
           }
 
-          panel.querySelector('#ovEditorMsg').textContent = 'Änderungen gespeichert.';
+          panel.querySelector('#ovEditorMsg').textContent = 'Changes saved.';
           saveStateToLocalStorage();
         });
 
@@ -2404,7 +2404,7 @@
           if (drawingLine) map.removeLayer(drawingLine);
           drawingLine = null;
           drawingPoints = [];
-          alert('Mindestens 2 Punkte nötig.');
+          alert('At least 2 points needed.');
           return;
         }
         const name = (document.getElementById('areaName_fly').value || 'Linie ' + (new Date()).toLocaleTimeString());
@@ -2611,7 +2611,7 @@
             if (!isGps) {
               marker.on('click', () => {
                 if (symbolDeleteMode) {
-                  if (!confirm('Symbol löschen?')) return;
+                  if (!confirm('Delete symbol?')) return;
                   deleteSymbolFromServer(s.id);
                 }
               });
@@ -2743,7 +2743,7 @@
         }
       }
 
-      window.placeSymbolFromCrosshair = async function () { if (!activeSymbol) { alert('Wähle zuerst ein Symbol'); return; } const c = map.getCenter(); await placeSymbolAt(c); };
+      window.placeSymbolFromCrosshair = async function () { if (!activeSymbol) { alert('Select a symbol first'); return; } const c = map.getCenter(); await placeSymbolAt(c); };
 
       // Crosshair control
       function showCrosshair(show) { let ch = document.getElementById('crosshair'); if (!ch) { ch = document.createElement('div'); ch.id = 'crosshair'; Object.assign(ch.style, { position: 'fixed', width: '40px', height: '40px', pointerEvents: 'none', zIndex: 1500, display: 'none' }); ch.innerHTML = `<svg width="40" height="40" viewBox="0 0 40 40"><line x1="0" y1="20" x2="40" y2="20" stroke="#007bff" stroke-width="2"/><line x1="20" y1="0" x2="20" y2="40" stroke="#007bff" stroke-width="2"/></svg>`; document.body.appendChild(ch); } if (show) { ch.style.display = 'block'; const rect = map.getContainer().getBoundingClientRect(); ch.style.left = (rect.left + rect.width / 2 - 20) + 'px'; ch.style.top = (rect.top + rect.height / 2 - 20) + 'px'; document.getElementById('set-btn').style.display = 'block'; } else { ch.style.display = 'none'; document.getElementById('set-btn').style.display = 'none'; } }
@@ -2825,13 +2825,13 @@
           icon: L.divIcon({ className: 'temp-gps-icon', html: createArrowIconHtml(color), iconSize: [40, 40], iconAnchor: [20, 20] }),
           pane: 'paneSymbols'
         }).addTo(map);
-        document.getElementById('gpsFlyInfo').textContent = `Refresh: ${lat.toFixed(6)}, ${lon.toFixed(6)} (temporär)`;
-        setTimeout(() => { try { if (gpsTempMarker) { map.removeLayer(gpsTempMarker); gpsTempMarker = null; document.getElementById('gpsFlyInfo').textContent = 'Keine temporäre Position'; } } catch (e) { } }, 30000);
+        document.getElementById('gpsFlyInfo').textContent = `Refresh: ${lat.toFixed(6)}, ${lon.toFixed(6)} (temporary)`;
+        setTimeout(() => { try { if (gpsTempMarker) { map.removeLayer(gpsTempMarker); gpsTempMarker = null; document.getElementById('gpsFlyInfo').textContent = 'No temporary position'; } } catch (e) { } }, 30000);
       }
 
       function getCurrentPositionPromise(options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }) {
         return new Promise((resolve, reject) => {
-          if (!navigator.geolocation) return reject(new Error('Geolocation nicht verfügbar'));
+          if (!navigator.geolocation) return reject(new Error('Geolocation not available'));
 
           // Check if the page is served over HTTPS or localhost
           const isSecureContext = window.isSecureContext ||
@@ -2871,7 +2871,7 @@
             map.once('click', gpsMapClickHandler);
             document.getElementById('gpsFlyInfo').textContent = 'Fix mode: click the map to set position or select "ACTIVATE" for device.';
           } else {
-            document.getElementById('gpsFlyInfo').textContent = (mode === 'refresh') ? 'Refresh-Modus ausgewählt' : 'GPS aus';
+            document.getElementById('gpsFlyInfo').textContent = (mode === 'refresh') ? 'Refresh mode selected' : 'GPS off';
           }
         });
       });
@@ -3190,7 +3190,7 @@
         if (shareBtn) shareBtn.disabled = true;
 
         if (flyInfo) {
-          flyInfo.textContent = 'Kein Stream verfügbar';
+          flyInfo.textContent = 'No stream available';
         }
       };
 
@@ -3226,7 +3226,7 @@
         };
 
         localStorage.setItem('lpu5_overview_stream', JSON.stringify(streamData));
-        alert('Stream wurde an Overview gesendet!');
+        alert('Stream sent to Overview!');
       };
 
       // Camera stream functions
@@ -3301,7 +3301,7 @@
         if (placeholder) {
           placeholder.innerHTML = `
           <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
-          <div>Kein Stream</div>
+          <div>No stream</div>
         `;
           placeholder.style.display = 'flex';
         }
@@ -3313,7 +3313,7 @@
         }
 
         if (flyInfo) {
-          flyInfo.textContent = 'Kein Stream verfügbar';
+          flyInfo.textContent = 'No stream available';
         }
       }
 
@@ -3460,7 +3460,7 @@
         if (!chatWindow.classList.contains('active')) {
           unreadCount++;
           updateNotificationBadge();
-          updateChatInfo(`${unreadCount} neue Nachricht${unreadCount > 1 ? 'en' : ''}`);
+          updateChatInfo(`${unreadCount} new message${unreadCount > 1 ? 's' : ''}`);
         }
       }
 
@@ -3487,7 +3487,7 @@
       function updateChatInfo(info) {
         const flyInfo = document.getElementById('chatFlyInfo');
         if (flyInfo) {
-          flyInfo.textContent = typeof info === 'string' ? info : `${info} Nachricht${info !== 1 ? 'en' : ''} verfügbar`;
+          flyInfo.textContent = typeof info === 'string' ? info : `${info} message${info !== 1 ? 's' : ''} available`;
         }
       }
 
@@ -3501,7 +3501,7 @@
 
         unreadCount = 0;
         updateNotificationBadge();
-        updateChatInfo('Keine neuen Nachrichten');
+        updateChatInfo('No new messages');
 
         const input = document.getElementById('chatInput');
         if (input) {
@@ -3866,7 +3866,7 @@
       window.markAllMessagesRead = function () {
         unreadCount = 0;
         updateNotificationBadge();
-        updateChatInfo('Keine neuen Nachrichten');
+        updateChatInfo('No new messages');
       };
 
       window.notifyUnreadMessage = function () {
@@ -3874,7 +3874,7 @@
         if (!chatWindow || !chatWindow.classList.contains('active')) {
           unreadCount++;
           updateNotificationBadge();
-          updateChatInfo(`${unreadCount} neue Nachricht${unreadCount > 1 ? 'en' : ''}`);
+          updateChatInfo(`${unreadCount} new message${unreadCount > 1 ? 's' : ''}`);
         }
       };
 
@@ -4023,26 +4023,26 @@
 
   async function placeSymbolFromCrosshair() {
     const latlng = getCrosshairLatLng();
-    if (!latlng) { alert('Kein Karten-Mittelpunkt gefunden.'); return; }
-    const name = prompt('Name für Punkt (optional)', '');
+    if (!latlng) { alert('No map center found.'); return; }
+    const name = prompt('Name for point (optional)', '');
     try {
       const res = await fetch('/api/map_markers', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng, name: (name || 'Punkt'), status: 'BASE', created_by: 'ui' })
+        body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng, name: (name || 'Point'), status: 'BASE', created_by: 'ui' })
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) { const msg = body && (body.message || body.detail) ? (body.message || body.detail) : `Status ${res.status}`; alert('Punktsetzung fehlgeschlagen: ' + msg); return; }
+      if (!res.ok) { const msg = body && (body.message || body.detail) ? (body.message || body.detail) : `Status ${res.status}`; alert('Placing point failed: ' + msg); return; }
       try {
         const layer = window.meshtasticLayer || window.map;
         if (window.L && layer) {
           const opts = (typeof createMeshtasticIcon === 'function') ? { icon: createMeshtasticIcon() } : {};
           const m = L.marker([latlng.lat, latlng.lng], opts);
           if (window.meshtasticLayer && window.meshtasticLayer.addTo) m.addTo(window.meshtasticLayer); else m.addTo(window.map);
-          m.bindPopup(body && body.marker && body.marker.name ? body.marker.name : (name || 'Punkt'));
+          m.bindPopup(body && body.marker && body.marker.name ? body.marker.name : (name || 'Point'));
         }
       } catch (e) { console.warn('Could not add temporary marker', e); }
-      alert('Punkt gesetzt.');
-    } catch (e) { console.error('placeSymbolFromCrosshair', e); alert('Fehler beim Setzen: ' + (e.message || e)); }
+      alert('Point placed.');
+    } catch (e) { console.error('placeSymbolFromCrosshair', e); alert('Error placing point: ' + (e.message || e)); }
   }
 </script>
 <!-- END: restore placeSymbolFromCrosshair handler -->
