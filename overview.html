@@ -982,7 +982,7 @@
               const messageEl = document.createElement('div');
               messageEl.className = 'chat-message incoming';
               messageEl.setAttribute('data-msg-id', msg.id || '');
-              const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+              const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
               messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || msg.message || '') + '</div>';
               messagesDiv.appendChild(messageEl);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -2516,7 +2516,7 @@
       messageEl.className = 'chat-message outgoing';
       messageEl.setAttribute('data-pending', 'true');
       const senderName = currentUserName || sessionStorage.getItem('currentUser') || 'Me';
-      const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       messageEl.innerHTML = `
     <div class="chat-message-header">
       <span class="chat-message-sender">${_escapeHtml(senderName)}</span>
@@ -2573,7 +2573,7 @@
           if (messageQueue) {
             messageQueue.addPendingMessage({ text: message, type: 'cot', timestamp: Date.now() });
             const statusEl = msgEl.querySelector('.chat-msg-status');
-            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In Warteschlange'; }
+            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In queue'; }
           } else {
             const statusEl = msgEl.querySelector('.chat-msg-status');
             if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
@@ -2688,7 +2688,7 @@
             const messageEl = document.createElement('div');
             messageEl.className = 'chat-message ' + (isOutgoing ? 'outgoing' : 'incoming');
             messageEl.setAttribute('data-msg-id', msg.id || '');
-            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : '';
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : '';
             let statusHtml = '';
             if (isOutgoing) {
               let icon = '&#10003;', color = '#888';
@@ -2894,7 +2894,7 @@
             messageEl.className = 'chat-message incoming';
             const sender = data.sender || data.from || 'Unknown';
             const text = data.text || data.message || '';
-            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
             messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(sender) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(text) + '</div>';
             messagesDiv.appendChild(messageEl);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -3181,7 +3181,7 @@
         <img id="overviewStreamImage" class="overview-stream-video" style="display:none;" alt="Camera Stream">
         <div class="overview-stream-placeholder" id="overviewStreamPlaceholder">
           <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
-          <div>Kein Stream</div>
+          <div>No Stream</div>
         </div>
       </div>
     `;
@@ -3595,7 +3595,7 @@
     window.setGpsInterval = function(sec) {
       gpsUpdateInterval = sec * 1000;
       localStorage.setItem('lpu5_gps_update_interval', sec);
-      alert('Update Intervall auf ' + sec + 's gesetzt');
+      alert('Update interval set to ' + sec + 's');
       toggleHamburgerMenu();
     };
 
@@ -3939,7 +3939,7 @@
       const messageDiv = document.createElement('div');
       messageDiv.className = 'chat-message ' + (message.from === 'You' ? 'outgoing' : 'incoming');
       
-      const time = new Date(message.timestamp).toLocaleTimeString('de-DE', { 
+      const time = new Date(message.timestamp).toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit' 
       });

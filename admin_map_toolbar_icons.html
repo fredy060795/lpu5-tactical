@@ -1,4 +1,4 @@
-﻿<!-- Rechtsseitige Icon-Leiste mit Flyouts (ersetzt vorherige side-panel + toolbarToggle) -->
+﻿<!-- Right-side icon bar with flyouts (replaces previous side-panel + toolbarToggle) -->
 <style>
 /* Icon bar */
 #iconBar {
@@ -127,7 +127,7 @@
   </div>
 
   <!-- Settings / Refresh -->
-  <div class="icon-btn" data-flyout="fly-settings" title="Einstellungen">
+  <div class="icon-btn" data-flyout="fly-settings" title="Settings">
     <i class="fas fa-cog"></i>
   </div>
 </div>
@@ -135,7 +135,7 @@
 <!-- Flyout: GPS -->
 <div id="fly-gps" class="icon-flyout" role="dialog" aria-hidden="true">
   <h4>GPS</h4>
-  <label>Farbe Punkt</label>
+  <label>Point Color</label>
   <input type="color" id="gpsColor_fly" value="#ff4444">
   <div class="row">
     <div class="col"><button class="btn ghost" onclick="gpsRefresh(); closeFlyout()">Refresh</button></div>
@@ -208,14 +208,14 @@
 
 <!-- Flyout: Settings -->
 <div id="fly-settings" class="icon-flyout" role="dialog" aria-hidden="true">
-  <h4>Einstellungen</h4>
+  <h4>Settings</h4>
   <label>Refresh Map</label>
   <div class="row">
     <div class="col"><button class="btn ghost" onclick="map.invalidateSize(); closeFlyout()">Reload</button></div>
     <div class="col"><button class="btn ghost" onclick="scheduleReapply(); closeFlyout()">Reapply Rotation</button></div>
   </div>
   <div style="margin-top:10px;">
-    <label>Sonstiges</label>
+    <label>Miscellaneous</label>
     <button class="btn ghost" onclick="localStorage.clear(); alert('Local data cleared'); closeFlyout()">Clear Local Data</button>
   </div>
 </div>
@@ -787,7 +787,7 @@
       placeholder.innerHTML = `
         <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px; color: #007bff;"></i>
         <div style="color: #007bff;">Camera Stream active</div>
-        <small style="color: #888;">Stream auf stream.html</small>
+        <small style="color: #888;">Stream on stream.html</small>
       `;
       placeholder.style.display = 'flex';
       placeholder.style.flexDirection = 'column';

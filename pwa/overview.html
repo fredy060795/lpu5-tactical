@@ -2279,7 +2279,7 @@
           const j = await r.json();
           const lat = parseFloat(j.latitude || j.lat || 0);
           const lng = parseFloat(j.longitude || j.lon || 0);
-          if (!lat || !lng) throw new Error('keine Koordinaten in IP-Antwort');
+          if (!lat || !lng) throw new Error('no coordinates in IP response');
 
           // Remove old GPS marker if exists
           if (gpsMarker) {
@@ -2348,7 +2348,7 @@
 
         map.setView([lat, lng], Math.max(map.getZoom(), 14));
         sendGpsToServer(lat, lng);
-      } else alert('UngÃ¼ltige Koordinaten.');
+      } else alert('Invalid coordinates.');
     }
 
     // Status menu toggle
@@ -2621,7 +2621,7 @@
           if (messageQueue) {
             messageQueue.addPendingMessage({ text: message, type: 'cot', timestamp: Date.now() });
             const statusEl = msgEl.querySelector('.chat-msg-status');
-            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In Warteschlange'; }
+            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In queue'; }
           } else {
             const statusEl = msgEl.querySelector('.chat-msg-status');
             if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
@@ -3502,10 +3502,10 @@
       // Login section (shown only when not logged in)
       const loginSection = !isLoggedIn ? `
         <div class="menu-section">
-          <h3>Anmelden</h3>
-          <input type="text" id="menu-user" placeholder="Rufname" autocomplete="off"
+          <h3>Login</h3>
+          <input type="text" id="menu-user" placeholder="Callsign" autocomplete="off"
             style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
-          <input type="password" id="menu-pass" placeholder="Passwort"
+          <input type="password" id="menu-pass" placeholder="Password"
             style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
           <button class="menu-btn" style="background:var(--accent-blue);border-color:var(--accent-blue);justify-content:center;font-weight:bold;" onclick="event.stopPropagation(); validateLogin()">
             <i class="fas fa-sign-in-alt"></i> LOGIN
@@ -3525,7 +3525,7 @@
         </div>
 
         <div class="menu-section">
-          <h3>GPS Einstellungen</h3>
+          <h3>GPS Settings</h3>
           <button class="menu-btn" onclick="event.stopPropagation(); toggleGpsAuto()">
             <i class="fas fa-sync-alt"></i> GPS Automatisch aktualisieren
           </button>
@@ -3595,7 +3595,7 @@
     window.setGpsInterval = function(sec) {
       gpsUpdateInterval = sec * 1000;
       localStorage.setItem('lpu5_gps_update_interval', sec);
-      alert('Update Intervall auf ' + sec + 's gesetzt');
+      alert('Update interval set to ' + sec + 's');
       toggleHamburgerMenu();
     };
 

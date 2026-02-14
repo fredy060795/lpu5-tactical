@@ -1065,10 +1065,10 @@ async def get_roles():
     """
     return {
         "roles": [
-            {"name": "admin", "level": 4, "description": "Voller Systemzugriff"},
-            {"name": "operator", "level": 3, "description": "Missions- und Marker-Verwaltung"},
-            {"name": "user", "level": 2, "description": "Standard-Benutzer mit Selbstaktualisierung"},
-            {"name": "guest", "level": 1, "description": "Nur-Lese-Zugriff auf öffentliche Daten"}
+            {"name": "admin", "level": 4, "description": "Full system access"},
+            {"name": "operator", "level": 3, "description": "Mission and marker management"},
+            {"name": "user", "level": 2, "description": "Standard user with self-update"},
+            {"name": "guest", "level": 1, "description": "Read-only access to public data"}
         ]
     }
 

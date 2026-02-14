@@ -264,7 +264,7 @@
             `;
             detailDiv.innerHTML = headerHtml + `<div id="unit-history-area" style="margin-top:8px;"></div>`;
 
-            // Lade die per-unit Stats + History (nur Einträge innerhalb Missionszeitfenster)
+            // Load per-unit Stats + History (only entries within mission time window)
             await loadMissionUnitStatsAndRender(id);
         } catch (e) {
             console.error('showDetails error', e);

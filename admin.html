@@ -667,7 +667,7 @@
                 <strong>${reg.username || 'N/A'}</strong>
                 ${reg.device ? ` | Device: ${reg.device}` : ''}
                 ${reg.callsign ? ` | Callsign: ${reg.callsign}` : ''}
-                ${reg.created_at ? ` | ${new Date(reg.created_at).toLocaleString('de-DE')}` : ''}
+                ${reg.created_at ? ` | ${new Date(reg.created_at).toLocaleString('en-US')}` : ''}
               </div>
             </div>
           `;
@@ -899,7 +899,7 @@
     }
 </script>
 
-<!-- optional sidebar behavior script (falls vorhanden) -->
+<!-- optional sidebar behavior script (if present) -->
 <script src="assets/sidebar.js"></script>
 <!-- permissions.js for RBAC permission checking -->
 <script src="permissions.js"></script>

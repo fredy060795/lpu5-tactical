@@ -561,7 +561,7 @@
                     <i class="fas fa-map-marked-alt"></i> An Admin Map senden
                 </button>
                 <button class="btn btn-danger" onclick="stopStream()">
-                    <i class="fas fa-stop-circle"></i> Stream beenden
+                    <i class="fas fa-stop-circle"></i> Stop Stream
                 </button>
             </div>
         </div>
@@ -963,7 +963,7 @@
 
             updateStreamStatus(false);
             document.getElementById('shareToAdminMapBtn').disabled = true;
-            showToast('Stream beendet', 'success');
+            showToast('Stream stopped', 'success');
         }
 
         // Share to admin map
@@ -977,7 +977,7 @@
                 stopFrameCapture();
                 // Clear shared stream reference
                 window.sharedStream = null;
-                showToast('Streaming beendet', 'success');
+                showToast('Streaming stopped', 'success');
                 return;
             }
 
@@ -1154,7 +1154,7 @@
             const ctx = canvas.getContext('2d');
             
             isSharing = true;
-            document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-stop"></i> Streaming beenden';
+            document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-stop"></i> Stop Streaming';
             
             console.log('Frame capture started - broadcasting at 10fps');
             
