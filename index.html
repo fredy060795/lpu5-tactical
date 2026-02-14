@@ -28,10 +28,10 @@
         th { text-align: left; padding: 12px; border-bottom: 2px solid #333; color: #ffffff; }
         td { padding: 12px; border-bottom: 1px solid #222; vertical-align: middle; }
         .status-pill { padding: 4px 8px; border-radius: 999px; font-weight:700; font-size:0.9rem; color:#000; display:inline-block; min-width:64px; text-align:center; }
-        .status-AKTIV { background:#28a745; color:#000; }
+        .status-ACTIVE { background:#28a745; color:#000; }
         .status-BASE { background:#007bff; color:#fff; }
         .status-KIA { background:#dc3545; color:#fff; }
-        .status-INAKTIV { background:#666; color:#fff; }
+        .status-INACTIVE { background:#666; color:#fff; }
         .btn-small { padding:6px 10px; border-radius:6px; border:1px solid #333; background:#202020; color:#fff; cursor:pointer; margin-right:6px; }
         .btn-small.active { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
         .empty-state { text-align:center; color:#777; padding:18px; }
@@ -69,13 +69,13 @@
             <tr>
                 <th>Callsign</th>
                 <th>Device</th>
-                <th>Benutzer</th>
+                <th>User</th>
                 <th>Status</th>
                 <th>Timer</th>
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody id="unit-table"><tr><td colspan="6" class="empty-state">Lädt...</td></tr></tbody>
+        <tbody id="unit-table"><tr><td colspan="6" class="empty-state">Loading...</td></tr></tbody>
     </table>
 </div>
 
@@ -170,8 +170,8 @@ function saveDeviceMap(){ try { localStorage.setItem(DEVICE_MAP_LS_KEY, JSON.str
 function esc(s){ if (s==null) return ''; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function nowISO(){ return (new Date()).toISOString(); }
 function formatDuration(sec){ if (!Number.isFinite(sec)) sec = 0; if (sec < 0) sec = 0; const h = String(Math.floor(sec/3600)).padStart(2,'0'); const m = String(Math.floor((sec%3600)/60)).padStart(2,'0'); const s = String(sec%60).padStart(2,'0'); return `${h}:${m}:${s}`; }
-function normalizeStatus(s){ if (!s) return 'BASE'; const t = String(s).toUpperCase(); if (['ACTIVE','AKTIV','ONGOING','ON'].includes(t)) return 'AKTIV'; if (['KIA','DECEASED'].includes(t)) return 'KIA'; if (['INACTIVE','OFF'].includes(t)) return 'INAKTIV'; return t; }
-function statusClass(lbl){ if (lbl==='AKTIV') return 'status-AKTIV'; if (lbl==='KIA') return 'status-KIA'; if (lbl==='INAKTIV') return 'status-INAKTIV'; return 'status-BASE'; }
+function normalizeStatus(s){ if (!s) return 'BASE'; const t = String(s).toUpperCase(); if (['ACTIVE','AKTIV','ONGOING','ON'].includes(t)) return 'ACTIVE'; if (['KIA','DECEASED'].includes(t)) return 'KIA'; if (['INACTIVE','INAKTIV','OFF'].includes(t)) return 'INACTIVE'; return t; }
+function statusClass(lbl){ if (lbl==='ACTIVE') return 'status-ACTIVE'; if (lbl==='KIA') return 'status-KIA'; if (lbl==='INACTIVE') return 'status-INACTIVE'; return 'status-BASE'; }
 async function apiFetch(path, opts){ opts = opts || {}; opts.headers = opts.headers || {}; const token = localStorage.getItem('lpu5_token'); if (token) opts.headers['Authorization'] = 'Bearer ' + token; return fetch(path, opts); }
 
 /* --- Data load --- */
@@ -329,7 +329,7 @@ async function assignDeviceToUser(user, nodeName){
 function renderTable(){
     const tbody = document.getElementById('unit-table');
     if (!allUsers || allUsers.length === 0){
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Keine Benutzer gefunden</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found</td></tr>';
         return;
     }
     const users = allUsers.slice().sort((a,b)=>String(a.username||a.callsign||'').localeCompare(String(b.username||b.callsign||'')));
@@ -350,7 +350,7 @@ function renderTable(){
         const sel = renderDeviceSelect(u);
         deviceCell.appendChild(sel);
 
-        const acctInactiveHtml = (u.active === false) ? `<span class="account-inactive">(Account: INAKTIV)</span>` : '';
+        const acctInactiveHtml = (u.active === false) ? `<span class="account-inactive">(Account: INACTIVE)</span>` : '';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${esc(callsignDisplay)}</td>
@@ -359,7 +359,7 @@ function renderTable(){
             <td><span class="status-pill ${cls}">${esc(tacticalStatus)}</span></td>
             <td id="${timerId}">--:--:--</td>
             <td style="white-space:nowrap">
-                <button class="btn-small" data-user="${idEnc}" data-set="AKTIV">AKTIV</button>
+                <button class="btn-small" data-user="${idEnc}" data-set="ACTIVE">ACTIVE</button>
                 <button class="btn-small" data-user="${idEnc}" data-set="BASE">BASE</button>
                 <button class="btn-small" data-user="${idEnc}" data-set="KIA">KIA</button>
             </td>`;
@@ -404,7 +404,7 @@ async function localSetStatus(idEnc, newStatus){
     if (!user) user = allUsers.find(u => (u._assigned_node_name && String(u._assigned_node_name) === String(id)));
 
     const key = getUserKey(user || { id: id, username: id });
-    if (!confirm(`Status für Einheit ${key} auf ${newStatus} setzen?`)) return;
+    if (!confirm(`Set status for unit ${key} to ${newStatus}?`)) return;
 
     const ts = nowISO();
     applyClientStatus(key, newStatus, ts);
@@ -412,7 +412,7 @@ async function localSetStatus(idEnc, newStatus){
 
     // Broadcast status change to other tabs (overview.html)
     const username = user ? (user.username || '') : id;
-    const color = newStatus === 'AKTIV' ? '#28a745' : (newStatus === 'KIA' ? '#dc3545' : '#007bff');
+    const color = newStatus === 'ACTIVE' ? '#28a745' : (newStatus === 'KIA' ? '#dc3545' : '#007bff');
     const updateData = { type: 'status_change', status: newStatus, color: color, username: username, timestamp: ts };
     try {
         if (statusBroadcast) statusBroadcast.postMessage(updateData);
@@ -478,9 +478,9 @@ function updateTimers(){
 
         if (status === 'KIA'){
             const dt = tod || ts || new Date();
-            cell.innerText = 'TOD: ' + dt.toLocaleTimeString('de-DE');
+            cell.innerText = 'TOD: ' + dt.toLocaleTimeString('en-US');
             cell.style.color = '#ff6666';
-        } else if (status === 'AKTIV'){
+        } else if (status === 'ACTIVE'){
             const start = ts || new Date();
             const diff = Math.floor((now - start) / 1000);
             cell.innerText = formatDuration(diff);
@@ -528,7 +528,7 @@ async function updateMissionHeader(){
             return;
         }
         const label = normalizeStatus(ongoing.status);
-        const color = label==='AKTIV' ? '#28a745' : (label==='KIA' ? '#dc3545' : '#007bff');
+        const color = label==='ACTIVE' ? '#28a745' : (label==='KIA' ? '#dc3545' : '#007bff');
         document.getElementById('missionStatus').innerText = label;
         document.getElementById('missionStatus').style.color = color;
     } catch(e){
@@ -538,7 +538,7 @@ async function updateMissionHeader(){
 
 /* init */
 window.addEventListener('DOMContentLoaded', async () => {
-    setInterval(()=>{ document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE'); }, 1000);
+    setInterval(()=>{ document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-US'); }, 1000);
 
     clientStatusMap = loadClientStatus();
     deviceAssignmentMap = loadDeviceMap();
@@ -649,7 +649,7 @@ function logoutUser(){
         if (name) return { name, online: true };
       }
     } catch (e) {}
-    return { name: 'Gast', online: false };
+    return { name: 'Guest', online: false };
   }
 
   async function updateSidebarUserDisplay() {
@@ -657,9 +657,9 @@ function logoutUser(){
     const elStatus = getStatusEl();
     if (!elName) return;
     const info = await resolveDisplayName();
-    elName.textContent = info.name || 'Gast';
+    elName.textContent = info.name || 'Guest';
     if (elStatus) {
-      elStatus.textContent = info.online ? 'Online' : 'Nicht angemeldet';
+      elStatus.textContent = info.online ? 'Online' : 'Not logged in';
       elStatus.style.color = info.online ? '' : '#999';
     }
     try {
@@ -726,7 +726,7 @@ function logoutUser(){
       statusEl.innerText = status;
       
       // Update color based on status
-      if (status === 'AKTIV') statusEl.style.color = '#28a745';
+      if (status === 'ACTIVE') statusEl.style.color = '#28a745';
       else if (status === 'BASE') statusEl.style.color = '#007bff';
       else if (status === 'KIA') statusEl.style.color = '#dc3545';
       else statusEl.style.color = '';
