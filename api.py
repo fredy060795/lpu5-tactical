@@ -1734,20 +1734,48 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
         # Sort by timestamp
         filtered_history.sort(key=lambda x: parse_time(x.get("timestamp")) or datetime.min)
         
-        # Calculate statistics
-        status_counts = {}
-        for entry in filtered_history:
-            status = entry.get("status")
-            if status:
-                status_counts[status] = status_counts.get(status, 0) + 1
+        # Calculate first and last status
+        first_status = filtered_history[0].get("status", "UNKNOWN") if filtered_history else "UNKNOWN"
+        last_status = filtered_history[-1].get("status", "UNKNOWN") if filtered_history else "UNKNOWN"
+        
+        # Calculate total_changes (count of status changes)
+        total_changes = len(filtered_history)
+        
+        # Calculate durations for each status (time spent in each status in seconds)
+        durations = {}
+        for i in range(len(filtered_history)):
+            current_entry = filtered_history[i]
+            current_status = current_entry.get("status")
+            current_time = parse_time(current_entry.get("timestamp"))
+            
+            if not current_status or not current_time:
+                continue
                 
+            # Calculate duration until next status change or end of mission
+            if i < len(filtered_history) - 1:
+                next_time = parse_time(filtered_history[i + 1].get("timestamp"))
+                if next_time:
+                    duration = (next_time - current_time).total_seconds()
+                else:
+                    duration = 0
+            else:
+                # Last entry - calculate duration until mission end
+                duration = (end_dt - current_time).total_seconds()
+            
+            # Add duration to the status
+            if current_status in durations:
+                durations[current_status] += duration
+            else:
+                durations[current_status] = duration
+        
+        # Build the unit stats object with the expected structure
         unit_stats.append({
-            "username": user.username,
-            "fullname": user.fullname or user.username,
-            "role": user.role,
-            "history_count": len(filtered_history),
-            "last_history": filtered_history[-1] if filtered_history else None,
-            "status_distribution": status_counts,
+            "name": user.fullname or user.username,
+            "device": user.device or user.username,
+            "first_status": first_status,
+            "last_status": last_status,
+            "total_changes": total_changes,
+            "durations": durations,
             "history": filtered_history
         })
             
