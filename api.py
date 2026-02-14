@@ -1702,13 +1702,23 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
     # Get mission time window
     def parse_time(t):
         if not t: return None
-        if isinstance(t, datetime): return t
+        if isinstance(t, datetime):
+            # Ensure timezone-aware
+            if t.tzinfo is None:
+                return t.replace(tzinfo=timezone.utc)
+            return t
         if isinstance(t, (int, float)):
-            return datetime.fromtimestamp(t if t < 1e12 else t / 1000)
-        try: return datetime.fromisoformat(str(t).replace('Z', '+00:00'))
+            dt = datetime.fromtimestamp(t if t < 1e12 else t / 1000, tz=timezone.utc)
+            return dt
+        try:
+            dt = datetime.fromisoformat(str(t).replace('Z', '+00:00'))
+            # Ensure timezone-aware
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt
         except: return None
     
-    start_dt = parse_time(mission.data.get("start_time") if mission.data else None) or mission.created_at
+    start_dt = parse_time(mission.data.get("start_time") if mission.data else None) or parse_time(mission.created_at)
     end_dt = parse_time(mission.data.get("completed_at") if mission.data else None) or datetime.now(timezone.utc)
     
     # Load users from DB
@@ -1732,7 +1742,7 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
             continue
             
         # Sort by timestamp
-        filtered_history.sort(key=lambda x: parse_time(x.get("timestamp")) or datetime.min)
+        filtered_history.sort(key=lambda x: parse_time(x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc))
         
         # Calculate first and last status
         first_status = filtered_history[0].get("status", "UNKNOWN") if filtered_history else "UNKNOWN"
