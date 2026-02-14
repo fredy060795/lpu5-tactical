@@ -82,15 +82,15 @@ The integrated Meshtastic Gateway Service enables real-time hardware connection 
 **Via API:**
 ```bash
 # Start gateway on COM7 (Windows) or /dev/ttyUSB0 (Linux)
-curl -X POST http://localhost:8001/api/gateway/start \
+curl -X POST http://localhost:8101/api/gateway/start \
   -H "Content-Type: application/json" \
   -d '{"port": "COM7", "auto_sync": true, "sync_interval": 300}'
 
 # Check status
-curl http://localhost:8001/api/gateway/status
+curl http://localhost:8101/api/gateway/status
 
 # Stop gateway
-curl -X POST http://localhost:8001/api/gateway/stop
+curl -X POST http://localhost:8101/api/gateway/stop
 ```
 
 **Via UI:**
@@ -114,7 +114,7 @@ python meshtastic_gateway_service.py --list-ports
 ### For iOS Users (PWA)
 1. **Server must be running at HQ** (see Installation below)
 2. On iOS device, open Safari
-3. Navigate to `https://your-hq-ip:8001/pwa/overview.html`
+3. Navigate to `https://your-hq-ip:8101/pwa/overview.html`
 4. Tap Share → Add to Home Screen
 5. Launch app from home screen
 6. Login and start using
@@ -136,10 +136,10 @@ python meshtastic_gateway_service.py --list-ports
 pip install -r requirements.txt
 
 # Run the API server
-uvicorn api:app --host 0.0.0.0 --port 8001 --ssl-keyfile key.pem --ssl-certfile cert.pem
+uvicorn api:app --host 0.0.0.0 --port 8101 --ssl-keyfile key.pem --ssl-certfile cert.pem
 
 # Optional: Start Meshtastic Gateway (for iOS PWA mesh access)
-curl -X POST http://localhost:8001/api/gateway/start \
+curl -X POST http://localhost:8101/api/gateway/start \
   -H "Content-Type: application/json" \
   -d '{"port": "COM7", "auto_sync": true, "sync_interval": 300}'
 ```
@@ -162,7 +162,7 @@ curl -X POST http://localhost:8001/api/gateway/start \
 pip install -r requirements.txt
 
 # Run the server
-uvicorn api:app --host 0.0.0.0 --port 8001 --ssl-keyfile key.pem --ssl-certfile cert.pem
+uvicorn api:app --host 0.0.0.0 --port 8101 --ssl-keyfile key.pem --ssl-certfile cert.pem
 
 # Or use the startup scripts:
 # Linux/Unix/macOS:
@@ -283,7 +283,7 @@ Connect to `/ws` for real-time updates:
 
 ### Example:
 ```javascript
-const ws = new WebSocket('wss://localhost:8001/ws');
+const ws = new WebSocket('wss://localhost:8101/ws');
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'gateway_message') {

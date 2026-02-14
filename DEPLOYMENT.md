@@ -34,7 +34,7 @@ The LPU5 Tactical system is now split into two platform-specific implementations
   - Python 3.8+ installed
   - SSL certificate (required for HTTPS/PWA)
   - Public IP or domain name accessible from internet
-  - Port 8001 (or configured port) open in firewall
+  - Port 8101 (or configured port) open in firewall
 
 - **Client Requirements**:
   - iOS 11.3+ with Safari browser
@@ -64,14 +64,14 @@ openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 36
 
 #### 3. Configure API Server
 Edit `api.py` if needed to configure:
-- Port number (default: 8001)
+- Port number (default: 8101)
 - Database location
 - CORS settings for remote access
 
 #### 4. Start the Server
 ```bash
 # Option A: Using uvicorn directly
-uvicorn api:app --host 0.0.0.0 --port 8001 --ssl-keyfile key.pem --ssl-certfile cert.pem
+uvicorn api:app --host 0.0.0.0 --port 8101 --ssl-keyfile key.pem --ssl-certfile cert.pem
 
 # Option B: Using start script (Windows)
 start_lpu5.bat
@@ -90,7 +90,7 @@ After=network.target
 Type=simple
 User=tactical
 WorkingDirectory=/opt/lpu5-tactical
-ExecStart=/usr/bin/python3 -m uvicorn api:app --host 0.0.0.0 --port 8001 --ssl-keyfile key.pem --ssl-certfile cert.pem
+ExecStart=/usr/bin/python3 -m uvicorn api:app --host 0.0.0.0 --port 8101 --ssl-keyfile key.pem --ssl-certfile cert.pem
 Restart=always
 
 [Install]
@@ -99,12 +99,12 @@ WantedBy=multi-user.target
 
 #### 5. Configure Firewall
 ```bash
-# Allow port 8001 through firewall
+# Allow port 8101 through firewall
 # For UFW (Ubuntu):
-sudo ufw allow 8001/tcp
+sudo ufw allow 8101/tcp
 
 # For firewalld (CentOS/RHEL):
-sudo firewall-cmd --permanent --add-port=8001/tcp
+sudo firewall-cmd --permanent --add-port=8101/tcp
 sudo firewall-cmd --reload
 ```
 
@@ -113,7 +113,7 @@ sudo firewall-cmd --reload
 #### 1. Access PWA URL
 On iOS device, open Safari and navigate to:
 ```
-https://your-server-ip:8001/pwa/overview.html
+https://your-server-ip:8101/pwa/overview.html
 ```
 
 **Important**: You must use HTTPS. HTTP will not work for PWA features.
@@ -155,7 +155,7 @@ https://your-server-ip:8001/pwa/overview.html
 **Workaround Setup**:
 ```bash
 # On HQ server, start Meshtastic Gateway
-curl -X POST https://localhost:8001/api/gateway/start \
+curl -X POST https://localhost:8101/api/gateway/start \
   -H "Content-Type: application/json" \
   -d '{"port": "COM7", "auto_sync": true, "sync_interval": 300}'
 
@@ -364,8 +364,8 @@ if (window.isAndroidNative) {
 ### iOS PWA Issues
 
 **"Cannot connect to server"**
-- Check server is running: `curl -k https://server-ip:8001/api/status`
-- Verify firewall allows port 8001
+- Check server is running: `curl -k https://server-ip:8101/api/status`
+- Verify firewall allows port 8101
 - Ensure SSL certificates are valid
 - Check device has internet connectivity
 
@@ -436,7 +436,7 @@ if (window.isAndroidNative) {
 ### Common Commands
 ```bash
 # Check API server status
-curl -k https://localhost:8001/api/status
+curl -k https://localhost:8101/api/status
 
 # View server logs
 tail -f /var/log/lpu5-tactical.log

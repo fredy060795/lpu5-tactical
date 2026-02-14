@@ -7,7 +7,7 @@ import sys
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("system-test")
 
-BASE_URL = "https://127.0.0.1:8001"
+BASE_URL = "https://127.0.0.1:8101"
 USERNAME = "administrator"
 PASSWORD = "password"
 

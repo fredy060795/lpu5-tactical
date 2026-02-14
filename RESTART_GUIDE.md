@@ -77,7 +77,7 @@ start_lpu5.bat
 
 ```bash
 # Prüfen ob der Server läuft / Check if server is running
-lsof -i :8001
+lsof -i :8101
 
 # Server beenden und neu starten / Stop and restart server
 ./restart_lpu5.sh
@@ -109,7 +109,7 @@ restart_lpu5.bat
 **Linux/Unix/macOS:**
 ```bash
 # Finde den Prozess / Find the process
-lsof -i :8001
+lsof -i :8101
 
 # Oder mit ps
 ps aux | grep "uvicorn api:app"
@@ -124,7 +124,7 @@ kill -9 <PID>
 **Windows:**
 ```cmd
 REM Finde den Prozess / Find the process
-netstat -ano | findstr :8001
+netstat -ano | findstr :8101
 
 REM Beende den Prozess / Kill the process
 taskkill /PID <PID> /F
@@ -175,7 +175,7 @@ nano config.json
 ./restart_lpu5.sh
 
 # 3. Prüfe ob der Server läuft / Check if server is running
-curl -k https://localhost:8001/api/status
+curl -k https://localhost:8101/api/status
 ```
 
 ### Szenario 2: Python-Pakete aktualisiert / Python Packages Updated
@@ -244,13 +244,13 @@ chmod 644 cert.pem
 
 **Symptom:**
 ```
-[ERROR] Port 8001 is already in use
+[ERROR] Port 8101 is already in use
 ```
 
 **Lösung / Solution:**
 ```bash
 # Finde und beende den Prozess / Find and kill the process
-lsof -i :8001
+lsof -i :8101
 kill <PID>
 
 # Oder verwende restart_lpu5.sh / Or use restart_lpu5.sh
@@ -289,7 +289,7 @@ kill <PID>
 
 5. **Starte im Debug-Modus / Start in debug mode:**
    ```bash
-   python3 -m uvicorn api:app --host 0.0.0.0 --port 8001 --reload
+   python3 -m uvicorn api:app --host 0.0.0.0 --port 8101 --reload
    ```
 
 ### Problem: Virtuelle Umgebung fehlt / Virtual environment missing
@@ -377,26 +377,26 @@ REM Oder Event Viewer für systemd-artige Services
 
 ```bash
 # Einfacher Health-Check / Simple health check
-curl -k https://localhost:8001/api/status
+curl -k https://localhost:8101/api/status
 
 # Oder mit jq für formatierte Ausgabe / Or with jq for formatted output
-curl -k https://localhost:8001/api/status | jq
+curl -k https://localhost:8101/api/status | jq
 
 # HTTP-Status-Code prüfen / Check HTTP status code
-curl -k -o /dev/null -s -w "%{http_code}\n" https://localhost:8001/api/status
+curl -k -o /dev/null -s -w "%{http_code}\n" https://localhost:8101/api/status
 ```
 
 ### Verbindungen prüfen / Check Connections
 
 ```bash
 # Aktive Verbindungen / Active connections
-lsof -i :8001
+lsof -i :8101
 
 # Oder mit netstat
-netstat -an | grep 8001
+netstat -an | grep 8101
 
 # Anzahl der Verbindungen / Number of connections
-lsof -i :8001 | wc -l
+lsof -i :8101 | wc -l
 ```
 
 ### Performance überwachen / Monitor Performance
@@ -435,7 +435,7 @@ After=network.target
 Type=simple
 User=tactical
 WorkingDirectory=/opt/lpu5-tactical
-ExecStart=/opt/lpu5-tactical/.venv/bin/python3 -m uvicorn api:app --host 0.0.0.0 --port 8001 --ssl-keyfile key.pem --ssl-certfile cert.pem
+ExecStart=/opt/lpu5-tactical/.venv/bin/python3 -m uvicorn api:app --host 0.0.0.0 --port 8101 --ssl-keyfile key.pem --ssl-certfile cert.pem
 Restart=always
 RestartSec=10
 
@@ -459,7 +459,7 @@ Erstellen Sie ein Überwachungsskript / Create a monitoring script:
 # watch_lpu5.sh
 
 while true; do
-  if ! curl -k -f https://localhost:8001/api/status > /dev/null 2>&1; then
+  if ! curl -k -f https://localhost:8101/api/status > /dev/null 2>&1; then
     echo "$(date): Server nicht erreichbar, starte neu..."
     echo "$(date): Server not reachable, restarting..."
     ./restart_lpu5.sh
@@ -498,7 +498,7 @@ done
 
 2. ✅ **Port-Freigabe prüfen / Verify port release**
    ```bash
-   while lsof -i :8001 > /dev/null; do sleep 1; done
+   while lsof -i :8101 > /dev/null; do sleep 1; done
    echo "Port frei / Port free"
    ```
 
@@ -506,8 +506,8 @@ done
 
 1. ✅ **Funktionalität testen / Test functionality**
    ```bash
-   curl -k https://localhost:8001/api/status
-   curl -k https://localhost:8001/api/map_markers
+   curl -k https://localhost:8101/api/status
+   curl -k https://localhost:8101/api/map_markers
    ```
 
 2. ✅ **Logs überwachen / Monitor logs**
@@ -517,7 +517,7 @@ done
 
 3. ✅ **Performance prüfen / Check performance**
    ```bash
-   time curl -k https://localhost:8001/api/status
+   time curl -k https://localhost:8101/api/status
    ```
 
 ---

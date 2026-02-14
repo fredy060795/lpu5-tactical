@@ -259,7 +259,7 @@ async def lifespan(application):
                 status = data_server_manager.get_status()
                 if status:
                     logger.info(f"   Data server status: {status.get('status')}")
-                    logger.info(f"   WebSocket: ws://127.0.0.1:8002/ws")
+                    logger.info(f"   WebSocket: ws://127.0.0.1:8102/ws")
             else:
                 logger.warning("⚠️  Failed to start data server, falling back to direct WebSocket")
         except Exception as e:
@@ -370,7 +370,7 @@ if AUTONOMOUS_MODULES_AVAILABLE:
 if DATA_SERVER_AVAILABLE:
     try:
         data_server_manager = DataServerManager(
-            data_server_port=8002,
+            data_server_port=8102,
             data_server_host="127.0.0.1"
         )
         logger.info("Data server manager initialized")
@@ -3930,8 +3930,8 @@ def get_server_info():
         "status": "ok",
         "local_ip": local_ip,
         "all_detected_ips": all_ips,
-        "port": 8001,
-        "base_url": f"{protocol}://{local_ip}:8001",
+        "port": 8101,
+        "base_url": f"{protocol}://{local_ip}:8101",
         "timestamp": datetime.now().isoformat()
     }
 
@@ -4025,7 +4025,7 @@ def api_qr_create(data: dict = Body(...), request: Request = None, db: Session =
             cert_file = os.path.join(base_path, "cert.pem")
             key_file = os.path.join(base_path, "key.pem")
             protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
-            qr_url = f"{protocol}://{local_ip}:8001/qr/{token}"
+            qr_url = f"{protocol}://{local_ip}:8101/qr/{token}"
             qr_img = qrcode.make(qr_url)
             from io import BytesIO
             buf = BytesIO()
@@ -5952,7 +5952,7 @@ if __name__ == "__main__":
         logger.info(f"  *** WLAN IP (192.168.8.x) DETECTED: {local_ip} ***")
         logger.info(f"  *** Use this IP to access from your mobile device! ***")
     
-    logger.info(f"  Server will bind to: 0.0.0.0:8001 (all interfaces)")
+    logger.info(f"  Server will bind to: 0.0.0.0:8101 (all interfaces)")
     
     # SSL/HTTPS Status
     if use_ssl:
@@ -5965,8 +5965,8 @@ if __name__ == "__main__":
         logger.info("  To enable HTTPS: Generate cert.pem and key.pem in the project root")
     
     logger.info(f"  Access URLs:")
-    logger.info(f"    - From this device: {protocol}://127.0.0.1:8001/landing.html")
-    logger.info(f"    - From network:     {protocol}://{local_ip}:8001/landing.html")
+    logger.info(f"    - From this device: {protocol}://127.0.0.1:8101/landing.html")
+    logger.info(f"    - From network:     {protocol}://{local_ip}:8101/landing.html")
     
     # Additional access URLs for each detected IP (avoid duplicates)
     if all_detected_ips:
@@ -5974,7 +5974,7 @@ if __name__ == "__main__":
         if alternative_ips:
             logger.info(f"  Alternative Network URLs:")
             for ip in alternative_ips:
-                logger.info(f"    - {protocol}://{ip}:8001/landing.html")
+                logger.info(f"    - {protocol}://{ip}:8101/landing.html")
     
     logger.info("="*60)
     
@@ -5983,10 +5983,10 @@ if __name__ == "__main__":
         uvicorn.run(
             app, 
             host="0.0.0.0", 
-            port=8001, 
+            port=8101, 
             log_level="info",
             ssl_certfile=cert_file,
             ssl_keyfile=key_file
         )
     else:
-        uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info")
+        uvicorn.run(app, host="0.0.0.0", port=8101, log_level="info")

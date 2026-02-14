@@ -97,15 +97,15 @@ echo -e "${BLUE}[*]${NC} Press CTRL+C to stop"
 echo ""
 
 # Check if port is already in use
-if lsof -Pi :8001 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo -e "${YELLOW}[WARN]${NC} Port 8001 is already in use"
+if lsof -Pi :8101 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo -e "${YELLOW}[WARN]${NC} Port 8101 is already in use"
     echo -e "${YELLOW}[WARN]${NC} Use restart_lpu5.sh to restart the server"
     exit 1
 fi
 
 # Start uvicorn server
 if [ -n "$USE_SSL" ]; then
-    python3 -m uvicorn api:app --host 0.0.0.0 --port 8001 $USE_SSL
+    python3 -m uvicorn api:app --host 0.0.0.0 --port 8101 $USE_SSL
 else
-    python3 -m uvicorn api:app --host 0.0.0.0 --port 8001
+    python3 -m uvicorn api:app --host 0.0.0.0 --port 8101
 fi

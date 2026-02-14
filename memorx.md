@@ -25,7 +25,7 @@
                         │ HTTP REST + WebSocket
                         ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│      HAUPT-API-SERVER (api.py – Port 8001)                      │
+│      HAUPT-API-SERVER (api.py – Port 8101)                      │
 │                                                                  │
 │  ├─ REST-Endpunkte (CRUD: User, Marker, Missions, Chat, …)     │
 │  ├─ Authentifizierung (JWT Token, Sessions, SHA-256 Hashing)    │
@@ -43,7 +43,7 @@
                         │ HTTP POST → /api/broadcast
                         ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│     DATEN-SERVER (data_server.py – Port 8002)                   │
+│     DATEN-SERVER (data_server.py – Port 8102)                   │
 │                                                                  │
 │  Separater Prozess für Echtzeit-Datenverteilung                 │
 │  ├─ POST /api/broadcast  ← Empfängt Updates von Haupt-API      │
@@ -68,8 +68,8 @@
 
 | Port | Dienst | Zweck |
 |------|--------|-------|
-| **8001** | Haupt-API-Server (api.py) | REST API + Statische Dateien + WebSocket-Fallback |
-| **8002** | Daten-Server (data_server.py) | WebSocket /ws + HTTP /api/broadcast, /api/health, /api/status |
+| **8101** | Haupt-API-Server (api.py) | REST API + Statische Dateien + WebSocket-Fallback |
+| **8102** | Daten-Server (data_server.py) | WebSocket /ws + HTTP /api/broadcast, /api/health, /api/status |
 
 ---
 
@@ -102,7 +102,7 @@
 | **database.py** | SQLAlchemy Engine & Session-Factory |
 | **models.py** | SQLAlchemy ORM-Modelle für alle Daten-Entitäten |
 | **websocket_manager.py** | WebSocket-Verbindungsverwaltung, Pub/Sub-Kanäle |
-| **data_server.py** | Unabhängiger Datenverteilungsprozess (Port 8002) |
+| **data_server.py** | Unabhängiger Datenverteilungsprozess (Port 8102) |
 | **data_server_manager.py** | Startet & verwaltet data_server als Subprocess |
 | **autonomous_engine.py** | Regelbasierte Automatisierung, Trigger, Aktionsausführung |
 | **geofencing.py** | Zonenerstellung, Ein-/Austritts-Erkennung (Haversine) |
@@ -118,11 +118,11 @@
 
 ### Beispiel: Benutzer erstellt Kartenmarker
 
-1. Browser → `POST /api/map_markers` → Haupt-API (Port 8001)
+1. Browser → `POST /api/map_markers` → Haupt-API (Port 8101)
 2. Haupt-API speichert in SQLite-Datenbank
 3. Haupt-API ruft `broadcast_websocket_update()` auf
 4. Falls Daten-Server läuft:
-   - `POST http://127.0.0.1:8002/api/broadcast` mit Marker-Daten
+   - `POST http://127.0.0.1:8102/api/broadcast` mit Marker-Daten
    - Daten-Server sendet an alle Clients im "markers"-Kanal via WebSocket
 5. Falls Daten-Server nicht verfügbar (Fallback):
    - Direkter WebSocket-Broadcast via `websocket_manager.publish_to_channel()`
@@ -191,8 +191,8 @@
 
 | # | Problem | Datei | Zeilen | Fix |
 |---|---------|-------|--------|-----|
-| 1 | **Port-Konflikt:** data_server.py startete auf Port 8001, gleich wie Haupt-API. data_server_manager (api.py) erwartete Port 8002. | data_server.py:40 | `DATA_SERVER_PORT = 8001` → `8002` | ✅ Behoben |
-| 2 | **WebSocket-Log zeigte falschen Port** | api.py:782 | `ws://127.0.0.1:8001/ws` → `8002` | ✅ Behoben |
+| 1 | **Port-Konflikt:** data_server.py startete auf Port 8101, gleich wie Haupt-API. data_server_manager (api.py) erwartete Port 8102. | data_server.py:40 | `DATA_SERVER_PORT = 8101` → `8102` | ✅ Behoben |
+| 2 | **WebSocket-Log zeigte falschen Port** | api.py:782 | `ws://127.0.0.1:8101/ws` → `8102` | ✅ Behoben |
 | 3 | **MeshtasticNode: nicht existierende Attribute** `mesh_id`, `name`, `callsign`, `device` verwendet statt `long_name`, `short_name`, `hardware_model` | api.py:650-670 | Attribute korrigiert | ✅ Behoben |
 | 4 | **MapMarker.timestamp existiert nicht** – korrekt ist `created_at` | api.py:663 | `marker.timestamp` → `marker.created_at` | ✅ Behoben |
 | 5 | **MapMarker.unit_id und .status existieren nicht** – müssen über `data` JSON-Feld abgefragt werden | api.py:1453-1467 | Filter und Zugriff über `data` JSON korrigiert | ✅ Behoben |
