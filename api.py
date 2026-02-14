@@ -1103,14 +1103,14 @@ async def create_user_with_password(data: dict = Body(...), authorization: Optio
     role = data.get("role", "user").lower()
     
     if not username:
-        raise HTTPException(status_code=400, detail="Benutzername erforderlich")
+        raise HTTPException(status_code=400, detail="Username required")
     if not password:
-        raise HTTPException(status_code=400, detail="Passwort erforderlich")
+        raise HTTPException(status_code=400, detail="Password required")
     if len(password) < 6:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 6 Zeichen sein")
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     
     if db.query(User).filter(User.username == username).first():
-        raise HTTPException(status_code=400, detail="Benutzername existiert bereits")
+        raise HTTPException(status_code=400, detail="Username already exists")
     
     new_user = User(
         id=str(uuid.uuid4()),
@@ -1242,7 +1242,7 @@ async def update_user(user_id: str, data: dict = Body(...), authorization: Optio
 async def change_user_password_admin(user_id: str, data: dict = Body(...), db: Session = Depends(get_db)):
     new_password = data.get("new_password", "").strip()
     if not new_password or len(new_password) < 6:
-        raise HTTPException(status_code=400, detail="Passwort muss mindestens 6 Zeichen sein")
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -5085,11 +5085,7 @@ def trigger_rules_api(data: Dict = Body(...)):
 
 # Default chat channels (seeded into DB on first use)
 DEFAULT_CHANNELS = [
-    {"id": "all", "name": "Alle Einheiten", "description": "Broadcast to all units", "color": "#ffffff", "is_default": True},
-    {"id": "hq", "name": "HQ", "description": "Headquarters Communication", "color": "#3498db", "is_default": False},
-    {"id": "fox", "name": "Fox", "description": "Fox Team Channel", "color": "#e67e22", "is_default": False},
-    {"id": "alpha", "name": "Alpha", "description": "Alpha Team Channel", "color": "#2ecc71", "is_default": False},
-    {"id": "bravo", "name": "Bravo", "description": "Bravo Team Channel", "color": "#9b59b6", "is_default": False}
+    {"id": "all", "name": "All Units", "description": "Broadcast to all units", "color": "#ffffff", "is_default": True},
 ]
 
 def _ensure_default_channels(db):
@@ -5902,7 +5898,7 @@ def catch_all(full_path: str, request: Request):
     candidate_index = os.path.join(candidate, "index.html")
     if os.path.isfile(candidate_index):
         return FileResponse(candidate_index, media_type="text/html")
-    raise HTTPException(status_code=404, detail=f"File {full_path} not found. Bitte .html Endung verwenden.")
+    raise HTTPException(status_code=404, detail=f"File {full_path} not found. Please use .html extension.")
 
 # -------------------------
 # Run (development)
