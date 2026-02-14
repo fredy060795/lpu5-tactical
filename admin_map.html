@@ -875,7 +875,7 @@
 
   <div id="map"></div>
   <div id="crosshair" aria-hidden="true"></div>
-  <button id="set-btn" onclick="placeSymbolFromCrosshair()">PUNKT SETZEN</button>
+  <button id="set-btn" onclick="placeSymbolFromCrosshair()">SET POINT</button>
 
   <div id="iconBar" aria-hidden="false">
     <!-- Existing buttons WITHOUT duplicate life status icons -->
@@ -906,8 +906,8 @@
       <option value="120">120s</option>
     </select>
     <div class="row" style="margin-top:8px;">
-      <div class="col"><button class="btn ghost" id="gpsDoBtn">AKTIVIEREN</button></div>
-      <div class="col"><button class="btn ghost" id="gpsStopBtn">STOPP</button></div>
+      <div class="col"><button class="btn ghost" id="gpsDoBtn">ACTIVATE</button></div>
+      <div class="col"><button class="btn ghost" id="gpsStopBtn">STOP</button></div>
     </div>
     <div id="gpsFlyInfo" style="margin-top:8px;color:#bbb;font-size:.85rem">No GPS loaded — for Fix: click "ACTIVATE"
       (Device) or select "Fix" and click on the map.</div>
@@ -948,7 +948,7 @@
     <input id="areaName_fly" type="text" placeholder="Name...">
     <div class="row" style="margin-top:8px;">
       <div class="col"><button class="btn primary" id="drawStartBtn">Start</button></div>
-      <div class="col"><button class="btn ghost" id="drawFinishBtn">Fertig</button></div>
+      <div class="col"><button class="btn ghost" id="drawFinishBtn">Finish</button></div>
     </div>
     <div style="margin-top:8px;color:#bbb;font-size:.85rem">Created objects are listed in Settings and can be deleted
       there.</div>
@@ -957,17 +957,17 @@
   <div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>Symbole</h4>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="fly-sym-btn" data-sym="raute" title="Raute"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="raute" title="Diamond"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="rechteck" title="Rechteck"> <svg viewBox="0 0 100 100" width="18"
+      <button class="fly-sym-btn" data-sym="rechteck" title="Rectangle"> <svg viewBox="0 0 100 100" width="18"
           height="18">
           <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="quadrat" title="Quadrat"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="quadrat" title="Square"> <svg viewBox="0 0 100 100" width="18" height="18">
           <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="blume" title="Blume"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="blume" title="Flower"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path
             d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
             fill="#ffff00" stroke="white" stroke-width="2" />
@@ -982,7 +982,7 @@
         </svg>
       </button>
 
-      <button class="fly-sym-btn" id="symTrashBtn" title="Löschmodus"><i class="fas fa-trash"
+      <button class="fly-sym-btn" id="symTrashBtn" title="Delete Mode"><i class="fas fa-trash"
           style="color:#ff6666"></i></button>
     </div>
     <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol — click on the map to place. Trash activates
@@ -1015,12 +1015,12 @@
     <h4>Chat / Nachrichten</h4>
     <label>Chat Kontrolle</label>
     <div style="display:flex; gap:8px; margin-top:8px;">
-      <button class="btn primary" style="flex:1" onclick="openChatWindow(); closeFlyout()">Chat öffnen</button>
-      <button class="btn ghost" style="flex:1" onclick="closeChatWindow(); closeFlyout()">Schließen</button>
+      <button class="btn primary" style="flex:1" onclick="openChatWindow(); closeFlyout()">Open Chat</button>
+      <button class="btn ghost" style="flex:1" onclick="closeChatWindow(); closeFlyout()">Close</button>
     </div>
     <div style="margin-top:10px;">
-      <button class="btn ghost" style="width:100%" onclick="markAllMessagesRead(); closeFlyout()">Alle als
-        gelesen</button>
+      <button class="btn ghost" style="width:100%" onclick="markAllMessagesRead(); closeFlyout()">Mark All as
+        Read</button>
     </div>
     <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">Keine neuen Nachrichten</div>
   </div>
@@ -1030,11 +1030,11 @@
     <h4>Camera Stream</h4>
     <label>Stream Control</label>
     <div class="row" style="margin-top:8px;">
-      <div class="col"><button class="btn primary" onclick="openStreamWindow()">Stream anzeigen</button></div>
-      <div class="col"><button class="btn ghost" onclick="closeStreamWindow()">Schließen</button></div>
+      <div class="col"><button class="btn primary" onclick="openStreamWindow()">Show Stream</button></div>
+      <div class="col"><button class="btn ghost" onclick="closeStreamWindow()">Close</button></div>
     </div>
     <div style="margin-top:10px;">
-      <button class="btn ghost" onclick="shareStreamToOverview()">An Overview teilen</button>
+      <button class="btn ghost" onclick="shareStreamToOverview()">Share to Overview</button>
     </div>
     <div id="cameraFlyInfo" style="margin-top:8px;color:#bbb;font-size:.85rem">Kein Stream verfügbar</div>
   </div>
@@ -1047,10 +1047,10 @@
         <span>Live Stream</span>
       </div>
       <div class="stream-window-controls">
-        <button class="stream-window-btn" onclick="minimizeStreamWindow()" title="Minimieren">
+        <button class="stream-window-btn" onclick="minimizeStreamWindow()" title="Minimize">
           <i class="fas fa-minus"></i>
         </button>
-        <button class="stream-window-btn" onclick="closeStreamWindow()" title="Schließen">
+        <button class="stream-window-btn" onclick="closeStreamWindow()" title="Close">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -1069,7 +1069,7 @@
         <span>Offline</span>
       </div>
       <button class="stream-share-btn" id="streamShareBtn" onclick="shareStreamToOverview()" disabled>
-        <i class="fas fa-share-alt"></i> Teilen
+        <i class="fas fa-share-alt"></i> Share
       </button>
     </div>
   </div>
@@ -1082,10 +1082,10 @@
         <span>Chat / COT Nachrichten</span>
       </div>
       <div class="chat-window-controls">
-        <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimieren">
+        <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimize">
           <i class="fas fa-minus" id="chatMinimizeIcon"></i>
         </button>
-        <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
+        <button class="chat-window-btn" onclick="closeChatWindow()" title="Close">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -1107,7 +1107,7 @@
         </select>
         <input type="text" id="chatInput" class="chat-input" placeholder="Nachricht eingeben...">
         <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
-          <i class="fas fa-paper-plane"></i> Senden
+          <i class="fas fa-paper-plane"></i> Send
         </button>
       </div>
     </div>
@@ -2480,7 +2480,7 @@
 
       document.querySelectorAll('.fly-sym-btn[data-sym]').forEach(b => {
         b.addEventListener('click', () => {
-          if (symbolDeleteMode) { alert('Beende zuerst Löschmodus'); return; }
+          if (symbolDeleteMode) { alert('End delete mode first'); return; }
           const sym = b.dataset.sym;
           const was = b.classList.contains('active');
           document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active'));
@@ -2491,7 +2491,7 @@
       document.getElementById('symStopBtn').addEventListener('click', () => { stopPlacingSymbol(); document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active')); activeSymbol = null; });
 
       const trashBtn = document.getElementById('symTrashBtn');
-      trashBtn.addEventListener('click', () => { symbolDeleteMode = !symbolDeleteMode; trashBtn.classList.toggle('trash-active', symbolDeleteMode); if (symbolDeleteMode) { stopPlacingSymbol(); map.getContainer().style.cursor = 'crosshair'; document.getElementById('gpsFlyInfo').textContent = 'Löschmodus aktiv'; } else { map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; } });
+      trashBtn.addEventListener('click', () => { symbolDeleteMode = !symbolDeleteMode; trashBtn.classList.toggle('trash-active', symbolDeleteMode); if (symbolDeleteMode) { stopPlacingSymbol(); map.getContainer().style.cursor = 'crosshair'; document.getElementById('gpsFlyInfo').textContent = 'Delete mode active'; } else { map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; } });
 
       function startPlacingSymbol() {
         if (!activeSymbol) return;

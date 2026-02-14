@@ -82,7 +82,7 @@ async function updateUnitTable(users) {
     if (!tbody) return;
     
     if (!users || users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><i class="fas fa-inbox"></i> Keine Benutzer gefunden</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><i class="fas fa-inbox"></i> No users found</td></tr>';
         return;
     }
     
@@ -127,7 +127,7 @@ async function updateUnitTable(users) {
         
         if (canUpdate) {
             actionsHTML += `
-                <button class="btn-icon" onclick="openEditModal('${escapeAttr(user.username)}')" title="Bearbeiten">
+                <button class="btn-icon" onclick="openEditModal('${escapeAttr(user.username)}')" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
             `;
@@ -135,14 +135,14 @@ async function updateUnitTable(users) {
         
         if (canDelete) {
             actionsHTML += `
-                <button class="btn-icon" onclick="deleteUserFromTable('${escapeAttr(user.username)}')" title="Löschen">
+                <button class="btn-icon" onclick="deleteUserFromTable('${escapeAttr(user.username)}')" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
             `;
         }
         
         if (!actionsHTML) {
-            actionsHTML = '<span style="color: #666;">Keine Aktionen</span>';
+            actionsHTML = '<span style="color: #666;">No actions</span>';
         }
         
         tdActions.innerHTML = actionsHTML;
@@ -165,7 +165,7 @@ async function createUser() {
     const role = document.getElementById('newRole');
     
     if (!username || !password) {
-        alert('Eingabefelder nicht gefunden');
+        alert('Input fields not found');
         return;
     }
     
@@ -174,14 +174,14 @@ async function createUser() {
     const roleVal = role ? role.value : 'user';
     
     if (!usernameVal || !passwordVal) {
-        alert('Benutzername und Passwort erforderlich');
+        alert('Username and password required');
         return;
     }
     
     // Check permission
     const canCreate = await hasPermission('users.create');
     if (!canCreate) {
-        alert('Keine Berechtigung zum Erstellen von Benutzern');
+        alert('No permission to create users');
         return;
     }
     
@@ -204,11 +204,11 @@ async function createUser() {
         
         if (!res.ok) {
             const msg = body && (body.message || body.detail) ? (body.message || body.detail) : `Status ${res.status}`;
-            alert('Benutzer erstellen fehlgeschlagen: ' + msg);
+            alert('User creation failed: ' + msg);
             return;
         }
         
-        alert('Benutzer erfolgreich erstellt');
+        alert('User created successfully');
         username.value = '';
         password.value = '';
         if (role) role.value = 'user';
@@ -217,20 +217,20 @@ async function createUser() {
         await loadUsers();
     } catch (e) {
         console.error('createUser error', e);
-        alert('Fehler beim Erstellen: ' + (e.message || e));
+        alert('Error creating user: ' + (e.message || e));
     }
 }
 
 // Delete user from table
 async function deleteUserFromTable(username) {
-    if (!confirm(`Benutzer "${username}" wirklich löschen?`)) {
+    if (!confirm(`Really delete user "${username}"?`)) {
         return;
     }
     
     // Check permission
     const canDelete = await hasPermission('users.delete');
     if (!canDelete) {
-        alert('Keine Berechtigung zum Löschen von Benutzern');
+        alert('No permission to delete users');
         return;
     }
     
@@ -246,17 +246,17 @@ async function deleteUserFromTable(username) {
         if (!res.ok) {
             const body = await res.json().catch(() => null);
             const msg = body && (body.message || body.detail) ? (body.message || body.detail) : `Status ${res.status}`;
-            alert('Löschen fehlgeschlagen: ' + msg);
+            alert('Deletion failed: ' + msg);
             return;
         }
         
-        alert('Benutzer erfolgreich gelöscht');
+        alert('User deleted successfully');
         
         // Reload user list
         await loadUsers();
     } catch (e) {
         console.error('deleteUserFromTable error', e);
-        alert('Fehler beim Löschen: ' + (e.message || e));
+        alert('Error deleting user: ' + (e.message || e));
     }
 }
 
@@ -269,7 +269,7 @@ async function openEditModal(username) {
         // Fetch user data
         const res = await fetch(`/api/users/${encodeURIComponent(username)}`);
         if (!res.ok) {
-            alert('Benutzer konnte nicht geladen werden');
+            alert('Could not load user');
             return;
         }
         
@@ -290,7 +290,7 @@ async function openEditModal(username) {
         if (modal) modal.classList.add('active');
     } catch (e) {
         console.error('openEditModal error', e);
-        alert('Fehler beim Laden des Benutzers: ' + (e.message || e));
+        alert('Error loading user: ' + (e.message || e));
     }
 }
 
@@ -304,7 +304,7 @@ function closeEditModal() {
 // Save user changes
 async function saveUserChanges() {
     if (!currentEditUser) {
-        alert('Kein Benutzer geladen');
+        alert('No user loaded');
         return;
     }
     
@@ -344,30 +344,30 @@ async function saveUserChanges() {
         if (!res.ok) {
             const body = await res.json().catch(() => null);
             const msg = body && (body.message || body.detail) ? (body.message || body.detail) : `Status ${res.status}`;
-            alert('Speichern fehlgeschlagen: ' + msg);
+            alert('Save failed: ' + msg);
             return;
         }
         
-        alert('Benutzer erfolgreich aktualisiert');
+        alert('User updated successfully');
         closeEditModal();
         
         // Reload user list
         await loadUsers();
     } catch (e) {
         console.error('saveUserChanges error', e);
-        alert('Fehler beim Speichern: ' + (e.message || e));
+        alert('Error saving: ' + (e.message || e));
     }
 }
 
 // Delete user from modal
 async function deleteUserFromModal() {
     if (!currentEditUser) {
-        alert('Kein Benutzer geladen');
+        alert('No user loaded');
         return;
     }
     
     const username = currentEditUser.username;
-    if (!confirm(`Benutzer "${username}" wirklich löschen?`)) {
+    if (!confirm(`Really delete user "${username}"?`)) {
         return;
     }
     
@@ -383,18 +383,18 @@ async function deleteUserFromModal() {
         if (!res.ok) {
             const body = await res.json().catch(() => null);
             const msg = body && (body.message || body.detail) ? (body.message || body.detail) : `Status ${res.status}`;
-            alert('Löschen fehlgeschlagen: ' + msg);
+            alert('Deletion failed: ' + msg);
             return;
         }
         
-        alert('Benutzer erfolgreich gelöscht');
+        alert('User deleted successfully');
         closeEditModal();
         
         // Reload user list
         await loadUsers();
     } catch (e) {
         console.error('deleteUser error', e);
-        alert('Fehler beim Löschen: ' + (e.message || e));
+        alert('Error deleting user: ' + (e.message || e));
     }
 }
 
