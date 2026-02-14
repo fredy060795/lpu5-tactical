@@ -881,8 +881,8 @@
     <!-- Existing buttons WITHOUT duplicate life status icons -->
     <div class="icon-btn" data-flyout="fly-gps" title="GPS"><i class="fas fa-location-arrow"></i></div>
     <div class="icon-btn" data-flyout="fly-overlay" title="Overlay"><i class="fas fa-image"></i></div>
-    <div class="icon-btn" data-flyout="fly-draw" title="Zeichnen"><i class="fas fa-pen-nib"></i></div>
-    <div class="icon-btn" data-flyout="fly-symbols" title="Symbole"><i class="fas fa-map-marker-alt"></i></div>
+    <div class="icon-btn" data-flyout="fly-draw" title="Draw"><i class="fas fa-pen-nib"></i></div>
+    <div class="icon-btn" data-flyout="fly-symbols" title="Symbols"><i class="fas fa-map-marker-alt"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
     <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
@@ -891,16 +891,16 @@
   <!-- Flyouts -->
   <div id="fly-gps" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>GPS</h4>
-    <label>Farbe Pfeil</label>
+    <label>Arrow Color</label>
     <input type="color" id="gpsColor_fly" value="#007bff" disabled>
     <div style="margin-top:6px;">
       <label><input type="radio" name="gpsMode" value="off" checked> Aus</label><br>
       <label><input type="radio" name="gpsMode" value="refresh"> Refresh</label><br>
       <label><input type="radio" name="gpsMode" value="fix"> Fix (Device or Map)</label>
     </div>
-    <label style="margin-top:6px">Intervall (Fix)</label>
+    <label style="margin-top:6px">Interval (Fix)</label>
     <select id="gpsIntervalSelect">
-      <option value="0">Deaktiviert</option>
+      <option value="0">Disabled</option>
       <option value="30">30s</option>
       <option value="60" selected>60s</option>
       <option value="120">120s</option>
@@ -941,9 +941,9 @@
   </div>
 
   <div id="fly-draw" class="icon-flyout" role="dialog" aria-hidden="true">
-    <h4>Zeichnen (Linien)</h4>
-    <label>Farbe</label>
-    <input id="drawColor_fly" type="color" value="#0088ff">
+    <h4>Draw (Lines)</h4>
+    <label>Color</label>
+    <input id="drawColor_fly"type="color" value="#0088ff">
     <label>Name</label>
     <input id="areaName_fly" type="text" placeholder="Name...">
     <div class="row" style="margin-top:8px;">
@@ -955,7 +955,7 @@
   </div>
 
   <div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
-    <h4>Symbole</h4>
+    <h4>Symbols</h4>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="fly-sym-btn" data-sym="raute" title="Diamond"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="2" />
@@ -1102,7 +1102,7 @@
     <div class="chat-window-footer">
       <div class="chat-input-area">
         <select id="chatRecipient" class="chat-select">
-          <option value="all">Alle Einheiten</option>
+          <option value="all">All Units</option>
           <option value="hq">HQ</option>
         </select>
         <input type="text" id="chatInput" class="chat-input" placeholder="Enter message...">
@@ -1733,7 +1733,7 @@
                 const messageEl = document.createElement('div');
                 messageEl.className = 'chat-message incoming';
                 messageEl.setAttribute('data-msg-id', msg.id || '');
-                const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+                const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
                 messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.username || 'Unknown') : (msg.username || 'Unknown')) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.text || '') : (msg.text || '')) + '</div>';
                 messagesContainer.appendChild(messageEl);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -2077,7 +2077,7 @@
         }
 
         if (symbols.length) {
-          const h = document.createElement('div'); h.style.color = '#9ad1ff'; h.style.margin = '6px 0 4px'; h.textContent = 'Symbole'; settingsList.appendChild(h);
+          const h = document.createElement('div'); h.style.color = '#9ad1ff'; h.style.margin = '6px 0 4px'; h.textContent = 'Symbols'; settingsList.appendChild(h);
           symbols.forEach(s => {
             const isGps = (s.sym === 'gps_position');
             const div = document.createElement('div'); div.className = 'setting-item';
@@ -2393,10 +2393,10 @@
 
       // ---------------- Drawing ----------------
       let drawing = false, drawingPoints = [], drawingLine = null;
-      function startDrawing() { if (drawing) { alert('Zeichnen bereits aktiv'); return; } drawing = true; drawingPoints = []; drawingLine = L.polyline([], { color: document.getElementById('drawColor_fly').value || '#0088ff', pane: 'paneDrawings' }).addTo(map); map.on('click', drawingClickHandler); map.getContainer().style.cursor = 'crosshair'; alert('Zeichnen gestartet: Klickpunkte setzen, dann "Fertig".'); }
+      function startDrawing() { if (drawing) { alert('Drawing already active'); return; } drawing = true; drawingPoints = []; drawingLine = L.polyline([], { color: document.getElementById('drawColor_fly').value || '#0088ff', pane: 'paneDrawings' }).addTo(map); map.on('click', drawingClickHandler); map.getContainer().style.cursor = 'crosshair'; alert('Drawing started: Set click points, then "Done".'); }
       function drawingClickHandler(ev) { drawingPoints.push([ev.latlng.lat, ev.latlng.lng]); drawingLine.setLatLngs(drawingPoints); }
       function finishDrawing() {
-        if (!drawing) { alert('Kein aktives Zeichnen'); return; }
+        if (!drawing) { alert('No active drawing'); return; }
         map.off('click', drawingClickHandler);
         map.getContainer().style.cursor = '';
         drawing = false;
@@ -2908,7 +2908,7 @@
         async function updateOnce() { try { const pos = await getCurrentPositionPromise(); if (gpsFixedMarker) putFixedArrow(pos.coords.latitude, pos.coords.longitude); } catch (e) { console.warn('gps auto update failed', e); document.getElementById('gpsFlyInfo').textContent = 'Auto-update error'; } }
         updateOnce();
         gpsAutoUpdateId = setInterval(updateOnce, Math.max(10, intervalSeconds) * 1000);
-        document.getElementById('gpsFlyInfo').textContent = 'Auto-Update aktiv (' + intervalSeconds + 's)';
+        document.getElementById('gpsFlyInfo').textContent = 'Auto-update active (' + intervalSeconds + 's)';
       }
       function stopGpsAutoUpdate() { if (gpsAutoUpdateId) { clearInterval(gpsAutoUpdateId); gpsAutoUpdateId = null; } }
       function gpsUnfix() { if (gpsFixedMarker) { try { map.removeLayer(gpsFixedMarker); } catch (e) { } gpsFixedMarker = null; } stopGpsAutoUpdate(); document.getElementById('gpsFlyInfo').textContent = 'Nicht fixiert'; }
@@ -3215,7 +3215,7 @@
       window.shareStreamToOverview = function () {
         const video = document.getElementById('streamWindowVideo');
         if (!video || !video.src) {
-          alert('Kein aktiver Stream zum Teilen');
+          alert('No active stream to share');
           return;
         }
 
@@ -3440,7 +3440,7 @@
         messageEl.className = 'chat-message incoming';
 
         const text = data.text || data.message || '';
-        const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', {
+        const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit'
         });
@@ -3669,7 +3669,7 @@
         messageEl.setAttribute('data-pending', 'true');
 
         const currentUser = getCurrentUsername();
-        const time = new Date().toLocaleTimeString('de-DE', {
+        const time = new Date().toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit'
         });
@@ -3786,7 +3786,7 @@
               select.appendChild(opt);
             });
           } else {
-            select.innerHTML = '<option value="all">Alle Einheiten</option>';
+            select.innerHTML = '<option value="all">All Units</option>';
           }
 
           // Also load users
@@ -3837,7 +3837,7 @@
             const messageEl = document.createElement('div');
             messageEl.className = 'chat-message ' + (isOutgoing ? 'outgoing' : 'incoming');
             messageEl.setAttribute('data-msg-id', msg.id || '');
-            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : '';
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : '';
             let statusHtml = '';
             if (isOutgoing) {
               let icon = '&#10003;', color = '#888';
