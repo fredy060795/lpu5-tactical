@@ -263,7 +263,7 @@ class COTProtocolHandler {
             // Determine COT type based on marker properties
             let affiliation = 'unknown';
             const status = (marker.status || '').toLowerCase();
-            if (status.includes('friendly') || status.includes('aktiv')) {
+            if (status.includes('friendly') || status.includes('active') || status.includes('aktiv')) {
                 affiliation = 'friendly';
             } else if (status.includes('hostile') || status.includes('kia')) {
                 affiliation = 'hostile';
