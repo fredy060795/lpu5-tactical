@@ -24,7 +24,7 @@ Successfully implemented a multi-platform architecture for LPU5 Tactical system,
 - ✅ Add to Home Screen installation
 - ✅ Gateway-based mesh access (through HQ)
 
-**Access Method**: `https://[HQ-IP]:8001/pwa/overview.html`
+**Access Method**: `https://[HQ-IP]:8101/pwa/overview.html`
 
 ### 2. Android Native Application
 **Location**: `android/` directory
@@ -176,11 +176,11 @@ Minor issues found in copied files (not introduced by this implementation):
 # On HQ server
 cd lpu5-tactical
 pip install -r requirements.txt
-uvicorn api:app --host 0.0.0.0 --port 8001 \
+uvicorn api:app --host 0.0.0.0 --port 8101 \
   --ssl-keyfile key.pem --ssl-certfile cert.pem
 
 # On iOS device (Safari)
-# Navigate to: https://[HQ-IP]:8001/pwa/overview.html
+# Navigate to: https://[HQ-IP]:8101/pwa/overview.html
 # Tap Share → Add to Home Screen
 ```
 

@@ -13,7 +13,7 @@ Before starting, ensure you have:
 - ✅ **iOS Device** running iOS 11.3 or later
 - ✅ **Safari Browser** (default iOS browser)
 - ✅ **Internet Connection** (WiFi or cellular)
-- ✅ **HQ Server URL** provided by your administrator (e.g., `https://192.168.1.100:8001`)
+- ✅ **HQ Server URL** provided by your administrator (e.g., `https://192.168.1.100:8101`)
 
 ⚠️ **Important**: You must use Safari. Other browsers (Chrome, Firefox) do not support PWA installation on iOS.
 
@@ -31,9 +31,9 @@ Before starting, ensure you have:
 1. Tap the **address bar** at the top
 2. Enter the URL provided by your administrator:
    ```
-   https://[HQ-SERVER-IP]:8001/pwa/overview.html
+   https://[HQ-SERVER-IP]:8101/pwa/overview.html
    ```
-   **Example**: `https://192.168.1.100:8001/pwa/overview.html`
+   **Example**: `https://192.168.1.100:8101/pwa/overview.html`
 
 3. Tap **Go** or press Enter
 
@@ -210,7 +210,7 @@ Field Network
 
 **Solutions:**
 1. Check WiFi/cellular connection
-2. Try opening in Safari first: `https://[HQ-IP]:8001/pwa/overview.html`
+2. Try opening in Safari first: `https://[HQ-IP]:8101/pwa/overview.html`
 3. Delete and reinstall the app
 4. Clear Safari cache: Settings → Safari → Clear History and Website Data
 
@@ -379,7 +379,7 @@ The PWA updates automatically:
 
 ```bash
 # Check if server is accessible
-curl -k https://[HQ-IP]:8001/api/status
+curl -k https://[HQ-IP]:8101/api/status
 
 # View server logs
 tail -f /var/log/lpu5-tactical.log
@@ -423,9 +423,9 @@ A: Location is only used to display your position on the map. It's sent to HQ se
 ### Essential URLs
 
 ```
-Main App:     https://[HQ-IP]:8001/pwa/overview.html
-API Status:   https://[HQ-IP]:8001/api/status
-Admin Panel:  https://[HQ-IP]:8001/admin.html
+Main App:     https://[HQ-IP]:8101/pwa/overview.html
+API Status:   https://[HQ-IP]:8101/api/status
+Admin Panel:  https://[HQ-IP]:8101/admin.html
 ```
 
 ### Key Contacts

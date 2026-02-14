@@ -122,7 +122,7 @@ Via UI:
   4. Click 'Connect'
 
 Via API:
-  curl -X POST http://localhost:8001/api/gateway/start \
+  curl -X POST http://localhost:8101/api/gateway/start \
     -d '{"port": "COM7", "auto_sync": true}'
 
 Standalone:

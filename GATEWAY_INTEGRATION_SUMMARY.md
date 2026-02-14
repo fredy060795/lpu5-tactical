@@ -131,18 +131,18 @@ POST   /api/gateway/send-message   # Send message via gateway
 ### API Usage
 ```bash
 # Start gateway
-curl -X POST http://localhost:8001/api/gateway/start \
+curl -X POST http://localhost:8101/api/gateway/start \
   -H "Content-Type: application/json" \
   -d '{"port": "COM7", "auto_sync": true}'
 
 # Check status
-curl http://localhost:8001/api/gateway/status
+curl http://localhost:8101/api/gateway/status
 
 # Get nodes
-curl http://localhost:8001/api/gateway/nodes
+curl http://localhost:8101/api/gateway/nodes
 
 # Send message
-curl -X POST http://localhost:8001/api/gateway/send-message \
+curl -X POST http://localhost:8101/api/gateway/send-message \
   -H "Content-Type: application/json" \
   -d '{"text": "Hello Mesh Network!"}'
 ```

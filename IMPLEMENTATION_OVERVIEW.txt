@@ -212,7 +212,7 @@
 │    5. Watch live updates!                                                    │
 │                                                                              │
 │  Via API:                                                                    │
-│    curl -X POST http://localhost:8001/api/gateway/start \                    │
+│    curl -X POST http://localhost:8101/api/gateway/start \                    │
 │      -d '{"port": "COM7", "auto_sync": true}'                                │
 │                                                                              │
 │  Standalone:                                                                 │

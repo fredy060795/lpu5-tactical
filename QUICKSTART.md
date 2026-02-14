@@ -8,7 +8,7 @@
 **Installation** (5 minutes):
 1. Get the HQ server IP/domain from your administrator
 2. Open **Safari** on your iOS device
-3. Navigate to: `https://[HQ-IP]:8001/pwa/overview.html`
+3. Navigate to: `https://[HQ-IP]:8101/pwa/overview.html`
 4. Tap the **Share** button (□↑)
 5. Scroll and tap **"Add to Home Screen"**
 6. Tap **"Add"**
@@ -77,11 +77,11 @@ openssl req -x509 -newkey rsa:4096 -nodes \
   -keyout key.pem -out cert.pem -days 365
 
 # 4. Start the server
-uvicorn api:app --host 0.0.0.0 --port 8001 \
+uvicorn api:app --host 0.0.0.0 --port 8101 \
   --ssl-keyfile key.pem --ssl-certfile cert.pem
 
 # 5. Optional: Start Meshtastic Gateway
-curl -X POST http://localhost:8001/api/gateway/start \
+curl -X POST http://localhost:8101/api/gateway/start \
   -H "Content-Type: application/json" \
   -d '{"port": "COM7", "auto_sync": true}'
 ```
@@ -90,7 +90,7 @@ curl -X POST http://localhost:8001/api/gateway/start \
 - Python 3.8+
 - SSL certificate
 - Public IP or domain
-- Port 8001 accessible
+- Port 8101 accessible
 
 👉 **Detailed guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
 

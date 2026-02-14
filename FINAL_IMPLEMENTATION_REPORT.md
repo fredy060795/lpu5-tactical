@@ -13,7 +13,7 @@ Successfully implemented a complete multi-platform architecture for the LPU5 Tac
 - ✅ Created dedicated `pwa/` directory with iOS-optimized Progressive Web App
 - ✅ iOS-specific manifest.json with Apple meta tags
 - ✅ Service Worker for offline caching
-- ✅ Accessible via HQ public IP at `https://[HQ-IP]:8001/pwa/overview.html`
+- ✅ Accessible via HQ public IP at `https://[HQ-IP]:8101/pwa/overview.html`
 - ✅ No Bluetooth dependency (workaround for Safari limitation)
 - ✅ REST API + WebSocket communication to HQ server
 
@@ -264,11 +264,11 @@ lpu5-tactical/
 ```bash
 # Server (HQ)
 pip install -r requirements.txt
-uvicorn api:app --host 0.0.0.0 --port 8001 \
+uvicorn api:app --host 0.0.0.0 --port 8101 \
   --ssl-keyfile key.pem --ssl-certfile cert.pem
 
 # Client (iOS device)
-Safari → https://[HQ-IP]:8001/pwa/overview.html
+Safari → https://[HQ-IP]:8101/pwa/overview.html
 Share → Add to Home Screen
 ```
 

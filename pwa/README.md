@@ -44,7 +44,7 @@ Field Devices
 - **Python 3.8+** installed
 - **SSL Certificate** (HTTPS required for PWA)
 - **Public IP** or domain name
-- **Port 8001** accessible from internet
+- **Port 8101** accessible from internet
 - **Meshtastic Gateway** (optional, for mesh integration)
 
 ### Client Requirements (iOS Device)
@@ -65,7 +65,7 @@ cd lpu5-tactical
 pip install -r requirements.txt
 
 # Start API server
-uvicorn api:app --host 0.0.0.0 --port 8001 \
+uvicorn api:app --host 0.0.0.0 --port 8101 \
   --ssl-keyfile key.pem --ssl-certfile cert.pem
 ```
 
@@ -74,7 +74,7 @@ uvicorn api:app --host 0.0.0.0 --port 8001 \
 #### 1. Navigate to PWA URL
 Open Safari and go to:
 ```
-https://your-hq-server-ip:8001/pwa/overview.html
+https://your-hq-server-ip:8101/pwa/overview.html
 ```
 
 **Important**: 
@@ -171,7 +171,7 @@ fetch('/api/gateway/send-message', {
 ### Receiving Updates
 Updates pushed via WebSocket:
 ```javascript
-const ws = new WebSocket('wss://hq-server:8001/ws');
+const ws = new WebSocket('wss://hq-server:8101/ws');
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     
@@ -298,7 +298,7 @@ ws.onclose = () => console.log('Disconnected from HQ');
 **Solutions:**
 - Ping HQ server
 - Check server logs
-- Verify port 8001 is open
+- Verify port 8101 is open
 - Test from another device
 - Check cellular/WiFi connection
 

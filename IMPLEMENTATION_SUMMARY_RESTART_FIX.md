@@ -28,7 +28,7 @@
 - Creates and activates virtual environment if needed
 - Installs/updates dependencies from requirements.txt
 - Detects SSL certificates (starts with or without SSL)
-- Checks for port conflicts on port 8001
+- Checks for port conflicts on port 8101
 - Color-coded status messages for better UX
 - Comprehensive error handling
 - Support for SKIP_UPDATE environment variable
@@ -42,11 +42,11 @@
 **Size:** 2.7KB | **Permissions:** Executable
 
 **Features:**
-- Finds running server process on port 8001
+- Finds running server process on port 8101
 - Graceful shutdown with SIGTERM
 - Waits up to 10 seconds for graceful exit
 - Force kill (SIGKILL) as fallback
-- Verifies port 8001 is released
+- Verifies port 8101 is released
 - Automatically calls start_lpu5.sh to restart
 - Color-coded status messages
 
@@ -61,7 +61,7 @@
 **Features:**
 - Detects Python processes running api.py
 - Checks for uvicorn processes specifically
-- Terminates processes using port 8001
+- Terminates processes using port 8101
 - Verifies port is released
 - Bilingual messages (German and English)
 - Calls start_lpu5.bat to restart
@@ -222,7 +222,7 @@ Documentation Hierarchy:
 - [ ] **Linux/macOS:** Test `start_lpu5.sh` with fresh install
 - [ ] **Linux/macOS:** Test `restart_lpu5.sh` with running server
 - [ ] **Windows:** Test `restart_lpu5.bat` with running server
-- [ ] **Port Conflict:** Test behavior when port 8001 is already in use
+- [ ] **Port Conflict:** Test behavior when port 8101 is already in use
 - [ ] **Missing Dependencies:** Test with incomplete requirements.txt
 - [ ] **No SSL:** Test startup without SSL certificates
 - [ ] **Systemd:** Test systemd service configuration
@@ -271,7 +271,7 @@ nano config.json
 ./restart_lpu5.sh
 
 # Verify server is running
-curl -k https://localhost:8001/api/status
+curl -k https://localhost:8101/api/status
 ```
 
 ### Scenario 2: Updated Python Dependencies
