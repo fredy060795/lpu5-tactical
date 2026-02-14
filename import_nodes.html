@@ -349,13 +349,13 @@
       }
     }
 
-    // Normalisiert einen Port-Eintrag beliebigen Formats in ein Objekt
+    // Normalizes a port entry of any format into an object
     function normalizePortEntry(p){
       if (!p) return null;
       if (typeof p === 'string') {
         return { device: p, description: '' };
       }
-      // Wenn Objekt: akzeptiere verschiedene Feldnamen
+      // If object: accept various field names
       return {
         device: p.device || p.name || p.path || p.port || '',
         description: p.description || p.friendlyName || p.manufacturer || '',
@@ -518,12 +518,12 @@
     
     async function connectMeshtasticGateway(port){
       if (!port || port === '') {
-        showToast('Bitte wähle zuerst einen COM-Port aus der Liste.', 'error');
+        showToast('Please first select a COM port from the list.', 'error');
         return false;
       }
       
       try {
-        showToast(`Verbinde mit Meshtastic auf ${port}...`, 'info');
+        showToast(`Connecting to Meshtastic on ${port}...`, 'info');
         
         // Check if gateway service is running on this port (started by meshtastic.html)
         // If so, stop it first to free the COM port for import operations
@@ -532,17 +532,17 @@
           if (gwStatusRes.ok) {
             const gwStatus = await gwStatusRes.json();
             if (gwStatus.running && gwStatus.port === port) {
-              showToast(`Gateway Service läuft auf ${port} — wird gestoppt für Import...`, 'info');
+              showToast(`Gateway Service running on ${port} — stopping for import...`, 'info');
               const stopRes = await fetch('/api/gateway/stop', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'}
               });
               if (stopRes.ok) {
-                showToast(`Gateway Service auf ${port} gestoppt`, 'success');
+                showToast(`Gateway Service on ${port} stopped`, 'success');
                 // Wait for OS to release the serial port (Windows needs time)
                 await new Promise(r => setTimeout(r, 1500));
               } else {
-                showToast(`Warnung: Gateway Service konnte nicht gestoppt werden — Port ${port} könnte belegt sein`, 'error');
+                showToast(`Warning: Gateway Service could not be stopped — Port ${port} may be in use`, 'error');
               }
             }
           }
@@ -563,14 +563,14 @@
           console.error('Connection error details:', body);
           
           // Enhanced error message with troubleshooting suggestions
-          const detailedError = `Verbindung fehlgeschlagen: ${errorMsg}
+          const detailedError = `Connection failed: ${errorMsg}
 
-Mögliche Lösungen:
-• Überprüfe, ob das Gerät angeschlossen ist
-• Stelle sicher, dass der richtige COM-Port ausgewählt ist
-• Schließe andere Programme, die den Port verwenden könnten
-• Versuche das Gerät erneut anzuschließen
-• Versuche es mit Web Bluetooth als Alternative`;
+Possible solutions:
+• Check if the device is connected
+• Make sure the correct COM port is selected
+• Close other programs that may be using the port
+• Try reconnecting the device
+• Try Web Bluetooth as an alternative`;
           
           showToast(detailedError, 'error');
           _isGatewayConnected = false;
@@ -580,7 +580,7 @@ Mögliche Lösungen:
         
         _isGatewayConnected = true;
         _connectedPort = port;
-        showToast(`✅ Verbunden mit Meshtastic auf ${port}`, 'success');
+        showToast(`✅ Connected to Meshtastic on ${port}`, 'success');
         
         // Automatically trigger preview after connection
         setTimeout(() => previewNodes(), 500);
@@ -590,14 +590,14 @@ Mögliche Lösungen:
         console.error('connectMeshtasticGateway error', e);
         
         // Enhanced error message for network/connection errors
-        const detailedError = `Verbindungsfehler: ${e.message}
+        const detailedError = `Connection error: ${e.message}
 
-Mögliche Lösungen:
-• Überprüfe deine Netzwerkverbindung
-• Stelle sicher, dass der Server läuft
-• Überprüfe, ob das Meshtastic-Gerät angeschlossen ist
-• Versuche einen anderen COM-Port
-• Starte das Meshtastic-Gerät neu`;
+Possible solutions:
+• Check your network connection
+• Make sure the server is running
+• Check if the Meshtastic device is connected
+• Try a different COM port
+• Restart the Meshtastic device`;
         
         showToast(detailedError, 'error');
         _isGatewayConnected = false;
@@ -717,7 +717,7 @@ Mögliche Lösungen:
         const nodeName = n.name || '';
         const mesh = n.mesh_id || n.id || '';
         const dev = n.device || '';
-        const coords = (n.lat && n.lng) ? `${Number(n.lat).toFixed(5)}, ${Number(n.lng).toFixed(5)}` : 'keine';
+        const coords = (n.lat && n.lng) ? `${Number(n.lat).toFixed(5)}, ${Number(n.lng).toFixed(5)}` : 'none';
         const last = n.last_heard ? new Date(n.last_heard*1000).toLocaleString('en-US') : 'Never';
         
         left.innerHTML = `<div><strong>${escapeHtml(nodeName)}</strong> <span style="color:#888">(${escapeHtml(mesh)})</span></div>
