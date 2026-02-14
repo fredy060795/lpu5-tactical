@@ -536,7 +536,7 @@
     }
 </script>
 
-<!-- Aufgeräumte single updateUserNameDisplay-Implementierung -->
+<!-- Clean single updateUserNameDisplay implementation -->
 <script>
     document.addEventListener('DOMContentLoaded', updateUserNameDisplay);
 
@@ -817,7 +817,7 @@
         const serverInfo = await serverInfoRes.json().catch(() => null);
         
         if (!serverInfo || !serverInfo.base_url) {
-          alert('Konnte Server-Informationen nicht abrufen');
+          alert('Could not retrieve server information');
           return;
         }
         
@@ -849,7 +849,7 @@
         const body = await res.json().catch(()=>null);
         if (!res.ok){
           const msg = body && (body.message || body.detail) ? (body.message||body.detail) : `Status ${res.status}`;
-          alert('QR-Erstellung fehlgeschlagen: ' + msg); return;
+          alert('QR creation failed: ' + msg); return;
         }
         // show PNG preview if present
         const png = body.png_base64 || (body.qr && body.qr.png_base64) || null;
@@ -864,13 +864,13 @@
             }
             area.innerHTML = html;
           }
-          else { area.innerHTML = '<div class="small">QR erstellt (PNG nicht verfügbar)</div>'; }
+          else { area.innerHTML = '<div class="small">QR created (PNG not available)</div>'; }
         }
         // enable copy button and store last response
         window._lastCreatedQR = body;
         const copyBtn = document.getElementById('copyDataBtn');
         if (copyBtn) copyBtn.disabled = false;
-      }catch(e){ console.error('createQRCode', e); alert('QR-Erstellung fehlgeschlagen: ' + (e.message||e)); }
+      }catch(e){ console.error('createQRCode', e); alert('QR creation failed: ' + (e.message||e)); }
     }
 
     function copyQRData(){
@@ -881,12 +881,12 @@
         if (!qrUrl) {
           // Fallback to copying the full JSON if no URL
           const text = JSON.stringify(window._lastCreatedQR, null, 2);
-          navigator.clipboard.writeText(text).then(()=>{ alert('QR-Daten in Zwischenablage kopiert'); }, (err)=>{ alert('Kopieren fehlgeschlagen: ' + err); });
+          navigator.clipboard.writeText(text).then(()=>{ alert('QR data copied to clipboard'); }, (err)=>{ alert('Copy failed: ' + err); });
           return;
         }
         // Copy the QR URL
         navigator.clipboard.writeText(qrUrl).then(()=>{ 
-          alert('QR-URL in Zwischenablage kopiert: ' + qrUrl); 
+          alert('QR URL copied to clipboard: ' + qrUrl); 
         }, (err)=>{ 
           // Fallback for browsers that don't support clipboard API
           console.error('Clipboard API failed', err);
@@ -911,7 +911,7 @@
 async function createQRCode(){
   const username = (document.getElementById('qrUsername')||{value:''}).value.trim();
   const password = (document.getElementById('qrPassword')||{value:''}).value;
-  if(!username || !password){ alert('Benutzername und Passwort erforderlich.'); return; }
+  if(!username || !password){ alert('Username and password required.'); return; }
   try{
     const payload = {
       redirect_url: '/',
@@ -927,27 +927,27 @@ async function createQRCode(){
     const body = await res.json().catch(()=>null);
     if (!res.ok){
       const msg = body && (body.message || body.detail) ? (body.message||body.detail) : `Status ${res.status}`;
-      alert('QR-Erstellung fehlgeschlagen: ' + msg); return;
+      alert('QR creation failed: ' + msg); return;
     }
     const png = body.png_base64 || (body.qr && body.qr.png_base64) || null;
     const area = document.getElementById('qrPreviewArea');
     if (area){
       area.style.display = '';
       if (png){ area.innerHTML = `<img src="data:image/png;base64,${png}" alt="QR">`; }
-      else { area.innerHTML = '<div class="small">QR erstellt (PNG nicht verfügbar)</div>'; }
+      else { area.innerHTML = '<div class="small">QR created (PNG not available)</div>'; }
     }
     window._lastCreatedQR = body;
     const copyBtn = document.getElementById('copyDataBtn');
     if (copyBtn) copyBtn.disabled = false;
-  }catch(e){ console.error('createQRCode', e); alert('QR-Erstellung fehlgeschlagen: ' + (e.message||e)); }
+  }catch(e){ console.error('createQRCode', e); alert('QR creation failed: ' + (e.message||e)); }
 }
 
 function copyQRData(){
   try{
-    if (!window._lastCreatedQR) return alert('Keine QR-Daten zum kopieren');
+    if (!window._lastCreatedQR) return alert('No QR data to copy');
     const text = JSON.stringify(window._lastCreatedQR, null, 2);
-    navigator.clipboard.writeText(text).then(()=>{ alert('QR-Daten in Zwischenablage kopiert'); }, (err)=>{ alert('Kopieren fehlgeschlagen: ' + err); });
-  }catch(e){ console.error('copyQRData', e); alert('Fehler beim Kopieren'); }
+    navigator.clipboard.writeText(text).then(()=>{ alert('QR data copied to clipboard'); }, (err)=>{ alert('Copy failed: ' + err); });
+  }catch(e){ console.error('copyQRData', e); alert('Error copying'); }
 }
 </script>
 <!-- END: restore createQRCode / copyQRData handlers -->
