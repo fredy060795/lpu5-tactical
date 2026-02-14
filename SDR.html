@@ -325,11 +325,11 @@
     <div class="page-header">
         <div>
             <div class="page-title"><i class="fas fa-broadcast-tower"></i> LPU5 SDR Radar</div>
-            <div class="page-subtitle">SDR Frequenzanalyse &middot; Entfernungsmesser &middot; Kreuzpeilung / Triangulation</div>
+            <div class="page-subtitle">SDR Frequency Analysis &middot; Range Finder &middot; Cross-Bearing / Triangulation</div>
         </div>
         <div>
             <span class="status-badge status-waiting" id="sdrStatus">
-                <i class="fas fa-circle"></i> Warte auf Verbindung
+                <i class="fas fa-circle"></i> Waiting for connection
             </span>
         </div>
     </div>
@@ -337,11 +337,11 @@
     <!-- Info box -->
     <div class="info-box">
         <i class="fas fa-info-circle"></i>
-        <strong>LPU5 SDR Entfernungsmesser</strong> &ndash;
-        Dieses Modul nutzt RTL-SDR Hardware &uuml;ber COM-Ports zur Frequenz&uuml;berwachung und
-        Signalst&auml;rkeanalyse. Durch Kreuzpeilung mit mehreren Ger&auml;ten (via MQTT) kann
-        die ungef&auml;hre Position einer Signalquelle trianguliert werden.
-        <br><em>Voraussetzungen: RTL-SDR Stick, Raspberry Pi, MQTT Broker (Mosquitto).</em>
+        <strong>LPU5 SDR Range Finder</strong> &ndash;
+        This module uses RTL-SDR hardware via COM ports for frequency monitoring and
+        signal strength analysis. Through cross-bearing with multiple devices (via MQTT),
+        the approximate position of a signal source can be triangulated.
+        <br><em>Requirements: RTL-SDR Stick, Raspberry Pi, MQTT Broker (Mosquitto).</em>
     </div>
 
     <!-- Top panels -->
@@ -349,29 +349,29 @@
         <!-- SDR Configuration -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title"><i class="fas fa-sliders-h"></i> SDR Konfiguration</div>
-                <span class="status-badge status-offline" id="sdrDeviceStatus">Nicht verbunden</span>
+                <div class="panel-title"><i class="fas fa-sliders-h"></i> SDR Configuration</div>
+                <span class="status-badge status-offline" id="sdrDeviceStatus">Not connected</span>
             </div>
 
             <div class="form-group">
-                <label>COM-Port / Ger&auml;t
+                <label>COM Port / Device
                     <button class="btn btn-primary" onclick="loadComPorts()" style="font-size:0.7rem; padding:2px 8px; margin-left:8px;">
-                        <i class="fas fa-sync-alt"></i> Ports laden
+                        <i class="fas fa-sync-alt"></i> Load ports
                     </button>
                 </label>
                 <select id="sdrPort">
-                    <option value="">-- Ger&auml;t w&auml;hlen --</option>
+                    <option value="">-- Select device --</option>
                     <option value="auto">Auto-Detect (rtl_sdr)</option>
                 </select>
             </div>
 
             <div class="form-group">
-                <label>Frequenz (MHz)</label>
+                <label>Frequency (MHz)</label>
                 <input type="number" id="sdrFrequency" value="433.920" step="0.001" min="24" max="1766">
             </div>
 
             <div class="form-group">
-                <label>Modus</label>
+                <label>Mode</label>
                 <select id="sdrMode">
                     <option value="FM">FM</option>
                     <option value="AM">AM</option>
@@ -380,9 +380,9 @@
             </div>
 
             <div class="form-group">
-                <label>Squelch-Stufe (0&ndash;9)</label>
+                <label>Squelch Level (0&ndash;9)</label>
                 <select id="sdrSquelch">
-                    <option value="0">0 &ndash; Aus (-999 dBm)</option>
+                    <option value="0">0 &ndash; Off (-999 dBm)</option>
                     <option value="1">1 &ndash; -85 dBm</option>
                     <option value="2">2 &ndash; -80 dBm</option>
                     <option value="3">3 &ndash; -75 dBm</option>
@@ -396,7 +396,7 @@
             </div>
 
             <div class="form-group">
-                <label>Sende-Leistung Referenz (dBm)</label>
+                <label>TX Power Reference (dBm)</label>
                 <input type="number" id="sdrTxPower" value="20" step="1">
             </div>
 
@@ -410,17 +410,17 @@
         <!-- Signal Analysis -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title"><i class="fas fa-wave-square"></i> Signalanalyse</div>
+                <div class="panel-title"><i class="fas fa-wave-square"></i> Signal Analysis</div>
             </div>
 
             <!-- Spectrum waterfall placeholder -->
             <div class="spectrum-canvas-container">
                 <canvas id="spectrumCanvas"></canvas>
-                <div class="spectrum-label" id="spectrumLabel">Frequenzspektrum (simuliert)</div>
+                <div class="spectrum-label" id="spectrumLabel">Frequency Spectrum (simulated)</div>
             </div>
 
             <!-- Signal meter -->
-            <label style="font-size:0.85rem; color:var(--text-dim);">Signalst&auml;rke</label>
+            <label style="font-size:0.85rem; color:var(--text-dim);">Signal Strength</label>
             <div class="signal-meter">
                 <div class="signal-bar-container">
                     <div class="signal-bar" id="signalBar"></div>
@@ -428,7 +428,7 @@
                 <div class="signal-value" id="signalValue">-- dBm</div>
             </div>
 
-            <label style="font-size:0.85rem; color:var(--text-dim);">Gesch&auml;tzte Entfernung</label>
+            <label style="font-size:0.85rem; color:var(--text-dim);">Estimated Distance</label>
             <div class="signal-meter">
                 <div class="signal-bar-container">
                     <div class="signal-bar" id="distanceBar" style="background: linear-gradient(90deg, #2ecc71, #f39c12, #e74c3c);"></div>
@@ -437,10 +437,10 @@
             </div>
 
             <div style="margin-top:15px; padding:10px; background:#111; border-radius:4px; font-size:0.8rem; color:var(--text-dim);">
-                <div><strong>Modell:</strong> Log-Distance Path Loss (n=3.0)</div>
-                <div><strong>Kalibrierung:</strong> -2.5 dBm Offset</div>
+                <div><strong>Model:</strong> Log-Distance Path Loss (n=3.0)</div>
+                <div><strong>Calibration:</strong> -2.5 dBm Offset</div>
                 <div><strong>Bandpass:</strong> 10&ndash;30 kHz, Butterworth 4th Order</div>
-                <div><strong>Mittelung:</strong> 5 Messungen</div>
+                <div><strong>Averaging:</strong> 5 measurements</div>
             </div>
         </div>
     </div>
@@ -450,13 +450,13 @@
         <!-- MQTT / Triangulation -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title"><i class="fas fa-project-diagram"></i> Kreuzpeilung / Triangulation</div>
+                <div class="panel-title"><i class="fas fa-project-diagram"></i> Cross-Bearing / Triangulation</div>
                 <span class="status-badge status-offline" id="mqttStatus">MQTT Offline</span>
             </div>
 
             <div class="form-group">
                 <label>MQTT Broker</label>
-                <input type="text" id="mqttHost" value="localhost" placeholder="z.B. 192.168.8.181">
+                <input type="text" id="mqttHost" value="localhost" placeholder="e.g. 192.168.8.181">
             </div>
 
             <div class="form-group">
@@ -475,19 +475,19 @@
             </div>
 
             <div style="margin-top:15px;">
-                <label style="font-size:0.85rem; color:var(--text-dim);">Verbundene Peers</label>
+                <label style="font-size:0.85rem; color:var(--text-dim);">Connected Peers</label>
                 <div class="mqtt-peers" id="mqttPeers">
-                    <span style="color:var(--text-dim); font-size:0.8rem;">Keine Peers verbunden</span>
+                    <span style="color:var(--text-dim); font-size:0.8rem;">No peers connected</span>
                 </div>
             </div>
 
             <!-- Triangulation map -->
             <div style="margin-top:15px;">
-                <label style="font-size:0.85rem; color:var(--text-dim);">Triangulations-Karte</label>
+                <label style="font-size:0.85rem; color:var(--text-dim);">Triangulation Map</label>
                 <div class="map-placeholder" id="triangulationMap">
                     <i class="fas fa-map-marked-alt"></i>
-                    <span>Karte wird nach Triangulation angezeigt</span>
-                    <span style="font-size:0.75rem;">Mindestens 2 Peers ben&ouml;tigt</span>
+                    <span>Map will be shown after triangulation</span>
+                    <span style="font-size:0.75rem;">At least 2 peers required</span>
                 </div>
             </div>
         </div>
@@ -495,9 +495,9 @@
         <!-- Measurement Log -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title"><i class="fas fa-clipboard-list"></i> Messprotokoll</div>
+                <div class="panel-title"><i class="fas fa-clipboard-list"></i> Measurement Log</div>
                 <button class="btn btn-danger" onclick="clearLog()" style="font-size:0.75rem; padding:4px 8px;">
-                    <i class="fas fa-trash"></i> L&ouml;schen
+                    <i class="fas fa-trash"></i> Delete
                 </button>
             </div>
 
@@ -505,18 +505,18 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Zeit</th>
+                            <th>Time</th>
                             <th>Freq (MHz)</th>
-                            <th>Modus</th>
+                            <th>Mode</th>
                             <th>Signal (dBm)</th>
-                            <th>Entfernung</th>
-                            <th>Quelle</th>
+                            <th>Distance</th>
+                            <th>Source</th>
                         </tr>
                     </thead>
                     <tbody id="logBody">
                         <tr>
                             <td colspan="6" style="text-align:center; color:var(--text-dim);">
-                                Noch keine Messungen durchgef&uuml;hrt
+                                No measurements taken yet
                             </td>
                         </tr>
                     </tbody>
@@ -574,7 +574,7 @@
                 var opt = document.createElement('option');
                 opt.value = '';
                 opt.disabled = true;
-                opt.textContent = '(keine Ports gefunden)';
+                opt.textContent = '(no ports found)';
                 select.appendChild(opt);
             }
         })
@@ -587,10 +587,10 @@
         var label = document.getElementById('spectrumLabel');
         if (label) {
             if (measurementMode === 'real') {
-                label.textContent = 'Frequenzspektrum (LIVE - Echtmessung)';
+                label.textContent = 'Frequency Spectrum (LIVE - Real Measurement)';
                 label.style.color = '#2ecc71';
             } else {
-                label.textContent = 'Frequenzspektrum (simuliert)';
+                label.textContent = 'Frequency Spectrum (simulated)';
                 label.style.color = '';
             }
         }
@@ -673,22 +673,22 @@
     window.connectSDR = function() {
         const port = document.getElementById('sdrPort').value;
         if (!port) {
-            alert('Bitte ein SDR Gerät / COM-Port auswählen');
+            alert('Please select an SDR device / COM port');
             return;
         }
 
         const statusEl = document.getElementById('sdrDeviceStatus');
         const mainStatus = document.getElementById('sdrStatus');
 
-        statusEl.textContent = 'Verbinde...';
+        statusEl.textContent = 'Connecting...';
         statusEl.className = 'status-badge status-waiting';
 
         // Simulate connection (in production this calls backend API)
         setTimeout(function() {
             sdrConnected = true;
-            statusEl.textContent = 'Verbunden';
+            statusEl.textContent = 'Connected';
             statusEl.className = 'status-badge status-online';
-            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Aktiv';
+            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active';
             mainStatus.className = 'status-badge status-online';
             console.log('SDR connected to:', port);
         }, 1500);
@@ -697,7 +697,7 @@
     // --- Measurement (placeholder - calls backend in production) ---
     window.startMeasurement = function() {
         if (!sdrConnected) {
-            alert('Bitte zuerst SDR Gerät verbinden');
+            alert('Please connect SDR device first');
             return;
         }
 
@@ -714,7 +714,7 @@
 
         if (simulatedPower < threshold) {
             updateSignalDisplay(simulatedPower, null, true);
-            addLogEntry(freq, mode, simulatedPower, 'geblockt', 'SIM');
+            addLogEntry(freq, mode, simulatedPower, 'blocked', 'SIM');
             return;
         }
 
@@ -742,7 +742,7 @@
     // --- Synchronized measurement ---
     window.startSyncMeasurement = function() {
         if (!sdrConnected) {
-            alert('Bitte zuerst SDR Gerät verbinden');
+            alert('Please connect SDR device first');
             return;
         }
 
@@ -765,7 +765,7 @@
         const port = document.getElementById('mqttPort').value;
         const statusEl = document.getElementById('mqttStatus');
 
-        statusEl.textContent = 'Verbinde...';
+        statusEl.textContent = 'Connecting...';
         statusEl.className = 'status-badge status-waiting';
 
         // In production this would connect via backend /api/sdr/mqtt/connect
@@ -781,19 +781,19 @@
     window.triangulate = function() {
         const peerCount = Object.keys(mqttPeers).length;
         if (peerCount < 2) {
-            alert('Mindestens 2 verbundene Peers benötigt für Kreuzpeilung.\nAktuell: ' + peerCount + ' Peer(s)');
+            alert('At least 2 connected peers needed for triangulation.\nCurrent: ' + peerCount + ' Peer(s)');
             return;
         }
 
         // In production this calls /api/sdr/triangulate
         const mapEl = document.getElementById('triangulationMap');
         mapEl.innerHTML = '<i class="fas fa-crosshairs" style="color:var(--accent-blue);"></i>' +
-            '<span>Triangulation wird berechnet...</span>';
+            '<span>Calculating triangulation...</span>';
 
         setTimeout(function() {
             mapEl.innerHTML = '<i class="fas fa-map-marked-alt" style="color:var(--accent);"></i>' +
-                '<span>Geschätzte Position berechnet</span>' +
-                '<span style="font-size:0.85rem; color:var(--accent);">Ergebnis auf Tactical Map anzeigen</span>';
+                '<span>Estimated position calculated</span>' +
+                '<span style="font-size:0.85rem; color:var(--accent);">Show result on Tactical Map</span>';
         }, 2000);
     };
 
@@ -816,7 +816,7 @@
 
         var pct = Math.max(0, Math.min(100, (power + 100) * 2));
         signalBar.style.width = pct + '%';
-        signalValue.textContent = blocked ? (power.toFixed(1) + ' dBm (geblockt)') : (power.toFixed(1) + ' dBm');
+        signalValue.textContent = blocked ? (power.toFixed(1) + ' dBm (blocked)') : (power.toFixed(1) + ' dBm');
 
         if (distance !== null && !blocked) {
             var dPct = Math.max(0, Math.min(100, Math.log10(distance + 1) * 25));
@@ -824,13 +824,13 @@
             distValue.textContent = distance.toFixed(1) + ' m';
         } else {
             distBar.style.width = '0%';
-            distValue.textContent = '-- kein Signal --';
+            distValue.textContent = '-- no signal --';
         }
     }
 
     function addLogEntry(freq, mode, power, distance, source) {
         var now = new Date();
-        var ts = now.toLocaleTimeString('de-DE');
+        var ts = now.toLocaleTimeString('en-US');
         source = source || (measurementMode === 'real' ? 'LIVE' : 'SIM');
         measurementLog.push({ time: ts, freq: freq, mode: mode, power: power, distance: distance, source: source });
 
@@ -868,7 +868,7 @@
         var container = document.getElementById('mqttPeers');
         var keys = Object.keys(mqttPeers);
         if (keys.length === 0) {
-            container.innerHTML = '<span style="color:var(--text-dim); font-size:0.8rem;">Keine Peers verbunden</span>';
+            container.innerHTML = '<span style="color:var(--text-dim); font-size:0.8rem;">No peers connected</span>';
             return;
         }
         container.innerHTML = '';
@@ -883,15 +883,15 @@
     window.clearLog = function() {
         measurementLog.length = 0;
         document.getElementById('logBody').innerHTML =
-            '<tr><td colspan="6" style="text-align:center; color:var(--text-dim);">Noch keine Messungen durchgeführt</td></tr>';
+            '<tr><td colspan="6" style="text-align:center; color:var(--text-dim);">No measurements taken yet</td></tr>';
     };
 
     window.exportLog = function() {
         if (measurementLog.length === 0) {
-            alert('Keine Messungen zum Exportieren vorhanden.');
+            alert('No measurements available to export.');
             return;
         }
-        var csv = 'Zeit,Frequenz_MHz,Modus,Signal_dBm,Entfernung,Quelle\n';
+        var csv = 'Time,Frequency_MHz,Mode,Signal_dBm,Distance,Source\n';
         measurementLog.forEach(function(e) {
             csv += e.time + ',' + e.freq + ',' + e.mode + ',' +
                 (typeof e.power === 'number' ? e.power.toFixed(2) : e.power) + ',' + e.distance + ',' + (e.source || 'SIM') + '\n';
@@ -899,7 +899,7 @@
         var blob = new Blob([csv], { type: 'text/csv' });
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'sdr_messung_' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'sdr_measurement_' + new Date().toISOString().slice(0, 10) + '.csv';
         a.click();
     };
 
