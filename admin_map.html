@@ -2480,7 +2480,7 @@
 
       document.querySelectorAll('.fly-sym-btn[data-sym]').forEach(b => {
         b.addEventListener('click', () => {
-          if (symbolDeleteMode) { alert('Beende zuerst Löschmodus'); return; }
+          if (symbolDeleteMode) { alert('End delete mode first'); return; }
           const sym = b.dataset.sym;
           const was = b.classList.contains('active');
           document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active'));
@@ -2491,7 +2491,7 @@
       document.getElementById('symStopBtn').addEventListener('click', () => { stopPlacingSymbol(); document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active')); activeSymbol = null; });
 
       const trashBtn = document.getElementById('symTrashBtn');
-      trashBtn.addEventListener('click', () => { symbolDeleteMode = !symbolDeleteMode; trashBtn.classList.toggle('trash-active', symbolDeleteMode); if (symbolDeleteMode) { stopPlacingSymbol(); map.getContainer().style.cursor = 'crosshair'; document.getElementById('gpsFlyInfo').textContent = 'Löschmodus aktiv'; } else { map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; } });
+      trashBtn.addEventListener('click', () => { symbolDeleteMode = !symbolDeleteMode; trashBtn.classList.toggle('trash-active', symbolDeleteMode); if (symbolDeleteMode) { stopPlacingSymbol(); map.getContainer().style.cursor = 'crosshair'; document.getElementById('gpsFlyInfo').textContent = 'Delete mode active'; } else { map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; } });
 
       function startPlacingSymbol() {
         if (!activeSymbol) return;

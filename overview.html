@@ -679,7 +679,7 @@
       </svg>
     </div>
     <div class="tool-btn" id="s-trash" ontouchstart="handleToolInteraction(() => setTool('trash'), event)"
-      onclick="handleToolInteraction(() => setTool('trash'), event)" title="Löschmodus">
+      onclick="handleToolInteraction(() => setTool('trash'), event)" title="Delete Mode">
       <svg viewBox="0 0 24 24" fill="none" stroke="#ff6666" stroke-width="2">
         <polyline points="3 6 5 6 21 6"></polyline>
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1477,9 +1477,9 @@
         }
       });
       const btn = document.getElementById('set-btn');
-      btn.innerText = 'Setze...';
+      btn.innerText = 'Setting...';
       btn.disabled = true;
-      setTimeout(() => { btn.innerText = 'PUNKT SETZEN'; btn.disabled = false; }, 600);
+      setTimeout(() => { btn.innerText = 'SET POINT'; btn.disabled = false; }, 600);
       togglePrecisionUI(false);
       setTool('');
       sendPendingMarkers().catch(() => { });
