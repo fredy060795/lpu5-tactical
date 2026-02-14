@@ -583,7 +583,7 @@
   </div>
 
   <div id="crosshair"></div>
-  <button id="set-btn" onclick="placeMarkerAtCrosshair()">PUNKT SETZEN</button>
+  <button id="set-btn" onclick="placeMarkerAtCrosshair()">SET POINT</button>
 
   <div class="top-right-ui" id="ui-top">
     <div id="out-name" style="color:var(--accent-blue); font-weight:bold; text-align:right;">---</div>
@@ -603,10 +603,10 @@
         <span>Chat / COT Nachrichten</span>
       </div>
       <div class="chat-window-controls">
-        <button class="chat-window-btn" onclick="toggleMinimizeChatWindow()" title="Minimieren">
+        <button class="chat-window-btn" onclick="toggleMinimizeChatWindow()" title="Minimize">
           <i class="fas fa-minus" id="chat-minimize-icon"></i>
         </button>
-        <button class="chat-window-btn" onclick="closeChatWindow()" title="Schließen">
+        <button class="chat-window-btn" onclick="closeChatWindow()" title="Close">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -626,11 +626,11 @@
           <option value="all">Alle Einheiten</option>
           <option value="hq">HQ</option>
         </select>
-        <button class="chat-channel-btn" onclick="createChatChannel()" title="Kanal erstellen"><i class="fas fa-plus"></i></button>
-        <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Kanal löschen"><i class="fas fa-trash"></i></button>
+        <button class="chat-channel-btn" onclick="createChatChannel()" title="Create Channel"><i class="fas fa-plus"></i></button>
+        <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Delete Channel"><i class="fas fa-trash"></i></button>
         <input type="text" id="chat-input" class="chat-input" placeholder="Nachricht eingeben...">
         <button class="chat-send-btn" onclick="sendChatMessage()">
-          <i class="fas fa-paper-plane"></i> Senden
+          <i class="fas fa-paper-plane"></i> Send
         </button>
       </div>
     </div>
@@ -3531,10 +3531,10 @@
           </button>
           <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Zeit:</div>
           <div class="gps-grid">
-            <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sek</button>
-            <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sek</button>
-            <button class="interval-btn ${currentInterval == 30 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(30)">30 Sek</button>
-            <button class="interval-btn ${currentInterval == 60 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(60)">60 Sek</button>
+            <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sec</button>
+            <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sec</button>
+            <button class="interval-btn ${currentInterval == 30 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(30)">30 Sec</button>
+            <button class="interval-btn ${currentInterval == 60 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(60)">60 Sec</button>
           </div>
           <button class="menu-btn" style="margin-top:15px;" onclick="event.stopPropagation(); setManualGps()">
             <i class="fas fa-crosshairs"></i> Manuell GPS setzen
@@ -3543,9 +3543,9 @@
 
         <div class="menu-section">
           <h3>Karten Einstellungen</h3>
-          <button class="menu-btn" onclick="setMapLayer('satellite')"><i class="fas fa-globe"></i> Satellit</button>
-          <button class="menu-btn" onclick="setMapLayer('street')"><i class="fas fa-road"></i> Straße</button>
-          <button class="menu-btn" onclick="setMapLayer('terrain')"><i class="fas fa-mountain"></i> Gelände</button>
+          <button class="menu-btn" onclick="setMapLayer('satellite')"><i class="fas fa-globe"></i> Satellite</button>
+          <button class="menu-btn" onclick="setMapLayer('street')"><i class="fas fa-road"></i> Street</button>
+          <button class="menu-btn" onclick="setMapLayer('terrain')"><i class="fas fa-mountain"></i> Terrain</button>
           <div style="font-size: 0.7em; color: #555; margin-top: 10px; text-align: center;">
             Karten werden automatisch im Cache gespeichert
           </div>
