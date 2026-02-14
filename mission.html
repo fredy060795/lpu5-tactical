@@ -215,7 +215,7 @@
 </head>
 <body>
 
-<!-- ===== GLOBAL NAV (1:1 eingefügt) ===== -->
+<!-- ===== GLOBAL NAV (inserted) ===== -->
 <!-- Global Navigation loaded from _global_nav.html -->
 <script src="load-global-nav.js"></script>
 
@@ -385,9 +385,9 @@
 /**
  * Update sidebar user display from login data.
  * - Reads localStorage.lpu5_user (expected JSON { username, name, fullname, ... })
- * - Falls nicht vorhanden: liest localStorage.lpu5_token (evtl. username)
- * - Optional: versucht /api/me wenn weder vorhanden ist (nicht zwingend)
- * - Reagiert auf 'storage' events (anderes Tab loggt ein/aus)
+ * - If not available: reads localStorage.lpu5_token (possibly username)
+ * - Optional: tries /api/me if neither is available (not mandatory)
+ * - Reacts to 'storage' events (other tab logs in/out)
  */
 async function updateUserNameDisplay() {
   const el = document.getElementById('userName');
@@ -457,7 +457,7 @@ window.addEventListener('storage', (e) => {
         .then(response => response.text())
         .then(data => {
             document.getElementById('nav-placeholder').innerHTML = data;
-            // Falls JS-Funktionen in der Nav sind, hier re-initialisieren
+            // If JS functions in the nav exist, re-initialize them here
         });
     </script>
 </body>

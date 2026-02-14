@@ -133,7 +133,7 @@
 </head>
 <body>
     <header>
-        <!-- logo.png wie vom API-Endpoint /logo.png bereitgestellt -->
+        <!-- logo.png as served by the API endpoint /logo.png -->
         <img src="/logo.png" alt="LPU5 Logo" class="logo-img" id="headerLogo">
         <div class="title">LPU5 TACTICAL — REGISTRATION</div>
         <div id="clock">00:00:00</div>
@@ -188,13 +188,13 @@
         </div>
     </main>
 
-    <!-- Anpassung: Meshtastic-Gerätename wird in Payload als "device" gesendet und zusätzlich als "unit" (Backend erwartet "unit") -->
+    <!-- Note: Meshtastic device name is sent in the payload as "device" and additionally as "unit" (backend expects "unit") -->
     <script>
     (function(){
-        // Uhr aktualisieren
+        // Update clock
         setInterval(() => {
             const el = document.getElementById('clock');
-            if (el) el.textContent = new Date().toLocaleTimeString('de-DE');
+            if (el) el.textContent = new Date().toLocaleTimeString('en-US');
         }, 1000);
 
         // safe base64 decode (tries standard and URL-safe variants)
@@ -389,7 +389,7 @@
                     setTimeout(()=> { window.location.href = '/overview'; }, 1200);
                 } finally {
                     submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> Registrieren';
+                    submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> Register';
                 }
             });
         })();
@@ -400,7 +400,7 @@
         .then(response => response.text())
         .then(data => {
             document.getElementById('nav-placeholder').innerHTML = data;
-            // Falls JS-Funktionen in der Nav sind, hier re-initialisieren
+            // If JS functions in the nav exist, re-initialize them here
         });
     </script>
 </body>

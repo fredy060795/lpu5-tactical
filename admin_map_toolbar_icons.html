@@ -107,22 +107,22 @@
   </div>
 
   <!-- Draw (lines) -->
-  <div class="icon-btn" data-flyout="fly-draw" title="Zeichnen">
+  <div class="icon-btn" data-flyout="fly-draw" title="Draw">
     <i class="fas fa-pen-nib"></i>
   </div>
 
   <!-- Symbols -->
-  <div class="icon-btn" data-flyout="fly-symbols" title="Symbole">
+  <div class="icon-btn" data-flyout="fly-symbols" title="Symbols">
     <i class="fas fa-map-marker-alt"></i>
   </div>
 
   <!-- Camera / Stream -->
-  <div class="icon-btn" data-flyout="fly-camera" title="Kamera Stream">
+  <div class="icon-btn" data-flyout="fly-camera" title="Camera Stream">
     <i class="fas fa-video"></i>
   </div>
 
   <!-- Chat / Messages -->
-  <div class="icon-btn" data-flyout="fly-chat" title="Chat / Nachrichten">
+  <div class="icon-btn" data-flyout="fly-chat" title="Chat / Messages">
     <i class="fas fa-comments"></i>
   </div>
 
@@ -141,17 +141,17 @@
     <div class="col"><button class="btn ghost" onclick="gpsRefresh(); closeFlyout()">Refresh</button></div>
     <div class="col"><button class="btn primary" onclick="gpsFix(); closeFlyout()">Fix</button></div>
   </div>
-  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="gpsFlyInfo">Kein GPS geladen</div>
+  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="gpsFlyInfo">No GPS loaded</div>
 </div>
 
 <!-- Flyout: Overlay -->
 <div id="fly-overlay" class="icon-flyout" role="dialog" aria-hidden="true">
   <h4>Map Overlay</h4>
-  <label>Bild Import</label>
+  <label>Image Import</label>
   <input type="file" id="ovFile_fly" accept="image/*" onchange="onOverlayFile(event)">
-  <div id="ovFileName_fly" style="font-size:.85rem; color:#bbb; margin-bottom:8px;">Keine ausgewÃ¤hlt</div>
+  <div id="ovFileName_fly" style="font-size:.85rem; color:#bbb; margin-bottom:8px;">None selected</div>
 
-  <label>Winkel: <span id="angleVal_fly">0</span>Â°</label>
+  <label>Angle: <span id="angleVal_fly">0</span>°</label>
   <input type="range" id="ovR_fly" min="0" max="360" value="0" oninput="document.getElementById('angleVal_fly').innerText=this.value; syncOverlayInputs(); applyRotation();">
 
   <div class="row">
@@ -178,8 +178,8 @@
 
 <!-- Flyout: Draw -->
 <div id="fly-draw" class="icon-flyout" role="dialog" aria-hidden="true">
-  <h4>Zeichnen (Linien)</h4>
-  <label>Zeichnen starten</label>
+  <h4>Draw (Lines)</h4>
+  <label>Start Drawing</label>
   <div class="row">
     <div class="col"><button class="btn primary" onclick="startDrawing(); openFlyout('fly-draw');">Start</button></div>
     <div class="col"><button class="btn ghost" onclick="finishDrawing(); closeFlyout()">Finish</button></div>
@@ -188,12 +188,12 @@
     <label>Name</label>
     <input type="text" id="areaName_fly" placeholder="Name...">
   </div>
-  <div style="margin-top:8px; color:#bbb; font-size:.85rem;">Hinweis: Klicke mehrere Punkte auf der Karte. "Fertig" speichert die Linie.</div>
+  <div style="margin-top:8px; color:#bbb; font-size:.85rem;">Note: Click multiple points on the map. "Finish" saves the line.</div>
 </div>
 
 <!-- Flyout: Symbols -->
 <div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
-  <h4>Symbole</h4>
+  <h4>Symbols</h4>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="icon-btn" onclick="selectSymbol('raute', this);"> <i class="fas fa-gem"></i> </button>
     <button class="icon-btn" onclick="selectSymbol('rechteck', this);"> <i class="fas fa-square"></i> </button>
@@ -222,8 +222,8 @@
 
 <!-- Flyout: Camera Stream -->
 <div id="fly-camera" class="icon-flyout" role="dialog" aria-hidden="true">
-  <h4>Kamera Stream</h4>
-  <label>Stream Kontrolle</label>
+  <h4>Camera Stream</h4>
+  <label>Stream Control</label>
   <div class="row">
     <div class="col"><button class="btn primary" onclick="openStreamWindow(); closeFlyout()">Show Stream</button></div>
     <div class="col"><button class="btn ghost" onclick="closeStreamWindow(); closeFlyout()">Close</button></div>
@@ -231,13 +231,13 @@
   <div style="margin-top:10px;">
     <button class="btn ghost" onclick="shareStreamToOverview(); closeFlyout()">Share to Overview</button>
   </div>
-  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="cameraFlyInfo">Kein Stream verfügbar</div>
+  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="cameraFlyInfo">No stream available</div>
 </div>
 
 <!-- Flyout: Chat -->
 <div id="fly-chat" class="icon-flyout" role="dialog" aria-hidden="true">
-  <h4>Chat / Nachrichten</h4>
-  <label>Chat Kontrolle</label>
+  <h4>Chat / Messages</h4>
+  <label>Chat Control</label>
   <div class="row">
     <div class="col"><button class="btn primary" onclick="openChatWindow(); closeFlyout()">Open Chat</button></div>
     <div class="col"><button class="btn ghost" onclick="closeChatWindow(); closeFlyout()">Close</button></div>
@@ -245,7 +245,7 @@
   <div style="margin-top:10px;">
     <button class="btn ghost" onclick="markAllMessagesRead(); closeFlyout()">Mark All as Read</button>
   </div>
-  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">Keine neuen Nachrichten</div>
+  <div style="margin-top:8px; font-size:.85rem; color:#bbb;" id="chatFlyInfo">No new messages</div>
 </div>
 
 <style>
@@ -421,7 +421,7 @@
     <video id="streamWindowVideo" class="stream-window-video" autoplay muted></video>
     <div class="stream-window-placeholder" id="streamWindowPlaceholder">
       <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
-      <div>Kein Stream</div>
+      <div>No Stream</div>
     </div>
   </div>
   <div class="stream-window-footer">
@@ -440,7 +440,7 @@
   <div class="chat-window-header" id="chatWindowHeader">
     <div class="chat-window-title">
       <i class="fas fa-comments"></i>
-      <span>Chat / COT Nachrichten</span>
+      <span>Chat / COT Messages</span>
     </div>
     <div class="chat-window-controls">
       <button class="chat-window-btn" onclick="minimizeChatWindow()" title="Minimize">
@@ -455,18 +455,18 @@
     <div class="chat-messages-container" id="chatMessagesContainer">
       <div class="chat-placeholder" id="chatPlaceholder">
         <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
-        <div style="color: #666;">Keine Nachrichten</div>
-        <small style="color: #555; margin-top: 5px;">Chat- und COT-Nachrichten erscheinen hier</small>
+        <div style="color: #666;">No messages</div>
+        <small style="color: #555; margin-top: 5px;">Chat and COT messages will appear here</small>
       </div>
     </div>
   </div>
   <div class="chat-window-footer">
     <div class="chat-input-area">
       <select id="chatRecipient" class="chat-select">
-        <option value="all">Alle Einheiten</option>
+        <option value="all">All Units</option>
         <option value="hq">HQ</option>
       </select>
-      <input type="text" id="chatInput" class="chat-input" placeholder="Nachricht eingeben...">
+      <input type="text" id="chatInput" class="chat-input" placeholder="Type a message...">
       <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
         <i class="fas fa-paper-plane"></i> Send
       </button>
@@ -786,7 +786,7 @@
       // Camera stream from stream.html - show placeholder with info
       placeholder.innerHTML = `
         <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px; color: #007bff;"></i>
-        <div style="color: #007bff;">Kamera Stream aktiv</div>
+        <div style="color: #007bff;">Camera Stream active</div>
         <small style="color: #888;">Stream auf stream.html</small>
       `;
       placeholder.style.display = 'flex';
@@ -835,7 +835,7 @@
     shareBtn.disabled = true;
     
     if (flyInfo) {
-      flyInfo.textContent = 'Kein Stream verfügbar';
+      flyInfo.textContent = 'No stream available';
     }
   };
 
@@ -997,7 +997,7 @@
     
     const sender = data.sender || data.from || 'Unknown';
     const text = data.text || data.message || '';
-    const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('de-DE', {
+    const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -1018,7 +1018,7 @@
     if (!chatWindow.classList.contains('active')) {
       unreadCount++;
       updateNotificationBadge();
-      updateChatInfo(`${unreadCount} neue Nachricht${unreadCount > 1 ? 'en' : ''}`);
+      updateChatInfo(`${unreadCount} new message${unreadCount > 1 ? 's' : ''}`);
     }
   }
 
@@ -1045,7 +1045,7 @@
   function updateChatInfo(info) {
     const flyInfo = document.getElementById('chatFlyInfo');
     if (flyInfo) {
-      flyInfo.textContent = typeof info === 'string' ? info : `${info} Nachricht${info !== 1 ? 'en' : ''} verfügbar`;
+      flyInfo.textContent = typeof info === 'string' ? info : `${info} message${info !== 1 ? 's' : ''} available`;
     }
   }
 
@@ -1057,7 +1057,7 @@
     // Reset unread count when opening
     unreadCount = 0;
     updateNotificationBadge();
-    updateChatInfo('Keine neuen Nachrichten');
+    updateChatInfo('No new messages');
 
     // Focus input
     const input = document.getElementById('chatInput');
@@ -1112,7 +1112,7 @@
     messageEl.setAttribute('data-pending', 'true');
     
     const currentUser = sessionStorage.getItem('currentUser') || 'Me';
-    const time = new Date().toLocaleTimeString('de-DE', {
+    const time = new Date().toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -1235,11 +1235,11 @@
             select.appendChild(opt);
           });
         } else {
-          select.innerHTML = '<option value="all">Alle Einheiten</option>';
+          select.innerHTML = '<option value="all">All Units</option>';
         }
       } catch (chErr) {
         console.error('Error loading chat channels:', chErr);
-        select.innerHTML = '<option value="all">Alle Einheiten</option>';
+        select.innerHTML = '<option value="all">All Units</option>';
       }
 
       // Also load users for direct messages
@@ -1290,7 +1290,7 @@
         const messageEl = document.createElement('div');
         messageEl.className = 'chat-message ' + (isOutgoing ? 'outgoing' : 'incoming');
         messageEl.setAttribute('data-msg-id', msg.id || '');
-        const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}) : '';
+        const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : '';
         let statusHtml = '';
         if (isOutgoing) {
           let icon = '&#10003;', color = '#888';
@@ -1319,7 +1319,7 @@
   window.markAllMessagesRead = function() {
     unreadCount = 0;
     updateNotificationBadge();
-    updateChatInfo('Keine neuen Nachrichten');
+    updateChatInfo('No new messages');
   };
 
   // Allow Enter key to send message and reload messages on channel change
@@ -1477,7 +1477,7 @@
   document.getElementById('ovFile_fly').addEventListener('change', function(e){
     const f = e.target.files && e.target.files[0];
     const nameEl = document.getElementById('ovFileName_fly');
-    if(f){ nameEl.textContent = f.name; } else { nameEl.textContent = 'Keine ausgewÃ¤hlt'; }
+    if(f){ nameEl.textContent = f.name; } else { nameEl.textContent = 'None selected'; }
     // call global handler (onOverlayFile) that exists in main script
     if(typeof onOverlayFile === 'function') onOverlayFile(e);
   });
