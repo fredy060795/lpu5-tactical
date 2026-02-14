@@ -441,7 +441,7 @@
 
         <!-- Source Selection Panel -->
         <div class="source-panel">
-            <h2><i class="fas fa-broadcast-tower"></i> Videoquelle auswählen</h2>
+            <h2><i class="fas fa-broadcast-tower"></i> Select video source</h2>
             
             <div class="source-tabs">
                 <div class="source-tab active" data-source="url">
@@ -460,11 +460,11 @@
                 <div class="form-group">
                     <label><i class="fas fa-link"></i> Stream URL</label>
                     <input type="url" id="urlInput" placeholder="https://example.com/stream.m3u8">
-                    <p class="helper-text">Unterstützte Formate: HLS (.m3u8), HTTP/HTTPS streams</p>
+                    <p class="helper-text">Supported formats: HLS (.m3u8), HTTP/HTTPS streams</p>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-primary" onclick="connectUrlStream()">
-                        <i class="fas fa-play"></i> Stream starten
+                        <i class="fas fa-play"></i> Start stream
                     </button>
                 </div>
             </div>
@@ -503,17 +503,17 @@
                     <input type="text" id="sshUser" placeholder="username">
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-key"></i> Passwort</label>
+                    <label><i class="fas fa-key"></i> Password</label>
                     <input type="password" id="sshPassword" placeholder="password">
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-video"></i> Remote Stream Path</label>
-                    <input type="text" id="sshStreamPath" placeholder="/dev/video0 oder Stream-URL">
-                    <p class="helper-text">Hinweis: SSH-Funktion erfordert Backend-Integration (in Entwicklung)</p>
+                    <input type="text" id="sshStreamPath" placeholder="/dev/video0 or Stream URL">
+                    <p class="helper-text">Note: SSH functionality requires backend integration (in development)</p>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-primary" onclick="connectSSHStream()">
-                        <i class="fas fa-plug"></i> Verbinden
+                        <i class="fas fa-plug"></i> Connect
                     </button>
                 </div>
             </div>
@@ -527,8 +527,8 @@
                 <video id="videoPlayer" controls muted playsinline></video>
                 <div class="video-placeholder" id="videoPlaceholder">
                     <i class="fas fa-video-slash"></i>
-                    <div>Keine aktive Verbindung</div>
-                    <small>Wählen Sie eine Videoquelle aus, um zu starten</small>
+                    <div>No active connection</div>
+                    <small>Select a video source to start</small>
                 </div>
             </div>
 
@@ -539,7 +539,7 @@
 
             <div class="stream-info">
                 <div class="info-card">
-                    <label>Quelle</label>
+                    <label>Source</label>
                     <div class="value" id="infoSource">-</div>
                 </div>
                 <div class="info-card">
@@ -547,11 +547,11 @@
                     <div class="value" id="infoStatus">Not connected</div>
                 </div>
                 <div class="info-card">
-                    <label>Qualität</label>
+                    <label>Quality</label>
                     <div class="value" id="infoQuality">-</div>
                 </div>
                 <div class="info-card">
-                    <label>Verbindungszeit</label>
+                    <label>Connection time</label>
                     <div class="value" id="infoUptime">-</div>
                 </div>
             </div>
@@ -572,7 +572,7 @@
             <div id="streamsListContainer">
                 <div class="no-streams">
                     <i class="fas fa-inbox"></i>
-                    <div>Keine aktiven Streams</div>
+                    <div>No active streams</div>
                 </div>
             </div>
         </div>
@@ -599,7 +599,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Check if we're on a secure context
             if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-                showToast('⚠️ Warnung: Kamera-Zugriff erfordert HTTPS. Verwenden Sie https:// oder localhost', 'error');
+                showToast('⚠️ Warning: Camera access requires HTTPS. Use https:// or localhost', 'error');
             }
             
             initializeCameras();
@@ -687,7 +687,7 @@
                 videoDevices.forEach((device, index) => {
                     const option = document.createElement('option');
                     option.value = device.deviceId;
-                    option.text = device.label || `Kamera ${index + 1}`;
+                    option.text = device.label || `Camera ${index + 1}`;
                     select.appendChild(option);
                 });
                 
@@ -866,13 +866,13 @@
             const streamPath = document.getElementById('sshStreamPath').value.trim();
 
             if (!host || !user || !password || !streamPath) {
-                showToast('Bitte füllen Sie alle Felder aus', 'error');
+                showToast('Please fill in all fields', 'error');
                 return;
             }
 
             // In a real implementation, this would connect to a backend API
             // that handles SSH connection and stream forwarding
-            showToast('SSH-Verbindung wird hergestellt...', 'success');
+            showToast('Establishing SSH connection...', 'success');
 
             // Simulate connection (in production, call backend API)
             setTimeout(() => {
@@ -895,7 +895,7 @@
             if (connected) {
                 statusEl.classList.remove('offline');
                 statusEl.classList.add('connected');
-                statusEl.innerHTML = '<span class="status-dot"></span><span>Verbunden</span>';
+                statusEl.innerHTML = '<span class="status-dot"></span><span>Connected</span>';
                 
                 infoSource.textContent = source;
                 infoStatus.textContent = 'Active';
@@ -969,7 +969,7 @@
         // Share to admin map
         function shareToAdminMap() {
             if (!currentStream) {
-                showToast('Kein aktiver Stream zum Teilen', 'error');
+                showToast('No active stream to share', 'error');
                 return;
             }
 
@@ -1026,10 +1026,10 @@
                     startFrameCapture();
                 }
                 
-                showToast('Stream wird an alle Clients gesendet!', 'success');
+                showToast('Stream is being sent to all clients!', 'success');
             } else {
                 console.warn('WebSocket not connected, stream sharing may not work globally');
-                showToast('⚠️ WebSocket nicht verbunden - Stream nur lokal verfügbar', 'error');
+                showToast('⚠️ WebSocket not connected - Stream only available locally', 'error');
             }
         }
 
@@ -1060,7 +1060,7 @@
                 container.innerHTML = `
                     <div class="no-streams">
                         <i class="fas fa-inbox"></i>
-                        <div>Keine aktiven Streams</div>
+                        <div>No active streams</div>
                     </div>
                 `;
                 return;
@@ -1070,13 +1070,13 @@
                 <div class="stream-item">
                     <div class="stream-item-info">
                         <h3><i class="fas fa-${getStreamIcon(stream.type)}"></i> ${stream.details}</h3>
-                        <p>${new Date(stream.timestamp).toLocaleString('de-DE')}</p>
+                        <p>${new Date(stream.timestamp).toLocaleString('en-US')}</p>
                     </div>
                     <div class="stream-item-actions">
-                        <button class="icon-btn" onclick="viewStream(${stream.id})" title="Anzeigen">
+                        <button class="icon-btn" onclick="viewStream(${stream.id})" title="View">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button class="icon-btn" onclick="removeStream(${stream.id})" title="Entfernen">
+                        <button class="icon-btn" onclick="removeStream(${stream.id})" title="Remove">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -1096,7 +1096,7 @@
 
         // View stream
         function viewStream(id) {
-            showToast('Stream wird geladen...', 'success');
+            showToast('Loading stream...', 'success');
         }
 
         // Remove stream
