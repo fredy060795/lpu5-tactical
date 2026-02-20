@@ -384,6 +384,111 @@
             margin-bottom: 15px;
         }
 
+        /* Incoming streams grid */
+        .incoming-streams-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .incoming-stream-card {
+            background: var(--panel-input-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .incoming-stream-card.selected {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .incoming-stream-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .incoming-stream-video {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            object-fit: cover;
+            display: block;
+        }
+
+        .incoming-stream-info {
+            padding: 15px;
+        }
+
+        .incoming-stream-source {
+            color: var(--accent-blue);
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .incoming-stream-details {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+        }
+
+        .incoming-stream-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .stream-select-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+
+        .stream-select-btn.broadcast {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        .stream-select-btn.broadcast:hover {
+            background: #218838;
+        }
+
+        .stream-select-btn.stop {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .stream-select-btn.stop:hover {
+            background: #c82333;
+        }
+
+        .stream-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent-green);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
         /* Helper text */
         .helper-text {
             font-size: 0.85rem;
@@ -576,6 +681,21 @@
                 </div>
             </div>
         </div>
+
+        <!-- Incoming Streams Section -->
+        <div class="streams-list" style="margin-top: 30px;">
+            <h2><i class="fas fa-satellite-dish"></i> Incoming Streams (From Other EUDs)</h2>
+            <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">
+                Multiple streams from other users. Select one to broadcast to all EUDs.
+            </p>
+            <div id="incomingStreamsContainer" class="incoming-streams-grid">
+                <div class="no-streams">
+                    <i class="fas fa-satellite-dish"></i>
+                    <div>No incoming streams</div>
+                    <small>Streams from other users will appear here</small>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Toast notification -->
@@ -594,6 +714,8 @@
         let ws = null;
         let frameCapture = null;
         let isSharing = false;
+        let incomingStreams = new Map(); // Track incoming streams from other EUDs
+        let selectedBroadcastStream = null; // Currently selected stream to broadcast
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -1132,6 +1254,15 @@
                     console.log('WebSocket connected');
                     ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
                 };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        handleIncomingMessage(message);
+                    } catch (e) {
+                        console.error('Error parsing WebSocket message:', e);
+                    }
+                };
                 
                 ws.onerror = (error) => {
                     console.error('WebSocket error:', error);
@@ -1145,6 +1276,182 @@
             } catch (e) {
                 console.error('WebSocket connection failed:', e);
             }
+        }
+
+        // Handle incoming WebSocket messages
+        function handleIncomingMessage(message) {
+            console.log('Received message:', message);
+
+            if (message.type === 'stream_share') {
+                // Another user is sharing a stream
+                if (message.active) {
+                    addIncomingStream(message);
+                } else {
+                    removeIncomingStream(message.streamId);
+                }
+            } else if (message.type === 'camera_frame') {
+                // Received a camera frame from another user
+                updateIncomingStreamFrame(message);
+            }
+        }
+
+        // Add incoming stream to the grid
+        function addIncomingStream(streamData) {
+            const streamId = streamData.streamId || `stream_${Date.now()}`;
+            
+            if (!incomingStreams.has(streamId)) {
+                incomingStreams.set(streamId, {
+                    id: streamId,
+                    source: streamData.source || 'Unknown',
+                    details: streamData.details || 'Remote Stream',
+                    isCamera: streamData.isCamera || false,
+                    stream_url: streamData.stream_url,
+                    timestamp: streamData.timestamp,
+                    lastFrame: null
+                });
+                
+                renderIncomingStreams();
+            }
+        }
+
+        // Remove incoming stream
+        function removeIncomingStream(streamId) {
+            if (incomingStreams.has(streamId)) {
+                incomingStreams.delete(streamId);
+                renderIncomingStreams();
+                
+                // If this was the selected broadcast stream, deselect it
+                if (selectedBroadcastStream === streamId) {
+                    selectedBroadcastStream = null;
+                }
+            }
+        }
+
+        // Update frame for incoming camera stream
+        function updateIncomingStreamFrame(frameData) {
+            // Find the stream and update its frame
+            for (const [streamId, stream] of incomingStreams.entries()) {
+                if (stream.isCamera) {
+                    stream.lastFrame = frameData.frame;
+                    // Update the img element if it exists
+                    const img = document.getElementById(`stream-img-${streamId}`);
+                    if (img) {
+                        img.src = frameData.frame;
+                    }
+                }
+            }
+        }
+
+        // Render incoming streams grid
+        function renderIncomingStreams() {
+            const container = document.getElementById('incomingStreamsContainer');
+            
+            if (incomingStreams.size === 0) {
+                container.innerHTML = `
+                    <div class="no-streams">
+                        <i class="fas fa-satellite-dish"></i>
+                        <div>No incoming streams</div>
+                        <small>Streams from other users will appear here</small>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            for (const [streamId, stream] of incomingStreams.entries()) {
+                const isSelected = selectedBroadcastStream === streamId;
+                const badgeHtml = isSelected ? '<div class="stream-badge">BROADCASTING</div>' : '';
+                
+                html += `
+                    <div class="incoming-stream-card ${isSelected ? 'selected' : ''}" id="stream-card-${streamId}">
+                        ${badgeHtml}
+                        <div style="position: relative; background: #000;">
+                            ${stream.isCamera ? 
+                                `<img id="stream-img-${streamId}" class="incoming-stream-video" src="${stream.lastFrame || ''}" alt="Camera Stream" style="width: 100%; height: 200px; object-fit: cover;">` :
+                                `<video id="stream-video-${streamId}" class="incoming-stream-video" src="${stream.stream_url || ''}" autoplay muted playsinline></video>`
+                            }
+                            ${!stream.lastFrame && stream.isCamera ? 
+                                `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; text-align: center;">
+                                    <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                                    <div>Waiting for frames...</div>
+                                </div>` : ''
+                            }
+                        </div>
+                        <div class="incoming-stream-info">
+                            <div class="incoming-stream-source">
+                                <i class="fas fa-${stream.isCamera ? 'camera' : 'video'}"></i>
+                                <span>${stream.source}</span>
+                            </div>
+                            <div class="incoming-stream-details">
+                                ${stream.details}
+                            </div>
+                            <div class="incoming-stream-actions">
+                                ${!isSelected ? 
+                                    `<button class="stream-select-btn broadcast" onclick="selectStreamToBroadcast('${streamId}')">
+                                        <i class="fas fa-broadcast-tower"></i> Broadcast This
+                                    </button>` :
+                                    `<button class="stream-select-btn stop" onclick="deselectStream()">
+                                        <i class="fas fa-stop"></i> Stop Broadcasting
+                                    </button>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Select a stream to broadcast to all EUDs
+        function selectStreamToBroadcast(streamId) {
+            const stream = incomingStreams.get(streamId);
+            if (!stream) {
+                showToast('Stream not found', 'error');
+                return;
+            }
+
+            // Deselect previous stream
+            if (selectedBroadcastStream) {
+                deselectStream();
+            }
+
+            selectedBroadcastStream = streamId;
+            renderIncomingStreams();
+
+            // Notify all clients via WebSocket
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'broadcast_selected',
+                    streamId: streamId,
+                    source: stream.source,
+                    details: stream.details,
+                    timestamp: Date.now()
+                }));
+            }
+
+            showToast(`Now broadcasting: ${stream.source}`, 'success');
+            console.log('Selected stream to broadcast:', streamId);
+        }
+
+        // Deselect current broadcast stream
+        function deselectStream() {
+            if (!selectedBroadcastStream) return;
+
+            const streamId = selectedBroadcastStream;
+            selectedBroadcastStream = null;
+            renderIncomingStreams();
+
+            // Notify all clients
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'broadcast_selected',
+                    streamId: null,
+                    timestamp: Date.now()
+                }));
+            }
+
+            showToast('Broadcast stopped', 'info');
         }
 
         // Start frame capture

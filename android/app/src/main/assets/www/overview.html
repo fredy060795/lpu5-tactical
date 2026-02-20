@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TACTICAL MAP - PRECISION MOBILE</title>
-  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LPU5 Tactical">
+  <title>LPU5 Tactical - iOS PWA</title>
+  <link rel="manifest" href="/pwa/manifest.json">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
@@ -14,6 +17,7 @@
       --accent-blue: #007bff;
       --accent-red: #dc3545;
       --accent-green: #28a745;
+      --vh: 1vh; /* Fallback for dynamic viewport height */
     }
 
     * {
@@ -25,7 +29,7 @@
 
     body,
     html {
-      height: 100%;
+      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for iOS */
       width: 100%;
       background: #000;
       font-family: 'Courier New', monospace;
@@ -190,6 +194,12 @@
       display: block;
     }
 
+    .tool-btn.active {
+      border-color: var(--accent-blue);
+      background: rgba(0, 123, 255, 0.2);
+      box-shadow: 0 0 10px rgba(0, 123, 255, 0.4);
+    }
+
     .chat-notification-badge {
       position: absolute;
       top: -4px;
@@ -217,39 +227,89 @@
     }
 
 
+    /* Chat Window – matches admin_map.html 1:1 */
     #chat-window {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 70%;
-      background: var(--panel-bg);
+      bottom: 20px;
+      left: 20px;
+      width: 420px;
+      max-width: calc(100vw - 100px);
+      height: 500px;
+      max-height: calc(100vh - 100px);
+      background: #111;
+      border: 2px solid #28a745;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
       z-index: 9998;
       display: none;
       flex-direction: column;
-      border-top: 2px solid var(--accent-blue);
-      transition: height 0.3s ease;
+      overflow: hidden;
     }
 
     #chat-window.open {
       display: flex;
     }
 
-    #chat-window.minimized .chat-messages,
-    #chat-window.minimized .chat-input-area {
+    #chat-window.minimized {
+      height: auto;
+    }
+
+    #chat-window.minimized .chat-window-content,
+    #chat-window.minimized .chat-window-footer {
       display: none;
     }
 
-    .chat-header {
-      background: var(--bg-dark);
-      padding: 15px;
-      border-bottom: 1px solid #444;
+    .chat-window-header {
+      background: #28a745;
+      color: #fff;
+      padding: 10px 15px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      cursor: move;
+      user-select: none;
     }
 
-    .chat-messages {
+    .chat-window-title {
+      font-weight: bold;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-window-controls {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-window-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .chat-window-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .chat-window-content {
+      background: #000;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-messages-container {
       flex: 1;
       overflow-y: auto;
       padding: 15px;
@@ -260,52 +320,19 @@
       -ms-overflow-style: none; /* IE and Edge */
     }
 
-    .chat-messages::-webkit-scrollbar {
+    .chat-messages-container::-webkit-scrollbar {
       display: none; /* Chrome, Safari, Opera */
     }
 
-    .chat-input-area {
-      border-top: 1px solid #444;
-      padding: 15px;
+    .chat-placeholder {
       display: flex;
-      gap: 10px;
-    }
-
-    .chat-input {
-      flex: 1;
-      padding: 10px;
-      background: #000;
-      border: 1px solid #444;
-      color: white;
-      border-radius: 4px;
-    }
-
-    .chat-send-btn {
-      padding: 10px 20px;
-      background: var(--accent-blue);
-      border: none;
-      color: white;
-      border-radius: 4px;
-      font-weight: bold;
-    }
-
-    .chat-channel-btn {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid #444;
-      color: #fff;
-      width: 28px;
-      height: 28px;
-      border-radius: 4px;
-      cursor: pointer;
-      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-size: 0.8rem;
-      transition: background 0.2s;
-      padding: 0;
+      height: 100%;
+      text-align: center;
+      color: #666;
     }
-    .chat-channel-btn:hover { background: rgba(255,255,255,0.25); }
-    .chat-channel-btn.delete-btn:hover { background: rgba(255,50,50,0.4); }
 
     .chat-message {
       padding: 10px 12px;
@@ -316,8 +343,15 @@
     }
 
     @keyframes slideIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .chat-message.outgoing {
@@ -352,24 +386,103 @@
       color: #9ad1ff;
     }
 
+    .chat-message-time {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+
     .chat-message-text {
       font-size: 0.85rem;
       line-height: 1.4;
-      color: #fff;
     }
 
-    .chat-message-time {
-      font-size: 0.7em;
-      color: #888;
-      margin-left: 10px;
+    .chat-window-footer {
+      background: #0a0a0a;
+      border-top: 1px solid #333;
+      padding: 12px 15px;
     }
+
+    .chat-input-area {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chat-select {
+      padding: 8px 10px;
+      background: #000;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      max-width: 110px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: #000;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: #28a745;
+      box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+    }
+
+    .chat-send-btn {
+      padding: 8px 16px;
+      background: #28a745;
+      border: none;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: bold;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chat-send-btn:hover {
+      background: #218838;
+    }
+
+    .chat-send-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
+    }
+
+    .chat-channel-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid #444;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      transition: background 0.2s;
+      padding: 0;
+    }
+    .chat-channel-btn:hover { background: rgba(255,255,255,0.25); }
+    .chat-channel-btn.delete-btn:hover { background: rgba(255,50,50,0.4); }
 
     #map {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
-      height: 100%;
+      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for iOS */
       z-index: 1;
       display: block;
     }
@@ -480,7 +593,7 @@
   </div>
 
   <div id="crosshair"></div>
-  <button id="set-btn" onclick="placeMarkerAtCrosshair()">PLACE POINT</button>
+  <button id="set-btn" onclick="placeMarkerAtCrosshair()">SET POINT</button>
 
   <div class="top-right-ui" id="ui-top">
     <div id="out-name" style="color:var(--accent-blue); font-weight:bold; text-align:right;">---</div>
@@ -494,30 +607,42 @@
 
   <!-- Chat Window -->
   <div id="chat-window">
-    <div class="chat-header">
-      <h4 style="color: var(--accent-blue); margin: 0;">Chat / COT Messages</h4>
-      <div style="display: flex; gap: 10px;">
-        <button class="sidebar-close" onclick="toggleMinimizeChatWindow()" title="Minimize/Restore">
-          <i class="fas fa-window-minimize" id="chat-minimize-icon"></i>
+    <div class="chat-window-header">
+      <div class="chat-window-title">
+        <i class="fas fa-comments"></i>
+        <span>Chat / COT Messages</span>
+      </div>
+      <div class="chat-window-controls">
+        <button class="chat-window-btn" onclick="toggleMinimizeChatWindow()" title="Minimize">
+          <i class="fas fa-minus" id="chat-minimize-icon"></i>
         </button>
-        <button class="sidebar-close" onclick="closeChatWindow()">×</button>
+        <button class="chat-window-btn" onclick="closeChatWindow()" title="Close">
+          <i class="fas fa-times"></i>
+        </button>
       </div>
     </div>
-    <div class="chat-messages" id="chat-messages">
-      <div style="text-align: center; color: #888; padding: 20px;">
-        <p>No messages</p>
-        <p style="font-size: 0.8em; margin-top: 10px;">COT messages will be displayed here</p>
+    <div class="chat-window-content">
+      <div class="chat-messages-container" id="chat-messages">
+        <div class="chat-placeholder">
+          <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
+          <div style="color: #666;">No messages</div>
+          <small style="color: #555; margin-top: 5px;">Chat and COT messages will appear here</small>
+        </div>
       </div>
     </div>
-    <div class="chat-input-area">
-      <select id="chat-recipient" class="chat-input" style="max-width: 150px;">
-        <option value="all">All Units</option>
-        <option value="hq">HQ</option>
-      </select>
-      <button class="chat-channel-btn" onclick="createChatChannel()" title="Create channel"><i class="fas fa-plus"></i></button>
-      <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Delete channel"><i class="fas fa-trash"></i></button>
-      <input type="text" id="chat-input" class="chat-input" placeholder="Type message...">
-      <button class="chat-send-btn" onclick="sendChatMessage()">Send</button>
+    <div class="chat-window-footer">
+      <div class="chat-input-area">
+        <select id="chat-recipient" class="chat-select">
+          <option value="all">All Units</option>
+          <option value="hq">HQ</option>
+        </select>
+        <button class="chat-channel-btn" onclick="createChatChannel()" title="Create Channel"><i class="fas fa-plus"></i></button>
+        <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Delete Channel"><i class="fas fa-trash"></i></button>
+        <input type="text" id="chat-input" class="chat-input" placeholder="Type a message...">
+        <button class="chat-send-btn" onclick="sendChatMessage()">
+          <i class="fas fa-paper-plane"></i> Send
+        </button>
+      </div>
     </div>
   </div>
 
@@ -564,7 +689,7 @@
       </svg>
     </div>
     <div class="tool-btn" id="s-trash" ontouchstart="handleToolInteraction(() => setTool('trash'), event)"
-      onclick="handleToolInteraction(() => setTool('trash'), event)" title="Delete mode">
+      onclick="handleToolInteraction(() => setTool('trash'), event)" title="Delete Mode">
       <svg viewBox="0 0 24 24" fill="none" stroke="#ff6666" stroke-width="2">
         <polyline points="3 6 5 6 21 6"></polyline>
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -598,6 +723,21 @@
     /* Overview map with immediate (optimistic) marker placement and persistent pending markers.
        Includes BroadcastChannel/storage fallback to broadcast status-change messages
     */
+
+    // Dynamic viewport height polyfill for iOS
+    // Sets CSS custom property --vh to 1% of actual viewport height
+    function updateViewportHeight() {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+    
+    // Update on load and resize/orientation change
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', () => {
+      // Delay to ensure accurate measurement after orientation change
+      setTimeout(updateViewportHeight, 100);
+    });
 
     const PENDING_KEY = 'pending_map_markers_v1';
     const DEBOUNCE_THRESHOLD_MS = 500; // Prevent double-firing of touch/click events
@@ -849,8 +989,9 @@
               const msgChannel = msg.channel_id || 'all';
               if (selectedChannel !== 'all' && msgChannel !== selectedChannel) break;
               // Clear placeholder if present
-              if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
-                messagesDiv.innerHTML = '';
+              const placeholder = messagesDiv.querySelector('.chat-placeholder');
+              if (placeholder) {
+                placeholder.remove();
               }
               const messageEl = document.createElement('div');
               messageEl.className = 'chat-message incoming';
@@ -1100,7 +1241,7 @@
         }
       } catch (e) {
         console.error('Login error:', e);
-        alert('Network error during login: ' + e.message);
+        alert('Netzwerkfehler beim Login: ' + e.message);
       }
     }
 
@@ -1183,6 +1324,50 @@
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
 
+      // Handle map resize on orientation and viewport changes
+      let resizeTimeouts = [];
+      let isResizeScheduled = false;
+      
+      function handleMapResize() {
+        if (map) {
+          try {
+            map.invalidateSize();
+          } catch (e) {
+            console.warn('Map invalidateSize failed:', e);
+          }
+        }
+      }
+
+      // Debounced resize handler with retry attempts for iOS orientation settling
+      function scheduleMapResize() {
+        // Skip if already scheduled
+        if (isResizeScheduled) {
+          return;
+        }
+        
+        isResizeScheduled = true;
+        
+        // Clear any pending resize timeouts
+        resizeTimeouts.forEach(id => clearTimeout(id));
+        resizeTimeouts = [];
+        
+        // Schedule resize with multiple attempts (iOS needs time to settle)
+        resizeTimeouts.push(setTimeout(() => { handleMapResize(); }, 0));
+        resizeTimeouts.push(setTimeout(() => { handleMapResize(); }, 100));
+        resizeTimeouts.push(setTimeout(() => { handleMapResize(); }, 300));
+        resizeTimeouts.push(setTimeout(() => { 
+          handleMapResize(); 
+          isResizeScheduled = false; // Allow next schedule after last timeout
+        }, 500));
+      }
+
+      // Trigger map resize on resize and orientation changes
+      window.addEventListener('resize', scheduleMapResize);
+      window.addEventListener('orientationchange', scheduleMapResize);
+
+      // Initial resize after map is ready
+      setTimeout(handleMapResize, 100);
+
       // Network Status Listeners
       window.addEventListener('online', () => {
         document.getElementById('offline-indicator').style.display = 'none';
@@ -1195,11 +1380,11 @@
         document.getElementById('offline-indicator').style.display = 'block';
       }
 
-      // Register Service Worker
+      // Register Service Worker for PWA
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW registered', reg))
-          .catch(err => console.log('SW registration failed', err));
+        navigator.serviceWorker.register('/pwa/sw.js', { scope: '/pwa/' })
+          .then(reg => console.log('[PWA] Service Worker registered', reg))
+          .catch(err => console.log('[PWA] Service Worker registration failed', err));
       }
 
       // Restore GPS settings from localStorage
@@ -1340,16 +1525,16 @@
       pendingLayers.set(cid, layer);
       layer.on('click touchstart', (ev) => {
         ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
-        if (confirm('Ausstehenden Marker entfernen?')) {
+        if (confirm('Remove pending marker?')) {
           removePendingLocal(cid);
           try { map.removeLayer(layer); } catch (e) { }
           pendingLayers.delete(cid);
         }
       });
       const btn = document.getElementById('set-btn');
-      btn.innerText = 'Placing...';
+      btn.innerText = 'Setting...';
       btn.disabled = true;
-      setTimeout(() => { btn.innerText = 'PLACE POINT'; btn.disabled = false; }, 600);
+      setTimeout(() => { btn.innerText = 'SET POINT'; btn.disabled = false; }, 600);
       togglePrecisionUI(false);
       setTool('');
       sendPendingMarkers().catch(() => { });
@@ -1378,7 +1563,7 @@
         pendingLayers.set(p._cid, layer);
         layer.on('click touchstart', (ev) => {
           ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
-          if (confirm('Ausstehenden Marker entfernen?')) {
+          if (confirm('Remove pending marker?')) {
             removePendingLocal(p._cid);
             try { map.removeLayer(layer); } catch (e) { }
             pendingLayers.delete(p._cid);
@@ -2036,7 +2221,7 @@
     function gpsRefreshWithFallback() {
       const btn = document.getElementById('gps-btn');
       if (!navigator.geolocation) {
-        alert('Geolocation wird von diesem Browser nicht unterstÃ¼tzt. Versuche IP-Geolocation als Fallback.');
+        alert('Geolocation is not supported by this browser. Trying IP geolocation as fallback.');
         tryIpFallback(btn);
         return;
       }
@@ -2090,7 +2275,7 @@
           });
           clearTimeout(timeoutId);
 
-          if (!r.ok) throw new Error('IP-Service nicht erreichbar');
+          if (!r.ok) throw new Error('IP service not reachable');
           const j = await r.json();
           const lat = parseFloat(j.latitude || j.lat || 0);
           const lng = parseFloat(j.longitude || j.lon || 0);
@@ -2343,16 +2528,14 @@
         if (chatWindow.classList.contains('minimized')) {
           // Restore
           chatWindow.classList.remove('minimized');
-          chatWindow.style.height = '70%';
           if (icon) {
-            icon.className = 'fas fa-window-minimize';
+            icon.className = 'fas fa-minus';
           }
         } else {
           // Minimize
           chatWindow.classList.add('minimized');
-          chatWindow.style.height = '50px';
           if (icon) {
-            icon.className = 'fas fa-window-maximize';
+            icon.className = 'fas fa-window-restore';
           }
         }
       }
@@ -2438,7 +2621,7 @@
           if (messageQueue) {
             messageQueue.addPendingMessage({ text: message, type: 'cot', timestamp: Date.now() });
             const statusEl = msgEl.querySelector('.chat-msg-status');
-            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In Warteschlange'; }
+            if (statusEl) { statusEl.innerHTML = '⏳'; statusEl.title = 'In queue'; }
           } else {
             const statusEl = msgEl.querySelector('.chat-msg-status');
             if (statusEl) { statusEl.innerHTML = '&#10007;'; statusEl.style.color = '#f44'; }
@@ -2534,7 +2717,7 @@
           const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
           messagesDiv.innerHTML = '';
           if (messages.length === 0) {
-            messagesDiv.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;"><p>No messages</p><p style="font-size: 0.8em; margin-top: 10px;">COT messages will be displayed here</p></div>';
+            messagesDiv.innerHTML = '<div class="chat-placeholder"><i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i><div style="color: #666;">No messages</div><small style="color: #555; margin-top: 5px;">Chat and COT messages will appear here</small></div>';
             return;
           }
           messages.forEach(msg => {
@@ -2593,7 +2776,7 @@
             if (sel && result.channel) sel.value = result.channel.id;
           });
         })
-        .catch(function (e) { alert('Failed to create channel: ' + e.message); });
+        .catch(function (e) { alert('Channel creation failed: ' + e.message); });
     }
 
     function deleteChatChannel() {
@@ -2615,7 +2798,7 @@
         .then(function () {
           if (typeof loadChatUsers === 'function') loadChatUsers().then(function () { loadChatMessages(); });
         })
-        .catch(function (e) { alert('Failed to delete channel: ' + e.message); });
+        .catch(function (e) { alert('Channel deletion failed: ' + e.message); });
     }
 
     // Reload messages when channel selection changes
@@ -2998,7 +3181,7 @@
         <img id="overviewStreamImage" class="overview-stream-video" style="display:none;" alt="Camera Stream">
         <div class="overview-stream-placeholder" id="overviewStreamPlaceholder">
           <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
-          <div>Kein Stream</div>
+          <div>No Stream</div>
         </div>
       </div>
     `;
@@ -3333,7 +3516,7 @@
       // Main menu sections (shown only when logged in)
       const mainSections = isLoggedIn ? `
         <div class="menu-section">
-          <h3>Life Status</h3>
+          <h3>Lebensstatus</h3>
           <div class="status-grid">
             <div class="status-btn ${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('AKTIV')">AKTIV</div>
             <div class="status-btn ${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('BASE')">BASE</div>
@@ -3344,9 +3527,9 @@
         <div class="menu-section">
           <h3>GPS Settings</h3>
           <button class="menu-btn" onclick="event.stopPropagation(); toggleGpsAuto()">
-            <i class="fas fa-sync-alt"></i> GPS Auto Update
+            <i class="fas fa-sync-alt"></i> GPS Automatisch aktualisieren
           </button>
-          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Interval:</div>
+          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Zeit:</div>
           <div class="gps-grid">
             <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sec</button>
             <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sec</button>
@@ -3361,11 +3544,21 @@
         <div class="menu-section">
           <h3>Map Settings</h3>
           <button class="menu-btn" onclick="setMapLayer('satellite')"><i class="fas fa-globe"></i> Satellite</button>
-          <button class="menu-btn" onclick="setMapLayer('street')"><i class="fas fa-road"></i> Road</button>
+          <button class="menu-btn" onclick="setMapLayer('street')"><i class="fas fa-road"></i> Street</button>
           <button class="menu-btn" onclick="setMapLayer('terrain')"><i class="fas fa-mountain"></i> Terrain</button>
           <div style="font-size: 0.7em; color: #555; margin-top: 10px; text-align: center;">
             Maps are automatically cached
           </div>
+        </div>
+
+        <div class="menu-section">
+          <h3>Video Stream</h3>
+          <button class="menu-btn" onclick="event.stopPropagation(); openVideoStreamFromMenu()">
+            <i class="fas fa-video"></i> Start Camera Stream
+          </button>
+          <button class="menu-btn" onclick="event.stopPropagation(); stopOverviewCamera(); toggleHamburgerMenu();">
+            <i class="fas fa-stop"></i> Stop Camera Stream
+          </button>
         </div>
 
         <div class="menu-section">
@@ -3412,7 +3605,7 @@
     window.setGpsInterval = function(sec) {
       gpsUpdateInterval = sec * 1000;
       localStorage.setItem('lpu5_gps_update_interval', sec);
-      alert('Update Intervall auf ' + sec + 's gesetzt');
+      alert('Update interval set to ' + sec + 's');
       toggleHamburgerMenu();
     };
 
@@ -3434,7 +3627,7 @@
     };
 
     window.setManualGps = function() {
-      alert('Manual GPS mode activated. Use the crosshair to set position.');
+      alert('Manual GPS mode activated. Use the crosshair to set your position.');
       toggleHamburgerMenu();
     };
 
@@ -3622,7 +3815,7 @@
       }
       
       meshtasticConnected = false;
-      updateMeshStatus('Disconnected', false);
+      updateMeshStatus('Getrennt', false);
       const si = document.getElementById('mesh-status-indicator');
       const cb = document.getElementById('mesh-connect-btn');
       const db = document.getElementById('mesh-disconnect-btn');
@@ -3831,6 +4024,226 @@
 
   <!-- Load global navigation - DISABLED per requirements -->
   <!-- <script src="load-global-nav.js"></script> -->
+
+  <!-- Camera Access Modal -->
+  <div id="cameraModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: var(--panel-bg); border: 2px solid var(--accent-blue); border-radius: 8px; padding: 25px; max-width: 500px; width: 90%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="color: var(--accent-blue); margin: 0; font-size: 1.3rem;">
+          <i class="fas fa-camera"></i> Camera Access
+        </h2>
+        <button onclick="closeCameraModal()" style="background: none; border: none; color: var(--accent-red); font-size: 1.5rem; cursor: pointer; padding: 0; width: 30px; height: 30px;">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; color: var(--accent-blue); margin-bottom: 8px; font-weight: bold; text-transform: uppercase; font-size: 0.9rem;">
+          <i class="fas fa-camera"></i> Select Camera
+        </label>
+        <select id="overviewCameraSelect" style="width: 100%; padding: 12px; background: var(--panel-input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-family: 'Courier New', monospace; font-size: 1rem;">
+          <option value="">Loading cameras...</option>
+        </select>
+        <p style="color: #888; font-size: 0.85rem; margin-top: 8px;">
+          Select your device's camera to start streaming
+        </p>
+      </div>
+      
+      <div style="display: flex; gap: 10px;">
+        <button onclick="activateOverviewCamera()" style="flex: 1; padding: 12px 20px; background: var(--accent-green); border: none; border-radius: 6px; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; font-family: 'Courier New', monospace; text-transform: uppercase;">
+          <i class="fas fa-video"></i> Activate Camera
+        </button>
+        <button onclick="stopOverviewCamera()" style="flex: 1; padding: 12px 20px; background: var(--accent-red); border: none; border-radius: 6px; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; font-family: 'Courier New', monospace; text-transform: uppercase;">
+          <i class="fas fa-stop"></i> Stop
+        </button>
+      </div>
+      
+      <div id="cameraStatusMessage" style="margin-top: 15px; padding: 10px; border-radius: 4px; text-align: center; display: none;">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Camera Modal Functions
+    let overviewMediaStream = null;
+
+    // Initialize cameras when page loads
+    (async function initOverviewCameras() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.warn('Camera API not available');
+        return;
+      }
+
+      try {
+        // Request permission first (will prompt user)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());
+
+        // Now enumerate devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        const select = document.getElementById('overviewCameraSelect');
+        if (select && videoDevices.length > 0) {
+          select.innerHTML = videoDevices.map((device, index) => 
+            `<option value="${device.deviceId}">${device.label || `Camera ${index + 1}`}</option>`
+          ).join('');
+        }
+      } catch (error) {
+        console.error('Error initializing cameras:', error);
+      }
+    })();
+
+    // Override the existing openVideoStream to show camera modal
+    const originalOpenVideoStream = window.openVideoStream;
+    window.openVideoStream = function() {
+      const modal = document.getElementById('cameraModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+    };
+
+    // Function to open camera from menu
+    window.openVideoStreamFromMenu = function() {
+      // Close the hamburger menu
+      const menu = document.getElementById('status-menu');
+      if (menu) {
+        menu.style.display = 'none';
+      }
+      // Open the camera modal
+      window.openVideoStream();
+    };
+
+    function closeCameraModal() {
+      const modal = document.getElementById('cameraModal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    function showCameraStatus(message, type = 'info') {
+      const statusDiv = document.getElementById('cameraStatusMessage');
+      if (!statusDiv) return;
+      
+      const colors = {
+        success: 'var(--accent-green)',
+        error: 'var(--accent-red)',
+        info: 'var(--accent-blue)'
+      };
+      
+      statusDiv.style.background = colors[type] || colors.info;
+      statusDiv.style.color = 'white';
+      statusDiv.textContent = message;
+      statusDiv.style.display = 'block';
+      
+      setTimeout(() => {
+        statusDiv.style.display = 'none';
+      }, 5000);
+    }
+
+    async function activateOverviewCamera() {
+      const select = document.getElementById('overviewCameraSelect');
+      const deviceId = select?.value;
+
+      if (!deviceId) {
+        showCameraStatus('Please select a camera', 'error');
+        return;
+      }
+
+      try {
+        // Stop any existing stream
+        if (overviewMediaStream) {
+          overviewMediaStream.getTracks().forEach(track => track.stop());
+          overviewMediaStream = null;
+        }
+
+        showCameraStatus('Activating camera...', 'info');
+
+        const constraints = {
+          video: {
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
+        };
+
+        overviewMediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        // Create or get stream viewer
+        let viewer = document.getElementById('overviewStreamViewer');
+        if (!viewer) {
+          viewer = createStreamViewer();
+          document.body.appendChild(viewer);
+        }
+
+        const video = viewer.querySelector('#overviewStreamVideo');
+        if (video) {
+          video.srcObject = overviewMediaStream;
+          video.style.display = 'block';
+          const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
+          if (placeholder) placeholder.style.display = 'none';
+          
+          await video.play();
+          
+          viewer.classList.add('active');
+          viewer.dataset.minimized = 'false';
+          
+          showCameraStatus('Camera activated successfully!', 'success');
+          closeCameraModal();
+
+          // Set global reference for potential sharing
+          window.sharedStream = overviewMediaStream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        let errorMessage = 'Error accessing camera';
+        
+        if (error.name === 'NotAllowedError') {
+          errorMessage = 'Camera permission denied. Please allow access in browser settings.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = 'Camera not found or already in use.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage = 'Camera is already in use by another application.';
+        } else if (error.name === 'OverconstrainedError') {
+          errorMessage = 'Camera does not support the requested settings.';
+        } else if (error.name === 'SecurityError') {
+          errorMessage = 'Security error: HTTPS connection required (except localhost).';
+        }
+        
+        showCameraStatus(errorMessage, 'error');
+      }
+    }
+
+    function stopOverviewCamera() {
+      if (overviewMediaStream) {
+        overviewMediaStream.getTracks().forEach(track => track.stop());
+        overviewMediaStream = null;
+        window.sharedStream = null;
+      }
+
+      const viewer = document.getElementById('overviewStreamViewer');
+      if (viewer) {
+        const video = viewer.querySelector('#overviewStreamVideo');
+        if (video) {
+          video.srcObject = null;
+          video.style.display = 'none';
+        }
+        
+        const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
+        if (placeholder) placeholder.style.display = 'flex';
+      }
+
+      showCameraStatus('Camera stopped', 'info');
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('cameraModal')?.addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeCameraModal();
+      }
+    });
+  </script>
 
 </body>
 

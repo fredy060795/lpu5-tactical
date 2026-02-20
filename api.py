@@ -1702,13 +1702,23 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
     # Get mission time window
     def parse_time(t):
         if not t: return None
-        if isinstance(t, datetime): return t
+        if isinstance(t, datetime):
+            # Ensure timezone-aware
+            if t.tzinfo is None:
+                return t.replace(tzinfo=timezone.utc)
+            return t
         if isinstance(t, (int, float)):
-            return datetime.fromtimestamp(t if t < 1e12 else t / 1000)
-        try: return datetime.fromisoformat(str(t).replace('Z', '+00:00'))
+            dt = datetime.fromtimestamp(t if t < 1e12 else t / 1000, tz=timezone.utc)
+            return dt
+        try:
+            dt = datetime.fromisoformat(str(t).replace('Z', '+00:00'))
+            # Ensure timezone-aware
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt
         except: return None
     
-    start_dt = parse_time(mission.data.get("start_time") if mission.data else None) or mission.created_at
+    start_dt = parse_time(mission.data.get("start_time") if mission.data else None) or parse_time(mission.created_at)
     end_dt = parse_time(mission.data.get("completed_at") if mission.data else None) or datetime.now(timezone.utc)
     
     # Load users from DB
@@ -1721,34 +1731,62 @@ def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(ge
         if not isinstance(history, list) or len(history) == 0:
             continue
         
-        # Filter history entries within mission window
+        # Filter history entries within mission window and parse timestamps once
         filtered_history = []
         for entry in history:
             entry_time = parse_time(entry.get("timestamp"))
             if entry_time and start_dt <= entry_time <= end_dt:
-                filtered_history.append(entry)
+                filtered_history.append((entry_time, entry))  # Store parsed time with entry
                 
         if not filtered_history:
             continue
             
-        # Sort by timestamp
-        filtered_history.sort(key=lambda x: parse_time(x.get("timestamp")) or datetime.min)
+        # Sort by parsed timestamp (already parsed, no redundant parsing)
+        filtered_history.sort(key=lambda x: x[0])
         
-        # Calculate statistics
-        status_counts = {}
-        for entry in filtered_history:
-            status = entry.get("status")
-            if status:
-                status_counts[status] = status_counts.get(status, 0) + 1
+        # Extract just the entry dictionaries after sorting
+        sorted_entries = [entry for _, entry in filtered_history]
+        
+        # Calculate first and last status
+        first_status = sorted_entries[0].get("status", "UNKNOWN") if sorted_entries else "UNKNOWN"
+        last_status = sorted_entries[-1].get("status", "UNKNOWN") if sorted_entries else "UNKNOWN"
+        
+        # Calculate total_changes (count of status changes)
+        total_changes = len(sorted_entries)
+        
+        # Calculate durations for each status (time spent in each status in seconds)
+        # Use the filtered_history list which contains (timestamp, entry) tuples for efficiency
+        durations = {}
+        for i in range(len(filtered_history)):
+            current_time, current_entry = filtered_history[i]
+            current_status = current_entry.get("status")
+            
+            if not current_status:
+                continue
                 
+            # Calculate duration until next status change or end of mission
+            if i < len(filtered_history) - 1:
+                next_time, _ = filtered_history[i + 1]
+                duration = (next_time - current_time).total_seconds()
+            else:
+                # Last entry - calculate duration until mission end
+                duration = (end_dt - current_time).total_seconds()
+            
+            # Add duration to the status
+            if current_status in durations:
+                durations[current_status] += duration
+            else:
+                durations[current_status] = duration
+        
+        # Build the unit stats object with the expected structure
         unit_stats.append({
-            "username": user.username,
-            "fullname": user.fullname or user.username,
-            "role": user.role,
-            "history_count": len(filtered_history),
-            "last_history": filtered_history[-1] if filtered_history else None,
-            "status_distribution": status_counts,
-            "history": filtered_history
+            "name": user.fullname or user.username,
+            "device": user.device or user.username,
+            "first_status": first_status,
+            "last_status": last_status,
+            "total_changes": total_changes,
+            "durations": durations,
+            "history": sorted_entries
         })
             
     return {"status": "success", "mission_id": mission_id, "unit_stats": unit_stats}
