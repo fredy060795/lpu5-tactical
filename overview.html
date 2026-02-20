@@ -1215,6 +1215,7 @@
           if (r.token) localStorage.setItem('token', r.token);
           localStorage.setItem('lpu5_cached_user', u);
           localStorage.setItem('lpu5_cached_pass', p);
+          localStorage.setItem('lpu5_username', currentUserName);
           sessionStorage.setItem('currentUser', currentUserName);
 
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
@@ -1243,6 +1244,7 @@
           const r = await res.json();
           currentUserName = r.user.username;
           if (r.token) localStorage.setItem('token', r.token);
+          localStorage.setItem('lpu5_username', currentUserName);
           sessionStorage.setItem('currentUser', currentUserName);
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
           isLoggedIn = true;
@@ -1253,6 +1255,7 @@
         // Offline: restore username from cache so UI shows the name
         console.warn('Auto-login failed (offline?), using cached name', e);
         currentUserName = cachedUser;
+        localStorage.setItem('lpu5_username', cachedUser);
         sessionStorage.setItem('currentUser', cachedUser);
         document.getElementById('out-name').innerText = cachedUser.toUpperCase();
         // Allow data sync in offline mode with cached credentials
@@ -2337,85 +2340,10 @@
       }
     }
 
-    // Life Status Update Function
-    // This function is called from the hamburger menu to update unit status
-    // It integrates with server API and broadcasts the change to other tabs
-    async function setLifeStatus(status) {
-      console.log('setLifeStatus called with:', status);
-      
-      // Get unit ID from localStorage
-      const unitId = localStorage.getItem('lpu5_unit_id');
-      if (!unitId) {
-        console.warn('No unit ID found in localStorage');
-        alert('Error: No unit ID found. Please log in again.');
-        return;
-      }
-
-      // Determine color based on status
-      let color = '';
-      if (status === 'AKTIV') color = '#28a745';      // Green
-      else if (status === 'BASE') color = '#007bff';   // Blue
-      else if (status === 'KIA') color = '#dc3545';    // Red
-      
-      try {
-        // 1. Update UI immediately for better UX
-        const el = document.getElementById('out-status');
-        if (el) {
-          el.innerText = status;
-          el.style.color = color;
-        }
-        
-        // 2. Send status update to server API
-        const response = await fetch(`/api/status/${encodeURIComponent(unitId)}/${encodeURIComponent(status)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
-        if (!response.ok) {
-          console.error('Failed to update status on server:', await response.text());
-          // Don't show error to user as the UI is already updated
-          // The status will be corrected on next sync if needed
-        } else {
-          console.log('Status successfully updated on server');
-        }
-        
-        // 3. Broadcast to other tabs using BroadcastChannel and localStorage fallback
-        const updateData = {
-          type: 'status_change',
-          status: status,
-          color: color,
-          username: currentUserName,
-          timestamp: new Date().toISOString()
-        };
-        
-        // BroadcastChannel (modern browsers)
-        if (statusChannel) {
-          try {
-            statusChannel.postMessage(updateData);
-          } catch (e) {
-            console.warn('BroadcastChannel postMessage failed', e);
-          }
-        }
-        
-        // localStorage fallback for cross-window sync
-        try {
-          localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
-        } catch (e) {
-          console.warn('localStorage not available', e);
-        }
-        
-        // Also broadcast via setStatus to ensure lpu5_global_status channel
-        // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
-        try { setStatus(status, color); } catch (e) { }
-        
-        // Close the hamburger menu
-        toggleHamburgerMenu();
-        
-      } catch (error) {
-        console.error('Error updating life status:', error);
-        alert('Error updating status. Please try again.');
-      }
-    }
+    // Life Status Update Function placeholder.
+    // The full implementation is window.setLifeStatus (defined in the LIFE STATUS FUNCTIONS block below).
+    // This placeholder prevents hoisting issues; the window assignment overrides it at runtime.
+    function setLifeStatus(status) { /* overridden by window.setLifeStatus below */ }
 
     // Health Display Toggle Function
     function toggleHealthDisplay() {
@@ -3395,81 +3323,84 @@
       console.log('Setting life status to:', status);
 
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        // Use currentUserName as default userId; try /api/me only if token is available
+        let userId = currentUserName || localStorage.getItem('lpu5_username') || localStorage.getItem('lpu5_cached_user');
+
+        if (!userId) {
           alert('Please login first');
           return;
         }
 
-        // Get current user info
-        const userRes = await fetch('/api/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const userData = await userRes.json();
-        const userId = userData.id || userData.username;
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const userRes = await fetch('/api/me', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (userRes.ok) {
+              const userData = await userRes.json();
+              userId = userData.id || userData.username || userId;
+            }
+          } catch (e) {
+            console.warn('Could not get user info from /api/me, using cached username:', e);
+          }
+        }
 
-        if (!userId) {
-          alert('Could not get user information');
-          return;
+        // Update the visual life indicator immediately
+        const statusElement = document.getElementById('out-status');
+        if (statusElement) {
+          statusElement.textContent = status;
+          if (status === 'AKTIV') {
+            statusElement.style.color = '#28a745'; // green
+          } else if (status === 'BASE') {
+            statusElement.style.color = '#007bff'; // blue
+          } else if (status === 'KIA') {
+            statusElement.style.color = '#dc3545'; // red
+          }
         }
 
         // Update status via API
-        const statusRes = await fetch(`/api/status/${userId}/${status}`, {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const statusRes = await fetch(`/api/status/${encodeURIComponent(userId)}/${encodeURIComponent(status)}`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers
         });
 
         if (statusRes.ok) {
           console.log('Status updated successfully');
-
-          // Update the visual life indicator in top-right corner
-          const statusElement = document.getElementById('out-status');
-          if (statusElement) {
-            statusElement.textContent = status;
-            // Update color based on status
-            if (status === 'AKTIV') {
-              statusElement.style.color = '#28a745'; // green
-            } else if (status === 'BASE') {
-              statusElement.style.color = '#007bff'; // blue
-            } else if (status === 'KIA') {
-              statusElement.style.color = '#dc3545'; // red
-            }
-          }
-
-          // Persist status to localStorage for page reload
-          try {
-            localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
-          } catch (e) { }
-
-          // Broadcast to other tabs (index.html) via BroadcastChannel and localStorage
-          const updateData = {
-            type: 'status_change',
-            status: status,
-            color: statusElement ? statusElement.style.color : '',
-            username: currentUserName,
-            timestamp: new Date().toISOString()
-          };
-          if (statusChannel) {
-            try { statusChannel.postMessage(updateData); } catch (e) { }
-          }
-          try {
-            localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
-          } catch (e) { }
-
-          // Also broadcast via setStatus to ensure lpu5_global_status channel
-          // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
-          try { if (typeof setStatus === 'function') setStatus(status, statusElement ? statusElement.style.color : ''); } catch (e) { }
-
-          // Visual feedback on toolbar buttons if they exist
-          document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
-          const statusBtn = document.getElementById(`s-status-${status.toLowerCase()}`);
-          if (statusBtn) statusBtn.classList.add('active');
         } else {
-          alert('Failed to update status');
+          console.warn('Status API returned non-OK status:', statusRes.status);
         }
+
+        // Persist status to localStorage for page reload
+        try {
+          localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
+        } catch (e) { }
+
+        // Broadcast to other tabs (index.html) via BroadcastChannel and localStorage
+        const color = statusElement ? statusElement.style.color : '';
+        const updateData = {
+          type: 'status_change',
+          status: status,
+          color: color,
+          username: currentUserName || userId,
+          timestamp: new Date().toISOString()
+        };
+        if (statusChannel) {
+          try { statusChannel.postMessage(updateData); } catch (e) { }
+        }
+        try {
+          localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
+        } catch (e) { }
+
+        // Also broadcast via setStatus to ensure lpu5_global_status channel is updated
+        try { if (typeof setStatus === 'function') setStatus(status, color); } catch (e) { }
+
+        // Visual feedback on toolbar buttons if they exist
+        document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
+        const statusBtn = document.getElementById(`s-status-${status.toLowerCase()}`);
+        if (statusBtn) statusBtn.classList.add('active');
       } catch (error) {
         console.error('Error setting life status:', error);
         alert('Error updating status');
@@ -4067,8 +3998,8 @@
     // Camera Modal Functions
     let overviewMediaStream = null;
 
-    // Initialize cameras when page loads
-    (async function initOverviewCameras() {
+    // Initialize cameras on demand (called when camera modal is opened)
+    async function initOverviewCameras() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.warn('Camera API not available');
         return;
@@ -4092,7 +4023,7 @@
       } catch (error) {
         console.error('Error initializing cameras:', error);
       }
-    })();
+    }
 
     // Function to open camera modal from menu
     window.openVideoStreamFromMenu = function() {
@@ -4106,6 +4037,8 @@
       if (modal) {
         modal.style.display = 'flex';
       }
+      // Initialize cameras when modal is opened (not on page load)
+      initOverviewCameras();
     };
 
     function closeCameraModal() {
