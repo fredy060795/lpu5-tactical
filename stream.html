@@ -555,6 +555,9 @@
                 <div class="source-tab" data-source="camera">
                     <i class="fas fa-camera"></i> Device Camera
                 </div>
+                <div class="source-tab" data-source="screen">
+                    <i class="fas fa-desktop"></i> Screen Share
+                </div>
                 <div class="source-tab" data-source="ssh">
                     <i class="fas fa-server"></i> SSH/Remote
                 </div>
@@ -586,6 +589,22 @@
                 <div class="btn-group">
                     <button class="btn btn-success" onclick="connectCamera()">
                         <i class="fas fa-video"></i> Activate Camera
+                    </button>
+                    <button class="btn btn-danger" onclick="stopCamera()">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Screen Share Source -->
+            <div class="source-content" id="source-screen">
+                <div class="form-group">
+                    <label><i class="fas fa-desktop"></i> Screen / Window / Tab</label>
+                    <p class="helper-text">Share your screen, a window or a browser tab. Works on mobile and desktop (requires HTTPS or localhost).</p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="connectScreenShare()">
+                        <i class="fas fa-desktop"></i> Start Screen Share
                     </button>
                     <button class="btn btn-danger" onclick="stopCamera()">
                         <i class="fas fa-stop"></i> Stop
@@ -979,6 +998,55 @@
             stopStream();
         }
 
+        // Screen share via getDisplayMedia
+        async function connectScreenShare() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                showToast('Screen sharing is not supported in this browser (not available on iOS Safari). Try Chrome or Firefox on desktop or Android.', 'error');
+                return;
+            }
+            try {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+
+                showToast('Selecting screen to share...', 'success');
+                mediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+
+                const video = document.getElementById('videoPlayer');
+                video.srcObject = mediaStream;
+                video.style.display = 'block';
+                document.getElementById('videoPlaceholder').style.display = 'none';
+
+                await new Promise((resolve, reject) => {
+                    video.addEventListener('loadedmetadata', () => video.play().then(resolve).catch(reject), { once: true });
+                    video.addEventListener('error', reject, { once: true });
+                });
+
+                updateStreamStatus(true, 'Screen Share', 'Screen / Window / Tab');
+                showToast('Screen sharing active!', 'success');
+                document.getElementById('shareToAdminMapBtn').disabled = false;
+                saveActiveStream('screen', 'Screen Sharing');
+
+                // Handle user stopping share via browser UI
+                mediaStream.getVideoTracks()[0].addEventListener('ended', () => {
+                    stopStream();
+                    showToast('Screen sharing stopped', 'success');
+                });
+            } catch (error) {
+                console.error('Error starting screen share:', error);
+                if (error.name === 'NotAllowedError') {
+                    showToast('Screen sharing permission denied.', 'error');
+                } else {
+                    showToast('Error starting screen share: ' + error.message, 'error');
+                }
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+            }
+        }
+
         // Connect SSH stream
         function connectSSHStream() {
             const host = document.getElementById('sshHost').value.trim();
@@ -1211,6 +1279,7 @@
             switch(type) {
                 case 'url': return 'link';
                 case 'camera': return 'camera';
+                case 'screen': return 'desktop';
                 case 'ssh': return 'server';
                 default: return 'video';
             }
