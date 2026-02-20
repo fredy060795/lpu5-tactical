@@ -4094,24 +4094,18 @@
       }
     })();
 
-    // Override the existing openVideoStream to show camera modal
-    const originalOpenVideoStream = window.openVideoStream;
-    window.openVideoStream = function() {
-      const modal = document.getElementById('cameraModal');
-      if (modal) {
-        modal.style.display = 'flex';
-      }
-    };
-
-    // Function to open camera from menu
+    // Function to open camera modal from menu
     window.openVideoStreamFromMenu = function() {
       // Close the hamburger menu
       const menu = document.getElementById('status-menu');
       if (menu) {
         menu.style.display = 'none';
       }
-      // Open the camera modal
-      window.openVideoStream();
+      // Open the camera modal to start camera stream
+      const modal = document.getElementById('cameraModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
     };
 
     function closeCameraModal() {
@@ -4194,6 +4188,19 @@
 
           // Set global reference for potential sharing
           window.sharedStream = overviewMediaStream;
+
+          // Notify stream.html via WebSocket so it appears in Incoming Streams
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'stream_share',
+              streamId: 'overview_camera',
+              active: true,
+              isCamera: true,
+              source: select?.options[select.selectedIndex]?.text || 'Overview Camera',
+              details: 'Camera stream from Overview',
+              timestamp: Date.now()
+            }));
+          }
         }
       } catch (error) {
         console.error('Error accessing camera:', error);
@@ -4220,6 +4227,16 @@
         overviewMediaStream.getTracks().forEach(track => track.stop());
         overviewMediaStream = null;
         window.sharedStream = null;
+
+        // Notify stream.html via WebSocket that the stream stopped
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'stream_share',
+            streamId: 'overview_camera',
+            active: false,
+            timestamp: Date.now()
+          }));
+        }
       }
 
       const viewer = document.getElementById('overviewStreamViewer');
