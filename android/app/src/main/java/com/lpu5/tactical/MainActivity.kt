@@ -48,7 +48,8 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.CAMERA
         )
     }
 
@@ -127,6 +128,21 @@ class MainActivity : AppCompatActivity() {
                 callback: GeolocationPermissions.Callback?
             ) {
                 callback?.invoke(origin, true, false)
+            }
+
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                request?.let {
+                    // Grant camera and microphone access to the WebView
+                    val granted = it.resources.filter { resource ->
+                        resource == PermissionRequest.RESOURCE_VIDEO_CAPTURE ||
+                        resource == PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                    }.toTypedArray()
+                    if (granted.isNotEmpty()) {
+                        it.grant(granted)
+                    } else {
+                        it.deny()
+                    }
+                }
             }
         }
 
