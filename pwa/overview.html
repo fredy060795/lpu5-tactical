@@ -206,11 +206,11 @@
       right: -4px;
       background: #dc3545;
       color: #fff;
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       font-weight: bold;
-      padding: 2px 5px;
+      padding: 2px 6px;
       border-radius: 10px;
-      min-width: 16px;
+      min-width: 18px;
       text-align: center;
       display: none;
       z-index: 10;
@@ -309,7 +309,7 @@
       overflow: hidden;
     }
 
-    .chat-messages-container {
+    .chat-messages {
       flex: 1;
       overflow-y: auto;
       padding: 15px;
@@ -320,7 +320,7 @@
       -ms-overflow-style: none; /* IE and Edge */
     }
 
-    .chat-messages-container::-webkit-scrollbar {
+    .chat-messages::-webkit-scrollbar {
       display: none; /* Chrome, Safari, Opera */
     }
 
@@ -332,68 +332,6 @@
       height: 100%;
       text-align: center;
       color: #666;
-    }
-
-    .chat-message {
-      padding: 10px 12px;
-      border-radius: 8px;
-      max-width: 85%;
-      word-wrap: break-word;
-      animation: slideIn 0.2s ease;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .chat-message.outgoing {
-      background: linear-gradient(135deg, #007bff, #0056b3);
-      color: #fff;
-      align-self: flex-end;
-      border-bottom-right-radius: 3px;
-    }
-
-    .chat-message.incoming {
-      background: #1a1a1a;
-      color: #d0d0d0;
-      align-self: flex-start;
-      border: 1px solid #333;
-      border-bottom-left-radius: 3px;
-    }
-
-    .chat-message-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 4px;
-      font-size: 0.75rem;
-    }
-
-    .chat-message-sender {
-      font-weight: bold;
-      color: #28a745;
-    }
-
-    .chat-message.outgoing .chat-message-sender {
-      color: #9ad1ff;
-    }
-
-    .chat-message-time {
-      font-size: 0.7rem;
-      opacity: 0.7;
-    }
-
-    .chat-message-text {
-      font-size: 0.85rem;
-      line-height: 1.4;
     }
 
     .chat-window-footer {
@@ -457,6 +395,7 @@
     .chat-send-btn:disabled {
       background: #444;
       cursor: not-allowed;
+      color: #888;
     }
 
     .chat-channel-btn {
@@ -476,6 +415,61 @@
     }
     .chat-channel-btn:hover { background: rgba(255,255,255,0.25); }
     .chat-channel-btn.delete-btn:hover { background: rgba(255,50,50,0.4); }
+
+    .chat-message {
+      padding: 10px 12px;
+      border-radius: 8px;
+      max-width: 85%;
+      word-wrap: break-word;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-message.outgoing {
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 3px;
+    }
+
+    .chat-message.incoming {
+      background: #1a1a1a;
+      color: #d0d0d0;
+      align-self: flex-start;
+      border: 1px solid #333;
+      border-bottom-left-radius: 3px;
+    }
+
+    .chat-message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 0.75rem;
+    }
+
+    .chat-message-sender {
+      font-weight: bold;
+      color: #28a745;
+    }
+
+    .chat-message.outgoing .chat-message-sender {
+      color: #9ad1ff;
+    }
+
+    .chat-message-text {
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .chat-message-time {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
 
     #map {
       position: absolute;
@@ -605,9 +599,9 @@
 
 
 
-  <!-- Chat Window -->
+  <!-- Chat Window – matches admin_map.html 1:1 -->
   <div id="chat-window">
-    <div class="chat-window-header">
+    <div class="chat-window-header" id="chatWindowHeader">
       <div class="chat-window-title">
         <i class="fas fa-comments"></i>
         <span>Chat / COT Messages</span>
@@ -622,8 +616,8 @@
       </div>
     </div>
     <div class="chat-window-content">
-      <div class="chat-messages-container" id="chat-messages">
-        <div class="chat-placeholder">
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-placeholder" id="chatPlaceholder">
           <i class="fas fa-comments" style="font-size: 2rem; margin-bottom: 10px; color: #666;"></i>
           <div style="color: #666;">No messages</div>
           <small style="color: #555; margin-top: 5px;">Chat and COT messages will appear here</small>
@@ -638,7 +632,7 @@
         </select>
         <button class="chat-channel-btn" onclick="createChatChannel()" title="Create Channel"><i class="fas fa-plus"></i></button>
         <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Delete Channel"><i class="fas fa-trash"></i></button>
-        <input type="text" id="chat-input" class="chat-input" placeholder="Type a message...">
+        <input type="text" id="chat-input" class="chat-input" placeholder="Type message...">
         <button class="chat-send-btn" onclick="sendChatMessage()">
           <i class="fas fa-paper-plane"></i> Send
         </button>
@@ -698,18 +692,17 @@
       </svg>
     </div>
     <div class="tool-btn" id="s-reload" ontouchstart="handleToolInteraction(() => refreshAllData(), event)"
-      onclick="handleToolInteraction(() => refreshAllData(), event)" title="Seite neu laden">
+      onclick="handleToolInteraction(() => refreshAllData(), event)" title="Reload page">
       <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
       </svg>
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" 
-          integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+          integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
           crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js" 
-          integrity="sha384-4w/MvRqjXh0h0UmKSbYwKmzTUcEKEBNPJpBLcbNLDdqjq8/mDPDWJ0J6B3tL3CvQ" 
+  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"
           crossorigin="anonymous"></script>
   <script src="assets/api-client.js"></script>
   <script src="assets/ws-client.js"></script>
@@ -718,12 +711,8 @@
   <script src="meshtastic-web-client.js"></script>
   <script src="cot-client.js"></script>
   <script src="message-queue-manager.js"></script>
-  
-  <script>
-    /* Overview map with immediate (optimistic) marker placement and persistent pending markers.
-       Includes BroadcastChannel/storage fallback to broadcast status-change messages
-    */
 
+  <script>
     // Dynamic viewport height polyfill for iOS
     // Sets CSS custom property --vh to 1% of actual viewport height
     function updateViewportHeight() {
@@ -738,6 +727,12 @@
       // Delay to ensure accurate measurement after orientation change
       setTimeout(updateViewportHeight, 100);
     });
+  </script>
+  
+  <script>
+    /* Overview map with immediate (optimistic) marker placement and persistent pending markers.
+       Includes BroadcastChannel/storage fallback to broadcast status-change messages
+    */
 
     const PENDING_KEY = 'pending_map_markers_v1';
     const DEBOUNCE_THRESHOLD_MS = 500; // Prevent double-firing of touch/click events
@@ -765,6 +760,11 @@
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
     let chatUnreadCount = 0; // Unread chat message counter
+    const _sentChatMessageIds = new Set(); // Track IDs of messages we sent to suppress WebSocket echoes
+    const _recentChatKeys = new Set(); // Deduplication for cross-tab chat messages
+    function _chatDedupKey(sender, text, ts) {
+      return JSON.stringify([sender || '', text || '', Math.floor((typeof ts === 'string' ? new Date(ts).getTime() : (ts || Date.now())) / 5000)]);
+    }
 
     // BroadcastChannel for cross-tab status synchronization
     // Enables real-time status updates between overview.html and index.html tabs
@@ -972,27 +972,37 @@
             if (messagesDiv) {
               // Don't add if sent by self (already shown locally)
               const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
-              if (msg.username === selfName) {
+              if (msg.username === selfName || msg.sender === selfName || (msg.id && _sentChatMessageIds.has(String(msg.id)))) {
                 // Update local message with server-assigned id for read receipt tracking
                 const localMsgs = messagesDiv.querySelectorAll('.chat-message[data-pending="true"]');
                 if (localMsgs.length > 0) {
                   localMsgs[0].setAttribute('data-msg-id', msg.id);
                   localMsgs[0].removeAttribute('data-pending');
+                  _sentChatMessageIds.add(String(msg.id));
+                  setTimeout(() => _sentChatMessageIds.delete(String(msg.id)), 30000);
                   const statusEl = localMsgs[0].querySelector('.chat-msg-status');
                   if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
                 }
                 break;
+              }
+              // Check for duplicate message (already displayed)
+              if (msg.id) {
+                const existingMsg = messagesDiv.querySelector('.chat-message[data-msg-id="' + msg.id + '"]');
+                if (existingMsg) break;
               }
               // Filter by selected channel
               const chatRecipientEl = document.getElementById('chat-recipient');
               const selectedChannel = chatRecipientEl ? chatRecipientEl.value : 'all';
               const msgChannel = msg.channel_id || 'all';
               if (selectedChannel !== 'all' && msgChannel !== selectedChannel) break;
+              // Deduplicate: skip if already received via localStorage broadcast
+              const _dedupKey = _chatDedupKey(msg.username, msg.text, msg.timestamp);
+              if (_recentChatKeys.has(_dedupKey)) break;
+              _recentChatKeys.add(_dedupKey);
+              setTimeout(() => _recentChatKeys.delete(_dedupKey), 10000);
               // Clear placeholder if present
-              const placeholder = messagesDiv.querySelector('.chat-placeholder');
-              if (placeholder) {
-                placeholder.remove();
-              }
+              const _ph = messagesDiv.querySelector('.chat-placeholder');
+              if (_ph) _ph.remove();
               const messageEl = document.createElement('div');
               messageEl.className = 'chat-message incoming';
               messageEl.setAttribute('data-msg-id', msg.id || '');
@@ -1229,6 +1239,8 @@
           if (r.token) localStorage.setItem('token', r.token);
           localStorage.setItem('lpu5_cached_user', u);
           localStorage.setItem('lpu5_cached_pass', p);
+          localStorage.setItem('lpu5_username', currentUserName);
+          sessionStorage.setItem('currentUser', currentUserName);
 
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
           // Close hamburger menu after login
@@ -1241,7 +1253,7 @@
         }
       } catch (e) {
         console.error('Login error:', e);
-        alert('Netzwerkfehler beim Login: ' + e.message);
+        alert('Network error during login: ' + e.message);
       }
     }
 
@@ -1256,6 +1268,8 @@
           const r = await res.json();
           currentUserName = r.user.username;
           if (r.token) localStorage.setItem('token', r.token);
+          localStorage.setItem('lpu5_username', currentUserName);
+          sessionStorage.setItem('currentUser', currentUserName);
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
           isLoggedIn = true;
           startDataSync();
@@ -1265,6 +1279,8 @@
         // Offline: restore username from cache so UI shows the name
         console.warn('Auto-login failed (offline?), using cached name', e);
         currentUserName = cachedUser;
+        localStorage.setItem('lpu5_username', cachedUser);
+        sessionStorage.setItem('currentUser', cachedUser);
         document.getElementById('out-name').innerText = cachedUser.toUpperCase();
         // Allow data sync in offline mode with cached credentials
         if (localStorage.getItem('token')) {
@@ -1324,6 +1340,25 @@
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
 
+      // Network Status Listeners
+      window.addEventListener('online', () => {
+        document.getElementById('offline-indicator').style.display = 'none';
+        if (typeof ApiClient !== 'undefined') ApiClient.processSyncQueue();
+      });
+      window.addEventListener('offline', () => {
+        document.getElementById('offline-indicator').style.display = 'block';
+      });
+      if (!navigator.onLine) {
+        document.getElementById('offline-indicator').style.display = 'block';
+      }
+
+      // Register Service Worker for PWA
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/pwa/sw.js', { scope: '/pwa/' })
+          .then(reg => console.log('[PWA] Service Worker registered', reg))
+          .catch(err => console.log('[PWA] Service Worker registration failed', err));
+      }
+
       // Handle map resize on orientation and viewport changes
       let resizeTimeouts = [];
       let isResizeScheduled = false;
@@ -1367,25 +1402,6 @@
 
       // Initial resize after map is ready
       setTimeout(handleMapResize, 100);
-
-      // Network Status Listeners
-      window.addEventListener('online', () => {
-        document.getElementById('offline-indicator').style.display = 'none';
-        if (typeof ApiClient !== 'undefined') ApiClient.processSyncQueue();
-      });
-      window.addEventListener('offline', () => {
-        document.getElementById('offline-indicator').style.display = 'block';
-      });
-      if (!navigator.onLine) {
-        document.getElementById('offline-indicator').style.display = 'block';
-      }
-
-      // Register Service Worker for PWA
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/pwa/sw.js', { scope: '/pwa/' })
-          .then(reg => console.log('[PWA] Service Worker registered', reg))
-          .catch(err => console.log('[PWA] Service Worker registration failed', err));
-      }
 
       // Restore GPS settings from localStorage
       try {
@@ -1525,7 +1541,7 @@
       pendingLayers.set(cid, layer);
       layer.on('click touchstart', (ev) => {
         ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
-        if (confirm('Remove pending marker?')) {
+        if (confirm('Ausstehenden Marker entfernen?')) {
           removePendingLocal(cid);
           try { map.removeLayer(layer); } catch (e) { }
           pendingLayers.delete(cid);
@@ -1563,7 +1579,7 @@
         pendingLayers.set(p._cid, layer);
         layer.on('click touchstart', (ev) => {
           ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
-          if (confirm('Remove pending marker?')) {
+          if (confirm('Ausstehenden Marker entfernen?')) {
             removePendingLocal(p._cid);
             try { map.removeLayer(layer); } catch (e) { }
             pendingLayers.delete(p._cid);
@@ -2306,7 +2322,7 @@
         } catch (fetchError) {
           // Check if it's an abort error (timeout)
           if (fetchError.name === 'AbortError') {
-            throw new Error(`IP service timeout (${IP_GEOLOCATION_TIMEOUT_MS / 1000}s) - probably no internet available`);
+            throw new Error(`IP-Service Timeout (${IP_GEOLOCATION_TIMEOUT_MS / 1000}s) - probably no internet available`);
           }
           throw fetchError;
         }
@@ -2392,85 +2408,10 @@
       }
     }
 
-    // Life Status Update Function
-    // This function is called from the hamburger menu to update unit status
-    // It integrates with server API and broadcasts the change to other tabs
-    async function setLifeStatus(status) {
-      console.log('setLifeStatus called with:', status);
-      
-      // Get unit ID from localStorage
-      const unitId = localStorage.getItem('lpu5_unit_id');
-      if (!unitId) {
-        console.warn('No unit ID found in localStorage');
-        alert('Error: No unit ID found. Please log in again.');
-        return;
-      }
-
-      // Determine color based on status
-      let color = '';
-      if (status === 'AKTIV') color = '#28a745';      // Green
-      else if (status === 'BASE') color = '#007bff';   // Blue
-      else if (status === 'KIA') color = '#dc3545';    // Red
-      
-      try {
-        // 1. Update UI immediately for better UX
-        const el = document.getElementById('out-status');
-        if (el) {
-          el.innerText = status;
-          el.style.color = color;
-        }
-        
-        // 2. Send status update to server API
-        const response = await fetch(`/api/status/${encodeURIComponent(unitId)}/${encodeURIComponent(status)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
-        if (!response.ok) {
-          console.error('Failed to update status on server:', await response.text());
-          // Don't show error to user as the UI is already updated
-          // The status will be corrected on next sync if needed
-        } else {
-          console.log('Status successfully updated on server');
-        }
-        
-        // 3. Broadcast to other tabs using BroadcastChannel and localStorage fallback
-        const updateData = {
-          type: 'status_change',
-          status: status,
-          color: color,
-          username: currentUserName,
-          timestamp: new Date().toISOString()
-        };
-        
-        // BroadcastChannel (modern browsers)
-        if (statusChannel) {
-          try {
-            statusChannel.postMessage(updateData);
-          } catch (e) {
-            console.warn('BroadcastChannel postMessage failed', e);
-          }
-        }
-        
-        // localStorage fallback for cross-window sync
-        try {
-          localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
-        } catch (e) {
-          console.warn('localStorage not available', e);
-        }
-        
-        // Also broadcast via setStatus to ensure lpu5_global_status channel
-        // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
-        try { setStatus(status, color); } catch (e) { }
-        
-        // Close the hamburger menu
-        toggleHamburgerMenu();
-        
-      } catch (error) {
-        console.error('Error updating life status:', error);
-        alert('Error updating status. Please try again.');
-      }
-    }
+    // Life Status Update Function placeholder.
+    // The full implementation is window.setLifeStatus (defined in the LIFE STATUS FUNCTIONS block below).
+    // This placeholder prevents hoisting issues; the window assignment overrides it at runtime.
+    function setLifeStatus(status) { /* overridden by window.setLifeStatus below */ }
 
     // Health Display Toggle Function
     function toggleHealthDisplay() {
@@ -2528,6 +2469,7 @@
         if (chatWindow.classList.contains('minimized')) {
           // Restore
           chatWindow.classList.remove('minimized');
+          chatWindow.style.removeProperty('height');
           if (icon) {
             icon.className = 'fas fa-minus';
           }
@@ -2535,7 +2477,7 @@
           // Minimize
           chatWindow.classList.add('minimized');
           if (icon) {
-            icon.className = 'fas fa-window-restore';
+            icon.className = 'fas fa-window-maximize';
           }
         }
       }
@@ -2545,6 +2487,9 @@
       const chatWindow = document.getElementById('chat-window');
       if (chatWindow) {
         chatWindow.classList.remove('open');
+        chatWindow.classList.remove('minimized');
+        const icon = document.getElementById('chat-minimize-icon');
+        if (icon) icon.className = 'fas fa-minus';
       }
     }
 
@@ -2560,10 +2505,7 @@
 
       // Clear initial "no messages" placeholder if present
       const placeholder = messagesDiv.querySelector('.chat-placeholder');
-      if (placeholder) placeholder.style.display = 'none';
-      if (messagesDiv.children.length === 1 && messagesDiv.children[0].style.textAlign === 'center') {
-        messagesDiv.innerHTML = '';
-      }
+      if (placeholder) placeholder.remove();
 
       // Create message element with outgoing style
       const messageEl = document.createElement('div');
@@ -2586,9 +2528,15 @@
       // Clear input
       input.value = '';
 
+      // Broadcast to other tabs via localStorage (cross-tab fallback for admin_map.html)
+      try {
+        const broadcastData = JSON.stringify({ sender: senderName, text: message, timestamp: Date.now(), source: 'overview' });
+        localStorage.setItem('lpu5_broadcast_message', broadcastData);
+      } catch (e) { }
+
       // Send message to server via API, with automatic COT fallback
       const channelId = recipient.value || 'all';
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
 
       // Helper: send via Meshtastic COT as fallback
       function sendViaMeshtasticCOT(msgEl) {
@@ -2649,6 +2597,8 @@
         if (result.status === 'success' && result.message) {
           messageEl.setAttribute('data-msg-id', result.message.id);
           messageEl.removeAttribute('data-pending');
+          _sentChatMessageIds.add(String(result.message.id));
+          setTimeout(() => _sentChatMessageIds.delete(String(result.message.id)), 30000);
           const statusEl = messageEl.querySelector('.chat-msg-status');
           if (statusEl) statusEl.innerHTML = '&#10003;'; // single check = sent
         }
@@ -2661,33 +2611,39 @@
 
     function loadChatUsers() {
       // Load channels from API for chat recipient dropdown
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       if (!token) return Promise.resolve();
+
+      const select = document.getElementById('chat-recipient');
+      if (!select) return Promise.resolve();
 
       return fetch('/api/chat/channels', {
         headers: { 'Authorization': 'Bearer ' + token }
       })
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error('Failed to load channels: ' + r.status);
+          return r.json();
+        })
         .then(result => {
-          const select = document.getElementById('chat-recipient');
-          if (!select) return;
           const channels = (result && result.channels) ? result.channels : [];
           select.innerHTML = '';
-          channels.forEach(ch => {
-            const opt = document.createElement('option');
-            opt.value = ch.id;
-            opt.textContent = ch.name || ch.id;
-            if (ch.color) opt.style.color = ch.color;
-            select.appendChild(opt);
-          });
+          if (channels.length === 0) {
+            select.innerHTML = '<option value="all">All Units</option>';
+          } else {
+            channels.forEach(ch => {
+              const opt = document.createElement('option');
+              opt.value = ch.id;
+              opt.textContent = ch.name || ch.id;
+              if (ch.color) opt.style.color = ch.color;
+              select.appendChild(opt);
+            });
+          }
           // Also load user list for direct messages
           return fetch('/api/users', { headers: { 'Authorization': 'Bearer ' + token } });
         })
-        .then(r => r ? r.json() : [])
+        .then(r => (r && r.ok) ? r.json() : [])
         .then(users => {
           if (!users || !Array.isArray(users)) return;
-          const select = document.getElementById('chat-recipient');
-          if (!select) return;
           users.forEach(user => {
             const opt = document.createElement('option');
             opt.value = user.id;
@@ -2697,11 +2653,14 @@
         })
         .catch(err => {
           console.error('Error loading channels/users for chat:', err);
+          if (select && select.options.length === 0) {
+            select.innerHTML = '<option value="all">All Units</option>';
+          }
         });
     }
 
     function loadChatMessages() {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       if (!token) return;
       const select = document.getElementById('chat-recipient');
       const channelId = (select && select.value) ? select.value : 'all';
@@ -2753,10 +2712,10 @@
     }
 
     function createChatChannel() {
-      var name = prompt('New channel – enter name:');
+      var name = prompt('New channel – Enter name:');
       if (!name || !name.trim()) return;
       name = name.trim();
-      var color = prompt('Color (hex, e.g. #ff9900):', '#ffffff');
+      var color = prompt('Color (Hex, e.g. #ff9900):', '#ffffff');
       if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#ffffff';
       var description = prompt('Description (optional):', '');
       var token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -2776,7 +2735,7 @@
             if (sel && result.channel) sel.value = result.channel.id;
           });
         })
-        .catch(function (e) { alert('Channel creation failed: ' + e.message); });
+        .catch(function (e) { alert('Failed to create channel: ' + e.message); });
     }
 
     function deleteChatChannel() {
@@ -2798,7 +2757,7 @@
         .then(function () {
           if (typeof loadChatUsers === 'function') loadChatUsers().then(function () { loadChatMessages(); });
         })
-        .catch(function (e) { alert('Channel deletion failed: ' + e.message); });
+        .catch(function (e) { alert('Failed to delete channel: ' + e.message); });
     }
 
     // Reload messages when channel selection changes
@@ -2906,6 +2865,43 @@
             sync();
           } catch (err) {
             console.warn('Failed to parse status update', err);
+          }
+        }
+
+        // Cross-tab chat message fallback (receives broadcasts from admin_map.html)
+        if (e.key === 'lpu5_broadcast_message' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            // Ignore messages sent from this page
+            if (data.source === 'overview') return;
+            const selfName = currentUserName || sessionStorage.getItem('currentUser') || '';
+            if (data.sender === selfName) return;
+            const messagesDiv = document.getElementById('chat-messages');
+            if (!messagesDiv) return;
+            // Deduplicate: skip if already received via WebSocket
+            const _dedupKey = _chatDedupKey(data.sender, data.text, data.timestamp);
+            if (_recentChatKeys.has(_dedupKey)) return;
+            _recentChatKeys.add(_dedupKey);
+            setTimeout(() => _recentChatKeys.delete(_dedupKey), 10000);
+            // Clear placeholder if present
+            const _ph2 = messagesDiv.querySelector('.chat-placeholder');
+            if (_ph2) _ph2.remove();
+            const messageEl = document.createElement('div');
+            messageEl.className = 'chat-message incoming';
+            const sender = data.sender || data.from || 'Unknown';
+            const text = data.text || data.message || '';
+            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(sender) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(text) + '</div>';
+            messagesDiv.appendChild(messageEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            // Update unread badge if chat window is not open
+            const chatWin = document.getElementById('chat-window');
+            if (!chatWin || !chatWin.classList.contains('open')) {
+              chatUnreadCount++;
+              updateChatNotificationBadge();
+            }
+          } catch (err) {
+            console.error('Error processing broadcast message:', err);
           }
         }
       });
@@ -3395,81 +3391,84 @@
       console.log('Setting life status to:', status);
 
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        // Use currentUserName as default userId; try /api/me only if token is available
+        let userId = currentUserName || localStorage.getItem('lpu5_username') || localStorage.getItem('lpu5_cached_user');
+
+        if (!userId) {
           alert('Please login first');
           return;
         }
 
-        // Get current user info
-        const userRes = await fetch('/api/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const userData = await userRes.json();
-        const userId = userData.id || userData.username;
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const userRes = await fetch('/api/me', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (userRes.ok) {
+              const userData = await userRes.json();
+              userId = userData.id || userData.username || userId;
+            }
+          } catch (e) {
+            console.warn('Could not get user info from /api/me, using cached username:', e);
+          }
+        }
 
-        if (!userId) {
-          alert('Could not get user information');
-          return;
+        // Update the visual life indicator immediately
+        const statusElement = document.getElementById('out-status');
+        if (statusElement) {
+          statusElement.textContent = status;
+          if (status === 'AKTIV') {
+            statusElement.style.color = '#28a745'; // green
+          } else if (status === 'BASE') {
+            statusElement.style.color = '#007bff'; // blue
+          } else if (status === 'KIA') {
+            statusElement.style.color = '#dc3545'; // red
+          }
         }
 
         // Update status via API
-        const statusRes = await fetch(`/api/status/${userId}/${status}`, {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const statusRes = await fetch(`/api/status/${encodeURIComponent(userId)}/${encodeURIComponent(status)}`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers
         });
 
         if (statusRes.ok) {
           console.log('Status updated successfully');
-
-          // Update the visual life indicator in top-right corner
-          const statusElement = document.getElementById('out-status');
-          if (statusElement) {
-            statusElement.textContent = status;
-            // Update color based on status
-            if (status === 'AKTIV') {
-              statusElement.style.color = '#28a745'; // green
-            } else if (status === 'BASE') {
-              statusElement.style.color = '#007bff'; // blue
-            } else if (status === 'KIA') {
-              statusElement.style.color = '#dc3545'; // red
-            }
-          }
-
-          // Persist status to localStorage for page reload
-          try {
-            localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
-          } catch (e) { }
-
-          // Broadcast to other tabs (index.html) via BroadcastChannel and localStorage
-          const updateData = {
-            type: 'status_change',
-            status: status,
-            color: statusElement ? statusElement.style.color : '',
-            username: currentUserName,
-            timestamp: new Date().toISOString()
-          };
-          if (statusChannel) {
-            try { statusChannel.postMessage(updateData); } catch (e) { }
-          }
-          try {
-            localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
-          } catch (e) { }
-
-          // Also broadcast via setStatus to ensure lpu5_global_status channel
-          // and lpu5_status localStorage key are updated (bidirectional sync with index.html)
-          try { if (typeof setStatus === 'function') setStatus(status, statusElement ? statusElement.style.color : ''); } catch (e) { }
-
-          // Visual feedback on toolbar buttons if they exist
-          document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
-          const statusBtn = document.getElementById(`s-status-${status.toLowerCase()}`);
-          if (statusBtn) statusBtn.classList.add('active');
         } else {
-          alert('Failed to update status');
+          console.warn('Status API returned non-OK status:', statusRes.status);
         }
+
+        // Persist status to localStorage for page reload
+        try {
+          localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: status }));
+        } catch (e) { }
+
+        // Broadcast to other tabs (index.html) via BroadcastChannel and localStorage
+        const color = statusElement ? statusElement.style.color : '';
+        const updateData = {
+          type: 'status_change',
+          status: status,
+          color: color,
+          username: currentUserName || userId,
+          timestamp: new Date().toISOString()
+        };
+        if (statusChannel) {
+          try { statusChannel.postMessage(updateData); } catch (e) { }
+        }
+        try {
+          localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData));
+        } catch (e) { }
+
+        // Also broadcast via setStatus to ensure lpu5_global_status channel is updated
+        try { if (typeof setStatus === 'function') setStatus(status, color); } catch (e) { }
+
+        // Visual feedback on toolbar buttons if they exist
+        document.querySelectorAll('[id^="s-status-"]').forEach(btn => btn.classList.remove('active'));
+        const statusBtn = document.getElementById(`s-status-${status.toLowerCase()}`);
+        if (statusBtn) statusBtn.classList.add('active');
       } catch (error) {
         console.error('Error setting life status:', error);
         alert('Error updating status');
@@ -3516,7 +3515,7 @@
       // Main menu sections (shown only when logged in)
       const mainSections = isLoggedIn ? `
         <div class="menu-section">
-          <h3>Lebensstatus</h3>
+          <h3>Life Status</h3>
           <div class="status-grid">
             <div class="status-btn ${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('AKTIV')">AKTIV</div>
             <div class="status-btn ${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('BASE')">BASE</div>
@@ -3527,9 +3526,9 @@
         <div class="menu-section">
           <h3>GPS Settings</h3>
           <button class="menu-btn" onclick="event.stopPropagation(); toggleGpsAuto()">
-            <i class="fas fa-sync-alt"></i> GPS Automatisch aktualisieren
+            <i class="fas fa-sync-alt"></i> GPS Auto Update
           </button>
-          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Zeit:</div>
+          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Interval:</div>
           <div class="gps-grid">
             <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sec</button>
             <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sec</button>
@@ -3627,7 +3626,7 @@
     };
 
     window.setManualGps = function() {
-      alert('Manual GPS mode activated. Use the crosshair to set your position.');
+      alert('Manual GPS mode activated. Use the crosshair to set the position.');
       toggleHamburgerMenu();
     };
 
@@ -3799,7 +3798,7 @@
           alert(
             'BLE connection failed: ' + error.message + '\n\n' +
             'Possible causes:\n' +
-            '• The device is already connected to the Meshtastic app\n' +
+            '• The device is already connected to the Meshtastic App\n' +
             '• Bluetooth is not enabled\n' +
             '• The device is out of range\n\n' +
             'Please check the Bluetooth connection and try again.'
@@ -3941,7 +3940,7 @@
       if (!chatMessages) return;
 
       // Remove "no messages" placeholder if it exists
-      const placeholder = chatMessages.querySelector('[style*="text-align: center"]');
+      const placeholder = chatMessages.querySelector('.chat-placeholder');
       if (placeholder) {
         placeholder.remove();
       }
@@ -4067,8 +4066,8 @@
     // Camera Modal Functions
     let overviewMediaStream = null;
 
-    // Initialize cameras when page loads
-    (async function initOverviewCameras() {
+    // Initialize cameras on demand (called when camera modal is opened)
+    async function initOverviewCameras() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.warn('Camera API not available');
         return;
@@ -4092,26 +4091,22 @@
       } catch (error) {
         console.error('Error initializing cameras:', error);
       }
-    })();
+    }
 
-    // Override the existing openVideoStream to show camera modal
-    const originalOpenVideoStream = window.openVideoStream;
-    window.openVideoStream = function() {
-      const modal = document.getElementById('cameraModal');
-      if (modal) {
-        modal.style.display = 'flex';
-      }
-    };
-
-    // Function to open camera from menu
+    // Function to open camera modal from menu
     window.openVideoStreamFromMenu = function() {
       // Close the hamburger menu
       const menu = document.getElementById('status-menu');
       if (menu) {
         menu.style.display = 'none';
       }
-      // Open the camera modal
-      window.openVideoStream();
+      // Open the camera modal to start camera stream
+      const modal = document.getElementById('cameraModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+      // Initialize cameras when modal is opened (not on page load)
+      initOverviewCameras();
     };
 
     function closeCameraModal() {
@@ -4194,6 +4189,19 @@
 
           // Set global reference for potential sharing
           window.sharedStream = overviewMediaStream;
+
+          // Notify stream.html via WebSocket so it appears in Incoming Streams
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'stream_share',
+              streamId: 'overview_camera',
+              active: true,
+              isCamera: true,
+              source: select?.options[select.selectedIndex]?.text || 'Overview Camera',
+              details: 'Camera stream from Overview',
+              timestamp: Date.now()
+            }));
+          }
         }
       } catch (error) {
         console.error('Error accessing camera:', error);
@@ -4220,6 +4228,16 @@
         overviewMediaStream.getTracks().forEach(track => track.stop());
         overviewMediaStream = null;
         window.sharedStream = null;
+
+        // Notify stream.html via WebSocket that the stream stopped
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'stream_share',
+            streamId: 'overview_camera',
+            active: false,
+            timestamp: Date.now()
+          }));
+        }
       }
 
       const viewer = document.getElementById('overviewStreamViewer');
