@@ -3314,6 +3314,12 @@
           placeholder.style.display = 'flex';
         }
       }
+
+      // Expose functions to global scope so they can be called from other script blocks
+      window.createStreamViewer = createStreamViewer;
+      window.hideCameraStream = hideCameraStream;
+      window.showCameraStream = showCameraStream;
+      window.updateCameraFrame = updateCameraFrame;
     })();
 
     /* ----------------- LIFE STATUS FUNCTIONS -----------------
