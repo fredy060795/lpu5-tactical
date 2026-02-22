@@ -1328,6 +1328,28 @@
             }, 3000);
         }
 
+        // Load currently active stream state from server (e.g. overview.html camera)
+        async function loadCurrentStream() {
+            try {
+                const response = await fetch('/api/stream_share');
+                if (!response.ok) return;
+                const data = await response.json();
+                if (data.active) {
+                    addIncomingStream({
+                        streamId: data.streamId || 'camera_main',
+                        active: true,
+                        isCamera: data.isCamera || false,
+                        source: data.source || 'Overview Camera',
+                        details: data.details || 'Camera stream from Overview',
+                        stream_url: data.stream_url,
+                        timestamp: data.timestamp
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load current stream state:', e);
+            }
+        }
+
         // WebSocket connection
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1339,6 +1361,7 @@
                 ws.onopen = () => {
                     console.log('WebSocket connected');
                     ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+                    loadCurrentStream();
                 };
 
                 ws.onmessage = (event) => {
