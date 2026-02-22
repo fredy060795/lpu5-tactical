@@ -4002,6 +4002,7 @@
     async function initOverviewCameras() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.warn('Camera API not available');
+        showCameraStatus('Camera not available. Please use HTTPS or localhost.', 'error');
         return;
       }
 
@@ -4019,9 +4020,21 @@
           select.innerHTML = videoDevices.map((device, index) => 
             `<option value="${device.deviceId}">${device.label || `Camera ${index + 1}`}</option>`
           ).join('');
+        } else if (select) {
+          select.innerHTML = '<option value="">No cameras found</option>';
+          showCameraStatus('No cameras detected on this device.', 'error');
         }
       } catch (error) {
         console.error('Error initializing cameras:', error);
+        let msg = 'Error accessing camera.';
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          msg = 'Camera permission denied. Please allow camera access in your browser settings.';
+        } else if (error.name === 'NotFoundError') {
+          msg = 'No camera found on this device.';
+        } else if (error.name === 'SecurityError') {
+          msg = 'Camera requires a secure connection (HTTPS).';
+        }
+        showCameraStatus(msg, 'error');
       }
     }
 
@@ -4086,16 +4099,34 @@
 
         showCameraStatus('Activating camera...', 'info');
 
-        const constraints = {
-          video: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false
-        };
+        // Try progressively relaxed constraints for better mobile compatibility
+        let stream = null;
+        const constraintAttempts = [
+          // 1st attempt: exact deviceId with ideal resolution
+          ...(deviceId ? [{ video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }] : []),
+          // 2nd attempt: ideal deviceId (less strict, better for mobile)
+          ...(deviceId ? [{ video: { deviceId: { ideal: deviceId } }, audio: false }] : []),
+          // 3rd attempt: basic video (widest compatibility)
+          { video: true, audio: false }
+        ];
 
-        overviewMediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        for (const constraints of constraintAttempts) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            break;
+          } catch (constraintError) {
+            if (constraintError.name === 'OverconstrainedError' || constraintError.name === 'ConstraintNotSatisfiedError') {
+              continue;
+            }
+            throw constraintError;
+          }
+        }
+
+        if (!stream) {
+          throw new Error('Could not open camera with any constraint set.');
+        }
+
+        overviewMediaStream = stream;
 
         // Create or get stream viewer
         let viewer = document.getElementById('overviewStreamViewer');
