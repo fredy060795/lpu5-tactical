@@ -4000,41 +4000,59 @@
 
     // Initialize cameras on demand (called when camera modal is opened)
     async function initOverviewCameras() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn('Camera API not available');
-        showCameraStatus('Camera not available. Please use HTTPS or localhost.', 'error');
-        return;
-      }
-
       try {
-        // Request permission first (will prompt user)
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stream.getTracks().forEach(track => track.stop());
+        // Check if we're in a secure context (HTTPS, localhost, or 127.0.0.1)
+        const isSecureContext = window.isSecureContext ||
+                                window.location.protocol === 'https:' ||
+                                window.location.hostname === 'localhost' ||
+                                window.location.hostname === '127.0.0.1';
+
+        // Check if mediaDevices API is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.warn('Camera API not available');
+          if (!isSecureContext) {
+            showCameraStatus('Camera requires HTTPS or localhost (secure connection).', 'error');
+          } else {
+            showCameraStatus('Camera API not available in this browser.', 'error');
+          }
+          return;
+        }
+
+        // Request permission first (will prompt user); continue even if denied
+        let permissionGranted = false;
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach(track => track.stop());
+          permissionGranted = true;
+        } catch (permError) {
+          console.warn('Camera permission not granted yet:', permError);
+          if (permError.name === 'NotAllowedError' || permError.name === 'PermissionDeniedError') {
+            showCameraStatus('Camera permission denied. Please allow camera access in your browser settings.', 'error');
+          } else if (permError.name === 'NotFoundError') {
+            showCameraStatus('No camera found on this device.', 'error');
+          } else if (permError.name === 'SecurityError') {
+            showCameraStatus('Camera requires a secure connection (HTTPS).', 'error');
+          }
+          // Continue anyway to enumerate devices without labels
+        }
 
         // Now enumerate devices
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        
+
         const select = document.getElementById('overviewCameraSelect');
         if (select && videoDevices.length > 0) {
-          select.innerHTML = videoDevices.map((device, index) => 
+          select.innerHTML = videoDevices.map((device, index) =>
             `<option value="${device.deviceId}">${device.label || `Camera ${index + 1}`}</option>`
           ).join('');
         } else if (select) {
-          select.innerHTML = '<option value="">No cameras found</option>';
+          const message = permissionGranted ? 'No cameras found' : 'No cameras found - permission required';
+          select.innerHTML = `<option value="">${message}</option>`;
           showCameraStatus('No cameras detected on this device.', 'error');
         }
       } catch (error) {
         console.error('Error initializing cameras:', error);
-        let msg = 'Error accessing camera.';
-        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-          msg = 'Camera permission denied. Please allow camera access in your browser settings.';
-        } else if (error.name === 'NotFoundError') {
-          msg = 'No camera found on this device.';
-        } else if (error.name === 'SecurityError') {
-          msg = 'Camera requires a secure connection (HTTPS).';
-        }
-        showCameraStatus(msg, 'error');
+        showCameraStatus('Error loading cameras: ' + error.message, 'error');
       }
     }
 

@@ -4068,25 +4068,48 @@
 
     // Initialize cameras on demand (called when camera modal is opened)
     async function initOverviewCameras() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn('Camera API not available');
-        return;
-      }
-
       try {
-        // Request permission first (will prompt user)
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stream.getTracks().forEach(track => track.stop());
+        // Check if we're in a secure context (HTTPS, localhost, or 127.0.0.1)
+        const isSecureContext = window.isSecureContext ||
+                                window.location.protocol === 'https:' ||
+                                window.location.hostname === 'localhost' ||
+                                window.location.hostname === '127.0.0.1';
+
+        // Check if mediaDevices API is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.warn('Camera API not available');
+          const select = document.getElementById('overviewCameraSelect');
+          if (select) {
+            select.innerHTML = !isSecureContext
+              ? '<option value="">Camera requires HTTPS (secure connection)</option>'
+              : '<option value="">Camera API not available in this browser</option>';
+          }
+          return;
+        }
+
+        // Request permission first (will prompt user); continue even if denied
+        let permissionGranted = false;
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach(track => track.stop());
+          permissionGranted = true;
+        } catch (permError) {
+          console.warn('Camera permission not granted yet:', permError);
+          // Continue anyway to enumerate devices without labels
+        }
 
         // Now enumerate devices
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        
+
         const select = document.getElementById('overviewCameraSelect');
         if (select && videoDevices.length > 0) {
-          select.innerHTML = videoDevices.map((device, index) => 
+          select.innerHTML = videoDevices.map((device, index) =>
             `<option value="${device.deviceId}">${device.label || `Camera ${index + 1}`}</option>`
           ).join('');
+        } else if (select) {
+          const message = permissionGranted ? 'No cameras found' : 'No cameras found - permission required';
+          select.innerHTML = `<option value="">${message}</option>`;
         }
       } catch (error) {
         console.error('Error initializing cameras:', error);
