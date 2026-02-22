@@ -1328,6 +1328,28 @@
             }, 3000);
         }
 
+        // Load currently active stream state from server (e.g. overview.html camera)
+        async function loadCurrentStream() {
+            try {
+                const response = await fetch('/api/stream_share');
+                if (!response.ok) return;
+                const data = await response.json();
+                if (data.active) {
+                    addIncomingStream({
+                        streamId: data.streamId || 'camera_main',
+                        active: true,
+                        isCamera: data.isCamera || false,
+                        source: data.source || 'Overview Camera',
+                        details: data.details || 'Camera stream from Overview',
+                        stream_url: data.stream_url,
+                        timestamp: data.timestamp
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load current stream state:', e);
+            }
+        }
+
         // WebSocket connection
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1339,6 +1361,7 @@
                 ws.onopen = () => {
                     console.log('WebSocket connected');
                     ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+                    loadCurrentStream();
                 };
 
                 ws.onmessage = (event) => {
@@ -1418,11 +1441,20 @@
             // Find the stream and update its frame
             for (const [streamId, stream] of incomingStreams.entries()) {
                 if (stream.isCamera) {
+                    const wasEmpty = !stream.lastFrame;
                     stream.lastFrame = frameData.frame;
                     // Update the img element if it exists
                     const img = document.getElementById(`stream-img-${streamId}`);
                     if (img) {
                         img.src = frameData.frame;
+                        // Hide the "Waiting for frames..." overlay on first frame
+                        if (wasEmpty) {
+                            const card = document.getElementById(`stream-card-${streamId}`);
+                            if (card) {
+                                const overlay = card.querySelector('.stream-waiting-overlay');
+                                if (overlay) overlay.style.display = 'none';
+                            }
+                        }
                     }
                 }
             }
@@ -1457,7 +1489,7 @@
                                 `<video id="stream-video-${streamId}" class="incoming-stream-video" src="${stream.stream_url || ''}" autoplay muted playsinline></video>`
                             }
                             ${!stream.lastFrame && stream.isCamera ? 
-                                `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; text-align: center;">
+                                `<div class="stream-waiting-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; text-align: center;">
                                     <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
                                     <div>Waiting for frames...</div>
                                 </div>` : ''

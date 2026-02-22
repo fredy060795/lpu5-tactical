@@ -1105,6 +1105,17 @@
           }
           break;
 
+        case 'broadcast_selected':
+          // stream.html selected a stream to broadcast — start/stop our frame capture accordingly
+          if (data.channel === 'camera') {
+            if (data.streamId === 'overview_camera' && overviewMediaStream) {
+              startOverviewFrameCapture();
+            } else {
+              stopOverviewFrameCapture();
+            }
+          }
+          break;
+
         case 'error':
           console.error('WebSocket error:', data.error);
           break;
@@ -4003,6 +4014,36 @@
   <script>
     // Camera Modal Functions
     let overviewMediaStream = null;
+    let overviewFrameCapture = null;
+
+    function startOverviewFrameCapture() {
+      if (overviewFrameCapture) return; // already running
+      const viewer = document.getElementById('overviewStreamViewer');
+      const video = viewer ? viewer.querySelector('#overviewStreamVideo') : null;
+      if (!video || !overviewMediaStream) return;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      overviewFrameCapture = setInterval(function() {
+        if (!overviewMediaStream) { stopOverviewFrameCapture(); return; }
+        if (!video.videoWidth || !video.videoHeight) return; // skip until video is ready
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        const frame = canvas.toDataURL('image/jpeg', 0.7);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'camera_frame', frame: frame }));
+        }
+      }, 100);
+      console.log('Overview frame capture started');
+    }
+
+    function stopOverviewFrameCapture() {
+      if (overviewFrameCapture) {
+        clearInterval(overviewFrameCapture);
+        overviewFrameCapture = null;
+        console.log('Overview frame capture stopped');
+      }
+    }
 
     // Initialize cameras on demand (called when camera modal is opened)
     async function initOverviewCameras() {
@@ -4211,6 +4252,7 @@
     }
 
     function stopOverviewCamera() {
+      stopOverviewFrameCapture();
       if (overviewMediaStream) {
         overviewMediaStream.getTracks().forEach(track => track.stop());
         overviewMediaStream = null;

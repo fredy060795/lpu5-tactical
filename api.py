@@ -5745,10 +5745,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     is_camera = data.get('isCamera', False)
                     _active_stream_share = {
                         "active": data.get('active', False),
-                        "stream_url": data.get('stream_url') or data.get('details'),
+                        "streamId": data.get('streamId', 'camera_main'),
+                        "stream_url": data.get('stream_url'),
                         "stream_type": data.get('stream_type', 'mjpeg' if is_camera else 'video'),
                         "isCamera": is_camera,
                         "source": data.get('source'),
+                        "details": data.get('details'),
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                     await websocket_manager.publish_to_channel('camera', {
@@ -5757,8 +5759,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         'streamId': data.get('streamId', 'camera_main'),
                         'active': data.get('active', False),
                         'isCamera': is_camera,
-                        'stream_url': _active_stream_share['stream_url'],
+                        'stream_url': data.get('stream_url'),
                         'stream_type': _active_stream_share['stream_type'],
+                        'source': data.get('source'),
+                        'details': data.get('details'),
                         'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
                     })
@@ -5770,6 +5774,21 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket_manager.publish_to_channel('camera', {
                         'type': 'camera_stream_stop',
                         'channel': 'camera',
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'source_connection': connection_id
+                    })
+                    relay_handled = True
+                    
+                elif message_type == 'broadcast_selected':
+                    # Relay broadcast selection so the source (e.g. overview.html) can start sending frames
+                    stream_id = str(data.get('streamId', '')).replace('\n', '').replace('\r', '')
+                    logger.info(f"Relaying broadcast_selected from {connection_id}: streamId={stream_id}")
+                    await websocket_manager.publish_to_channel('camera', {
+                        'type': 'broadcast_selected',
+                        'channel': 'camera',
+                        'streamId': data.get('streamId'),
+                        'source': data.get('source'),
+                        'details': data.get('details'),
                         'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
                     })
