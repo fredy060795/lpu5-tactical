@@ -929,17 +929,34 @@
                     mediaStream = null;
                 }
 
-                const constraints = {
-                    video: {
-                        deviceId: deviceId ? { exact: deviceId } : undefined,
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    },
-                    audio: false  // Changed to false to avoid audio permission issues
-                };
-
                 showToast('Activating camera...', 'success');
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                // Try progressively relaxed constraints for better mobile compatibility
+                const constraintAttempts = [];
+                if (deviceId) {
+                    // 1st attempt: exact deviceId with ideal resolution
+                    constraintAttempts.push({ video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+                    // 2nd attempt: ideal deviceId (less strict, better for mobile)
+                    constraintAttempts.push({ video: { deviceId: { ideal: deviceId } }, audio: false });
+                }
+                // 3rd attempt: basic video (widest compatibility)
+                constraintAttempts.push({ video: true, audio: false });
+
+                for (const constraints of constraintAttempts) {
+                    try {
+                        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                        break;
+                    } catch (err) {
+                        if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+                            continue;
+                        }
+                        throw err;
+                    }
+                }
+
+                if (!mediaStream) {
+                    throw new Error('Could not open camera with any constraint set.');
+                }
                 
                 const video = document.getElementById('videoPlayer');
                 video.srcObject = mediaStream;
