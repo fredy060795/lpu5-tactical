@@ -1441,11 +1441,20 @@
             // Find the stream and update its frame
             for (const [streamId, stream] of incomingStreams.entries()) {
                 if (stream.isCamera) {
+                    const wasEmpty = !stream.lastFrame;
                     stream.lastFrame = frameData.frame;
                     // Update the img element if it exists
                     const img = document.getElementById(`stream-img-${streamId}`);
                     if (img) {
                         img.src = frameData.frame;
+                        // Hide the "Waiting for frames..." overlay on first frame
+                        if (wasEmpty) {
+                            const card = document.getElementById(`stream-card-${streamId}`);
+                            if (card) {
+                                const overlay = card.querySelector('.stream-waiting-overlay');
+                                if (overlay) overlay.style.display = 'none';
+                            }
+                        }
                     }
                 }
             }
@@ -1480,7 +1489,7 @@
                                 `<video id="stream-video-${streamId}" class="incoming-stream-video" src="${stream.stream_url || ''}" autoplay muted playsinline></video>`
                             }
                             ${!stream.lastFrame && stream.isCamera ? 
-                                `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; text-align: center;">
+                                `<div class="stream-waiting-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; text-align: center;">
                                     <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
                                     <div>Waiting for frames...</div>
                                 </div>` : ''
