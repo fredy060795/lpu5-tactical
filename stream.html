@@ -1136,7 +1136,7 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 const isCamera = mediaStream !== null;
                 const videoSrc = document.getElementById('videoPlayer').src || null;
-                console.log('Sending stream_share message via WebSocket:', {
+                console.log('Sending stream_available message via WebSocket:', {
                     streamId: 'camera_main',
                     active: true,
                     isCamera: isCamera,
@@ -1144,7 +1144,7 @@
                 });
                 
                 ws.send(JSON.stringify({
-                    type: 'stream_share',
+                    type: 'stream_available',
                     streamId: 'camera_main',
                     active: true,
                     isCamera: isCamera,
@@ -1154,13 +1154,7 @@
                     timestamp: Date.now()
                 }));
                 
-                // Start frame capture for cameras (fallback for devices that don't support shared streams)
-                if (mediaStream) {
-                    console.log('Starting frame capture for camera stream');
-                    startFrameCapture();
-                }
-                
-                showToast('Stream is being sent to all clients!', 'success');
+                showToast('Stream announced – Admin must approve in Incoming Streams', 'success');
             } else {
                 console.warn('WebSocket not connected, stream sharing may not work globally');
                 showToast('⚠️ WebSocket not connected - Stream only available locally', 'error');
@@ -1329,10 +1323,16 @@
                 // Received a camera frame from another user
                 updateIncomingStreamFrame(message);
             } else if (message.type === 'broadcast_selected') {
-                // HQ selected a stream to broadcast - start sending frames if our camera is the selected stream
+                // HQ selected a stream to broadcast - start/stop sending frames as needed
                 console.log('Broadcast selected received:', message);
                 if (message.streamId === 'camera_main' && mediaStream && !frameCapture) {
                     startFrameCapture();
+                } else if (message.streamId !== 'camera_main' && frameCapture) {
+                    // Our stream was deselected or a different stream was selected – stop capture
+                    clearInterval(frameCapture);
+                    frameCapture = null;
+                    isSharing = false;
+                    document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-map-marked-alt"></i> An Admin Map senden';
                 }
             }
         }
@@ -1486,6 +1486,19 @@
                     details: stream.details,
                     timestamp: Date.now()
                 }));
+                // Also send stream_share so stream_share.html receives the full stream data
+                // and _active_stream_share is updated for polling clients.
+                // This is the admin-approval step: only reaching here means the admin clicked "Broadcast This".
+                ws.send(JSON.stringify({
+                    type: 'stream_share',
+                    streamId: streamId,
+                    active: true,
+                    isCamera: stream.isCamera || false,
+                    stream_url: stream.stream_url || null,
+                    source: stream.source,
+                    details: stream.details,
+                    timestamp: Date.now()
+                }));
             }
 
             showToast(`Now broadcasting: ${stream.source}`, 'success');
@@ -1505,6 +1518,13 @@
                 ws.send(JSON.stringify({
                     type: 'broadcast_selected',
                     streamId: null,
+                    timestamp: Date.now()
+                }));
+                // Also clear _active_stream_share so stream_share.html polling doesn't re-activate the stream
+                ws.send(JSON.stringify({
+                    type: 'stream_share',
+                    streamId: streamId,
+                    active: false,
                     timestamp: Date.now()
                 }));
             }
@@ -1539,6 +1559,17 @@
                     ws.send(JSON.stringify({
                         type: 'broadcast_selected',
                         streamId: nextId,
+                        source: nextStream ? nextStream.source : nextId,
+                        details: nextStream ? nextStream.details : '',
+                        timestamp: Date.now()
+                    }));
+                    // Also send stream_share so stream_share.html gets the full stream data
+                    ws.send(JSON.stringify({
+                        type: 'stream_share',
+                        streamId: nextId,
+                        active: true,
+                        isCamera: nextStream ? (nextStream.isCamera || false) : false,
+                        stream_url: nextStream ? (nextStream.stream_url || null) : null,
                         source: nextStream ? nextStream.source : nextId,
                         details: nextStream ? nextStream.details : '',
                         timestamp: Date.now()
@@ -1635,11 +1666,15 @@
                 
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
-                        type: 'stream_share',
+                        type: 'stream_available',
                         streamId: 'camera_main',
                         active: false,
                         timestamp: Date.now()
                     }));
+                }
+                // If this stream was actively being broadcast, also stop the broadcast
+                if (selectedBroadcastStream === 'camera_main') {
+                    deselectStream();
                 }
             }
         }
