@@ -209,14 +209,14 @@ class DataServerManager:
             logger.error(f"Failed to submit broadcast: {e}")
             return False
 
-    def _do_broadcast(self, payload: dict, _retries: int = 3) -> None:
+    def _do_broadcast(self, payload: dict, _retries: int = 1) -> None:
         """Execute the actual HTTP broadcast in a background thread."""
         for attempt in range(_retries + 1):
             try:
                 response = self._broadcast_session.post(
                     f"{self.base_url}/api/broadcast",
                     json=payload,
-                    timeout=15
+                    timeout=3
                 )
                 if response.status_code == 200:
                     logger.debug(f"Broadcast to channel '{payload.get('channel')}' successful")

@@ -1219,6 +1219,14 @@
       // Pending symbols queue (localStorage-first, sync when server available)
       const PENDING_SYMBOLS_KEY = 'pending_admin_map_symbols_v1';
 
+      // Debounce for loadMapSymbols to prevent rapid-fire reloads from WebSocket events
+      const LOAD_SYMBOLS_DEBOUNCE_MS = 500;
+      let _loadSymbolsDebounceTimer = null;
+      function scheduledLoadMapSymbols() {
+        if (_loadSymbolsDebounceTimer) clearTimeout(_loadSymbolsDebounceTimer);
+        _loadSymbolsDebounceTimer = setTimeout(() => { _loadSymbolsDebounceTimer = null; loadMapSymbols(); }, LOAD_SYMBOLS_DEBOUNCE_MS);
+      }
+
       function readPendingSymbols() {
         try { return JSON.parse(localStorage.getItem(PENDING_SYMBOLS_KEY) || '[]'); } catch (e) { return []; }
       }
@@ -1312,18 +1320,10 @@
             console.log('WebSocket connection established:', data.connection_id);
             break;
 
-          case 'marker_created':
-          case 'marker_updated':
-          case 'marker_deleted':
-            if (data.channel === 'markers') {
-              loadMapSymbols();
-            }
-            break;
-
           case 'symbol_created':
           case 'symbol_placed':
             if (data.channel === 'symbols' || data.channel === 'markers') {
-              loadMapSymbols();
+              scheduledLoadMapSymbols();
             }
             break;
 
