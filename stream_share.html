@@ -160,6 +160,7 @@
         if (data.isCamera) {
           // Camera stream: frames arrive via WebSocket, just show the image element
           isCameraStream = true;
+          currentBroadcastStreamId = data.streamId || null;
           streamPlaceholder.style.display = 'none';
           streamVideo.style.display = 'none';
           streamImage.style.display = 'block';
