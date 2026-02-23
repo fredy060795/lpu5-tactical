@@ -4036,14 +4036,23 @@
       overviewFrameCapture = setInterval(function() {
         if (!overviewMediaStream) { stopOverviewFrameCapture(); return; }
         if (!video.videoWidth || !video.videoHeight) return; // skip until video is ready
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        const frame = canvas.toDataURL('image/jpeg', 0.7);
+        const maxWidth = 1280;
+        const maxHeight = 720;
+        let width = video.videoWidth;
+        let height = video.videoHeight;
+        if (width > maxWidth || height > maxHeight) {
+          const scale = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(video, 0, 0, width, height);
+        const frame = canvas.toDataURL('image/jpeg', 0.5);
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'camera_frame', frame: frame }));
         }
-      }, 100);
+      }, 67);
       console.log('Overview frame capture started');
     }
 
