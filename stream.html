@@ -1657,7 +1657,7 @@
             isSharing = true;
             document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-stop"></i> Stop Streaming';
             
-            console.log('Frame capture started - broadcasting at 10fps');
+            console.log('Frame capture started - broadcasting at 5fps');
             
             frameCapture = setInterval(() => {
                 if (!mediaStream) {
@@ -1665,11 +1665,20 @@
                     return;
                 }
                 
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                ctx.drawImage(video, 0, 0);
+                const maxWidth = 1280;
+                const maxHeight = 720;
+                let width = video.videoWidth;
+                let height = video.videoHeight;
+                if (width > maxWidth || height > maxHeight) {
+                    const scale = Math.min(maxWidth / width, maxHeight / height);
+                    width = Math.round(width * scale);
+                    height = Math.round(height * scale);
+                }
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(video, 0, 0, width, height);
                 
-                const frame = canvas.toDataURL('image/jpeg', 0.7);
+                const frame = canvas.toDataURL('image/jpeg', 0.5);
                 
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
@@ -1680,7 +1689,7 @@
                     console.warn('WebSocket disconnected during frame capture');
                     stopFrameCapture();
                 }
-            }, 100);
+            }, 200);
         }
 
         // Stop frame capture
