@@ -1399,8 +1399,8 @@
         function handleIncomingMessage(message) {
             console.log('Received message:', message);
 
-            if (message.type === 'stream_share') {
-                // Another user is sharing a stream
+            if (message.type === 'stream_share' || message.type === 'stream_available') {
+                // Another user is sharing/announcing a stream
                 if (message.active) {
                     addIncomingStream(message);
                 } else {

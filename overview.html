@@ -4256,9 +4256,11 @@
         window.sharedStream = overviewMediaStream;
 
         // Notify stream.html via WebSocket so it appears in Incoming Streams
+        // Use 'stream_available' (not 'stream_share') so the stream is only shown
+        // in stream_share.html after an admin explicitly broadcasts it.
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
-            type: 'stream_share',
+            type: 'stream_available',
             streamId: 'overview_camera',
             active: true,
             isCamera: true,
@@ -4300,7 +4302,7 @@
         // Notify stream.html via WebSocket that the stream stopped
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
-            type: 'stream_share',
+            type: 'stream_available',
             streamId: 'overview_camera',
             active: false,
             timestamp: Date.now()
