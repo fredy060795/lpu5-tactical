@@ -549,10 +549,7 @@
             <h2><i class="fas fa-broadcast-tower"></i> Select video source</h2>
             
             <div class="source-tabs">
-                <div class="source-tab active" data-source="url">
-                    <i class="fas fa-link"></i> URL Stream
-                </div>
-                <div class="source-tab" data-source="camera">
+                <div class="source-tab active" data-source="camera">
                     <i class="fas fa-camera"></i> Device Camera
                 </div>
                 <div class="source-tab" data-source="screen">
@@ -563,22 +560,8 @@
                 </div>
             </div>
 
-            <!-- URL Stream Source -->
-            <div class="source-content active" id="source-url">
-                <div class="form-group">
-                    <label><i class="fas fa-link"></i> Stream URL</label>
-                    <input type="url" id="urlInput" placeholder="https://example.com/stream.m3u8">
-                    <p class="helper-text">Supported formats: HLS (.m3u8), HTTP/HTTPS streams</p>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-primary" onclick="connectUrlStream()">
-                        <i class="fas fa-play"></i> Start stream
-                    </button>
-                </div>
-            </div>
-
             <!-- Device Camera Source -->
-            <div class="source-content" id="source-camera">
+            <div class="source-content active" id="source-camera">
                 <div class="form-group">
                     <label><i class="fas fa-camera"></i> Select Camera</label>
                     <select id="cameraSelect">
@@ -600,7 +583,7 @@
             <div class="source-content" id="source-screen">
                 <div class="form-group">
                     <label><i class="fas fa-desktop"></i> Screen / Window / Tab</label>
-                    <p class="helper-text">Share your screen, a window or a browser tab. Works on mobile and desktop (requires HTTPS or localhost).</p>
+                    <p class="helper-text">Share your screen, a window or a browser tab. <strong>To stream a URL:</strong> Open the URL in a browser tab, then share that tab. Works on mobile and desktop (requires HTTPS or localhost).</p>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-success" onclick="connectScreenShare()">
@@ -849,77 +832,6 @@
             }
         }
 
-        // Connect URL stream
-        function connectUrlStream() {
-            const url = document.getElementById('urlInput').value.trim();
-            
-            if (!url) {
-                showToast('Please enter a stream URL', 'error');
-                return;
-            }
-            
-            // Check for mixed content issues (HTTPS page loading HTTP stream)
-            if (window.location.protocol === 'https:' && url.startsWith('http:')) {
-                showToast('Warning: Loading HTTP stream on HTTPS page may fail due to mixed content policy. Use HTTPS streams when possible.', 'warning');
-            }
-
-            const video = document.getElementById('videoPlayer');
-            
-            // Clean up any existing event listeners by cloning the video element
-            const newVideo = video.cloneNode(true);
-            video.parentNode.replaceChild(newVideo, video);
-            
-            // Get reference to the new video element
-            const videoElement = document.getElementById('videoPlayer');
-            
-            // Set up one-time event listeners (using {once: true} auto-removes after firing)
-            videoElement.addEventListener('loadeddata', () => {
-                // Enable share button and save stream regardless of autoplay success
-                document.getElementById('shareToAdminMapBtn').disabled = false;
-                saveActiveStream('url', url);
-                
-                // Explicitly play the video after data is loaded
-                videoElement.play().then(() => {
-                    showToast('Stream connected successfully!', 'success');
-                }).catch(error => {
-                    console.error('Autoplay error:', error);
-                    showToast('Stream loaded, but autoplay blocked. Please click Play.', 'warning');
-                });
-            }, { once: true });
-            
-            videoElement.addEventListener('error', (e) => {
-                console.error('Stream error:', e, videoElement.error);
-                let errorMessage = 'Error loading stream';
-                
-                if (videoElement.error) {
-                    switch (videoElement.error.code) {
-                        case MediaError.MEDIA_ERR_ABORTED:
-                            errorMessage = 'Stream was aborted. Please try again.';
-                            break;
-                        case MediaError.MEDIA_ERR_NETWORK:
-                            errorMessage = 'Network error loading stream. Check URL and internet connection. Note: CORS policy may block cross-origin streams.';
-                            break;
-                        case MediaError.MEDIA_ERR_DECODE:
-                            errorMessage = 'Stream format not supported. Use a compatible format (e.g., MP4, WebM).';
-                            break;
-                        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                            errorMessage = 'Stream source not supported. Check URL and format. For HLS (.m3u8), you may need HLS.js library.';
-                            break;
-                    }
-                }
-                
-                showToast(errorMessage, 'error');
-                stopStream();
-            }, { once: true });
-            
-            videoElement.src = url;
-            videoElement.style.display = 'block';
-            document.getElementById('videoPlaceholder').style.display = 'none';
-
-            updateStreamStatus(true, 'URL Stream', url);
-            showToast('Loading stream...', 'success');
-        }
-
         // Connect to device camera
         async function connectCamera() {
             const select = document.getElementById('cameraSelect');
@@ -1092,11 +1004,18 @@
             // Simulate connection (in production, call backend API)
             setTimeout(() => {
                 const streamUrl = `rtsp://${host}:${port}${streamPath}`;
-                document.getElementById('urlInput').value = streamUrl;
-                connectUrlStream();
-                
-                updateStreamStatus(true, 'SSH Stream', `${user}@${host}`);
-                saveActiveStream('ssh', `${user}@${host}:${streamPath}`);
+                const videoElement = document.getElementById('videoPlayer');
+                if (videoElement) {
+                    videoElement.addEventListener('error', () => {
+                        showToast('Error loading SSH stream. Check connection details.', 'error');
+                        stopStream();
+                    }, { once: true });
+                    videoElement.src = streamUrl;
+                    videoElement.style.display = 'block';
+                    document.getElementById('videoPlaceholder').style.display = 'none';
+                    updateStreamStatus(true, 'SSH Stream', `${user}@${host}`);
+                    saveActiveStream('ssh', `${user}@${host}:${streamPath}`);
+                }
             }, 1500);
         }
 
