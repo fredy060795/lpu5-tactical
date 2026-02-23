@@ -1144,7 +1144,7 @@
                 });
                 
                 ws.send(JSON.stringify({
-                    type: 'stream_share',
+                    type: 'stream_available',
                     streamId: 'camera_main',
                     active: true,
                     isCamera: isCamera,
@@ -1154,13 +1154,7 @@
                     timestamp: Date.now()
                 }));
                 
-                // Start frame capture for cameras (fallback for devices that don't support shared streams)
-                if (mediaStream) {
-                    console.log('Starting frame capture for camera stream');
-                    startFrameCapture();
-                }
-                
-                showToast('Stream is being sent to all clients!', 'success');
+                showToast('Stream announced – Admin must approve in Incoming Streams', 'success');
             } else {
                 console.warn('WebSocket not connected, stream sharing may not work globally');
                 showToast('⚠️ WebSocket not connected - Stream only available locally', 'error');
