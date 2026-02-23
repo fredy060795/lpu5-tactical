@@ -5737,16 +5737,14 @@ async def websocket_endpoint(websocket: WebSocket):
                     last = _camera_last_relay.get(connection_id, 0.0)
                     if now - last >= _CAMERA_FRAME_MIN_INTERVAL:
                         _camera_last_relay[connection_id] = now
-                        # Use create_task so the receive loop is not blocked while the relay
-                        # sends large base64 JPEG frames to all camera channel subscribers.
                         logger.debug(f"Relaying camera frame from {connection_id}")
-                        asyncio.create_task(websocket_manager.publish_to_channel('camera', {
+                        await websocket_manager.publish_to_channel('camera', {
                             'type': 'camera_frame',
                             'channel': 'camera',
                             'frame': data.get('frame'),
                             'timestamp': datetime.now(timezone.utc).isoformat(),
                             'source_connection': connection_id
-                        }))
+                        })
                     relay_handled = True
                     
                 elif message_type == 'stream_share':
