@@ -81,6 +81,7 @@
 
   let isCameraStream = false;
   let ws = null;
+  let currentBroadcastStreamId = null; // Only show the stream selected by HQ
 
   // WebSocket connection for receiving camera frames
   function connectWebSocket() {
@@ -96,16 +97,24 @@
       ws.onmessage = function(event) {
         try {
           var data = JSON.parse(event.data);
-          if (data.type === 'camera_frame' && data.frame) {
-            // Display base64 camera frame
-            showCameraFrame(data.frame);
+          if (data.type === 'broadcast_selected') {
+            // HQ selected (or deselected) a stream to broadcast to EUDs
+            currentBroadcastStreamId = data.streamId || null;
+            if (!currentBroadcastStreamId) {
+              hideStream();
+            }
+          } else if (data.type === 'camera_frame' && data.frame) {
+            // Only display frames for the currently broadcast stream
+            if (currentBroadcastStreamId && data.streamId === currentBroadcastStreamId) {
+              showCameraFrame(data.frame);
+            }
           } else if (data.type === 'stream_share') {
-            if (data.active) {
+            if (data.active && data.streamId === currentBroadcastStreamId) {
               isCameraStream = !!data.isCamera;
               if (!data.isCamera && data.stream_url) {
                 showStream(data);
               }
-            } else {
+            } else if (!data.active && data.streamId === currentBroadcastStreamId) {
               hideStream();
             }
           } else if (data.type === 'camera_stream_stop') {

@@ -4039,7 +4039,7 @@
         ctx.drawImage(video, 0, 0, width, height);
         const frame = canvas.toDataURL('image/jpeg', 0.5);
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'camera_frame', frame: frame }));
+          ws.send(JSON.stringify({ type: 'camera_frame', frame: frame, streamId: 'overview_camera' }));
         }
       }, 500);
       console.log('Overview frame capture started');

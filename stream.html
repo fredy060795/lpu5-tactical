@@ -1446,22 +1446,23 @@
 
         // Update frame for incoming camera stream
         function updateIncomingStreamFrame(frameData) {
-            // Find the stream and update its frame
+            const targetId = frameData.streamId;
+            // Update only the stream matching the streamId from the frame data
             for (const [streamId, stream] of incomingStreams.entries()) {
-                if (stream.isCamera) {
-                    const wasEmpty = !stream.lastFrame;
-                    stream.lastFrame = frameData.frame;
-                    // Update the img element if it exists
-                    const img = document.getElementById(`stream-img-${streamId}`);
-                    if (img) {
-                        img.src = frameData.frame;
-                        // Hide the "Waiting for frames..." overlay on first frame
-                        if (wasEmpty) {
-                            const card = document.getElementById(`stream-card-${streamId}`);
-                            if (card) {
-                                const overlay = card.querySelector('.stream-waiting-overlay');
-                                if (overlay) overlay.style.display = 'none';
-                            }
+                if (!stream.isCamera) continue;
+                if (!targetId || streamId !== targetId) continue;
+                const wasEmpty = !stream.lastFrame;
+                stream.lastFrame = frameData.frame;
+                // Update the img element if it exists
+                const img = document.getElementById(`stream-img-${streamId}`);
+                if (img) {
+                    img.src = frameData.frame;
+                    // Hide the "Waiting for frames..." overlay on first frame
+                    if (wasEmpty) {
+                        const card = document.getElementById(`stream-card-${streamId}`);
+                        if (card) {
+                            const overlay = card.querySelector('.stream-waiting-overlay');
+                            if (overlay) overlay.style.display = 'none';
                         }
                     }
                 }
@@ -1683,7 +1684,8 @@
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         type: 'camera_frame',
-                        frame: frame
+                        frame: frame,
+                        streamId: 'camera_main'
                     }));
                 } else {
                     console.warn('WebSocket disconnected during frame capture');
