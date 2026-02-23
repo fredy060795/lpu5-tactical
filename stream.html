@@ -1657,7 +1657,7 @@
             isSharing = true;
             document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-stop"></i> Stop Streaming';
             
-            console.log('Frame capture started - broadcasting at 5fps');
+            console.log('Frame capture started - broadcasting at 2fps');
             
             frameCapture = setInterval(() => {
                 if (!mediaStream) {
@@ -1689,7 +1689,7 @@
                     console.warn('WebSocket disconnected during frame capture');
                     stopFrameCapture();
                 }
-            }, 200);
+            }, 500);
         }
 
         // Stop frame capture

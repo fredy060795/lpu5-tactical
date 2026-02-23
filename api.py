@@ -5658,6 +5658,11 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
 # Thread-safe for simple dict replacement (GIL-protected single assignment).
 _active_stream_share: Dict = {"active": False}
 
+# Server-side camera frame rate limiting: track last relay time per source connection.
+# Prevents flooding the event loop when clients send frames faster than they can be relayed.
+_CAMERA_FRAME_MIN_INTERVAL = 0.15  # minimum seconds between relayed frames (≈6.67 fps max)
+_camera_last_relay: Dict[str, float] = {}  # connection_id -> last relay timestamp
+
 @app.get("/api/stream_share", summary="Get current shared stream state")
 def get_stream_share():
     """Return the currently active shared stream info (polled by stream_share.html iframe)."""
@@ -5726,15 +5731,22 @@ async def websocket_endpoint(websocket: WebSocket):
                 relay_handled = False
                 
                 if message_type == 'camera_frame':
-                    # Relay camera frames to all clients subscribed to camera channel
-                    logger.debug(f"Relaying camera frame from {connection_id}")
-                    await websocket_manager.publish_to_channel('camera', {
-                        'type': 'camera_frame',
-                        'channel': 'camera',
-                        'frame': data.get('frame'),
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                        'source_connection': connection_id
-                    })
+                    # Server-side rate limiting: skip frames that arrive too fast to prevent
+                    # event loop starvation which would block mobile HTTPS connections.
+                    now = time.monotonic()
+                    last = _camera_last_relay.get(connection_id, 0.0)
+                    if now - last >= _CAMERA_FRAME_MIN_INTERVAL:
+                        _camera_last_relay[connection_id] = now
+                        # Use create_task so the receive loop is not blocked while the relay
+                        # sends large base64 JPEG frames to all camera channel subscribers.
+                        logger.debug(f"Relaying camera frame from {connection_id}")
+                        asyncio.create_task(websocket_manager.publish_to_channel('camera', {
+                            'type': 'camera_frame',
+                            'channel': 'camera',
+                            'frame': data.get('frame'),
+                            'timestamp': datetime.now(timezone.utc).isoformat(),
+                            'source_connection': connection_id
+                        }))
                     relay_handled = True
                     
                 elif message_type == 'stream_share':
@@ -5835,10 +5847,12 @@ async def websocket_endpoint(websocket: WebSocket):
             
     except WebSocketDisconnect:
         websocket_manager.disconnect(connection_id)
+        _camera_last_relay.pop(connection_id, None)
         logger.info(f"WebSocket client disconnected: {connection_id}")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         websocket_manager.disconnect(connection_id)
+        _camera_last_relay.pop(connection_id, None)
 
 @app.get("/api/websocket/status", summary="Get WebSocket status")
 def get_websocket_status():
