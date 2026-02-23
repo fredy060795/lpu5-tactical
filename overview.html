@@ -2020,26 +2020,22 @@
     let gpsWatchId = null; // Track GPS watch ID for auto-update
     let gpsUpdateInterval = 5000; // Default 5 seconds
     let gpsAutoEnabled = false; // Auto GPS tracking state
+    let _lastGpsSendTime = 0; // Throttle GPS server sends
 
     function createGpsArrowIconHtml(color) {
       return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`;
     }
 
     // Send GPS position to server so admin_map.html can see it
-    let _lastGpsSendId = localStorage.getItem('lpu5_last_gps_send_id') || null; // track the server symbol id for upsert
     async function sendGpsToServer(lat, lng) {
+      // Throttle: send at most once per gpsUpdateInterval to avoid flooding
+      const now = Date.now();
+      if (now - _lastGpsSendTime < gpsUpdateInterval) return;
+      _lastGpsSendTime = now;
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        // Delete previous GPS position marker to avoid duplicates
-        if (_lastGpsSendId) {
-          try {
-            await fetch(`/api/map/symbols/${_lastGpsSendId}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': 'Bearer ' + token }
-            });
-          } catch (e) { }
-        }
+        // Server automatically removes previous GPS positions for this user on POST
         const res = await fetch('/api/map/symbols', {
           method: 'POST',
           headers: {
@@ -2056,13 +2052,6 @@
             icon: 'fa-location-arrow'
           })
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.symbol && data.symbol.id) {
-            _lastGpsSendId = data.symbol.id;
-            try { localStorage.setItem('lpu5_last_gps_send_id', _lastGpsSendId); } catch (e) { }
-          }
-        }
       } catch (e) {
         console.warn('sendGpsToServer failed', e);
       }
