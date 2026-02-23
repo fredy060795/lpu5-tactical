@@ -3538,9 +3538,15 @@
           <button class="menu-btn" onclick="event.stopPropagation(); openVideoStreamFromMenu()">
             <i class="fas fa-video"></i> Start Camera Stream
           </button>
-          <button class="menu-btn" onclick="event.stopPropagation(); stopOverviewCamera(); toggleHamburgerMenu();">
+          <button class="menu-btn" onclick="event.stopPropagation(); stopOverviewCamera();">
             <i class="fas fa-stop"></i> Stop Camera Stream
           </button>
+          <div id="menu-preview-container" style="display:none; margin-top:10px;">
+            <video id="localPreviewVideo" autoplay muted playsinline style="width:100%;border-radius:6px;display:block;background:#000;"></video>
+            <p style="color:#888;font-size:0.8rem;margin:8px 0 0 0;text-align:center;">
+              <i class="fas fa-info-circle"></i> Visible only to you. Admin must broadcast via stream.html.
+            </p>
+          </div>
         </div>
 
         <div class="menu-section">
@@ -3570,6 +3576,14 @@
         ${mainSections}
       `;
       menu.style.display = 'flex';
+
+      // If camera is active, reconnect preview inside menu
+      if (window.overviewCameraActive && window.overviewMediaStream) {
+        const previewContainer = document.getElementById('menu-preview-container');
+        const previewVideo = document.getElementById('localPreviewVideo');
+        if (previewContainer) previewContainer.style.display = 'block';
+        if (previewVideo) previewVideo.srcObject = window.overviewMediaStream;
+      }
     };
 
     // Logout: clear cached credentials and reload
@@ -4045,20 +4059,6 @@
     </div>
   </div>
 
-  <!-- Local Stream Preview Panel -->
-  <div id="streamPreviewPanel" style="display: none; position: fixed; bottom: 20px; right: 20px; z-index: 9000; background: var(--panel-bg); border: 1px solid var(--accent-blue); border-radius: 8px; padding: 15px; max-width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-      <h3 style="color: var(--accent-blue); margin: 0; font-size: 1rem;"><i class="fas fa-video"></i> Local Preview</h3>
-      <button onclick="stopOverviewCamera()" style="background: none; border: none; color: #888; font-size: 1.1rem; cursor: pointer; padding: 0; line-height: 1;"><i class="fas fa-times"></i></button>
-    </div>
-    <div style="background: #000; border-radius: 6px; overflow: hidden;">
-      <video id="localPreviewVideo" autoplay muted playsinline style="width: 100%; border-radius: 6px; display: block;"></video>
-    </div>
-    <p style="color: #888; font-size: 0.8rem; margin: 8px 0 0 0;">
-      <i class="fas fa-info-circle"></i> Visible only to you. Admin must broadcast via stream.html.
-    </p>
-  </div>
-
   <script>
     // Camera Modal Functions
     let overviewMediaStream = null;
@@ -4262,16 +4262,18 @@
 
         overviewMediaStream = stream;
 
-        // Show local preview
-        const previewVideo = document.getElementById('localPreviewVideo');
-        if (previewVideo) {
-          previewVideo.srcObject = overviewMediaStream;
-          document.getElementById('streamPreviewPanel').style.display = 'block';
-        }
+        // Show local preview in hamburger menu
+        window.overviewCameraActive = true;
+        window.overviewMediaStream = overviewMediaStream;
 
         // Show status and close modal — stream is local-only until admin broadcasts
         showCameraStatus('Camera active - local preview only', 'success');
         closeCameraModal();
+
+        // Open the hamburger menu so the preview is visible inside it
+        if (window.toggleHamburgerMenu) {
+          window.toggleHamburgerMenu();
+        }
 
         // Set global reference for potential sharing
         window.sharedStream = overviewMediaStream;
@@ -4331,12 +4333,13 @@
         }
       }
 
-      // Hide local preview
+      // Hide preview in hamburger menu
+      window.overviewCameraActive = false;
+      window.overviewMediaStream = null;
+      const previewContainer = document.getElementById('menu-preview-container');
       const previewVideo = document.getElementById('localPreviewVideo');
-      if (previewVideo) {
-        previewVideo.srcObject = null;
-        document.getElementById('streamPreviewPanel').style.display = 'none';
-      }
+      if (previewVideo) previewVideo.srcObject = null;
+      if (previewContainer) previewContainer.style.display = 'none';
 
       showCameraStatus('Camera stopped', 'info');
     }
