@@ -136,7 +136,7 @@ class DataServerConnectionManager:
                 logger.error(f"Failed to send message to {connection_id}: {e}")
                 # Connection may be dead, will be cleaned up on next interaction
     
-    async def broadcast_to_channel(self, channel: str, message: dict):
+    async def broadcast_to_channel(self, channel: str, message: dict, exclude: Optional[str] = None):
         """Broadcast a message to all subscribers of a channel"""
         if channel not in self.subscriptions:
             return
@@ -149,8 +149,10 @@ class DataServerConnectionManager:
         if "timestamp" not in message:
             message["timestamp"] = datetime.now(timezone.utc).isoformat()
         
-        # Send to all subscribers
+        # Send to all subscribers (optionally excluding the sender)
         for connection_id in subscribers:
+            if exclude and connection_id == exclude:
+                continue
             await self.send_to_connection(connection_id, message)
     
     async def broadcast_to_all(self, message: dict):
@@ -240,8 +242,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     await connection_manager.broadcast_to_channel("camera", {
                         "type": "camera_frame",
                         "frame": data.get("frame"),
+                        "streamId": data.get("streamId"),
                         "source_connection": connection_id
-                    })
+                    }, exclude=connection_id)
                 
                 # Relay stream sharing
                 elif message_type == "stream_share":
@@ -250,8 +253,23 @@ async def websocket_endpoint(websocket: WebSocket):
                         "streamId": data.get("streamId", "camera_main"),
                         "active": data.get("active", False),
                         "isCamera": data.get("isCamera", False),
+                        "source": data.get("source"),
+                        "details": data.get("details"),
+                        "stream_url": data.get("stream_url"),
+                        "timestamp": data.get("timestamp"),
                         "source_connection": connection_id
-                    })
+                    }, exclude=connection_id)
+                
+                # Relay broadcast selection (stream.html selects which stream to send to EUDs)
+                elif message_type == "broadcast_selected":
+                    await connection_manager.broadcast_to_channel("camera", {
+                        "type": "broadcast_selected",
+                        "streamId": data.get("streamId"),
+                        "source": data.get("source"),
+                        "details": data.get("details"),
+                        "timestamp": data.get("timestamp"),
+                        "source_connection": connection_id
+                    }, exclude=connection_id)
                 
                 # Unknown message type
                 else:
