@@ -5742,6 +5742,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             'type': 'camera_frame',
                             'channel': 'camera',
                             'frame': data.get('frame'),
+                            'streamId': data.get('streamId', 'camera_main'),
                             'timestamp': datetime.now(timezone.utc).isoformat(),
                             'source_connection': connection_id
                         })
