@@ -3277,11 +3277,41 @@
           if (img) img.style.display = 'none';
           if (placeholder) placeholder.style.display = 'none';
           video.play().catch(e => console.error('Error playing stream:', e));
+        } else if (streamData.stream_url) {
+          // URL-based stream
+          console.log('🔗 Using stream URL:', streamData.stream_url);
+          if (streamData.stream_type === 'mjpeg') {
+            if (video) video.style.display = 'none';
+            if (img) {
+              img.style.display = 'block';
+              img.src = streamData.stream_url;
+            }
+          } else {
+            if (img) img.style.display = 'none';
+            if (video) {
+              video.style.display = 'block';
+              if (video.src !== streamData.stream_url) {
+                video.src = streamData.stream_url;
+                video.load();
+                video.play().catch(e => console.warn('Autoplay prevented:', e));
+              }
+            }
+          }
+          if (placeholder) placeholder.style.display = 'none';
         } else {
-          // Fallback to image frames via WebSocket
-          console.log('📡 Using WebSocket frame capture mode');
-          if (video) video.style.display = 'none';
-          if (img) img.style.display = 'block';
+          // Camera stream - embed stream_share.html to receive frames via WebSocket
+          console.log('📡 Using stream_share.html iframe for camera stream');
+          const content = viewer.querySelector('.overview-stream-content');
+          if (content && !content.querySelector('#overviewStreamFrame')) {
+            const iframe = document.createElement('iframe');
+            iframe.id = 'overviewStreamFrame';
+            iframe.src = '/stream_share.html';
+            iframe.style.cssText = 'width: 100%; height: 100%; min-height: 225px; border: none; display: block; background: #000; overflow: hidden;';
+            iframe.scrolling = 'no';
+            iframe.allow = 'camera; microphone';
+            content.innerHTML = '';
+            content.appendChild(iframe);
+          }
           if (placeholder) placeholder.style.display = 'none';
         }
 
@@ -3301,6 +3331,21 @@
       function hideCameraStream() {
         const viewer = document.getElementById('overviewStreamViewer');
         if (!viewer) return;
+
+        const existingFrame = viewer.querySelector('#overviewStreamFrame');
+        if (existingFrame) {
+          const content = viewer.querySelector('.overview-stream-content');
+          if (content) {
+            content.innerHTML = `
+              <video id="overviewStreamVideo" class="overview-stream-video" autoplay muted controls></video>
+              <img id="overviewStreamImage" class="overview-stream-video" style="display:none;" alt="Camera Stream">
+              <div class="overview-stream-placeholder" id="overviewStreamPlaceholder">
+                <i class="fas fa-video-slash" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                <div>No Stream</div>
+              </div>
+            `;
+          }
+        }
 
         const img = viewer.querySelector('#overviewStreamImage');
         const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
