@@ -6043,7 +6043,18 @@ if __name__ == "__main__":
             port=8101, 
             log_level="info",
             ssl_certfile=cert_file,
-            ssl_keyfile=key_file
+            ssl_keyfile=key_file,
+            timeout_keep_alive=75,
+            timeout_graceful_shutdown=30,
+            limit_concurrency=1000,
+            limit_max_requests=10000
         )
     else:
-        uvicorn.run(app, host="0.0.0.0", port=8101, log_level="info")
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=8101,
+            log_level="info",
+            timeout_keep_alive=75,
+            timeout_graceful_shutdown=30
+        )
