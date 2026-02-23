@@ -6056,8 +6056,8 @@ if __name__ == "__main__":
             log_level="info",
             ssl_certfile=cert_file,
             ssl_keyfile=key_file,
-            timeout_keep_alive=75,
-            timeout_graceful_shutdown=30,
+            timeout_keep_alive=300,
+            timeout_graceful_shutdown=60,
             limit_concurrency=1000,
             limit_max_requests=10000
         )
@@ -6067,6 +6067,6 @@ if __name__ == "__main__":
             host="0.0.0.0",
             port=8101,
             log_level="info",
-            timeout_keep_alive=75,
-            timeout_graceful_shutdown=30
+            timeout_keep_alive=300,
+            timeout_graceful_shutdown=60
         )
