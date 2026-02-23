@@ -109,12 +109,13 @@
               showCameraFrame(data.frame);
             }
           } else if (data.type === 'stream_share') {
-            if (data.active && data.streamId === currentBroadcastStreamId) {
+            if (data.active) {
+              currentBroadcastStreamId = data.streamId || null;
               isCameraStream = !!data.isCamera;
               if (!data.isCamera && data.stream_url) {
                 showStream(data);
               }
-            } else if (!data.active && data.streamId === currentBroadcastStreamId) {
+            } else if (!data.streamId || data.streamId === currentBroadcastStreamId) {
               hideStream();
             }
           } else if (data.type === 'camera_stream_stop') {
