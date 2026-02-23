@@ -1409,6 +1409,12 @@
             } else if (message.type === 'camera_frame') {
                 // Received a camera frame from another user
                 updateIncomingStreamFrame(message);
+            } else if (message.type === 'broadcast_selected') {
+                // HQ selected a stream to broadcast - start sending frames if our camera is the selected stream
+                console.log('Broadcast selected received:', message);
+                if (message.streamId === 'camera_main' && mediaStream && !frameCapture) {
+                    startFrameCapture();
+                }
             }
         }
 
