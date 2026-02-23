@@ -5779,6 +5779,25 @@ async def websocket_endpoint(websocket: WebSocket):
                     })
                     relay_handled = True
                     
+                elif message_type == 'stream_available':
+                    # EUD announces that a camera stream is available for admin review.
+                    # This is relayed to admins (stream.html) but does NOT update
+                    # _active_stream_share, so stream_share.html will not display it
+                    # until an admin explicitly broadcasts the stream.
+                    logger.info(f"Relaying stream_available from {connection_id}: active={data.get('active')}")
+                    await websocket_manager.publish_to_channel('camera', {
+                        'type': 'stream_available',
+                        'channel': 'camera',
+                        'streamId': data.get('streamId', 'camera_main'),
+                        'active': data.get('active', False),
+                        'isCamera': data.get('isCamera', False),
+                        'source': data.get('source'),
+                        'details': data.get('details'),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'source_connection': connection_id
+                    })
+                    relay_handled = True
+
                 elif message_type == 'camera_stream_stop':
                     # Relay stream stop to camera channel
                     logger.info(f"Relaying camera_stream_stop from {connection_id}")
