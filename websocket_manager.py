@@ -252,7 +252,9 @@ class ConnectionManager:
     
     async def publish_to_channel(self, channel: str, message: Dict[str, Any]):
         """
-        Publish a message to all subscribers of a channel
+        Publish a message to all subscribers of a channel.
+        Uses asyncio.gather to send to all subscribers in parallel, reducing
+        total relay time and preventing event loop starvation.
         
         Args:
             channel: Channel name
@@ -269,7 +271,9 @@ class ConnectionManager:
         message["channel"] = channel
         
         disconnected = []
-        for connection_id in self.subscriptions[channel]:
+        targets = []
+
+        for connection_id in list(self.subscriptions[channel]):
             if connection_id not in self.active_connections:
                 disconnected.append(connection_id)
                 continue
@@ -278,30 +282,39 @@ class ConnectionManager:
             
             # Check WebSocket state before sending
             try:
-                # Check if websocket has client_state attribute (Starlette WebSocket)
                 if hasattr(websocket, 'client_state'):
                     from starlette.websockets import WebSocketState
                     if websocket.client_state != WebSocketState.CONNECTED:
                         logger.warning(f"WebSocket {connection_id} not in CONNECTED state, marking for cleanup")
                         disconnected.append(connection_id)
                         continue
-                
-                await websocket.send_json(message)
-            except RuntimeError as e:
-                # RuntimeError is raised when WebSocket is closed
-                error_msg = str(e) if str(e) else "WebSocket connection closed"
-                logger.error(f"Failed to publish to {connection_id}: {error_msg}")
-                disconnected.append(connection_id)
             except Exception as e:
-                # Catch all other exceptions
-                error_msg = str(e) if str(e) else f"{type(e).__name__}"
-                logger.error(f"Failed to publish to {connection_id}: {error_msg}")
-                disconnected.append(connection_id)
+                logger.debug(f"Could not check WebSocket state for {connection_id}: {e}")
+            
+            targets.append((connection_id, websocket))
+
+        # Send to all subscribers in parallel to reduce total relay time
+        if targets:
+            results = await asyncio.gather(
+                *[ws.send_json(message) for _, ws in targets],
+                return_exceptions=True
+            )
+            for (connection_id, _), result in zip(targets, results):
+                if isinstance(result, Exception):
+                    error_msg = str(result) if str(result) else type(result).__name__
+                    logger.error(f"Failed to publish to {connection_id}: {error_msg}")
+                    disconnected.append(connection_id)
+                else:
+                    # Update metadata on successful send
+                    if connection_id in self.connection_metadata:
+                        self.connection_metadata[connection_id]["messages_sent"] += 1
+                        self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
+                    self.failed_send_attempts[connection_id] = 0
         
         # Cleanup disconnected clients
         for connection_id in disconnected:
-            if connection_id in self.subscriptions[channel]:
-                self.subscriptions[channel].remove(connection_id)
+            if channel in self.subscriptions and connection_id in self.subscriptions[channel]:
+                self.subscriptions[channel].discard(connection_id)
     
     def get_connection_count(self) -> int:
         """Get number of active connections"""

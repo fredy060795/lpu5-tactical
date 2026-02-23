@@ -4041,7 +4041,7 @@
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'camera_frame', frame: frame }));
         }
-      }, 200);
+      }, 500);
       console.log('Overview frame capture started');
     }
 
