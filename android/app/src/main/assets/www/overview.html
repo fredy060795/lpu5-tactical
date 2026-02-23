@@ -4003,6 +4003,48 @@
   <script>
     // Camera Modal Functions
     let overviewMediaStream = null;
+    let overviewFrameCapture = null;
+
+    function startOverviewFrameCapture() {
+      if (overviewFrameCapture) return; // already running
+      if (!overviewMediaStream) return;
+      // Use a hidden video element for frame capture (no local display)
+      let video = document.getElementById('overviewHiddenVideo');
+      if (!video) {
+        video = document.createElement('video');
+        video.id = 'overviewHiddenVideo';
+        video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+        video.muted = true;
+        video.playsInline = true;
+        document.body.appendChild(video);
+      }
+      video.srcObject = overviewMediaStream;
+      video.play().catch(function(e) { console.warn('Hidden video play error:', e); });
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      overviewFrameCapture = setInterval(function() {
+        if (!overviewMediaStream) { stopOverviewFrameCapture(); return; }
+        if (!video.videoWidth || !video.videoHeight) return;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        const frame = canvas.toDataURL('image/jpeg', 0.7);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'camera_frame', frame: frame }));
+        }
+      }, 100);
+      console.log('Overview frame capture started');
+    }
+
+    function stopOverviewFrameCapture() {
+      if (overviewFrameCapture) {
+        clearInterval(overviewFrameCapture);
+        overviewFrameCapture = null;
+        const video = document.getElementById('overviewHiddenVideo');
+        if (video) { video.srcObject = null; }
+        console.log('Overview frame capture stopped');
+      }
+    }
 
     // Initialize cameras on demand (called when camera modal is opened)
     async function initOverviewCameras() {
@@ -4126,44 +4168,28 @@
 
         overviewMediaStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-        // Create or get stream viewer
-        let viewer = document.getElementById('overviewStreamViewer');
-        if (!viewer) {
-          viewer = createStreamViewer();
-          document.body.appendChild(viewer);
+        // Show status and close modal — no local viewer, camera streams to HQ only
+        showCameraStatus('Camera streaming to HQ Admin', 'success');
+        closeCameraModal();
+
+        // Set global reference for potential sharing
+        window.sharedStream = overviewMediaStream;
+
+        // Notify stream.html via WebSocket so it appears in Incoming Streams
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'stream_share',
+            streamId: 'overview_camera',
+            active: true,
+            isCamera: true,
+            source: select?.options[select.selectedIndex]?.text || 'Overview Camera',
+            details: 'Camera stream from Overview',
+            timestamp: Date.now()
+          }));
         }
 
-        const video = viewer.querySelector('#overviewStreamVideo');
-        if (video) {
-          video.srcObject = overviewMediaStream;
-          video.style.display = 'block';
-          const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
-          if (placeholder) placeholder.style.display = 'none';
-          
-          await video.play();
-          
-          viewer.classList.add('active');
-          viewer.dataset.minimized = 'false';
-          
-          showCameraStatus('Camera activated successfully!', 'success');
-          closeCameraModal();
-
-          // Set global reference for potential sharing
-          window.sharedStream = overviewMediaStream;
-
-          // Notify stream.html via WebSocket so it appears in Incoming Streams
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'stream_share',
-              streamId: 'overview_camera',
-              active: true,
-              isCamera: true,
-              source: select?.options[select.selectedIndex]?.text || 'Overview Camera',
-              details: 'Camera stream from Overview',
-              timestamp: Date.now()
-            }));
-          }
-        }
+        // Start capturing frames for HQ
+        startOverviewFrameCapture();
       } catch (error) {
         console.error('Error accessing camera:', error);
         let errorMessage = 'Error accessing camera';
@@ -4185,6 +4211,7 @@
     }
 
     function stopOverviewCamera() {
+      stopOverviewFrameCapture();
       if (overviewMediaStream) {
         overviewMediaStream.getTracks().forEach(track => track.stop());
         overviewMediaStream = null;
@@ -4199,18 +4226,6 @@
             timestamp: Date.now()
           }));
         }
-      }
-
-      const viewer = document.getElementById('overviewStreamViewer');
-      if (viewer) {
-        const video = viewer.querySelector('#overviewStreamVideo');
-        if (video) {
-          video.srcObject = null;
-          video.style.display = 'none';
-        }
-        
-        const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
-        if (placeholder) placeholder.style.display = 'flex';
       }
 
       showCameraStatus('Camera stopped', 'info');

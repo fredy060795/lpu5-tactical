@@ -707,6 +707,12 @@
             <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">
                 Multiple streams from other users. Select one to broadcast to all EUDs.
             </p>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
+                <button id="multicastToggleBtn" onclick="toggleMulticast()" style="padding: 8px 16px; background: var(--panel-input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85rem;">
+                    <i class="fas fa-random"></i> Enable Multicast
+                </button>
+                <span id="multicastStatus" style="color: #888; font-size: 0.85rem;"></span>
+            </div>
             <div id="incomingStreamsContainer" class="incoming-streams-grid">
                 <div class="no-streams">
                     <i class="fas fa-satellite-dish"></i>
@@ -735,6 +741,8 @@
         let isSharing = false;
         let incomingStreams = new Map(); // Track incoming streams from other EUDs
         let selectedBroadcastStream = null; // Currently selected stream to broadcast
+        let multicastEnabled = false; // Multicast rotation mode
+        let multicastInterval = null; // Multicast rotation timer
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -1529,6 +1537,12 @@
                 return;
             }
 
+            // Enforce single-broadcast: warn if another stream is already broadcasting
+            if (selectedBroadcastStream && selectedBroadcastStream !== streamId && !multicastEnabled) {
+                showToast('⚠️ Another stream is already broadcasting! Stop it first or enable Multicast.', 'error');
+                return;
+            }
+
             // Deselect previous stream
             if (selectedBroadcastStream) {
                 deselectStream();
@@ -1572,7 +1586,69 @@
             showToast('Broadcast stopped', 'info');
         }
 
-        // Start frame capture
+        // Enable multicast rotation — cycles through all available streams every 15 seconds
+        function enableMulticast() {
+            if (multicastEnabled) return;
+            if (incomingStreams.size < 2) {
+                showToast('Multicast requires at least 2 incoming streams', 'error');
+                return;
+            }
+            multicastEnabled = true;
+            let streamIds = Array.from(incomingStreams.keys());
+            let currentIndex = 0;
+            showToast('Multicast enabled — rotating every 15 seconds', 'success');
+            multicastInterval = setInterval(() => {
+                streamIds = Array.from(incomingStreams.keys());
+                if (streamIds.length < 2) {
+                    disableMulticast();
+                    return;
+                }
+                currentIndex = (currentIndex + 1) % streamIds.length;
+                const nextId = streamIds[currentIndex];
+                const nextStream = incomingStreams.get(nextId);
+                // Bypass single-broadcast guard during multicast rotation
+                selectedBroadcastStream = nextId;
+                renderIncomingStreams();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'broadcast_selected',
+                        streamId: nextId,
+                        source: nextStream ? nextStream.source : nextId,
+                        details: nextStream ? nextStream.details : '',
+                        timestamp: Date.now()
+                    }));
+                }
+                showToast(`Multicast: Switching to ${nextStream ? nextStream.source : nextId}`, 'info');
+            }, 15000);
+        }
+
+        // Toggle multicast on/off
+        function toggleMulticast() {
+            if (multicastEnabled) {
+                disableMulticast();
+                document.getElementById('multicastToggleBtn').innerHTML = '<i class="fas fa-random"></i> Enable Multicast';
+                document.getElementById('multicastToggleBtn').style.borderColor = 'var(--border-color)';
+                document.getElementById('multicastStatus').textContent = '';
+            } else {
+                enableMulticast();
+                if (multicastEnabled) {
+                    document.getElementById('multicastToggleBtn').innerHTML = '<i class="fas fa-random"></i> Disable Multicast';
+                    document.getElementById('multicastToggleBtn').style.borderColor = 'var(--accent-green)';
+                    document.getElementById('multicastStatus').textContent = 'Rotating every 15s';
+                }
+            }
+        }
+
+        // Disable multicast rotation
+        function disableMulticast() {
+            if (!multicastEnabled) return;
+            multicastEnabled = false;
+            if (multicastInterval) {
+                clearInterval(multicastInterval);
+                multicastInterval = null;
+            }
+            showToast('Multicast disabled', 'info');
+        }
         function startFrameCapture() {
             const video = document.getElementById('videoPlayer');
             const canvas = document.createElement('canvas');
