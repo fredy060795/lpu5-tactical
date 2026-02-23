@@ -3318,10 +3318,15 @@
         const img = viewer.querySelector('#overviewStreamImage');
         const placeholder = viewer.querySelector('#overviewStreamPlaceholder');
 
-        // Try to get the real MediaStream from the opener/parent window
+        // Try to get the real MediaStream from the opener/parent window.
+        // Guard: window.parent === window when overview.html is the top-level page, so
+        // accessing window.parent.sharedStream would return the local camera stream
+        // (set by activateOverviewCamera). Only use window.parent.sharedStream when
+        // overview.html is genuinely embedded in an iframe (window.parent !== window).
         let stream = null;
         try {
-          stream = window.opener?.sharedStream || window.parent?.sharedStream;
+          stream = window.opener?.sharedStream ||
+                   (window.parent !== window ? window.parent?.sharedStream : null);
         } catch (e) {
           console.log('Could not access sharedStream from opener/parent:', e);
         }
