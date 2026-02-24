@@ -321,6 +321,14 @@ async def websocket_endpoint(websocket: WebSocket):
         exclusively to subscribers of those unit channels.  When target_units is
         empty or absent, the frame is broadcast to the global "camera" channel.
 
+    stream_available { "type": "stream_available", "streamId": "...", "active": true,
+                        "isCamera": true, "source": "...", "details": "...",
+                        "target_units": ["alpha"] }
+        Announce that a local camera stream is available (or has stopped) without
+        immediately broadcasting it.  Used by overview.html to notify stream.html
+        that a feed can be selected for broadcast.  Routing follows the same
+        target_units logic as camera_frame.
+
     stream_share     { "type": "stream_share", "streamId": "...", "active": true,
                         "isCamera": true, "source": "...", "details": "...",
                         "stream_url": null, "target_units": ["alpha"] }
@@ -406,6 +414,32 @@ async def websocket_endpoint(websocket: WebSocket):
                         # No specific target → global camera channel
                         await connection_manager.broadcast_to_channel("camera", frame_msg, exclude=connection_id)
                 
+                # Relay stream-available announcements from EUDs (e.g. overview.html)
+                # so that stream.html can list them as incoming streams.
+                # If target_units is specified → route only to those unit channels.
+                # If target_units is empty / absent → broadcast to the global "camera" channel.
+                elif message_type == "stream_available":
+                    target_units = data.get("target_units") or []
+                    avail_msg = {
+                        "type": "stream_available",
+                        "streamId": data.get("streamId"),
+                        "active": data.get("active", False),
+                        "isCamera": data.get("isCamera", False),
+                        "source": data.get("source"),
+                        "details": data.get("details"),
+                        "stream_url": data.get("stream_url"),
+                        "timestamp": data.get("timestamp"),
+                        "target_units": target_units,
+                        "source_connection": connection_id
+                    }
+                    if target_units:
+                        for unit_name in target_units:
+                            await connection_manager.broadcast_to_channel(
+                                f"unit:{unit_name}", avail_msg, exclude=connection_id
+                            )
+                    else:
+                        await connection_manager.broadcast_to_channel("camera", avail_msg, exclude=connection_id)
+
                 # Relay stream sharing
                 # If target_units is specified → route only to those unit channels (multicast).
                 # If target_units is empty / absent → broadcast to the global "camera" channel.
