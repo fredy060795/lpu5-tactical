@@ -498,6 +498,42 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
+        /* Unit checkbox group per stream card */
+        .unit-checkbox-group {
+            margin-bottom: 12px;
+            padding: 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .unit-checkbox-group-label {
+            color: #aaa;
+            font-size: 0.8rem;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .unit-checkbox-group .unit-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 10px;
+        }
+
+        .unit-checkbox-group label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+            color: #ccc;
+            cursor: pointer;
+        }
+
+        .unit-checkbox-group input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: var(--accent-green);
+        }
+
         /* Helper text */
         .helper-text {
             font-size: 0.85rem;
@@ -706,10 +742,7 @@
                 <span id="multicastStatus" style="color: #888; font-size: 0.85rem;"></span>
             </div>
             <div style="margin-bottom:12px;">
-                <label style="color:#aaa;font-size:0.85rem;display:block;margin-bottom:6px;"><i class="fas fa-shield-alt"></i> Target Units (hold Ctrl/Cmd for multiple; empty = all)</label>
-                <select id="targetUnitsSelect" multiple style="background:var(--panel-input-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:6px;padding:6px;min-width:200px;max-height:100px;">
-                    <option value="" disabled>Loading units...</option>
-                </select>
+                <span style="color:#aaa;font-size:0.85rem;"><i class="fas fa-shield-alt"></i> Target units are selected per stream below (empty = all)</span>
             </div>
             <div id="incomingStreamsContainer" class="incoming-streams-grid">
                 <div class="no-streams">
@@ -741,6 +774,7 @@
         let selectedBroadcastStream = null; // Currently selected stream to broadcast
         let multicastEnabled = false; // Multicast rotation mode
         let multicastInterval = null; // Multicast rotation timer
+        let availableUnits = []; // Units available for per-stream target selection
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -753,34 +787,30 @@
             setupSourceTabs();
             loadActiveStreams();
             connectWebSocket();
-            loadUnitsIntoSelect();
+            loadAvailableUnits();
         });
 
-        // Load units into the target-units multi-select
-        async function loadUnitsIntoSelect() {
+        // Load units into the availableUnits array (used for per-stream checkboxes)
+        async function loadAvailableUnits() {
             try {
                 const res = await fetch('/api/units');
                 if (!res.ok) return;
-                const units = await res.json();
-                const sel = document.getElementById('targetUnitsSelect');
-                if (!sel) return;
-                sel.innerHTML = '';
-                units.forEach(u => {
-                    const opt = document.createElement('option');
-                    opt.value = u.name;
-                    opt.textContent = u.name;
-                    sel.appendChild(opt);
-                });
+                availableUnits = await res.json();
+                // Only re-render if there are already streams visible so checkboxes get populated
+                if (incomingStreams.size > 0) {
+                    renderIncomingStreams();
+                }
             } catch(e) {
                 console.warn('Could not load units for stream targeting:', e);
             }
         }
 
-        // Get selected target units from the multi-select
-        function getSelectedTargetUnits() {
-            const sel = document.getElementById('targetUnitsSelect');
-            if (!sel) return [];
-            return Array.from(sel.selectedOptions).map(o => o.value).filter(v => v !== '');
+        // Get selected target units from a specific stream card's checkboxes
+        function getSelectedTargetUnits(streamId) {
+            if (!streamId) return [];
+            const container = document.getElementById('unit-checks-' + streamId);
+            if (!container) return [];
+            return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
         }
 
         // Setup source tabs
@@ -1473,6 +1503,13 @@
         function renderIncomingStreams() {
             const container = document.getElementById('incomingStreamsContainer');
             
+            // Save current checkbox selections before re-rendering
+            const savedSelections = {};
+            container.querySelectorAll('.unit-checkbox-group').forEach(group => {
+                const sid = group.id.replace('unit-checks-', '');
+                savedSelections[sid] = Array.from(group.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            });
+
             if (incomingStreams.size === 0) {
                 container.innerHTML = `
                     <div class="no-streams">
@@ -1517,6 +1554,15 @@
                             <div class="incoming-stream-details">
                                 ${stream.details}
                             </div>
+                            <div class="unit-checkbox-group" id="unit-checks-${streamId}">
+                                <span class="unit-checkbox-group-label"><i class="fas fa-shield-alt"></i> Target Units (empty = all):</span>
+                                <div class="unit-checkboxes">
+                                    ${availableUnits.length > 0 ?
+                                        availableUnits.map(u => `<label><input type="checkbox" value="${escapeHtml(u.name)}"> ${escapeHtml(u.name)}</label>`).join('') :
+                                        '<span style="color:#666;font-size:0.8rem;">No units available</span>'
+                                    }
+                                </div>
+                            </div>
                             <div class="incoming-stream-actions">
                                 ${!isSelected ? 
                                     `<button class="stream-select-btn broadcast" onclick="selectStreamToBroadcast('${streamId}')">
@@ -1533,6 +1579,15 @@
             }
 
             container.innerHTML = html;
+
+            // Restore checkbox selections after re-render
+            for (const [sid, values] of Object.entries(savedSelections)) {
+                const group = document.getElementById('unit-checks-' + sid);
+                if (!group) continue;
+                group.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    if (values.includes(cb.value)) cb.checked = true;
+                });
+            }
         }
 
         // Select a stream to broadcast to all EUDs
@@ -1559,7 +1614,7 @@
 
             // Notify all clients via WebSocket
             if (ws && ws.readyState === WebSocket.OPEN) {
-                const targetUnits = getSelectedTargetUnits();
+                const targetUnits = getSelectedTargetUnits(streamId);
                 ws.send(JSON.stringify({
                     type: 'broadcast_selected',
                     streamId: streamId,
@@ -1639,7 +1694,7 @@
                 selectedBroadcastStream = nextId;
                 renderIncomingStreams();
                 if (ws && ws.readyState === WebSocket.OPEN) {
-                    const targetUnits = getSelectedTargetUnits();
+                    const targetUnits = getSelectedTargetUnits(nextId);
                     ws.send(JSON.stringify({
                         type: 'broadcast_selected',
                         streamId: nextId,
@@ -1731,7 +1786,7 @@
                         type: 'camera_frame',
                         frame: frame,
                         streamId: 'camera_main',
-                        target_units: getSelectedTargetUnits()
+                        target_units: []
                     }));
                 } else {
                     console.warn('WebSocket disconnected during frame capture');
