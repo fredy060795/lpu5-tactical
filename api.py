@@ -78,12 +78,13 @@ if "chat_messages" in _inspector.get_table_names():
         if "read_by" not in _existing_cols:
             _conn.execute(sa_text("ALTER TABLE chat_messages ADD COLUMN read_by JSON"))
 
-# Migrate users table: add unit_id column if missing
-if "users" in _inspector.get_table_names():
+# Migrate users table: add unit_id column if missing (units table must exist first)
+if "units" in _inspector.get_table_names() and "users" in _inspector.get_table_names():
     _user_cols = {c["name"] for c in _inspector.get_columns("users")}
     with engine.begin() as _conn:
         if "unit_id" not in _user_cols:
-            _conn.execute(sa_text("ALTER TABLE users ADD COLUMN unit_id VARCHAR REFERENCES units(id)"))
+            # SQLite does not enforce FK constraints by default; omit REFERENCES for compat
+            _conn.execute(sa_text("ALTER TABLE users ADD COLUMN unit_id VARCHAR"))
 
 # Import new autonomous modules
 try:
