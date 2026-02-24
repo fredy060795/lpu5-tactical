@@ -1312,12 +1312,18 @@
         function handleIncomingMessage(message) {
             console.log('Received message:', message);
 
-            if (message.type === 'stream_share' || message.type === 'stream_available') {
-                // Another user is sharing/announcing a stream
+            if (message.type === 'stream_available') {
+                // Original stream owner announcing or ending their stream
                 if (message.active) {
                     addIncomingStream(message);
                 } else {
                     removeIncomingStream(message.streamId);
+                }
+            } else if (message.type === 'stream_share') {
+                // Admin is broadcasting a stream to EUDs (active) or stopping the broadcast (inactive).
+                // Stopping the broadcast does NOT end the original stream – keep the card visible.
+                if (message.active) {
+                    addIncomingStream(message);
                 }
             } else if (message.type === 'camera_frame') {
                 // Received a camera frame from another user
