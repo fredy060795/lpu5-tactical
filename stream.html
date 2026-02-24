@@ -1607,11 +1607,13 @@
                 selectedBroadcastStream = nextId;
                 renderIncomingStreams();
                 if (ws && ws.readyState === WebSocket.OPEN) {
+                    const targetUnits = getSelectedTargetUnits();
                     ws.send(JSON.stringify({
                         type: 'broadcast_selected',
                         streamId: nextId,
                         source: nextStream ? nextStream.source : nextId,
                         details: nextStream ? nextStream.details : '',
+                        target_units: targetUnits,
                         timestamp: Date.now()
                     }));
                     // Also send stream_share so stream_share.html gets the full stream data
@@ -1623,6 +1625,7 @@
                         stream_url: nextStream ? (nextStream.stream_url || null) : null,
                         source: nextStream ? nextStream.source : nextId,
                         details: nextStream ? nextStream.details : '',
+                        target_units: targetUnits,
                         timestamp: Date.now()
                     }));
                 }
@@ -1689,10 +1692,14 @@
                 const frame = canvas.toDataURL('image/jpeg', 0.5);
                 
                 if (ws && ws.readyState === WebSocket.OPEN) {
+                    // Include target_units so frames are routed only to selected unit groups.
+                    // When no units are selected, target_units is [] and the server falls back
+                    // to the global "camera" channel.
                     ws.send(JSON.stringify({
                         type: 'camera_frame',
                         frame: frame,
-                        streamId: 'camera_main'
+                        streamId: 'camera_main',
+                        target_units: getSelectedTargetUnits()
                     }));
                 } else {
                     console.warn('WebSocket disconnected during frame capture');
