@@ -427,7 +427,19 @@ class ConnectionManager:
 
 # Predefined channel names for standardization
 class Channels:
-    """Standard channel names"""
+    """
+    Standard channel names.
+
+    Unit / group channels follow the naming convention ``unit:<unit_name>``.
+    Use :py:meth:`ConnectionManager.subscribe` / ``unsubscribe`` with these
+    names, or use the ``join_group`` / ``leave_group`` WebSocket message types
+    which automatically prepend the ``unit:`` prefix.
+
+    Example – subscribe a connection to unit "alpha"::
+
+        manager.subscribe(connection_id, "unit:alpha")
+        # or via WebSocket message: { "type": "join_group", "group": "alpha" }
+    """
     POSITIONS = "positions"          # Position updates
     STATUS = "status"                # Status changes
     MESSAGES = "messages"            # Chat messages
@@ -440,7 +452,12 @@ class Channels:
     OVERLAYS = "overlays"            # Overlay updates
     DRAWINGS = "drawings"            # Drawing updates
     SYMBOLS = "symbols"              # Symbol updates
-    CAMERA = "camera"                # Camera stream updates
+    CAMERA = "camera"                # Camera stream updates (global fallback)
+
+    @staticmethod
+    def unit(group_name: str) -> str:
+        """Return the channel name for a unit/group (e.g. "unit:alpha")."""
+        return f"unit:{group_name}"
 
 
 class WebSocketEventHandler:
@@ -540,6 +557,44 @@ class WebSocketEventHandler:
             })
         
         self.register_handler("unsubscribe", handle_unsubscribe)
+        
+        # Join a unit group (subscribe to unit:<group> channel)
+        async def handle_join_group(connection_id: str, message: Dict):
+            group = message.get("group")
+            if not group:
+                await self.manager.send_personal_message(connection_id, {
+                    "type": "error",
+                    "error": "Missing group name"
+                })
+                return
+            channel = Channels.unit(group)
+            self.manager.subscribe(connection_id, channel)
+            await self.manager.send_personal_message(connection_id, {
+                "type": "joined_group",
+                "group": group,
+                "channel": channel
+            })
+        
+        self.register_handler("join_group", handle_join_group)
+        
+        # Leave a unit group (unsubscribe from unit:<group> channel)
+        async def handle_leave_group(connection_id: str, message: Dict):
+            group = message.get("group")
+            if not group:
+                await self.manager.send_personal_message(connection_id, {
+                    "type": "error",
+                    "error": "Missing group name"
+                })
+                return
+            channel = Channels.unit(group)
+            self.manager.unsubscribe(connection_id, channel)
+            await self.manager.send_personal_message(connection_id, {
+                "type": "left_group",
+                "group": group,
+                "channel": channel
+            })
+        
+        self.register_handler("leave_group", handle_leave_group)
         
         # Ping/pong for keepalive
         async def handle_ping(connection_id: str, message: Dict):
