@@ -791,6 +791,28 @@
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'symbols' }));
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'geofence' }));
           ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+
+          // Re-announce own camera stream if active (handles WebSocket reconnect scenario)
+          if (typeof overviewMediaStream !== 'undefined' && overviewMediaStream) {
+            const sel = document.getElementById('overviewCameraSelect');
+            ws.send(JSON.stringify({
+              type: 'stream_available',
+              streamId: 'overview_camera',
+              active: true,
+              isCamera: true,
+              source: (sel && sel.selectedIndex >= 0 && sel.options[sel.selectedIndex]) ? (sel.options[sel.selectedIndex].text || 'Overview Camera') : 'Overview Camera',
+              details: 'Camera stream from Overview',
+              timestamp: Date.now()
+            }));
+          }
+
+          // Load currently active broadcast stream so the viewer widget appears even if
+          // the stream_share WebSocket event was missed (e.g. page loaded after broadcast started)
+          const _streamToken = localStorage.getItem('token');
+          fetch('/api/stream_share', _streamToken ? { headers: { 'Authorization': 'Bearer ' + _streamToken } } : {})
+            .then(function(r) { return r.json(); })
+            .then(function(d) { if (d && d.active && typeof showCameraStream === 'function') showCameraStream(d); })
+            .catch(function() {});
         };
 
         ws.onmessage = (event) => {
@@ -1106,12 +1128,10 @@
           break;
 
         case 'broadcast_selected':
-          // stream.html selected a stream to broadcast — start/stop our frame capture accordingly
+          // stream.html selected a stream to broadcast — start sending frames if our camera is selected
           if (data.channel === 'camera') {
             if (data.streamId === 'overview_camera' && overviewMediaStream) {
               startOverviewFrameCapture();
-            } else {
-              stopOverviewFrameCapture();
             }
           }
           break;
