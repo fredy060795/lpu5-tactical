@@ -7,6 +7,13 @@ import uuid
 def generate_uuid():
     return str(uuid.uuid4())
 
+class Unit(Base):
+    __tablename__ = "units"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, default=generate_uuid)
@@ -16,6 +23,7 @@ class User(Base):
     role = Column(String, default="user")
     group_id = Column(String, default="users")
     unit = Column(String, nullable=True)
+    unit_id = Column(String, ForeignKey("units.id"), nullable=True)
     device = Column(String, nullable=True)
     rank = Column(String, nullable=True)
     fullname = Column(String, nullable=True)
