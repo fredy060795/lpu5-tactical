@@ -60,7 +60,7 @@ _MAIN_EVENT_LOOP = None
 
 # Database imports
 from database import Base, SessionLocal, engine, get_db
-from models import User, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration
+from models import User, Unit, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
@@ -77,6 +77,14 @@ if "chat_messages" in _inspector.get_table_names():
             _conn.execute(sa_text("ALTER TABLE chat_messages ADD COLUMN delivered_to JSON"))
         if "read_by" not in _existing_cols:
             _conn.execute(sa_text("ALTER TABLE chat_messages ADD COLUMN read_by JSON"))
+
+# Migrate users table: add unit_id column if missing (units table must exist first)
+if "units" in _inspector.get_table_names() and "users" in _inspector.get_table_names():
+    _user_cols = {c["name"] for c in _inspector.get_columns("users")}
+    with engine.begin() as _conn:
+        if "unit_id" not in _user_cols:
+            # SQLite does not enforce FK constraints by default; omit REFERENCES for compat
+            _conn.execute(sa_text("ALTER TABLE users ADD COLUMN unit_id VARCHAR"))
 
 # Import new autonomous modules
 try:
@@ -249,6 +257,7 @@ async def lifespan(application):
 
     ensure_db_files()
     ensure_default_admin()
+    ensure_default_unit()
 
     # Start data server process if available
     if DATA_SERVER_AVAILABLE and data_server_manager:
@@ -761,6 +770,22 @@ def ensure_default_admin():
         db.close()
 
 
+def ensure_default_unit():
+    """Ensure a default 'General' unit exists in the database."""
+    db = SessionLocal()
+    try:
+        general = db.query(Unit).filter(Unit.name == "General").first()
+        if not general:
+            db.add(Unit(id=str(uuid.uuid4()), name="General", description="Default unit"))
+            db.commit()
+            logger.info("Created default 'General' unit")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in ensure_default_unit: {e}")
+    finally:
+        db.close()
+
+
 # -------------------------
 # Background meshtastic -> markers sync
 # -------------------------
@@ -990,13 +1015,19 @@ def api_me(authorization: Optional[str] = Header(None), db: Session = Depends(ge
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    unit_name = user.unit
+    if user.unit_id:
+        unit_obj = db.query(Unit).filter(Unit.id == user.unit_id).first()
+        unit_name = unit_obj.name if unit_obj else user.unit
+
     return {
         "id": user.id,
         "username": user.username,
         "email": user.email,
         "role": user.role,
         "group_id": user.group_id,
-        "unit": user.unit,
+        "unit": unit_name,
+        "unit_id": user.unit_id,
         "device": user.device,
         "rank": user.rank,
         "fullname": user.fullname,
@@ -1073,11 +1104,51 @@ async def get_roles():
     }
 
 # -------------------------
+# Units endpoints (CRUD)
+# -------------------------
+@app.get("/api/units")
+async def list_units(db: Session = Depends(get_db)):
+    units = db.query(Unit).order_by(Unit.name).all()
+    return [{"id": u.id, "name": u.name, "description": u.description} for u in units]
+
+@app.post("/api/units")
+async def create_unit(data: dict = Body(...), authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Unit name required")
+    if db.query(Unit).filter(Unit.name == name).first():
+        raise HTTPException(status_code=400, detail="Unit name already exists")
+    unit = Unit(id=str(uuid.uuid4()), name=name, description=data.get("description", ""))
+    db.add(unit)
+    db.commit()
+    db.refresh(unit)
+    log_audit("create_unit", "system", {"unit_id": unit.id, "name": name})
+    return {"id": unit.id, "name": unit.name, "description": unit.description}
+
+@app.delete("/api/units/{unit_id}")
+async def delete_unit(unit_id: str, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    unit = db.query(Unit).filter((Unit.id == unit_id) | (Unit.name == unit_id)).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    if unit.name == "General":
+        raise HTTPException(status_code=400, detail="Cannot delete the default 'General' unit")
+    # Move affected users to "General"
+    general = db.query(Unit).filter(Unit.name == "General").first()
+    if general:
+        db.query(User).filter(User.unit_id == unit.id).update({"unit_id": general.id, "unit": "General"})
+    db.delete(unit)
+    db.commit()
+    log_audit("delete_unit", "system", {"unit_id": unit_id})
+    return {"status": "success", "message": f"Unit deleted; affected users moved to General"}
+
+# -------------------------
 # Users endpoints (create/update/list/delete)
 # -------------------------
 @app.get("/api/users")
 async def get_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
+    # Build unit_id -> name map for efficient lookup
+    unit_map = {u.id: u.name for u in db.query(Unit).all()}
     return [
         {
             "id": u.id,
@@ -1085,7 +1156,8 @@ async def get_users(db: Session = Depends(get_db)):
             "email": u.email,
             "role": u.role,
             "group_id": u.group_id,
-            "unit": u.unit,
+            "unit": unit_map.get(u.unit_id) or u.unit,
+            "unit_id": u.unit_id,
             "device": u.device,
             "rank": u.rank,
             "fullname": u.fullname,
@@ -1181,7 +1253,14 @@ async def get_user(user_id: str, db: Session = Depends(get_db)):
     user = db.query(User).filter((User.id == user_id) | (User.username == user_id)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {k: v for k, v in user.__dict__.items() if k != "password_hash" and not k.startswith("_")}
+    result = {k: v for k, v in user.__dict__.items() if k != "password_hash" and not k.startswith("_")}
+    # Include resolved unit name
+    if user.unit_id:
+        unit_obj = db.query(Unit).filter(Unit.id == user.unit_id).first()
+        result["unit"] = unit_obj.name if unit_obj else user.unit
+    else:
+        result["unit"] = user.unit
+    return result
 
 @app.put("/api/users/{user_id}")
 async def update_user(user_id: str, data: dict = Body(...), authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
@@ -1208,6 +1287,19 @@ async def update_user(user_id: str, data: dict = Body(...), authorization: Optio
         if field in data:
             if field == "active": # Legacy field name
                  user.is_active = data[field]
+            elif field == "unit":
+                # Resolve unit name to unit_id
+                unit_name = data[field]
+                if unit_name:
+                    unit_obj = db.query(Unit).filter(Unit.name == unit_name).first()
+                    if unit_obj:
+                        user.unit_id = unit_obj.id
+                        user.unit = unit_obj.name
+                    else:
+                        # Store as plain string for backward compat
+                        user.unit = unit_name
+                else:
+                    user.unit = unit_name
             else:
                  setattr(user, field, data[field])
     
@@ -1284,8 +1376,16 @@ async def register_user(data: dict = Body(...), db: Session = Depends(get_db)):
     unit = data.get("unit") or data.get("device") or None
     callsign = data.get("callsign") or None
     qr_token = data.get("qr_token")
-    if not username or not password or not unit:
-        raise HTTPException(status_code=400, detail="Required fields missing (username, password, device/unit)")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Required fields missing (username, password)")
+    
+    # Resolve unit: accept unit name from registration form; fall back to "General"
+    unit_name = unit or "General"
+    unit_obj = db.query(Unit).filter(Unit.name == unit_name).first()
+    if not unit_obj:
+        # Fall back to General if provided name is unknown
+        unit_obj = db.query(Unit).filter(Unit.name == "General").first()
+        unit_name = unit_obj.name if unit_obj else unit_name
     
     if qr_token:
         qr = db.query(QRCode).filter(QRCode.token == qr_token).first()
@@ -1316,7 +1416,8 @@ async def register_user(data: dict = Body(...), db: Session = Depends(get_db)):
         fullname=data.get("fullname", ""),
         callsign=callsign,
         data={
-            "unit": unit,
+            "unit": unit_name,
+            "unit_id": unit_obj.id if unit_obj else None,
             "device": data.get("device") or unit,
             "rank": data.get("rank", "Operator"),
             "qr_token": qr_token,
@@ -1357,11 +1458,23 @@ async def approve_registration(data: dict = Body(...), db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Registration not found")
     
     reg_data = reg.data or {}
+    # Resolve unit_id
+    unit_name = reg_data.get("unit")
+    unit_id = reg_data.get("unit_id")
+    if unit_name and not unit_id:
+        unit_obj = db.query(Unit).filter(Unit.name == unit_name).first()
+        unit_id = unit_obj.id if unit_obj else None
+    # Fall back to General if still no unit
+    if not unit_id:
+        general = db.query(Unit).filter(Unit.name == "General").first()
+        unit_id = general.id if general else None
+        unit_name = "General" if general else unit_name
     new_user = User(
         id=str(uuid.uuid4()),
         username=reg.username,
         password_hash=reg.password_hash,
-        unit=reg_data.get("unit"),
+        unit=unit_name,
+        unit_id=unit_id,
         device=reg_data.get("device"),
         callsign=reg.callsign,
         rank=reg_data.get("rank", "Operator"),

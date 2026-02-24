@@ -67,6 +67,7 @@
     <table>
         <thead>
             <tr>
+                <th>Unit</th>
                 <th>Callsign</th>
                 <th>Device</th>
                 <th>User</th>
@@ -75,7 +76,7 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody id="unit-table"><tr><td colspan="6" class="empty-state">Loading...</td></tr></tbody>
+        <tbody id="unit-table"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody>
     </table>
 </div>
 
@@ -325,11 +326,11 @@ async function assignDeviceToUser(user, nodeName){
     // if persist fails, we keep mapping in localStorage so survives reload
 }
 
-/* Render table — Callsign and Device columns must show meshtastic device name (node.name) when assigned */
+/* Render table — Unit column first, then Callsign and Device */
 function renderTable(){
     const tbody = document.getElementById('unit-table');
     if (!allUsers || allUsers.length === 0){
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found</td></tr>';
         return;
     }
     const users = allUsers.slice().sort((a,b)=>String(a.username||a.callsign||'').localeCompare(String(b.username||b.callsign||'')));
@@ -341,6 +342,7 @@ function renderTable(){
         const callsignDisplay = assignedNode ? (assignedNode.name || assignedName) : (u.callsign || '');
         const deviceDisplay = assignedNode ? (assignedNode.name || assignedName) : (u.device || '');
         const username = esc(u.username || '');
+        const unitDisplay = esc(u.unit || 'General');
         const tacticalStatus = deriveUserStatus(u);
         const cls = statusClass(tacticalStatus);
         const timerId = `timer-${u.id || u.username}`;
@@ -353,6 +355,7 @@ function renderTable(){
         const acctInactiveHtml = (u.active === false) ? `<span class="account-inactive">(Account: INACTIVE)</span>` : '';
         const tr = document.createElement('tr');
         tr.innerHTML = `
+            <td>${unitDisplay}</td>
             <td>${esc(callsignDisplay)}</td>
             <td></td>
             <td>${username}${acctInactiveHtml}</td>
@@ -367,7 +370,7 @@ function renderTable(){
         const appendedRow = tbody.lastElementChild;
         if (appendedRow){
             const tds = appendedRow.querySelectorAll('td');
-            if (tds.length >= 2) tds[1].replaceWith(deviceCell);
+            if (tds.length >= 3) tds[2].replaceWith(deviceCell);
         }
     }
 

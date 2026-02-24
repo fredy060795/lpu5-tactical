@@ -172,6 +172,13 @@
                     </div>
                 </div>
 
+                <div>
+                    <label for="unitSelect">Unit</label>
+                    <select id="unitSelect" name="unit" required style="width:100%;padding:10px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:6px;">
+                        <option value="" disabled selected>Loading units...</option>
+                    </select>
+                </div>
+
                 <div class="row" style="align-items:center; margin-top:6px;">
                     <div style="flex:1;">
                         <button class="btn-primary" id="submitBtn" type="submit"><i class="fa-solid fa-check"></i> Register</button>
@@ -188,7 +195,7 @@
         </div>
     </main>
 
-    <!-- Note: Meshtastic device name is sent in the payload as "device" and additionally as "unit" (backend expects "unit") -->
+    <!-- Note: Meshtastic device name is sent in the payload as "device"; unit is sent separately from the unit dropdown -->
     <script>
     (function(){
         // Update clock
@@ -196,6 +203,30 @@
             const el = document.getElementById('clock');
             if (el) el.textContent = new Date().toLocaleTimeString('en-US');
         }, 1000);
+
+        // Populate unit dropdown from API
+        (async function loadUnits() {
+            try {
+                const res = await fetch('/api/units');
+                if (!res.ok) return;
+                const units = await res.json();
+                const sel = document.getElementById('unitSelect');
+                if (!sel) return;
+                sel.innerHTML = '';
+                units.forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u.name;
+                    opt.textContent = u.name;
+                    sel.appendChild(opt);
+                });
+                if (units.length === 0) {
+                    sel.innerHTML = '<option value="General">General</option>';
+                }
+            } catch(e) {
+                const sel = document.getElementById('unitSelect');
+                if (sel) sel.innerHTML = '<option value="General">General</option>';
+            }
+        })();
 
         // safe base64 decode (tries standard and URL-safe variants)
         function safeBase64Decode(b64) {
@@ -331,12 +362,14 @@
                 submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Registering...';
 
                 try {
-                    // Send both "device" and "unit" to keep backend compatibility.
+                    // Send device, unit (from dropdown), and callsign to the backend
+                    const unitSelect = document.getElementById('unitSelect');
+                    const selectedUnit = unitSelect ? unitSelect.value : 'General';
                     const payload = {
                         username: username,
                         password: password,
                         device: device,
-                        unit: device,        // backend currently validates 'unit' - we set to device
+                        unit: selectedUnit,
                         callsign: callsign
                     };
                     if (proof) {

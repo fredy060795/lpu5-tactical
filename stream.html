@@ -688,13 +688,19 @@
         <div class="streams-list" style="margin-top: 30px;">
             <h2><i class="fas fa-satellite-dish"></i> Incoming Streams (From Other EUDs)</h2>
             <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">
-                Multiple streams from other users. Select one to broadcast to all EUDs.
+                Multiple streams from other users. Select one to broadcast to EUDs.
             </p>
             <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
                 <button id="multicastToggleBtn" onclick="toggleMulticast()" style="padding: 8px 16px; background: var(--panel-input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85rem;">
                     <i class="fas fa-random"></i> Enable Multicast
                 </button>
                 <span id="multicastStatus" style="color: #888; font-size: 0.85rem;"></span>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="color:#aaa;font-size:0.85rem;display:block;margin-bottom:6px;"><i class="fas fa-shield-alt"></i> Target Units (hold Ctrl/Cmd for multiple; empty = all)</label>
+                <select id="targetUnitsSelect" multiple style="background:var(--panel-input-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:6px;padding:6px;min-width:200px;max-height:100px;">
+                    <option value="" disabled>Loading units...</option>
+                </select>
             </div>
             <div id="incomingStreamsContainer" class="incoming-streams-grid">
                 <div class="no-streams">
@@ -738,7 +744,35 @@
             setupSourceTabs();
             loadActiveStreams();
             connectWebSocket();
+            loadUnitsIntoSelect();
         });
+
+        // Load units into the target-units multi-select
+        async function loadUnitsIntoSelect() {
+            try {
+                const res = await fetch('/api/units');
+                if (!res.ok) return;
+                const units = await res.json();
+                const sel = document.getElementById('targetUnitsSelect');
+                if (!sel) return;
+                sel.innerHTML = '';
+                units.forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u.name;
+                    opt.textContent = u.name;
+                    sel.appendChild(opt);
+                });
+            } catch(e) {
+                console.warn('Could not load units for stream targeting:', e);
+            }
+        }
+
+        // Get selected target units from the multi-select
+        function getSelectedTargetUnits() {
+            const sel = document.getElementById('targetUnitsSelect');
+            if (!sel) return [];
+            return Array.from(sel.selectedOptions).map(o => o.value).filter(v => v !== '');
+        }
 
         // Setup source tabs
         function setupSourceTabs() {
@@ -1282,6 +1316,14 @@
                 ws.onopen = () => {
                     console.log('WebSocket connected');
                     ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+                    // Also subscribe to unit-scoped channel if user has a unit
+                    try {
+                        const userData = JSON.parse(localStorage.getItem('lpu5_user') || '{}');
+                        const unit = userData.unit;
+                        if (unit) {
+                            ws.send(JSON.stringify({ type: 'subscribe', channel: `unit:${unit}` }));
+                        }
+                    } catch(e) {}
                     loadCurrentStream();
                 };
 
@@ -1485,11 +1527,13 @@
 
             // Notify all clients via WebSocket
             if (ws && ws.readyState === WebSocket.OPEN) {
+                const targetUnits = getSelectedTargetUnits();
                 ws.send(JSON.stringify({
                     type: 'broadcast_selected',
                     streamId: streamId,
                     source: stream.source,
                     details: stream.details,
+                    target_units: targetUnits,
                     timestamp: Date.now()
                 }));
                 // Also send stream_share so stream_share.html receives the full stream data
@@ -1503,6 +1547,7 @@
                     stream_url: stream.stream_url || null,
                     source: stream.source,
                     details: stream.details,
+                    target_units: targetUnits,
                     timestamp: Date.now()
                 }));
             }

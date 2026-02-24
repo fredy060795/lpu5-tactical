@@ -238,17 +238,26 @@ async def websocket_endpoint(websocket: WebSocket):
                     })
                 
                 # Relay camera frames (server-side relay)
+                # Supports target_units: list of unit names; if empty/absent, broadcast globally
                 elif message_type == "camera_frame":
-                    await connection_manager.broadcast_to_channel("camera", {
+                    target_units = data.get("target_units") or []
+                    frame_msg = {
                         "type": "camera_frame",
                         "frame": data.get("frame"),
                         "streamId": data.get("streamId"),
                         "source_connection": connection_id
-                    }, exclude=connection_id)
+                    }
+                    if target_units:
+                        for unit_name in target_units:
+                            await connection_manager.broadcast_to_channel(f"unit:{unit_name}", frame_msg, exclude=connection_id)
+                    # Always relay to global camera channel (backward compat)
+                    await connection_manager.broadcast_to_channel("camera", frame_msg, exclude=connection_id)
                 
                 # Relay stream sharing
+                # Supports target_units: list of unit names; if empty/absent, broadcast globally
                 elif message_type == "stream_share":
-                    await connection_manager.broadcast_to_channel("camera", {
+                    target_units = data.get("target_units") or []
+                    share_msg = {
                         "type": "stream_share",
                         "streamId": data.get("streamId", "camera_main"),
                         "active": data.get("active", False),
@@ -257,19 +266,31 @@ async def websocket_endpoint(websocket: WebSocket):
                         "details": data.get("details"),
                         "stream_url": data.get("stream_url"),
                         "timestamp": data.get("timestamp"),
+                        "target_units": target_units,
                         "source_connection": connection_id
-                    }, exclude=connection_id)
+                    }
+                    if target_units:
+                        for unit_name in target_units:
+                            await connection_manager.broadcast_to_channel(f"unit:{unit_name}", share_msg, exclude=connection_id)
+                    # Always relay to global camera channel (backward compat)
+                    await connection_manager.broadcast_to_channel("camera", share_msg, exclude=connection_id)
                 
                 # Relay broadcast selection (stream.html selects which stream to send to EUDs)
                 elif message_type == "broadcast_selected":
-                    await connection_manager.broadcast_to_channel("camera", {
+                    target_units = data.get("target_units") or []
+                    sel_msg = {
                         "type": "broadcast_selected",
                         "streamId": data.get("streamId"),
                         "source": data.get("source"),
                         "details": data.get("details"),
                         "timestamp": data.get("timestamp"),
+                        "target_units": target_units,
                         "source_connection": connection_id
-                    }, exclude=connection_id)
+                    }
+                    if target_units:
+                        for unit_name in target_units:
+                            await connection_manager.broadcast_to_channel(f"unit:{unit_name}", sel_msg, exclude=connection_id)
+                    await connection_manager.broadcast_to_channel("camera", sel_msg, exclude=connection_id)
                 
                 # Unknown message type
                 else:

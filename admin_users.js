@@ -59,6 +59,118 @@ async function hasPermission(permission) {
     return false;
 }
 
+// -------------------------
+// Unit management
+// -------------------------
+
+// Fetch all units from API
+async function fetchUnits() {
+    try {
+        const res = await fetch('/api/units');
+        if (!res.ok) return [];
+        return await res.json();
+    } catch (e) {
+        console.error('fetchUnits error', e);
+        return [];
+    }
+}
+
+// Populate a <select> element with units
+async function populateUnitDropdown(selectEl, selectedName) {
+    const units = await fetchUnits();
+    selectEl.innerHTML = '';
+    units.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.name;
+        opt.textContent = u.name;
+        if (u.name === selectedName) opt.selected = true;
+        selectEl.appendChild(opt);
+    });
+    if (units.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '(No units)';
+        selectEl.appendChild(opt);
+    }
+}
+
+// Render the units management list
+async function loadUnitsAdmin() {
+    const container = document.getElementById('unitsList');
+    if (!container) return;
+    const units = await fetchUnits();
+    if (!units.length) {
+        container.innerHTML = '<span style="color:#666;">No units found</span>';
+        return;
+    }
+    container.innerHTML = '';
+    units.forEach(u => {
+        const span = document.createElement('span');
+        span.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:#222;border:1px solid #444;border-radius:6px;padding:5px 10px;';
+        span.innerHTML = `<i class="fas fa-shield-alt" style="color:#28a745;"></i> ${escapeAttr(u.name)}`;
+        if (u.name !== 'General') {
+            const btn = document.createElement('button');
+            btn.title = 'Delete unit';
+            btn.style.cssText = 'background:none;border:none;color:#dc3545;cursor:pointer;padding:0 2px;';
+            btn.innerHTML = '<i class="fas fa-times"></i>';
+            btn.onclick = () => deleteUnit(u.id, u.name);
+            span.appendChild(btn);
+        }
+        container.appendChild(span);
+    });
+}
+
+// Create a new unit
+async function createUnitFromAdmin() {
+    const input = document.getElementById('newUnitName');
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) { alert('Unit name required'); return; }
+    
+    const token = getAuthToken();
+    try {
+        const res = await fetch('/api/units', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({ name })
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+            alert('Failed to create unit: ' + ((body && (body.detail || body.message)) || res.status));
+            return;
+        }
+        input.value = '';
+        await loadUnitsAdmin();
+    } catch (e) {
+        alert('Error creating unit: ' + e.message);
+    }
+}
+
+// Delete a unit
+async function deleteUnit(unitId, unitName) {
+    if (!confirm(`Delete unit "${unitName}"?\n\nAll users in this unit will be moved to "General".`)) return;
+    
+    const token = getAuthToken();
+    try {
+        const res = await fetch(`/api/units/${encodeURIComponent(unitId)}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+            alert('Failed to delete unit: ' + ((body && (body.detail || body.message)) || res.status));
+            return;
+        }
+        await loadUnitsAdmin();
+        await loadUsers();
+    } catch (e) {
+        alert('Error deleting unit: ' + e.message);
+    }
+}
+
 // Load and display all users in the table
 async function loadUsers() {
     try {
@@ -104,9 +216,9 @@ async function updateUnitTable(users) {
         tdCallsign.textContent = user.callsign || user.username || '-';
         tr.appendChild(tdCallsign);
         
-        // Unit/Group column
+        // Unit column
         const tdUnit = document.createElement('td');
-        tdUnit.textContent = user.unit || user.group || '-';
+        tdUnit.textContent = user.unit || 'General';
         tr.appendChild(tdUnit);
         
         // Account Status column (Active/Inactive)
@@ -281,9 +393,14 @@ async function openEditModal(username) {
         document.getElementById('editFullname').value = user.fullname || '';
         document.getElementById('editCallsign').value = user.callsign || '';
         document.getElementById('editPassword').value = '';
-        document.getElementById('editGroup').value = user.unit || user.group || '';
         document.getElementById('editStatus').value = user.is_active === false ? 'false' : 'true';
         document.getElementById('editRole').value = user.role || 'user';
+        
+        // Populate unit dropdown
+        const unitSelect = document.getElementById('editGroup');
+        if (unitSelect) {
+            await populateUnitDropdown(unitSelect, user.unit || 'General');
+        }
         
         // Show modal
         const modal = document.getElementById('editModal');
@@ -312,7 +429,8 @@ async function saveUserChanges() {
     const fullname = document.getElementById('editFullname').value.trim();
     const callsign = document.getElementById('editCallsign').value.trim();
     const password = document.getElementById('editPassword').value;
-    const group = document.getElementById('editGroup').value.trim();
+    const unitSelect = document.getElementById('editGroup');
+    const unit = unitSelect ? unitSelect.value : '';
     const active = document.getElementById('editStatus').value === 'true';
     const role = document.getElementById('editRole').value;
     
@@ -320,8 +438,7 @@ async function saveUserChanges() {
         const payload = {
             fullname: fullname || undefined,
             callsign: callsign || undefined,
-            unit: group || undefined,
-            group: group || undefined,
+            unit: unit || undefined,
             is_active: active,
             role: role
         };
@@ -398,7 +515,8 @@ async function deleteUserFromModal() {
     }
 }
 
-// Load users when page loads
+// Load users and units when page loads
 document.addEventListener('DOMContentLoaded', () => {
     loadUsers();
+    loadUnitsAdmin();
 });
