@@ -433,6 +433,15 @@
             gap: 8px;
         }
 
+        .incoming-stream-user {
+            color: #ccc;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .incoming-stream-details {
             color: #888;
             font-size: 0.85rem;
@@ -1170,6 +1179,12 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 const isCamera = mediaStream !== null;
                 const videoSrc = document.getElementById('videoPlayer').src || null;
+                // Read the logged-in user's display name so recipients can see who is streaming
+                let streamerName = '';
+                try {
+                    const userData = JSON.parse(localStorage.getItem('lpu5_user') || '{}');
+                    streamerName = userData.name || userData.fullname || userData.username || userData.displayName || '';
+                } catch(e) {}
                 console.log('Sending stream_available message via WebSocket:', {
                     streamId: 'camera_main',
                     active: true,
@@ -1184,6 +1199,7 @@
                     isCamera: isCamera,
                     source: currentStream.source,
                     details: currentStream.details,
+                    username: streamerName,
                     stream_url: isCamera ? null : videoSrc,
                     timestamp: Date.now()
                 }));
@@ -1267,6 +1283,16 @@
             activeStreams = activeStreams.filter(s => s.id !== id);
             updateStreamsList();
             showToast('Stream entfernt', 'success');
+        }
+
+        // Escape special HTML characters to prevent XSS when inserting user-provided text into innerHTML
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         // Show toast notification
@@ -1394,6 +1420,7 @@
                     id: streamId,
                     source: streamData.source || 'Unknown',
                     details: streamData.details || 'Remote Stream',
+                    username: streamData.username || '',
                     isCamera: streamData.isCamera || false,
                     stream_url: streamData.stream_url,
                     timestamp: streamData.timestamp,
@@ -1482,6 +1509,11 @@
                                 <i class="fas fa-${stream.isCamera ? 'camera' : 'video'}"></i>
                                 <span>${stream.source}</span>
                             </div>
+                            ${stream.username ? `
+                            <div class="incoming-stream-user">
+                                <i class="fas fa-user"></i>
+                                <span>${escapeHtml(stream.username)}</span>
+                            </div>` : ''}
                             <div class="incoming-stream-details">
                                 ${stream.details}
                             </div>
