@@ -358,7 +358,7 @@
         list.innerHTML = filtered.map(m => {
             const isActive = String(m.id) === String(currentId);
             const statusCls = m.status === 'ONGOING' ? 'mi-status-ongoing' : m.status === 'SUCCESS' ? 'mi-status-success' : 'mi-status-failed';
-            return `<div class="mission-item${isActive ? ' active' : ''}" onclick="selectMission(${m.id})">
+            return `<div class="mission-item${isActive ? ' active' : ''}" onclick="selectMission('${m.id}')">
                 <div class="mi-date">${m.date || '—'}</div>
                 <div class="mi-obj">${m.objective || m.name || m.id}</div>
                 <div class="mi-status ${statusCls}">${m.status || '—'}</div>
