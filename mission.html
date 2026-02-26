@@ -349,7 +349,10 @@
                     <td>${m.objective}</td>
                     <td>${m.location}</td>
                     <td class="status-${m.status}">${m.status}</td>
-                    <td>
+                    <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        <button class="btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="window.open('Mission_Order.html?id=${m.id}','_blank')" title="Order View">
+                            <i class="fas fa-eye"></i> ORDER VIEW
+                        </button>
                         ${m.status === 'ONGOING' ? `
                             <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75em;" onclick="deleteMission('${m.id}')">
                                 <i class="fas fa-trash"></i>
