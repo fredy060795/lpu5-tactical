@@ -122,6 +122,51 @@
 
         .error-msg { color: var(--accent-red); }
 
+        .attachment-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .attachment-thumb {
+            border: 1px solid #333;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+            max-width: 200px;
+            text-align: center;
+        }
+
+        .attachment-thumb img {
+            width: 100%;
+            max-height: 150px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .attachment-label {
+            font-size: 0.75em;
+            color: #888;
+            padding: 4px 6px;
+            word-break: break-all;
+        }
+
+        .attachment-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #aaa;
+            text-decoration: none;
+            font-size: 0.85em;
+        }
+
+        .attachment-link:hover { color: #fff; }
+
         @media (max-width: 768px) {
             header { padding: 12px 16px; }
             h1 { font-size: 1.1em; }
@@ -284,7 +329,33 @@
                 </div>
             `;
 
-            content.innerHTML = metaBar + gesamtbefehl + lage + auftrag + durchfuehrung + versorgung + verbindung;
+            // Build attachments section
+            const attachments = d.attachments || [];
+            let attachmentsHtml = '';
+            if (attachments.length > 0) {
+                const items = attachments.map(a => {
+                    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(a.url);
+                    if (isImage) {
+                        return `<div class="attachment-thumb">
+                            <a href="${val(a.url)}" target="_blank">
+                                <img src="${val(a.url)}" alt="${val(a.original_name)}">
+                            </a>
+                            <div class="attachment-label">${val(a.original_name)}</div>
+                        </div>`;
+                    }
+                    return `<a class="attachment-link" href="${val(a.url)}" target="_blank">
+                        <i class="fas fa-file-pdf"></i> ${val(a.original_name)}
+                    </a>`;
+                }).join('');
+                attachmentsHtml = `
+                    <div class="order-section">
+                        <h2><i class="fas fa-paperclip"></i> Anhänge / Dokumente</h2>
+                        <div class="attachment-grid">${items}</div>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = metaBar + gesamtbefehl + lage + auftrag + durchfuehrung + versorgung + verbindung + attachmentsHtml;
 
         } catch (e) {
             content.innerHTML = `<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> Error loading mission: ${e.message}</p>`;
