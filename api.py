@@ -62,6 +62,7 @@ _MAIN_EVENT_LOOP = None
 from database import Base, SessionLocal, engine, get_db
 from models import User, Unit, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from fastapi import Depends
 
 # Ensure all tables exist (creates any missing tables like chat_channels, chat_messages)
@@ -1776,6 +1777,7 @@ def api_mission_complete(mission_id: str = Path(...), result: str = Path(...), a
             new_data = dict(mission.data)
             new_data["completed_at"] = datetime.now(timezone.utc).isoformat()
             mission.data = new_data
+            flag_modified(mission, "data")
             
         db.commit()
         log_audit("mission_complete", "system", {"mission_id": mission_id, "result": result_norm})
@@ -1819,6 +1821,7 @@ def api_update_mission(mission_id: str = Path(...), data: dict = Body(...), auth
         existing = dict(mission.data) if mission.data else {}
         existing.update(data)
         mission.data = existing
+        flag_modified(mission, "data")
         db.commit()
         return {"status": "success", "mission_id": mission_id}
     except HTTPException:
@@ -1889,6 +1892,7 @@ async def api_upload_mission_attachment(
         })
         existing["attachments"] = attachments
         mission.data = existing
+        flag_modified(mission, "data")
         db.commit()
         return {"status": "success", "url": file_url, "original_name": original_name}
     except HTTPException:

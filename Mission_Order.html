@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -283,18 +283,18 @@
 <div id="pageLayout">
     <aside id="sidebar">
         <div id="sidebarHeader">
-            <h3><i class="fas fa-list"></i> Missionen</h3>
+            <h3><i class="fas fa-list"></i> Missions</h3>
             <button id="toggleCompleted" onclick="toggleShowCompleted()">
-                <i class="fas fa-filter"></i> Abgeschlossene einblenden
+                <i class="fas fa-filter"></i> Show completed
             </button>
         </div>
         <div id="missionList">
-            <p style="padding:14px;color:#666;font-size:0.8em;">Lade...</p>
+            <p style="padding:14px;color:#666;font-size:0.8em;">Loading...</p>
         </div>
     </aside>
     <div id="mainWrap">
         <div class="container" id="mainContent">
-            <p class="loading-msg"><i class="fas fa-spinner fa-spin"></i> Missionsbefehl wird geladen...</p>
+            <p class="loading-msg"><i class="fas fa-spinner fa-spin"></i> Mission order loading...</p>
         </div>
     </div>
 </div>
@@ -351,7 +351,7 @@
         const filtered = showCompleted ? allMissions : allMissions.filter(m => m.status === 'ONGOING');
 
         if (!filtered || filtered.length === 0) {
-            list.innerHTML = '<p style="padding:14px;color:#666;font-size:0.8em;font-style:italic;">Keine Missionen vorhanden.</p>';
+            list.innerHTML = '<p style="padding:14px;color:#666;font-size:0.8em;font-style:italic;">No missions available.</p>';
             return;
         }
 
@@ -378,8 +378,8 @@
         showCompleted = !showCompleted;
         const btn = document.getElementById('toggleCompleted');
         btn.innerHTML = showCompleted
-            ? '<i class="fas fa-filter"></i> Abgeschlossene ausblenden'
-            : '<i class="fas fa-filter"></i> Abgeschlossene einblenden';
+            ? '<i class="fas fa-filter"></i> Hide completed'
+            : '<i class="fas fa-filter"></i> Show completed';
         renderMissionList();
     }
 
@@ -389,69 +389,69 @@
         const content = document.getElementById('mainContent');
 
         if (!id) {
-            content.innerHTML = '<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> Keine Mission ausgewählt. Bitte links eine Mission anklicken.</p>';
+            content.innerHTML = '<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> No mission selected. Please click a mission on the left.</p>';
             return;
         }
 
-        content.innerHTML = '<p class="loading-msg"><i class="fas fa-spinner fa-spin"></i> Missionsbefehl wird geladen...</p>';
+        content.innerHTML = '<p class="loading-msg"><i class="fas fa-spinner fa-spin"></i> Mission order loading...</p>';
 
         try {
             const res = await fetch(`/api/mission_details/${id}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status} – ${res.statusText || 'Fehler beim Laden'}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status} – ${res.statusText || 'Error loading'}`);
             const m = await res.json();
 
             document.getElementById('headerTitle').textContent = m.objective || m.name || id;
-            document.title = 'BEFEHL – ' + (m.objective || id);
+            document.title = 'ORDER – ' + (m.objective || id);
 
             const d = m.data || {};
             const statusClass = `status-${m.status || 'ONGOING'}`;
 
             const metaBar = `
                 <div class="order-section">
-                    <h2><i class="fas fa-bullseye"></i> Missionsübersicht</h2>
+                    <h2><i class="fas fa-bullseye"></i> Mission Overview</h2>
                     <div class="meta-bar">
-                        <span><strong>Datum:</strong> ${val(d.date || m.date)}</span>
-                        <span><strong>EG/AO:</strong> ${val(d.location || m.location)}</span>
+                        <span><strong>Date:</strong> ${val(d.date || m.date)}</span>
+                        <span><strong>AO:</strong> ${val(d.location || m.location)}</span>
                         <span><strong>Start:</strong> ${val(d.start_time)}</span>
-                        <span><strong>Ende:</strong> ${val(d.deadline)}</span>
+                        <span><strong>End:</strong> ${val(d.deadline)}</span>
                         <span><strong>Status:</strong> <span class="${statusClass}">${m.status || '—'}</span></span>
                     </div>
                 </div>
             `;
 
             const gesamtbefehl = section(
-                'fas fa-file-alt', 'Gesamtbefehl',
-                [['Gesamtbefehl', d.gesamtbefehl]]
+                'fas fa-file-alt', 'Operations Order',
+                [['Operations Order', d.gesamtbefehl]]
             );
 
             const lage = `
                 <div class="order-section">
-                    <h2><i class="fas fa-map-marked-alt"></i> Lage</h2>
+                    <h2><i class="fas fa-map-marked-alt"></i> Situation</h2>
                     <div class="field-row">
-                        <div class="field-label">Feind</div>
+                        <div class="field-label">Enemy</div>
                         <div class="field-value">${val(d.lage_feind)}</div>
                     </div>
                     <div class="field-row">
-                        <div class="field-label">Eigene Kräfte</div>
+                        <div class="field-label">Friendly Forces</div>
                         <div class="field-value">${val(d.lage_eigene)}</div>
                     </div>
                     <div class="field-row">
-                        <div class="field-label">Unterstellungen / Abgaben</div>
+                        <div class="field-label">Attachments / Detachments</div>
                         <div class="field-value">${val(d.lage_unterstellungen)}</div>
                     </div>
                 </div>
             `;
 
             const auftrag = section(
-                'fas fa-crosshairs', 'Auftrag',
-                [['Auftrag', d.auftrag]]
+                'fas fa-crosshairs', 'Mission',
+                [['Mission', d.auftrag]]
             );
 
             const durchfuehrung = `
                 <div class="order-section">
-                    <h2><i class="fas fa-chess-knight"></i> Durchführung</h2>
+                    <h2><i class="fas fa-chess-knight"></i> Execution</h2>
                     <div class="field-row">
-                        <div class="field-label">Wie?</div>
+                        <div class="field-label">How?</div>
                         <div class="field-value">${val(d.durchf_wie)}</div>
                     </div>
                     <div class="field-row">
@@ -459,7 +459,7 @@
                         <div class="field-value">${val(d.durchf_plan)}</div>
                     </div>
                     <div class="field-row">
-                        <div class="field-label">Koordination</div>
+                        <div class="field-label">Coordination</div>
                         <div class="field-value">${val(d.durchf_koordination)}</div>
                     </div>
                 </div>
@@ -467,13 +467,13 @@
 
             const versorgung = `
                 <div class="order-section">
-                    <h2><i class="fas fa-box-open"></i> Versorgung</h2>
+                    <h2><i class="fas fa-box-open"></i> Service &amp; Support</h2>
                     <div class="field-row">
-                        <div class="field-label">Pausenzeiten und Verhalten</div>
+                        <div class="field-label">Break times and conduct</div>
                         <div class="field-value">${val(d.vers_pausenzeiten)}</div>
                     </div>
                     <div class="field-row">
-                        <div class="field-label">Verpflegung</div>
+                        <div class="field-label">Rations</div>
                         <div class="field-value">${val(d.vers_verpflegung)}</div>
                     </div>
                 </div>
@@ -481,17 +481,17 @@
 
             const verbindung = `
                 <div class="order-section">
-                    <h2><i class="fas fa-radio"></i> Verbindung</h2>
+                    <h2><i class="fas fa-radio"></i> Command &amp; Signal</h2>
                     <div class="field-row">
-                        <div class="field-label">Kanäle / Prüfen!</div>
+                        <div class="field-label">Channels / Check!</div>
                         <div class="field-value">${val(d.verb_kanaele)}</div>
                     </div>
                     <div class="field-row">
-                        <div class="field-label">Gruppennamen</div>
+                        <div class="field-label">Group Names</div>
                         <div class="field-value">${val(d.verb_gruppen)}</div>
                     </div>
                     <div class="field-row">
-                        <div class="field-label">Kdo – Wo?</div>
+                        <div class="field-label">Command – Where?</div>
                         <div class="field-value">${val(d.verb_kdo_wo)}</div>
                     </div>
                 </div>
@@ -528,7 +528,7 @@
                 }).join('');
                 attachmentsHtml = `
                     <div class="order-section">
-                        <h2><i class="fas fa-paperclip"></i> Anhänge / Dokumente</h2>
+                        <h2><i class="fas fa-paperclip"></i> Attachments / Documents</h2>
                         <div class="attachment-grid">${items}</div>
                     </div>
                 `;
@@ -537,7 +537,7 @@
             content.innerHTML = metaBar + gesamtbefehl + lage + auftrag + durchfuehrung + versorgung + verbindung + attachmentsHtml;
 
         } catch (e) {
-            content.innerHTML = `<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden: ${e.message}</p>`;
+            content.innerHTML = `<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> Error loading: ${e.message}</p>`;
         }
     }
 
