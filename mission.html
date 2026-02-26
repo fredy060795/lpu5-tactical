@@ -197,6 +197,83 @@
             font-style: italic;
         }
 
+        .form-grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+
+        .form-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .subgrid-label {
+            color: #aaa;
+            font-size: 0.78em;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+        }
+
+        .order-block {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .order-block h3 {
+            color: var(--accent-blue);
+            font-size: 0.95em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-success {
+            background: var(--accent-green);
+            color: white;
+            border: none;
+        }
+
+        .btn-success:hover {
+            background: #1e7a32;
+        }
+
+        .attachment-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .attachment-item {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .attachment-item a {
+            color: #aaa;
+            text-decoration: none;
+        }
+
+        .attachment-item a:hover {
+            color: #fff;
+        }
+
         @media (max-width: 768px) {
             header { 
                 padding-left: 68px;
@@ -206,6 +283,8 @@
             }
             h1 { font-size: 1.2em; }
             .form-grid { grid-template-columns: 1fr; }
+            .form-grid-3 { grid-template-columns: 1fr; }
+            .form-grid-2 { grid-template-columns: 1fr; }
         }
     </style>
 
@@ -281,6 +360,132 @@
             </tbody>
         </table>
     </div>
+
+    <!-- GESAMTBEFEHL FORM -->
+    <div class="form-section">
+        <h2><i class="fas fa-scroll"></i> Gesamtbefehl</h2>
+
+        <div style="margin-bottom:14px;">
+            <label><i class="fas fa-bullseye"></i> Mission auswählen</label>
+            <select id="orderMissionSelect">
+                <option value="">-- Mission wählen --</option>
+            </select>
+        </div>
+
+        <!-- Gesamtbefehl -->
+        <div class="order-block">
+            <h3><i class="fas fa-file-alt"></i> Gesamtbefehl</h3>
+            <textarea id="gb_gesamtbefehl" rows="3" placeholder="Gesamtbefehl eingeben..."></textarea>
+        </div>
+
+        <!-- Lage -->
+        <div class="order-block">
+            <h3><i class="fas fa-map-marked-alt"></i> Lage</h3>
+            <div class="form-grid-3">
+                <div>
+                    <div class="subgrid-label">Feind</div>
+                    <textarea id="gb_lage_feind" rows="4" placeholder="Feind..."></textarea>
+                </div>
+                <div>
+                    <div class="subgrid-label">Eigene</div>
+                    <textarea id="gb_lage_eigene" rows="4" placeholder="Eigene Kräfte..."></textarea>
+                </div>
+                <div>
+                    <div class="subgrid-label">Unterstellungen / Abgaben</div>
+                    <textarea id="gb_lage_unterstellungen" rows="4" placeholder="Unterstellungen / Abgaben..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auftrag -->
+        <div class="order-block">
+            <h3><i class="fas fa-crosshairs"></i> Auftrag</h3>
+            <textarea id="gb_auftrag" rows="4" placeholder="Auftrag eingeben..."></textarea>
+        </div>
+
+        <!-- Durchführung -->
+        <div class="order-block">
+            <h3><i class="fas fa-chess-knight"></i> Durchführung</h3>
+            <div class="form-grid-3">
+                <div>
+                    <div class="subgrid-label">Wie?</div>
+                    <textarea id="gb_durchf_wie" rows="4" placeholder="Wie?..."></textarea>
+                </div>
+                <div>
+                    <div class="subgrid-label">Plan</div>
+                    <textarea id="gb_durchf_plan" rows="4" placeholder="Plan..."></textarea>
+                </div>
+                <div>
+                    <div class="subgrid-label">Koordination</div>
+                    <textarea id="gb_durchf_koordination" rows="4" placeholder="Koordination..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Versorgung -->
+        <div class="order-block">
+            <h3><i class="fas fa-box-open"></i> Versorgung</h3>
+            <div class="form-grid-2">
+                <div>
+                    <div class="subgrid-label">Pausenzeiten und Verhalten</div>
+                    <textarea id="gb_vers_pausenzeiten" rows="4" placeholder="Pausenzeiten und Verhalten..."></textarea>
+                </div>
+                <div>
+                    <div class="subgrid-label">Verpflegung</div>
+                    <textarea id="gb_vers_verpflegung" rows="4" placeholder="Verpflegung..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Verbindung -->
+        <div class="order-block">
+            <h3><i class="fas fa-radio"></i> Verbindung</h3>
+            <div class="form-grid-3">
+                <div>
+                    <div class="subgrid-label">Kanäle (prüfen!)</div>
+                    <textarea id="gb_verb_kanaele" rows="4" placeholder="Kanäle..."></textarea>
+                </div>
+                <div>
+                    <div class="subgrid-label">Gruppennamen</div>
+                    <textarea id="gb_verb_gruppen" rows="4" placeholder="Gruppennamen..."></textarea>
+                </div>
+                <div>
+                    <div class="subgrid-label">Kdo – Wo?</div>
+                    <textarea id="gb_verb_kdo_wo" rows="4" placeholder="Kdo - Wo?..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-success" onclick="saveGesamtbefehl()" style="flex:1;">
+                <i class="fas fa-save"></i> BEFEHL SPEICHERN
+            </button>
+            <button class="btn" onclick="openOrderView()" style="flex:1;">
+                <i class="fas fa-eye"></i> ORDER VIEW ÖFFNEN
+            </button>
+        </div>
+    </div>
+
+    <!-- FILE UPLOAD -->
+    <div class="form-section">
+        <h2><i class="fas fa-paperclip"></i> Dokumente / Anhänge</h2>
+
+        <div style="margin-bottom:14px;">
+            <label><i class="fas fa-bullseye"></i> Mission auswählen</label>
+            <select id="uploadMissionSelect">
+                <option value="">-- Mission wählen --</option>
+            </select>
+        </div>
+
+        <label><i class="fas fa-upload"></i> Datei hochladen (Bilder &amp; PDF; keine Word-Dateien)</label>
+        <input type="file" id="attachmentFile" accept="image/*,.pdf,application/pdf" style="margin-bottom:10px;">
+
+        <button class="btn" onclick="uploadAttachment()" style="width:100%;margin-bottom:14px;">
+            <i class="fas fa-cloud-upload-alt"></i> HOCHLADEN
+        </button>
+
+        <div id="attachmentList" class="attachment-list"></div>
+    </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
@@ -340,6 +545,7 @@
 
             if (!Array.isArray(missions) || missions.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No missions created</td></tr>';
+                populateMissionSelects([]);
                 return;
             }
 
@@ -361,11 +567,143 @@
                     </td>
                 </tr>
             `).join('');
+            populateMissionSelects(missions);
         } catch (e) {
             console.error('Error:', e);
             document.getElementById('missionTable').innerHTML = '<tr><td colspan="5" class="empty-state">Error loading</td></tr>';
         }
     }
+
+    function populateMissionSelects(missions) {
+        ['orderMissionSelect', 'uploadMissionSelect'].forEach(id => {
+            const sel = document.getElementById(id);
+            const current = sel.value;
+            sel.innerHTML = '<option value="">-- Mission wählen --</option>';
+            missions.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = `${m.date || ''} – ${m.objective || m.name || m.id}`;
+                sel.appendChild(opt);
+            });
+            if (current) sel.value = current;
+        });
+    }
+
+    async function saveGesamtbefehl() {
+        const missionId = document.getElementById('orderMissionSelect').value;
+        if (!missionId) { alert('❌ Bitte zuerst eine Mission auswählen.'); return; }
+        const payload = {
+            gesamtbefehl: document.getElementById('gb_gesamtbefehl').value,
+            lage_feind: document.getElementById('gb_lage_feind').value,
+            lage_eigene: document.getElementById('gb_lage_eigene').value,
+            lage_unterstellungen: document.getElementById('gb_lage_unterstellungen').value,
+            auftrag: document.getElementById('gb_auftrag').value,
+            durchf_wie: document.getElementById('gb_durchf_wie').value,
+            durchf_plan: document.getElementById('gb_durchf_plan').value,
+            durchf_koordination: document.getElementById('gb_durchf_koordination').value,
+            vers_pausenzeiten: document.getElementById('gb_vers_pausenzeiten').value,
+            vers_verpflegung: document.getElementById('gb_vers_verpflegung').value,
+            verb_kanaele: document.getElementById('gb_verb_kanaele').value,
+            verb_gruppen: document.getElementById('gb_verb_gruppen').value,
+            verb_kdo_wo: document.getElementById('gb_verb_kdo_wo').value,
+        };
+        try {
+            const res = await fetch(`/api/missions/${missionId}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('✅ Befehl gespeichert');
+            } else {
+                alert('❌ Fehler beim Speichern');
+            }
+        } catch (e) {
+            alert('❌ Fehler: ' + e.message);
+        }
+    }
+
+    async function loadGesamtbefehl(missionId) {
+        if (!missionId) return;
+        try {
+            const res = await fetch(`/api/mission_details/${missionId}`);
+            if (!res.ok) return;
+            const m = await res.json();
+            const d = m.data || m;
+            const fields = ['gesamtbefehl','lage_feind','lage_eigene','lage_unterstellungen','auftrag',
+                'durchf_wie','durchf_plan','durchf_koordination','vers_pausenzeiten','vers_verpflegung',
+                'verb_kanaele','verb_gruppen','verb_kdo_wo'];
+            fields.forEach(f => {
+                const el = document.getElementById('gb_' + f);
+                if (el) el.value = d[f] || '';
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    function openOrderView() {
+        const missionId = document.getElementById('orderMissionSelect').value;
+        if (!missionId) { alert('❌ Bitte zuerst eine Mission auswählen.'); return; }
+        window.open(`Mission_Order.html?id=${missionId}`, '_blank');
+    }
+
+    async function uploadAttachment() {
+        const missionId = document.getElementById('uploadMissionSelect').value;
+        if (!missionId) { alert('❌ Bitte zuerst eine Mission auswählen.'); return; }
+        const fileInput = document.getElementById('attachmentFile');
+        if (!fileInput.files || fileInput.files.length === 0) { alert('❌ Bitte eine Datei auswählen.'); return; }
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const res = await fetch(`/api/missions/${missionId}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                alert('✅ Datei hochgeladen');
+                fileInput.value = '';
+                loadAttachments(missionId);
+            } else {
+            const errText = await res.text().catch(() => '');
+            let errMsg = res.statusText;
+            try { errMsg = JSON.parse(errText).detail || JSON.parse(errText).message || errMsg; } catch (_) { if (errText) errMsg = errText; }
+            alert('❌ Fehler: ' + errMsg);
+            }
+        } catch (e) {
+            alert('❌ Fehler: ' + e.message);
+        }
+    }
+
+    async function loadAttachments(missionId) {
+        const list = document.getElementById('attachmentList');
+        if (!missionId) { list.innerHTML = ''; return; }
+        try {
+            const res = await fetch(`/api/missions/${missionId}/attachments`);
+            if (!res.ok) { list.innerHTML = ''; return; }
+            const data = await res.json();
+            const attachments = data.attachments || [];
+            if (attachments.length === 0) {
+                list.innerHTML = '<span style="color:#666;font-style:italic;font-size:0.85em;">Keine Anhänge vorhanden.</span>';
+                return;
+            }
+            list.innerHTML = attachments.map(a => {
+                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(a.url);
+                const icon = isImage ? 'fa-image' : 'fa-file-pdf';
+                return `<div class="attachment-item">
+                    <i class="fas ${icon}"></i>
+                    <a href="${a.url}" target="_blank">${a.original_name || a.url}</a>
+                </div>`;
+            }).join('');
+        } catch (e) { list.innerHTML = ''; }
+    }
+
+    document.getElementById('orderMissionSelect').addEventListener('change', function() {
+        loadGesamtbefehl(this.value);
+    });
+
+    document.getElementById('uploadMissionSelect').addEventListener('change', function() {
+        loadAttachments(this.value);
+    });
 
     async function deleteMission(id) {
         if (!confirm('Really delete mission?')) return;

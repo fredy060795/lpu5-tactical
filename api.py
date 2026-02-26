@@ -396,6 +396,12 @@ if os.path.isdir(assets_dir):
 else:
     logger.info("Static mounted: /static (no assets/ directory)")
 
+# Uploads directory for mission attachments
+uploads_dir = os.path.join(base_path, "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+logger.info("Static mounted: /uploads")
+
 # Legacy JSON DB file mapping - ARCHIVED (replaced by SQLAlchemy/SQLite)
 # Some files remain for backward compatibility or migration reference
 DB_PATHS: Dict[str, str] = {
@@ -1801,6 +1807,113 @@ def api_delete_mission(mission_id: str = Path(...), authorization: Optional[str]
         raise HTTPException(status_code=500, detail="Failed to delete mission")
     finally:
         db.close()
+
+@app.patch("/api/missions/{mission_id}")
+def api_update_mission(mission_id: str = Path(...), data: dict = Body(...), authorization: Optional[str] = Header(None)):
+    """Update mission order fields (Gesamtbefehl form) for a given mission."""
+    db = SessionLocal()
+    try:
+        mission = db.query(Mission).filter(Mission.id == mission_id).first()
+        if not mission:
+            raise HTTPException(status_code=404, detail="Mission not found")
+        existing = dict(mission.data) if mission.data else {}
+        existing.update(data)
+        mission.data = existing
+        db.commit()
+        return {"status": "success", "mission_id": mission_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating mission: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update mission")
+    finally:
+        db.close()
+
+
+# Allowed MIME types for mission attachments (images + PDF; Word excluded)
+_ALLOWED_MIME = {
+    "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp",
+    "image/svg+xml", "application/pdf",
+}
+_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".pdf"}
+_BLOCKED_EXT = {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"}
+
+
+@app.post("/api/missions/{mission_id}/upload")
+async def api_upload_mission_attachment(
+    mission_id: str = Path(...),
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Upload an image or PDF attachment for a mission (Word files are not accepted)."""
+    db = SessionLocal()
+    try:
+        mission = db.query(Mission).filter(Mission.id == mission_id).first()
+        if not mission:
+            raise HTTPException(status_code=404, detail="Mission not found")
+
+        original_name = file.filename or "upload"
+        _, ext = os.path.splitext(original_name)
+        ext_lower = ext.lower()
+
+        if ext_lower in _BLOCKED_EXT:
+            raise HTTPException(status_code=400, detail="Word/Office files are not allowed.")
+        if ext_lower and ext_lower not in _ALLOWED_EXT:
+            raise HTTPException(status_code=400, detail=f"File type '{ext_lower}' is not allowed. Allowed: images and PDF.")
+
+        content_type = file.content_type or ""
+        if content_type and content_type not in _ALLOWED_MIME:
+            raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+
+        # Store under uploads/<mission_id>/
+        mission_uploads = os.path.join(uploads_dir, mission_id)
+        os.makedirs(mission_uploads, exist_ok=True)
+
+        safe_name = f"{uuid.uuid4().hex}{ext_lower}"
+        dest_path = os.path.join(mission_uploads, safe_name)
+        content = await file.read()
+        with open(dest_path, "wb") as fh:
+            fh.write(content)
+
+        file_url = f"/uploads/{mission_id}/{safe_name}"
+
+        # Store attachment info in mission.data
+        existing = dict(mission.data) if mission.data else {}
+        attachments = existing.get("attachments", [])
+        attachments.append({
+            "url": file_url,
+            "original_name": original_name,
+            "content_type": content_type,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        })
+        existing["attachments"] = attachments
+        mission.data = existing
+        db.commit()
+        return {"status": "success", "url": file_url, "original_name": original_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error uploading attachment: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload file")
+    finally:
+        db.close()
+
+
+@app.get("/api/missions/{mission_id}/attachments")
+def api_get_mission_attachments(mission_id: str = Path(...)):
+    """Return list of attachments for a mission."""
+    db = SessionLocal()
+    try:
+        mission = db.query(Mission).filter(Mission.id == mission_id).first()
+        if not mission:
+            raise HTTPException(status_code=404, detail="Mission not found")
+        attachments = (mission.data or {}).get("attachments", [])
+        return {"attachments": attachments}
+    finally:
+        db.close()
+
 
 @app.get("/api/mission_unit_stats/{mission_id}")
 def api_mission_unit_stats(mission_id: str = Path(...), db: Session = Depends(get_db)):
@@ -6088,7 +6201,7 @@ def catch_all(full_path: str, request: Request):
     handled by FastAPI's WebSocket route before this HTTP GET route is considered.
     The 'ws' prefix in blocked_prefixes ensures file system lookups don't occur for it.
     """
-    blocked_prefixes = ("api", "static", "assets", "_", "favicon.ico", "ws")
+    blocked_prefixes = ("api", "static", "assets", "uploads", "_", "favicon.ico", "ws")
     if any(full_path == p or full_path.startswith(p + "/") for p in blocked_prefixes):
         raise HTTPException(status_code=404, detail="Not found")
     candidate = os.path.join(base_path, full_path)
