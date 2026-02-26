@@ -44,8 +44,89 @@
 
         .container {
             padding: 20px;
-            max-width: 900px;
+            max-width: 960px;
             margin: 0 auto;
+        }
+
+        /* ===== SIDEBAR LAYOUT ===== */
+        #pageLayout {
+            display: flex;
+            height: calc(100vh - 57px);
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 260px;
+            min-width: 220px;
+            flex-shrink: 0;
+            background: #111;
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #sidebarHeader {
+            padding: 12px;
+            border-bottom: 1px solid #333;
+            background: #1a1a1a;
+        }
+
+        #sidebarHeader h3 {
+            color: #ccc;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #toggleCompleted {
+            width: 100%;
+            padding: 6px 10px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #aaa;
+            font-size: 0.72em;
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s;
+        }
+
+        #toggleCompleted:hover { background: #333; color: #fff; }
+
+        #missionList {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .mission-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #1a1a1a;
+            border-left: 3px solid transparent;
+            transition: background 0.15s;
+        }
+
+        .mission-item:hover { background: #1a1a1a; }
+        .mission-item.active { background: #1e1e1e; border-left-color: #fff; }
+
+        .mi-date { color: #777; font-size: 0.72em; margin-bottom: 2px; }
+        .mi-obj  { color: #ddd; font-size: 0.83em; font-weight: bold; margin-bottom: 3px; }
+        .mi-status { font-size: 0.7em; }
+        .mi-status-ongoing { color: #ffaa00; }
+        .mi-status-success { color: #00ff00; }
+        .mi-status-failed  { color: #ff0000; }
+
+        #mainWrap {
+            flex: 1;
+            overflow-y: auto;
         }
 
         .order-section {
@@ -167,10 +248,28 @@
 
         .attachment-link:hover { color: #fff; }
 
+        .attachment-pdf-wrap {
+            width: 100%;
+            border: 1px solid #333;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 4px;
+        }
+
+        .attachment-pdf-wrap embed {
+            display: block;
+            width: 100%;
+            height: 420px;
+        }
+
         @media (max-width: 768px) {
             header { padding: 12px 16px; }
             h1 { font-size: 1.1em; }
             .container { padding: 12px; }
+            #pageLayout { flex-direction: column; height: auto; overflow: visible; }
+            #sidebar { width: 100%; min-width: unset; height: auto; max-height: 220px; border-right: none; border-bottom: 1px solid #333; }
+            #mainWrap { overflow-y: visible; }
         }
     </style>
 </head>
@@ -181,11 +280,29 @@
     <h1>MISSION ORDER &mdash; <span id="headerTitle">...</span></h1>
 </header>
 
-<div class="container" id="mainContent">
-    <p class="loading-msg"><i class="fas fa-spinner fa-spin"></i> Loading mission order...</p>
+<div id="pageLayout">
+    <aside id="sidebar">
+        <div id="sidebarHeader">
+            <h3><i class="fas fa-list"></i> Missionen</h3>
+            <button id="toggleCompleted" onclick="toggleShowCompleted()">
+                <i class="fas fa-filter"></i> Abgeschlossene einblenden
+            </button>
+        </div>
+        <div id="missionList">
+            <p style="padding:14px;color:#666;font-size:0.8em;">Lade...</p>
+        </div>
+    </aside>
+    <div id="mainWrap">
+        <div class="container" id="mainContent">
+            <p class="loading-msg"><i class="fas fa-spinner fa-spin"></i> Missionsbefehl wird geladen...</p>
+        </div>
+    </div>
 </div>
 
 <script>
+    let showCompleted = false;
+    let allMissions = [];
+
     function getMissionId() {
         const params = new URLSearchParams(window.location.search);
         return params.get('id');
@@ -218,34 +335,85 @@
         `;
     }
 
+    // ===== SIDEBAR =====
+    async function loadMissionList() {
+        try {
+            const res = await fetch('/api/missions');
+            if (!res.ok) return;
+            allMissions = await res.json();
+            renderMissionList();
+        } catch (e) { console.warn('Sidebar load error:', e); }
+    }
+
+    function renderMissionList() {
+        const list = document.getElementById('missionList');
+        const currentId = getMissionId();
+        const filtered = showCompleted ? allMissions : allMissions.filter(m => m.status === 'ONGOING');
+
+        if (!filtered || filtered.length === 0) {
+            list.innerHTML = '<p style="padding:14px;color:#666;font-size:0.8em;font-style:italic;">Keine Missionen vorhanden.</p>';
+            return;
+        }
+
+        list.innerHTML = filtered.map(m => {
+            const isActive = String(m.id) === String(currentId);
+            const statusCls = m.status === 'ONGOING' ? 'mi-status-ongoing' : m.status === 'SUCCESS' ? 'mi-status-success' : 'mi-status-failed';
+            return `<div class="mission-item${isActive ? ' active' : ''}" onclick="selectMission(${m.id})">
+                <div class="mi-date">${m.date || '—'}</div>
+                <div class="mi-obj">${m.objective || m.name || m.id}</div>
+                <div class="mi-status ${statusCls}">${m.status || '—'}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function selectMission(id) {
+        const url = new URL(window.location);
+        url.searchParams.set('id', id);
+        window.history.pushState({}, '', url);
+        loadOrder();
+        renderMissionList();
+    }
+
+    function toggleShowCompleted() {
+        showCompleted = !showCompleted;
+        const btn = document.getElementById('toggleCompleted');
+        btn.innerHTML = showCompleted
+            ? '<i class="fas fa-filter"></i> Abgeschlossene ausblenden'
+            : '<i class="fas fa-filter"></i> Abgeschlossene einblenden';
+        renderMissionList();
+    }
+
+    // ===== ORDER VIEW =====
     async function loadOrder() {
         const id = getMissionId();
         const content = document.getElementById('mainContent');
 
         if (!id) {
-            content.innerHTML = '<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> No mission ID specified.</p>';
+            content.innerHTML = '<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> Keine Mission ausgewählt. Bitte links eine Mission anklicken.</p>';
             return;
         }
 
+        content.innerHTML = '<p class="loading-msg"><i class="fas fa-spinner fa-spin"></i> Missionsbefehl wird geladen...</p>';
+
         try {
             const res = await fetch(`/api/mission_details/${id}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status} – ${res.statusText || 'Failed to load mission details'}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status} – ${res.statusText || 'Fehler beim Laden'}`);
             const m = await res.json();
 
             document.getElementById('headerTitle').textContent = m.objective || m.name || id;
-            document.title = 'ORDER – ' + (m.objective || id);
+            document.title = 'BEFEHL – ' + (m.objective || id);
 
             const d = m.data || {};
             const statusClass = `status-${m.status || 'ONGOING'}`;
 
             const metaBar = `
                 <div class="order-section">
-                    <h2><i class="fas fa-bullseye"></i> Mission Overview</h2>
+                    <h2><i class="fas fa-bullseye"></i> Missionsübersicht</h2>
                     <div class="meta-bar">
-                        <span><strong>Date:</strong> ${val(d.date || m.date)}</span>
-                        <span><strong>AO:</strong> ${val(d.location || m.location)}</span>
+                        <span><strong>Datum:</strong> ${val(d.date || m.date)}</span>
+                        <span><strong>EG/AO:</strong> ${val(d.location || m.location)}</span>
                         <span><strong>Start:</strong> ${val(d.start_time)}</span>
-                        <span><strong>End:</strong> ${val(d.deadline)}</span>
+                        <span><strong>Ende:</strong> ${val(d.deadline)}</span>
                         <span><strong>Status:</strong> <span class="${statusClass}">${m.status || '—'}</span></span>
                     </div>
                 </div>
@@ -329,12 +497,13 @@
                 </div>
             `;
 
-            // Build attachments section
+            // Build attachments section with inline previews
             const attachments = d.attachments || [];
             let attachmentsHtml = '';
             if (attachments.length > 0) {
                 const items = attachments.map(a => {
                     const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(a.url);
+                    const isPdf = /\.pdf$/i.test(a.url);
                     if (isImage) {
                         return `<div class="attachment-thumb">
                             <a href="${val(a.url)}" target="_blank">
@@ -343,8 +512,18 @@
                             <div class="attachment-label">${val(a.original_name)}</div>
                         </div>`;
                     }
+                    if (isPdf) {
+                        return `<div class="attachment-pdf-wrap" style="width:100%;">
+                            <embed src="${val(a.url)}" type="application/pdf" title="${val(a.original_name)}">
+                            <div class="attachment-label">
+                                <a href="${val(a.url)}" target="_blank" style="color:#aaa;">
+                                    <i class="fas fa-external-link-alt"></i> ${val(a.original_name)}
+                                </a>
+                            </div>
+                        </div>`;
+                    }
                     return `<a class="attachment-link" href="${val(a.url)}" target="_blank">
-                        <i class="fas fa-file-pdf"></i> ${val(a.original_name)}
+                        <i class="fas fa-file"></i> ${val(a.original_name)}
                     </a>`;
                 }).join('');
                 attachmentsHtml = `
@@ -358,11 +537,14 @@
             content.innerHTML = metaBar + gesamtbefehl + lage + auftrag + durchfuehrung + versorgung + verbindung + attachmentsHtml;
 
         } catch (e) {
-            content.innerHTML = `<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> Error loading mission: ${e.message}</p>`;
+            content.innerHTML = `<p class="error-msg"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden: ${e.message}</p>`;
         }
     }
 
-    document.addEventListener('DOMContentLoaded', loadOrder);
+    document.addEventListener('DOMContentLoaded', () => {
+        loadMissionList();
+        loadOrder();
+    });
 </script>
 
 </body>

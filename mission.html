@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MISSION MANAGEMENT</title>
+    <title>MISSIONSVERWALTUNG</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -50,7 +50,7 @@
 
         .container {
             padding: 20px;
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
@@ -303,60 +303,61 @@
 
 <!-- ===== PAGE HEADER & CONTENT (Mission page) ===== -->
 <header>
-    <h1>MISSION MANAGEMENT</h1>
+    <h1>MISSIONSVERWALTUNG</h1>
 </header>
 
 <div class="container" style="padding-top:20px;">
-    <!-- CREATE MISSION -->
+    <!-- MISSION ANLEGEN -->
     <div class="form-section">
-        <h2><i class="fas fa-bullseye"></i> Create New Mission</h2>
-        
-        <div class="form-grid">
+        <h2><i class="fas fa-bullseye"></i> Neue Mission anlegen</h2>
+
+        <div class="form-grid-3">
             <div>
-                <label><i class="fas fa-calendar"></i> Date</label>
+                <label><i class="fas fa-calendar"></i> Datum</label>
                 <input type="date" id="missionDate">
             </div>
             <div>
-                <label><i class="fas fa-target"></i> Objective</label>
-                <input type="text" id="missionObjective" placeholder="e.g. Reconnaissance">
+                <label><i class="fas fa-location-dot"></i> Einsatzgebiet (AO)</label>
+                <input type="text" id="missionLocation" placeholder="z.B. Nordsektor">
+            </div>
+            <div>
+                <label><i class="fas fa-crosshairs"></i> Auftrag / Ziel</label>
+                <input type="text" id="missionObjective" placeholder="z.B. Aufklärung">
             </div>
         </div>
 
-        <label><i class="fas fa-location-dot"></i> Area of Operation (AO)</label>
-        <input type="text" id="missionLocation" placeholder="e.g. North Sector">
-
-        <div class="form-grid">
+        <div class="form-grid-2">
             <div>
-                <label><i class="fas fa-clock"></i> Start Time</label>
+                <label><i class="fas fa-clock"></i> Startzeit</label>
                 <input type="time" id="missionStart">
             </div>
             <div>
-                <label><i class="fas fa-clock"></i> End Time</label>
+                <label><i class="fas fa-clock"></i> Endzeit</label>
                 <input type="time" id="missionEnd">
             </div>
         </div>
 
         <button class="btn" onclick="createMission()" style="width: 100%;">
-            <i class="fas fa-plus"></i> CREATE MISSION
+            <i class="fas fa-plus"></i> MISSION ANLEGEN
         </button>
     </div>
 
-    <!-- MISSIONS LIST -->
+    <!-- MISSIONSLISTE -->
     <div class="form-section">
-        <h2><i class="fas fa-list"></i> Active Missions</h2>
+        <h2><i class="fas fa-list"></i> Aktive Missionen</h2>
         
         <table>
             <thead>
                 <tr>
-                    <th><i class="fas fa-calendar"></i> Date</th>
-                    <th><i class="fas fa-target"></i> Objective</th>
+                    <th><i class="fas fa-calendar"></i> Datum</th>
+                    <th><i class="fas fa-crosshairs"></i> Auftrag</th>
                     <th><i class="fas fa-location-dot"></i> AO</th>
                     <th><i class="fas fa-circle-check"></i> Status</th>
-                    <th><i class="fas fa-cog"></i> Action</th>
+                    <th><i class="fas fa-cog"></i> Aktionen</th>
                 </tr>
             </thead>
             <tbody id="missionTable">
-                <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+                <tr><td colspan="5" class="empty-state">Lade...</td></tr>
             </tbody>
         </table>
     </div>
@@ -461,7 +462,7 @@
                 <i class="fas fa-save"></i> BEFEHL SPEICHERN
             </button>
             <button class="btn" onclick="openOrderView()" style="flex:1;">
-                <i class="fas fa-eye"></i> ORDER VIEW ÖFFNEN
+                <i class="fas fa-eye"></i> BEFEHLSANSICHT ÖFFNEN
             </button>
         </div>
     </div>
@@ -492,7 +493,7 @@
 <script>
     // Helper so Global Nav's logout link works
     function logoutUser() {
-        if (confirm('Really log out?')) {
+        if (confirm('Wirklich abmelden?')) {
             localStorage.removeItem('lpu5_user');
             localStorage.removeItem('lpu5_token');
             window.location.href = '/';
@@ -510,7 +511,7 @@
         };
 
         if (!data.date || !data.objective || !data.location) {
-            alert('❌ Please fill in all required fields');
+            alert('❌ Bitte alle Pflichtfelder ausfüllen');
             return;
         }
 
@@ -522,7 +523,7 @@
             });
 
             if (res.ok) {
-                alert('✅ Mission created successfully');
+                alert('✅ Mission erfolgreich angelegt');
                 document.getElementById('missionDate').value = '';
                 document.getElementById('missionObjective').value = '';
                 document.getElementById('missionLocation').value = '';
@@ -530,10 +531,10 @@
                 document.getElementById('missionEnd').value = '';
                 loadMissions();
             } else {
-                alert('❌ Error creating mission');
+                alert('❌ Fehler beim Anlegen der Mission');
             }
         } catch (e) {
-            alert('❌ Error: ' + e.message);
+            alert('❌ Fehler: ' + e.message);
         }
     }
 
@@ -544,7 +545,7 @@
             const tbody = document.getElementById('missionTable');
 
             if (!Array.isArray(missions) || missions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No missions created</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Keine Missionen vorhanden</td></tr>';
                 populateMissionSelects([]);
                 return;
             }
@@ -556,8 +557,8 @@
                     <td>${m.location}</td>
                     <td class="status-${m.status}">${m.status}</td>
                     <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <button class="btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="window.open('Mission_Order.html?id=${m.id}','_blank')" title="Order View">
-                            <i class="fas fa-eye"></i> ORDER VIEW
+                        <button class="btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="window.open('Mission_Order.html?id=${m.id}','_blank')" title="Befehlsansicht">
+                            <i class="fas fa-eye"></i> BEFEHL
                         </button>
                         ${m.status === 'ONGOING' ? `
                             <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75em;" onclick="deleteMission('${m.id}')">
@@ -570,7 +571,7 @@
             populateMissionSelects(missions);
         } catch (e) {
             console.error('Error:', e);
-            document.getElementById('missionTable').innerHTML = '<tr><td colspan="5" class="empty-state">Error loading</td></tr>';
+            document.getElementById('missionTable').innerHTML = '<tr><td colspan="5" class="empty-state">Fehler beim Laden</td></tr>';
         }
     }
 
@@ -706,19 +707,19 @@
     });
 
     async function deleteMission(id) {
-        if (!confirm('Really delete mission?')) return;
+        if (!confirm('Mission wirklich löschen?')) return;
         try {
             await fetch(`/api/missions/${id}`, { method: 'DELETE' });
-            alert('✅ Mission deleted');
+            alert('✅ Mission gelöscht');
             loadMissions();
         } catch (e) {
-            alert('❌ Error: ' + e.message);
+            alert('❌ Fehler: ' + e.message);
         }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
         loadMissions();
-        console.log('✅ Mission page initialized');
+        console.log('✅ Missionsseite initialisiert');
     });
 </script>
 
