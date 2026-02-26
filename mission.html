@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MISSIONSVERWALTUNG</title>
+    <title>MISSION MANAGEMENT</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -303,186 +303,186 @@
 
 <!-- ===== PAGE HEADER & CONTENT (Mission page) ===== -->
 <header>
-    <h1>MISSIONSVERWALTUNG</h1>
+    <h1>MISSION MANAGEMENT</h1>
 </header>
 
 <div class="container" style="padding-top:20px;">
     <!-- MISSION ANLEGEN -->
     <div class="form-section">
-        <h2><i class="fas fa-bullseye"></i> Neue Mission anlegen</h2>
+        <h2><i class="fas fa-bullseye"></i> Create New Mission</h2>
 
         <div class="form-grid-3">
             <div>
-                <label><i class="fas fa-calendar"></i> Datum</label>
+                <label><i class="fas fa-calendar"></i> Date</label>
                 <input type="date" id="missionDate">
             </div>
             <div>
-                <label><i class="fas fa-location-dot"></i> Einsatzgebiet (AO)</label>
-                <input type="text" id="missionLocation" placeholder="z.B. Nordsektor">
+                <label><i class="fas fa-location-dot"></i> Area of Operations (AO)</label>
+                <input type="text" id="missionLocation" placeholder="e.g. North Sector">
             </div>
             <div>
-                <label><i class="fas fa-crosshairs"></i> Auftrag / Ziel</label>
-                <input type="text" id="missionObjective" placeholder="z.B. Aufklärung">
+                <label><i class="fas fa-crosshairs"></i> Task / Objective</label>
+                <input type="text" id="missionObjective" placeholder="e.g. Reconnaissance">
             </div>
         </div>
 
         <div class="form-grid-2">
             <div>
-                <label><i class="fas fa-clock"></i> Startzeit</label>
+                <label><i class="fas fa-clock"></i> Start Time</label>
                 <input type="time" id="missionStart">
             </div>
             <div>
-                <label><i class="fas fa-clock"></i> Endzeit</label>
+                <label><i class="fas fa-clock"></i> End Time</label>
                 <input type="time" id="missionEnd">
             </div>
         </div>
 
         <button class="btn" onclick="createMission()" style="width: 100%;">
-            <i class="fas fa-plus"></i> MISSION ANLEGEN
+            <i class="fas fa-plus"></i> CREATE MISSION
         </button>
     </div>
 
     <!-- MISSIONSLISTE -->
     <div class="form-section">
-        <h2><i class="fas fa-list"></i> Aktive Missionen</h2>
+        <h2><i class="fas fa-list"></i> Active Missions</h2>
         
         <table>
             <thead>
                 <tr>
-                    <th><i class="fas fa-calendar"></i> Datum</th>
-                    <th><i class="fas fa-crosshairs"></i> Auftrag</th>
+                    <th><i class="fas fa-calendar"></i> Date</th>
+                    <th><i class="fas fa-crosshairs"></i> Objective</th>
                     <th><i class="fas fa-location-dot"></i> AO</th>
                     <th><i class="fas fa-circle-check"></i> Status</th>
-                    <th><i class="fas fa-cog"></i> Aktionen</th>
+                    <th><i class="fas fa-cog"></i> Actions</th>
                 </tr>
             </thead>
             <tbody id="missionTable">
-                <tr><td colspan="5" class="empty-state">Lade...</td></tr>
+                <tr><td colspan="5" class="empty-state">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 
     <!-- GESAMTBEFEHL FORM -->
     <div class="form-section">
-        <h2><i class="fas fa-scroll"></i> Gesamtbefehl</h2>
+        <h2><i class="fas fa-scroll"></i> Operations Order</h2>
 
         <div style="margin-bottom:14px;">
-            <label><i class="fas fa-bullseye"></i> Mission auswählen</label>
+            <label><i class="fas fa-bullseye"></i> Select Mission</label>
             <select id="orderMissionSelect">
-                <option value="">-- Mission wählen --</option>
+                <option value="">-- Select Mission --</option>
             </select>
         </div>
 
-        <!-- Gesamtbefehl -->
+        <!-- Operations Order -->
         <div class="order-block">
-            <h3><i class="fas fa-file-alt"></i> Gesamtbefehl</h3>
-            <textarea id="gb_gesamtbefehl" rows="3" placeholder="Gesamtbefehl eingeben..."></textarea>
+            <h3><i class="fas fa-file-alt"></i> Operations Order</h3>
+            <textarea id="gb_gesamtbefehl" rows="3" placeholder="Enter operations order..."></textarea>
         </div>
 
-        <!-- Lage -->
+        <!-- Situation -->
         <div class="order-block">
-            <h3><i class="fas fa-map-marked-alt"></i> Lage</h3>
+            <h3><i class="fas fa-map-marked-alt"></i> Situation</h3>
             <div class="form-grid-3">
                 <div>
-                    <div class="subgrid-label">Feind</div>
-                    <textarea id="gb_lage_feind" rows="4" placeholder="Feind..."></textarea>
+                    <div class="subgrid-label">Enemy</div>
+                    <textarea id="gb_lage_feind" rows="4" placeholder="Enemy..."></textarea>
                 </div>
                 <div>
-                    <div class="subgrid-label">Eigene</div>
-                    <textarea id="gb_lage_eigene" rows="4" placeholder="Eigene Kräfte..."></textarea>
+                    <div class="subgrid-label">Friendly Forces</div>
+                    <textarea id="gb_lage_eigene" rows="4" placeholder="Friendly forces..."></textarea>
                 </div>
                 <div>
-                    <div class="subgrid-label">Unterstellungen / Abgaben</div>
-                    <textarea id="gb_lage_unterstellungen" rows="4" placeholder="Unterstellungen / Abgaben..."></textarea>
+                    <div class="subgrid-label">Attachments / Detachments</div>
+                    <textarea id="gb_lage_unterstellungen" rows="4" placeholder="Attachments / Detachments..."></textarea>
                 </div>
             </div>
         </div>
 
-        <!-- Auftrag -->
+        <!-- Mission -->
         <div class="order-block">
-            <h3><i class="fas fa-crosshairs"></i> Auftrag</h3>
-            <textarea id="gb_auftrag" rows="4" placeholder="Auftrag eingeben..."></textarea>
+            <h3><i class="fas fa-crosshairs"></i> Mission</h3>
+            <textarea id="gb_auftrag" rows="4" placeholder="Enter mission..."></textarea>
         </div>
 
-        <!-- Durchführung -->
+        <!-- Execution -->
         <div class="order-block">
-            <h3><i class="fas fa-chess-knight"></i> Durchführung</h3>
+            <h3><i class="fas fa-chess-knight"></i> Execution</h3>
             <div class="form-grid-3">
                 <div>
-                    <div class="subgrid-label">Wie?</div>
-                    <textarea id="gb_durchf_wie" rows="4" placeholder="Wie?..."></textarea>
+                    <div class="subgrid-label">How?</div>
+                    <textarea id="gb_durchf_wie" rows="4" placeholder="How?..."></textarea>
                 </div>
                 <div>
                     <div class="subgrid-label">Plan</div>
                     <textarea id="gb_durchf_plan" rows="4" placeholder="Plan..."></textarea>
                 </div>
                 <div>
-                    <div class="subgrid-label">Koordination</div>
-                    <textarea id="gb_durchf_koordination" rows="4" placeholder="Koordination..."></textarea>
+                    <div class="subgrid-label">Coordination</div>
+                    <textarea id="gb_durchf_koordination" rows="4" placeholder="Coordination..."></textarea>
                 </div>
             </div>
         </div>
 
-        <!-- Versorgung -->
+        <!-- Service & Support -->
         <div class="order-block">
-            <h3><i class="fas fa-box-open"></i> Versorgung</h3>
+            <h3><i class="fas fa-box-open"></i> Service &amp; Support</h3>
             <div class="form-grid-2">
                 <div>
-                    <div class="subgrid-label">Pausenzeiten und Verhalten</div>
-                    <textarea id="gb_vers_pausenzeiten" rows="4" placeholder="Pausenzeiten und Verhalten..."></textarea>
+                    <div class="subgrid-label">Break times and conduct</div>
+                    <textarea id="gb_vers_pausenzeiten" rows="4" placeholder="Break times and conduct..."></textarea>
                 </div>
                 <div>
-                    <div class="subgrid-label">Verpflegung</div>
-                    <textarea id="gb_vers_verpflegung" rows="4" placeholder="Verpflegung..."></textarea>
+                    <div class="subgrid-label">Rations</div>
+                    <textarea id="gb_vers_verpflegung" rows="4" placeholder="Rations..."></textarea>
                 </div>
             </div>
         </div>
 
-        <!-- Verbindung -->
+        <!-- Command & Signal -->
         <div class="order-block">
-            <h3><i class="fas fa-radio"></i> Verbindung</h3>
+            <h3><i class="fas fa-radio"></i> Command &amp; Signal</h3>
             <div class="form-grid-3">
                 <div>
-                    <div class="subgrid-label">Kanäle (prüfen!)</div>
-                    <textarea id="gb_verb_kanaele" rows="4" placeholder="Kanäle..."></textarea>
+                    <div class="subgrid-label">Channels (check!)</div>
+                    <textarea id="gb_verb_kanaele" rows="4" placeholder="Channels..."></textarea>
                 </div>
                 <div>
-                    <div class="subgrid-label">Gruppennamen</div>
-                    <textarea id="gb_verb_gruppen" rows="4" placeholder="Gruppennamen..."></textarea>
+                    <div class="subgrid-label">Group Names</div>
+                    <textarea id="gb_verb_gruppen" rows="4" placeholder="Group names..."></textarea>
                 </div>
                 <div>
-                    <div class="subgrid-label">Kdo – Wo?</div>
-                    <textarea id="gb_verb_kdo_wo" rows="4" placeholder="Kdo - Wo?..."></textarea>
+                    <div class="subgrid-label">Command – Where?</div>
+                    <textarea id="gb_verb_kdo_wo" rows="4" placeholder="Command - Where?..."></textarea>
                 </div>
             </div>
         </div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-success" onclick="saveGesamtbefehl()" style="flex:1;">
-                <i class="fas fa-save"></i> BEFEHL SPEICHERN
+                <i class="fas fa-save"></i> SAVE ORDER
             </button>
             <button class="btn" onclick="openOrderView()" style="flex:1;">
-                <i class="fas fa-eye"></i> BEFEHLSANSICHT ÖFFNEN
+                <i class="fas fa-eye"></i> OPEN ORDER VIEW
             </button>
         </div>
     </div>
 
     <!-- FILE UPLOAD -->
     <div class="form-section">
-        <h2><i class="fas fa-paperclip"></i> Dokumente / Anhänge</h2>
+        <h2><i class="fas fa-paperclip"></i> Documents / Attachments</h2>
 
         <div style="margin-bottom:14px;">
-            <label><i class="fas fa-bullseye"></i> Mission auswählen</label>
+            <label><i class="fas fa-bullseye"></i> Select Mission</label>
             <select id="uploadMissionSelect">
-                <option value="">-- Mission wählen --</option>
+                <option value="">-- Select Mission --</option>
             </select>
         </div>
 
-        <label><i class="fas fa-upload"></i> Datei hochladen (Bilder &amp; PDF; keine Word-Dateien)</label>
+        <label><i class="fas fa-upload"></i> Upload file (Images &amp; PDF; no Word files)</label>
         <input type="file" id="attachmentFile" accept="image/*,.pdf,application/pdf" style="margin-bottom:10px;">
 
         <button class="btn" onclick="uploadAttachment()" style="width:100%;margin-bottom:14px;">
-            <i class="fas fa-cloud-upload-alt"></i> HOCHLADEN
+            <i class="fas fa-cloud-upload-alt"></i> UPLOAD
         </button>
 
         <div id="attachmentList" class="attachment-list"></div>
@@ -493,7 +493,7 @@
 <script>
     // Helper so Global Nav's logout link works
     function logoutUser() {
-        if (confirm('Wirklich abmelden?')) {
+        if (confirm('Really log out?')) {
             localStorage.removeItem('lpu5_user');
             localStorage.removeItem('lpu5_token');
             window.location.href = '/';
@@ -511,7 +511,7 @@
         };
 
         if (!data.date || !data.objective || !data.location) {
-            alert('❌ Bitte alle Pflichtfelder ausfüllen');
+            alert('❌ Please fill in all required fields');
             return;
         }
 
@@ -523,7 +523,7 @@
             });
 
             if (res.ok) {
-                alert('✅ Mission erfolgreich angelegt');
+                alert('✅ Mission successfully created');
                 document.getElementById('missionDate').value = '';
                 document.getElementById('missionObjective').value = '';
                 document.getElementById('missionLocation').value = '';
@@ -531,10 +531,10 @@
                 document.getElementById('missionEnd').value = '';
                 loadMissions();
             } else {
-                alert('❌ Fehler beim Anlegen der Mission');
+                alert('❌ Error creating mission');
             }
         } catch (e) {
-            alert('❌ Fehler: ' + e.message);
+            alert('❌ Error: ' + e.message);
         }
     }
 
@@ -545,7 +545,7 @@
             const tbody = document.getElementById('missionTable');
 
             if (!Array.isArray(missions) || missions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Keine Missionen vorhanden</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No missions available</td></tr>';
                 populateMissionSelects([]);
                 return;
             }
@@ -557,8 +557,8 @@
                     <td>${m.location}</td>
                     <td class="status-${m.status}">${m.status}</td>
                     <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <button class="btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="window.open('Mission_Order.html?id=${m.id}','_blank')" title="Befehlsansicht">
-                            <i class="fas fa-eye"></i> BEFEHL
+                        <button class="btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="window.open('Mission_Order.html?id=${m.id}','_blank')" title="Order View">
+                            <i class="fas fa-eye"></i> ORDER
                         </button>
                         ${m.status === 'ONGOING' ? `
                             <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75em;" onclick="deleteMission('${m.id}')">
@@ -571,7 +571,7 @@
             populateMissionSelects(missions);
         } catch (e) {
             console.error('Error:', e);
-            document.getElementById('missionTable').innerHTML = '<tr><td colspan="5" class="empty-state">Fehler beim Laden</td></tr>';
+            document.getElementById('missionTable').innerHTML = '<tr><td colspan="5" class="empty-state">Error loading</td></tr>';
         }
     }
 
@@ -579,11 +579,14 @@
         ['orderMissionSelect', 'uploadMissionSelect'].forEach(id => {
             const sel = document.getElementById(id);
             const current = sel.value;
-            sel.innerHTML = '<option value="">-- Mission wählen --</option>';
+            sel.innerHTML = '<option value="">-- Select Mission --</option>';
             missions.forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m.id;
-                opt.textContent = `${m.date || ''} – ${m.objective || m.name || m.id}`;
+                const name = m.objective || m.name || '(unnamed)';
+                const location = m.location ? ` | ${m.location}` : '';
+                const date = m.date ? `${m.date} – ` : '';
+                opt.textContent = `${date}${name}${location} [${m.status || 'ONGOING'}]`;
                 sel.appendChild(opt);
             });
             if (current) sel.value = current;
@@ -592,7 +595,7 @@
 
     async function saveGesamtbefehl() {
         const missionId = document.getElementById('orderMissionSelect').value;
-        if (!missionId) { alert('❌ Bitte zuerst eine Mission auswählen.'); return; }
+        if (!missionId) { alert('❌ Please select a mission first.'); return; }
         const payload = {
             gesamtbefehl: document.getElementById('gb_gesamtbefehl').value,
             lage_feind: document.getElementById('gb_lage_feind').value,
@@ -615,12 +618,12 @@
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
-                alert('✅ Befehl gespeichert');
+                alert('✅ Order saved');
             } else {
-                alert('❌ Fehler beim Speichern');
+                alert('❌ Error saving');
             }
         } catch (e) {
-            alert('❌ Fehler: ' + e.message);
+            alert('❌ Error: ' + e.message);
         }
     }
 
@@ -643,15 +646,15 @@
 
     function openOrderView() {
         const missionId = document.getElementById('orderMissionSelect').value;
-        if (!missionId) { alert('❌ Bitte zuerst eine Mission auswählen.'); return; }
+        if (!missionId) { alert('❌ Please select a mission first.'); return; }
         window.open(`Mission_Order.html?id=${missionId}`, '_blank');
     }
 
     async function uploadAttachment() {
         const missionId = document.getElementById('uploadMissionSelect').value;
-        if (!missionId) { alert('❌ Bitte zuerst eine Mission auswählen.'); return; }
+        if (!missionId) { alert('❌ Please select a mission first.'); return; }
         const fileInput = document.getElementById('attachmentFile');
-        if (!fileInput.files || fileInput.files.length === 0) { alert('❌ Bitte eine Datei auswählen.'); return; }
+        if (!fileInput.files || fileInput.files.length === 0) { alert('❌ Please select a file.'); return; }
         const file = fileInput.files[0];
         const formData = new FormData();
         formData.append('file', file);
@@ -661,17 +664,17 @@
                 body: formData
             });
             if (res.ok) {
-                alert('✅ Datei hochgeladen');
+                alert('✅ File uploaded');
                 fileInput.value = '';
                 loadAttachments(missionId);
             } else {
             const errText = await res.text().catch(() => '');
             let errMsg = res.statusText;
             try { errMsg = JSON.parse(errText).detail || JSON.parse(errText).message || errMsg; } catch (_) { if (errText) errMsg = errText; }
-            alert('❌ Fehler: ' + errMsg);
+            alert('❌ Error: ' + errMsg);
             }
         } catch (e) {
-            alert('❌ Fehler: ' + e.message);
+            alert('❌ Error: ' + e.message);
         }
     }
 
@@ -684,7 +687,7 @@
             const data = await res.json();
             const attachments = data.attachments || [];
             if (attachments.length === 0) {
-                list.innerHTML = '<span style="color:#666;font-style:italic;font-size:0.85em;">Keine Anhänge vorhanden.</span>';
+                list.innerHTML = '<span style="color:#666;font-style:italic;font-size:0.85em;">No attachments available.</span>';
                 return;
             }
             list.innerHTML = attachments.map(a => {
@@ -707,19 +710,19 @@
     });
 
     async function deleteMission(id) {
-        if (!confirm('Mission wirklich löschen?')) return;
+        if (!confirm('Really delete mission?')) return;
         try {
             await fetch(`/api/missions/${id}`, { method: 'DELETE' });
-            alert('✅ Mission gelöscht');
+            alert('✅ Mission deleted');
             loadMissions();
         } catch (e) {
-            alert('❌ Fehler: ' + e.message);
+            alert('❌ Error: ' + e.message);
         }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
         loadMissions();
-        console.log('✅ Missionsseite initialisiert');
+        console.log('✅ Mission page initialized');
     });
 </script>
 
