@@ -72,8 +72,43 @@
 
 <script>
 // Stream viewer functionality - Full screen mode
+// Auto-dispatches to the correct per-slot viewer (stream_share_N.html) if a slot is assigned
+// for the current user's unit; otherwise falls back to the legacy single-stream behaviour.
 (function() {
   'use strict';
+
+  const MAX_STREAM_SLOTS = 15;
+
+  // Attempt to find and redirect to the slot assigned to this user's unit.
+  // Runs once on load; on success a redirect happens and no further code runs.
+  function tryAutoDispatch() {
+    try {
+      var userData = JSON.parse(localStorage.getItem('lpu5_user') || '{}');
+      var unitName = (userData.unit || '').trim();
+      if (!unitName) return; // No unit assigned – stay on generic viewer
+
+      fetch('/api/stream_slots')
+        .then(function(res) { return res.json(); })
+        .then(function(slotsData) {
+          var slots = slotsData.slots || [];
+          for (var i = 0; i < slots.length; i++) {
+            var s = slots[i];
+            if (!s.active) continue;
+            var targetUnits = s.target_units || [];
+            // Empty target_units means "all units" – show on generic viewer (no redirect needed)
+            if (targetUnits.length === 0) continue;
+            if (targetUnits.indexOf(unitName) !== -1) {
+              // This slot is targeted at our unit – redirect to the slot-specific viewer
+              window.location.href = 'stream_share_' + s.slot + '.html';
+              return;
+            }
+          }
+        })
+        .catch(function() {});
+    } catch(e) {}
+  }
+
+  tryAutoDispatch();
 
   const streamVideo = document.getElementById('streamVideo');
   const streamImage = document.getElementById('streamImage');
