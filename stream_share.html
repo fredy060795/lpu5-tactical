@@ -6,11 +6,7 @@
   <title>Stream Viewer - LPU5 Tactical</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       background: #000;
@@ -19,245 +15,362 @@
       height: 100vh;
     }
 
-    /* Full-screen container - no borders, no padding */
-    .stream-container {
+    /* Global placeholder shown when no streams are active */
+    #globalPlaceholder {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      font-size: 2rem;
+      background: #000;
+      z-index: 10;
+    }
+
+    /* CSS-grid container that auto-splits into equal cells */
+    #streamGrid {
+      display: none; /* shown when ≥1 streams are active */
       width: 100vw;
       height: 100vh;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      gap: 2px;
+      background: #111;
+    }
+
+    /* Individual stream cell */
+    .stream-panel {
       position: relative;
-    }
-
-    .stream-content {
-      width: 100%;
-      height: 100%;
+      overflow: hidden;
+      background: #000;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #000;
     }
 
-    .stream-video {
+    .stream-panel video,
+    .stream-panel img.stream-media {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
     }
 
-    .stream-placeholder {
+    /* Small overlay badge showing the slot number */
+    .panel-badge {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: #333;
-      text-align: center;
-      font-size: 2rem;
+      top: 6px;
+      left: 6px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.7rem;
+      pointer-events: none;
+      z-index: 5;
     }
   </style>
 </head>
 <body>
 
-<!-- Stream Window Component - Full Screen -->
-<div class="stream-container">
-  <div class="stream-content" id="streamContent">
-    <video id="streamVideo" class="stream-video" autoplay muted controls></video>
-    <img id="streamImage" class="stream-video" style="display:none;" alt="Stream">
-    <div class="stream-placeholder" id="streamPlaceholder" style="display:none;">
-      <i class="fas fa-video-slash"></i>
-    </div>
-  </div>
+<div id="globalPlaceholder">
+  <i class="fas fa-video-slash"></i>
 </div>
+<div id="streamGrid"></div>
 
 <script>
-// Stream viewer functionality - Full screen mode
-// Auto-dispatches to the correct per-slot viewer (stream_share_N.html) if a slot is assigned
-// for the current user's unit; otherwise falls back to the legacy single-stream behaviour.
-(function() {
+// Multi-stream split-screen viewer
+// Displays ALL streams assigned to the current user's unit simultaneously.
+// Layout adapts automatically:
+//   1 stream  → full screen
+//   2 streams → side-by-side (2 columns × 1 row)
+//   3–4       → 2 × 2 grid
+//   5–6       → 3 × 2 grid
+//   7–9       → 3 × 3 grid
+//   10–12     → 4 × 3 grid
+//   13–15     → 4 × 4 grid
+(function () {
   'use strict';
 
-  const MAX_STREAM_SLOTS = 15;
+  var grid        = document.getElementById('streamGrid');
+  var placeholder = document.getElementById('globalPlaceholder');
 
-  // Attempt to find and redirect to the slot assigned to this user's unit.
-  // Runs once on load; on success a redirect happens and no further code runs.
-  function tryAutoDispatch() {
-    try {
-      var userData = JSON.parse(localStorage.getItem('lpu5_user') || '{}');
-      var unitName = (userData.unit || '').trim();
-      if (!unitName) return; // No unit assigned – stay on generic viewer
+  // Key used in activeStreams / panels for the legacy (slotless) single stream
+  var LEGACY_KEY = 'legacy';
 
-      fetch('/api/stream_slots')
-        .then(function(res) { return res.json(); })
-        .then(function(slotsData) {
-          var slots = slotsData.slots || [];
-          for (var i = 0; i < slots.length; i++) {
-            var s = slots[i];
-            if (!s.active) continue;
-            var targetUnits = s.target_units || [];
-            // Empty target_units means "all units" – show on generic viewer (no redirect needed)
-            if (targetUnits.length === 0) continue;
-            if (targetUnits.indexOf(unitName) !== -1) {
-              // This slot is targeted at our unit – redirect to the slot-specific viewer
-              window.location.href = 'stream_share_' + s.slot + '.html';
-              return;
-            }
-          }
-        })
-        .catch(function() {});
-    } catch(e) {}
-  }
+  // slot key (string) → stream state object
+  var activeStreams = {};
+  // slot key (string) → panel DOM element
+  var panels = {};
 
-  tryAutoDispatch();
+  var ws = null;
 
-  const streamVideo = document.getElementById('streamVideo');
-  const streamImage = document.getElementById('streamImage');
-  const streamPlaceholder = document.getElementById('streamPlaceholder');
+  // ── Helpers ──────────────────────────────────────────────────────────────
 
-  let isCameraStream = false;
-  let ws = null;
-  let currentBroadcastStreamId = null; // Only show the stream selected by HQ
-
-  // WebSocket connection for receiving camera frames
-  function connectWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = protocol + '//' + window.location.host + '/ws';
-
-    try {
-      ws = new WebSocket(wsUrl);
-      ws.onopen = function() {
-        console.log('Stream viewer WebSocket connected');
-        ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
-      };
-      ws.onmessage = function(event) {
-        try {
-          var data = JSON.parse(event.data);
-          if (data.type === 'broadcast_selected') {
-            // HQ selected (or deselected) a stream to broadcast to EUDs
-            currentBroadcastStreamId = data.streamId || null;
-            if (!currentBroadcastStreamId) {
-              hideStream();
-            }
-          } else if (data.type === 'camera_frame' && data.frame) {
-            // Only display frames for the currently broadcast stream
-            if (currentBroadcastStreamId && data.streamId === currentBroadcastStreamId) {
-              showCameraFrame(data.frame);
-            }
-          } else if (data.type === 'stream_share') {
-            if (data.active) {
-              currentBroadcastStreamId = data.streamId || null;
-              isCameraStream = !!data.isCamera;
-              if (!data.isCamera && data.stream_url) {
-                showStream(data);
-              }
-            } else if (!data.streamId || data.streamId === currentBroadcastStreamId) {
-              hideStream();
-            }
-          } else if (data.type === 'camera_stream_stop') {
-            hideStream();
-          }
-        } catch (e) { console.warn('Failed to parse WebSocket message:', e); }
-      };
-      ws.onclose = function() {
-        ws = null;
-        setTimeout(connectWebSocket, 5000);
-      };
-      ws.onerror = function() {
-        // Will trigger onclose
-      };
-    } catch (e) {
-      console.error('Stream viewer WebSocket failed:', e);
-    }
-  }
-
-  function showCameraFrame(frame) {
-    streamPlaceholder.style.display = 'none';
-    streamVideo.style.display = 'none';
-    streamImage.style.display = 'block';
-    streamImage.src = frame;
-    isCameraStream = true;
-  }
-
-  // Check for shared stream every 10 seconds
-  function checkForSharedStream() {
-    var headers = {};
+  function getAuthHeaders() {
+    var h = {};
     var token = localStorage.getItem('token');
-    if (token) {
-      headers['Authorization'] = 'Bearer ' + token;
+    if (token) h['Authorization'] = 'Bearer ' + token;
+    return h;
+  }
+
+  function getUserUnit() {
+    try {
+      var u = JSON.parse(localStorage.getItem('lpu5_user') || '{}');
+      return (u.unit || '').trim();
+    } catch (e) { return ''; }
+  }
+
+  function isAllowedForUser(streamData) {
+    var tu = streamData.target_units || [];
+    if (tu.length === 0) return true; // broadcast to all
+    var unit = getUserUnit();
+    return !!(unit && tu.indexOf(unit) !== -1);
+  }
+
+  // Return {cols, rows} for n panels
+  function gridDims(n) {
+    if (n <= 1)  return { cols: 1, rows: 1 };
+    if (n <= 2)  return { cols: 2, rows: 1 };
+    if (n <= 4)  return { cols: 2, rows: 2 };
+    if (n <= 6)  return { cols: 3, rows: 2 };
+    if (n <= 9)  return { cols: 3, rows: 3 };
+    if (n <= 12) return { cols: 4, rows: 3 };
+    return       { cols: 4, rows: 4 };
+  }
+
+  // ── Grid rendering ────────────────────────────────────────────────────────
+
+  function renderGrid() {
+    var visible = Object.keys(activeStreams).filter(function (k) {
+      return activeStreams[k].active;
+    });
+
+    if (visible.length === 0) {
+      grid.style.display = 'none';
+      placeholder.style.display = 'flex';
+      // Remove all panels
+      Object.keys(panels).forEach(removePanel);
+      return;
     }
 
-    fetch('/api/stream_share', {
-      headers: headers
-    })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data.active) {
-        if (data.isCamera) {
-          // Camera stream: frames arrive via WebSocket, just show the image element
-          isCameraStream = true;
-          currentBroadcastStreamId = data.streamId || null;
-          streamPlaceholder.style.display = 'none';
-          streamVideo.style.display = 'none';
-          streamImage.style.display = 'block';
-        } else if (data.stream_url) {
-          showStream(data);
-        }
+    placeholder.style.display = 'none';
+    grid.style.display = 'grid';
+
+    var d = gridDims(visible.length);
+    grid.style.gridTemplateColumns = 'repeat(' + d.cols + ', 1fr)';
+    grid.style.gridTemplateRows    = 'repeat(' + d.rows + ', 1fr)';
+
+    // Remove panels for streams that are no longer active
+    Object.keys(panels).forEach(function (k) {
+      if (visible.indexOf(k) === -1) removePanel(k);
+    });
+
+    // Add / update panels for active streams
+    visible.forEach(function (k) {
+      if (!panels[k]) {
+        createPanel(k, activeStreams[k]);
       } else {
-        if (!isCameraStream) {
-          hideStream();
-        }
+        applyStreamToPanel(k, activeStreams[k]);
       }
-    })
-    .catch(function(err) {
-      console.error('Error checking for shared stream:', err);
     });
   }
 
-  function showStream(data) {
-    streamPlaceholder.style.display = 'none';
-    isCameraStream = false;
+  // ── Panel management ──────────────────────────────────────────────────────
 
-    if (data.stream_type === 'mjpeg') {
-      // MJPEG stream (image)
-      streamVideo.style.display = 'none';
-      streamImage.style.display = 'block';
-      streamImage.src = data.stream_url;
-    } else {
-      // Video stream
-      streamImage.style.display = 'none';
-      streamVideo.style.display = 'block';
-      if (streamVideo.src !== data.stream_url) {
-        streamVideo.src = data.stream_url;
-        streamVideo.load();
-        streamVideo.play().catch(function(e) { console.warn('Autoplay prevented:', e); });
+  function createPanel(key, streamData) {
+    var panel = document.createElement('div');
+    panel.className = 'stream-panel';
+    panel.dataset.slotKey = key;
+
+    var video = document.createElement('video');
+    video.autoplay = true;
+    video.muted    = true;
+    video.controls = true;
+    video.style.display = 'none';
+
+    var img = document.createElement('img');
+    img.className   = 'stream-media';
+    img.alt         = 'Stream';
+    img.style.display = 'none';
+
+    var badge = document.createElement('div');
+    badge.className   = 'panel-badge';
+    badge.textContent = streamData.slot != null ? 'Slot ' + streamData.slot : 'Live';
+
+    panel.appendChild(video);
+    panel.appendChild(img);
+    panel.appendChild(badge);
+    grid.appendChild(panel);
+    panels[key] = panel;
+
+    applyStreamToPanel(key, streamData);
+  }
+
+  function removePanel(key) {
+    var panel = panels[key];
+    if (!panel) return;
+    var video = panel.querySelector('video');
+    if (video) { video.pause(); video.src = ''; }
+    if (panel.parentNode) panel.parentNode.removeChild(panel);
+    delete panels[key];
+  }
+
+  function applyStreamToPanel(key, streamData) {
+    var panel = panels[key];
+    if (!panel) return;
+    var video = panel.querySelector('video');
+    var img   = panel.querySelector('img.stream-media');
+
+    if (streamData.isCamera) {
+      // Camera frames arrive via WebSocket → just ensure img is visible
+      if (video) video.style.display = 'none';
+      if (img)   img.style.display   = 'block';
+    } else if (streamData.stream_url) {
+      if (streamData.stream_type === 'mjpeg') {
+        if (video) video.style.display = 'none';
+        if (img) {
+          img.style.display = 'block';
+          if (img.src !== streamData.stream_url) img.src = streamData.stream_url;
+        }
+      } else {
+        if (img)   img.style.display   = 'none';
+        if (video) {
+          video.style.display = 'block';
+          if (video.src !== streamData.stream_url) {
+            video.src = streamData.stream_url;
+            video.load();
+            video.play().catch(function (e) { console.warn('Autoplay prevented:', e); });
+          }
+        }
       }
     }
   }
 
-  function hideStream() {
-    isCameraStream = false;
-    streamVideo.style.display = 'none';
-    streamImage.style.display = 'none';
-    streamPlaceholder.style.display = 'block';
-    
-    if (streamVideo.src) {
-      streamVideo.pause();
-      streamVideo.src = '';
-    }
-    if (streamImage.src) {
-      streamImage.src = '';
+  // Route an incoming camera frame to the correct panel(s) by streamId
+  function deliverCameraFrame(streamId, frame) {
+    Object.keys(activeStreams).forEach(function (k) {
+      var s = activeStreams[k];
+      if (s.active && s.isCamera && (s.streamId === streamId || !streamId)) {
+        var panel = panels[k];
+        if (panel) {
+          var img = panel.querySelector('img.stream-media');
+          if (img) img.src = frame;
+        }
+      }
+    });
+  }
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+
+  function loadSlots() {
+    fetch('/api/stream_slots', { headers: getAuthHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var slots = data.slots || [];
+        var next  = {};
+        slots.forEach(function (s) {
+          next[String(s.slot)] = s;
+        });
+
+        // Also preserve any legacy stream that has no slot
+        if (activeStreams[LEGACY_KEY] && activeStreams[LEGACY_KEY].active) {
+          next[LEGACY_KEY] = activeStreams[LEGACY_KEY];
+        }
+
+        activeStreams = next;
+        renderGrid();
+      })
+      .catch(function (err) { console.error('Error loading stream slots:', err); });
+  }
+
+  // Legacy single-stream fallback (used when no slot-based streams are visible)
+  function checkLegacyStream() {
+    // Only poll the legacy endpoint when the slot-grid has no active streams
+    var hasActive = Object.keys(activeStreams).some(function (k) {
+      return k !== LEGACY_KEY && activeStreams[k].active;
+    });
+    if (hasActive) return;
+
+    fetch('/api/stream_share', { headers: getAuthHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.active) {
+          activeStreams[LEGACY_KEY] = Object.assign({ slot: null }, data);
+        } else {
+          delete activeStreams[LEGACY_KEY];
+        }
+        renderGrid();
+      })
+      .catch(function (err) { console.error('Error checking legacy stream:', err); });
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+
+  function connectWebSocket() {
+    var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var url   = proto + '//' + window.location.host + '/ws';
+    try {
+      ws = new WebSocket(url);
+      ws.onopen = function () {
+        ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+      };
+      ws.onmessage = function (event) {
+        try {
+          handleWsMessage(JSON.parse(event.data));
+        } catch (e) { console.warn('WS parse error:', e); }
+      };
+      ws.onclose = function () { ws = null; setTimeout(connectWebSocket, 5000); };
+      ws.onerror = function () {};
+    } catch (e) { console.error('WebSocket failed:', e); }
+  }
+
+  function handleWsMessage(data) {
+    if (data.type === 'stream_share') {
+      // Unit-access guard: only process if user is allowed to see this stream
+      if (!isAllowedForUser(data)) {
+        // If a previously visible slot just became restricted, remove it
+        var k = data.slot != null ? String(data.slot) : LEGACY_KEY;
+        if (activeStreams[k]) {
+          activeStreams[k] = Object.assign({}, activeStreams[k], { active: false });
+          renderGrid();
+        }
+        return;
+      }
+
+      var slotKey = data.slot != null ? String(data.slot) : LEGACY_KEY;
+      if (data.active) {
+        activeStreams[slotKey] = Object.assign({ slot: data.slot != null ? data.slot : null }, data);
+      } else {
+        if (activeStreams[slotKey]) {
+          activeStreams[slotKey] = Object.assign({}, activeStreams[slotKey], { active: false });
+        }
+      }
+      renderGrid();
+
+    } else if (data.type === 'camera_frame' && data.frame) {
+      deliverCameraFrame(data.streamId || null, data.frame);
+
+    } else if (data.type === 'camera_stream_stop') {
+      var stopKey = data.slot != null ? String(data.slot) : null;
+      if (stopKey && activeStreams[stopKey]) {
+        activeStreams[stopKey] = Object.assign({}, activeStreams[stopKey], { active: false });
+        renderGrid();
+      }
     }
   }
 
-  // Start WebSocket connection for camera frames
+  // ── Init ──────────────────────────────────────────────────────────────────
+
   connectWebSocket();
 
-  // Start checking for stream
-  setInterval(checkForSharedStream, 10000);
-  checkForSharedStream();
+  // Initial load + periodic refresh
+  loadSlots();
+  setInterval(loadSlots, 10000);
+  setInterval(checkLegacyStream, 10000);
 
-  console.log('Stream share viewer initialized - Full screen mode with WebSocket camera support');
-})();
+  console.log('Multi-stream split-screen viewer initialised');
+}());
 </script>
 
 </body>

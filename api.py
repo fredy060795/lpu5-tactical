@@ -5898,6 +5898,40 @@ _active_stream_shares: Dict[int, Dict] = {i: {"active": False, "slot": i} for i 
 _CAMERA_FRAME_MIN_INTERVAL = 0.15  # minimum seconds between relayed frames (≈6.67 fps max)
 _camera_last_relay: Dict[str, float] = {}  # connection_id -> last relay timestamp
 
+# Short-lived cache for unit lookups to avoid a DB round-trip on every poll.
+# Maps user_id -> (unit_name, expiry_timestamp).
+_USER_UNIT_CACHE_TTL = 60  # seconds
+_user_unit_cache: Dict[str, tuple] = {}
+
+def _get_user_unit_from_token(authorization: Optional[str], db: Session) -> Optional[str]:
+    """Return the unit name for the user identified by the Bearer token, or None.
+
+    Results are cached for _USER_UNIT_CACHE_TTL seconds to avoid repeated DB
+    queries on frequently-polled stream endpoints.
+    """
+    if not authorization:
+        return None
+    token = authorization.replace("Bearer ", "").strip()
+    payload = verify_token(token)
+    if not payload:
+        return None
+    user_id = payload.get("user_id")
+    if not user_id:
+        return None
+
+    now = time.monotonic()
+    cached = _user_unit_cache.get(user_id)
+    if cached is not None:
+        unit, expires = cached
+        if now < expires:
+            return unit
+        del _user_unit_cache[user_id]
+
+    user = db.query(User).filter(User.id == user_id).first()
+    unit = user.unit if user else None
+    _user_unit_cache[user_id] = (unit, now + _USER_UNIT_CACHE_TTL)
+    return unit
+
 @app.get("/api/stream_share", summary="Get current shared stream state")
 def get_stream_share():
     """Return the currently active shared stream info (polled by stream_share.html iframe)."""
@@ -5920,14 +5954,37 @@ async def set_stream_share(data: Dict = Body(...)):
     return {"status": "success"}
 
 @app.get("/api/stream_slots", summary="Get all active stream slots")
-def get_stream_slots():
-    """Return all stream slot states (slots 1-15) for multicast distribution."""
-    return {"slots": list(_active_stream_shares.values()), "max_slots": MAX_STREAM_SLOTS}
+def get_stream_slots(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """Return stream slot states visible to the requesting user.
+
+    Slots with an empty ``target_units`` list are visible to everyone.
+    Slots with a non-empty ``target_units`` list are only visible to users
+    whose unit is contained in that list.
+    """
+    user_unit = _get_user_unit_from_token(authorization, db)
+    visible_slots = []
+    for slot in _active_stream_shares.values():
+        target_units = slot.get("target_units", [])
+        if not target_units or (user_unit and user_unit in target_units):
+            visible_slots.append(slot)
+    return {"slots": visible_slots, "max_slots": MAX_STREAM_SLOTS}
 
 @app.get("/api/stream_share/{slot}", summary="Get shared stream state for a specific slot")
-def get_stream_share_slot(slot: int = Path(..., ge=1, le=MAX_STREAM_SLOTS)):
-    """Return the currently active stream info for the given slot (polled by stream_share_N.html)."""
-    return _active_stream_shares.get(slot, {"active": False, "slot": slot})
+def get_stream_share_slot(slot: int = Path(..., ge=1, le=MAX_STREAM_SLOTS), authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """Return the stream info for the given slot if the requesting user's unit is allowed.
+
+    When ``target_units`` is empty the slot is treated as a broadcast visible to all users.
+    When ``target_units`` is non-empty only users whose unit appears in that list receive the
+    active stream data; all other users receive an inactive placeholder response.
+    """
+    slot_data = _active_stream_shares.get(slot, {"active": False, "slot": slot})
+    target_units = slot_data.get("target_units", [])
+    if not target_units:
+        return slot_data
+    user_unit = _get_user_unit_from_token(authorization, db)
+    if user_unit and user_unit in target_units:
+        return slot_data
+    return {"active": False, "slot": slot}
 
 @app.post("/api/stream_share/{slot}", summary="Set shared stream state for a specific slot")
 async def set_stream_share_slot(slot: int = Path(..., ge=1, le=MAX_STREAM_SLOTS), data: Dict = Body(...)):
