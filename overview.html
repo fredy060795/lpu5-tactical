@@ -1303,6 +1303,23 @@
     let baseLayer = null; // Track current base layer
     let currentLayerType = 'street'; // Track current layer type
 
+    // Request GPS once at startup and silently pan the map to the real device location.
+    // No dialogs or prompts are shown on failure; the London placeholder simply stays.
+    function centerMapOnOwnLocation() {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          if (map) {
+            map.setView([lat, lng], Math.max(map.getZoom(), 15));
+          }
+        },
+        function () { /* denied or unavailable – keep current view */ },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
     function initMap() {
       if (map) return;
       map = L.map('map', { zoomSnap: 0.1, zoomControl: false }).setView([51.505, -0.09], 15);
@@ -1392,6 +1409,11 @@
       } catch (e) {
         console.warn('Failed to restore GPS settings', e);
       }
+
+      // Center the map on the user's real GPS location immediately at startup.
+      // The call is fire-and-forget: if the browser denies permission the London
+      // placeholder simply stays; no dialog is shown.
+      centerMapOnOwnLocation();
     }
 
     // Start data sync and WebSocket — called only after successful login

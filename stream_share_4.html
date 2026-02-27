@@ -112,7 +112,18 @@
           var msgSlot = data.slot !== undefined ? parseInt(data.slot) : null;
           var slotMatch = (msgSlot === null || msgSlot === STREAM_SLOT);
           if (data.type === 'stream_share' && slotMatch) {
-            if (data.active) {
+            // Enforce unit-based access control via target_units
+            var wsTargetUnits = data.target_units || [];
+            var wsAllowed = true;
+            if (wsTargetUnits.length > 0) {
+              var wsUserData = {};
+              try { wsUserData = JSON.parse(localStorage.getItem('lpu5_user') || '{}'); } catch(e) {}
+              var wsUserUnit = (wsUserData.unit || '').trim();
+              wsAllowed = !!(wsUserUnit && wsTargetUnits.indexOf(wsUserUnit) !== -1);
+            }
+            if (!wsAllowed) {
+              hideStream();
+            } else if (data.active) {
               currentBroadcastStreamId = data.streamId || null;
               isCameraStream = !!data.isCamera;
               if (!data.isCamera && data.stream_url) {
@@ -165,6 +176,17 @@
     fetch('/api/stream_share/' + STREAM_SLOT, { headers: headers })
       .then(function(res) { return res.json(); })
       .then(function(data) {
+        // Only display stream when user's unit is in target_units (or no restriction set)
+        var targetUnits = data.target_units || [];
+        if (targetUnits.length > 0) {
+          var userData = {};
+          try { userData = JSON.parse(localStorage.getItem('lpu5_user') || '{}'); } catch(e) {}
+          var userUnit = (userData.unit || '').trim();
+          if (!userUnit || targetUnits.indexOf(userUnit) === -1) {
+            hideStream();
+            return;
+          }
+        }
         if (data.active) {
           if (data.isCamera) {
             isCameraStream = true;
