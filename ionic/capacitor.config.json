@@ -1,0 +1,30 @@
+{
+  "appId": "com.lpu5.tactical",
+  "appName": "LPU5 Tactical",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "allowsLinkPreview": false
+  },
+  "plugins": {
+    "Geolocation": {
+      "permissions": ["location", "coarse-location"]
+    },
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Meshtastic suchen...",
+        "cancel": "Abbrechen",
+        "availableDevices": "Verfügbare Geräte",
+        "noDeviceFound": "Kein Meshtastic Gerät gefunden"
+      }
+    }
+  }
+}
