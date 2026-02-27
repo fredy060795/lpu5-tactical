@@ -41,6 +41,11 @@ cert.pem
 key.pem
 *.pem
 
+# Ionic/Capacitor – generated native projects and node_modules
+ionic/node_modules/
+ionic/android/
+ionic/ios/
+
 =======
 __pycache__/
 *.pyc
