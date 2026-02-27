@@ -1424,8 +1424,13 @@
       callback();
     }
 
+    let gpsManualMode = false; // true when user is setting GPS position via crosshair
+
     // immediate placement
     function setTool(t) {
+      gpsManualMode = false;
+      const btn = document.getElementById('set-btn');
+      if (btn) btn.innerText = 'SET POINT';
       if (currentTool === t) {
         currentTool = '';
         togglePrecisionUI(false);
@@ -1444,12 +1449,34 @@
       document.getElementById('set-btn').style.display = show ? 'block' : 'none';
     }
 
+    function setGpsAtCrosshair() {
+      if (!map) return;
+      const latlng = crosshairLatLng();
+      if (gpsMarker) { try { map.removeLayer(gpsMarker); } catch (e) { } }
+      gpsMarker = L.marker([latlng.lat, latlng.lng], {
+        icon: L.divIcon({
+          className: 'gps-marker-arrow',
+          html: createGpsArrowIconHtml('#007bff'),
+          iconSize: [40, 40],
+          iconAnchor: [20, 20]
+        }),
+        pane: 'drawPane'
+      }).addTo(map).bindPopup('GPS Position (Manual)', { closeButton: true });
+      map.setView([latlng.lat, latlng.lng], Math.max(map.getZoom(), 15));
+      sendGpsToServer(latlng.lat, latlng.lng);
+      gpsManualMode = false;
+      const btn = document.getElementById('set-btn');
+      if (btn) btn.innerText = 'SET POINT';
+      togglePrecisionUI(false);
+    }
+
     let _lastPlaceTime = 0;
     function placeMarkerAtCrosshair() {
       if (!map) return;
       const now = Date.now();
       if (now - _lastPlaceTime < 600) return; // Prevent touch+click double-fire
       _lastPlaceTime = now;
+      if (gpsManualMode) { setGpsAtCrosshair(); return; }
       if (!currentTool || currentTool === 'trash') return; // No tool selected
       const latlng = crosshairLatLng();
       const cid = 'local-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
@@ -3569,7 +3596,12 @@
     };
 
     window.setManualGps = function() {
-      alert('Manual GPS mode activated. Use the crosshair to set the position.');
+      gpsManualMode = true;
+      currentTool = '';
+      document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('set-btn');
+      if (btn) btn.innerText = 'SET GPS';
+      togglePrecisionUI(true);
       toggleHamburgerMenu();
     };
 
