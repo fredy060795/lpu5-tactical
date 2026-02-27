@@ -733,7 +733,7 @@
         <div class="streams-list" style="margin-top: 30px;">
             <h2><i class="fas fa-satellite-dish"></i> Incoming Streams (From Other EUDs)</h2>
             <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">
-                Multiple streams from other users. Select one to broadcast to EUDs.
+                Multiple streams from other users. Assign each stream to a slot (1–15) and broadcast to target units. <strong style="color: var(--accent-green);">Maximum 15 streams can be shared simultaneously.</strong>
             </p>
             <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
                 <button id="multicastToggleBtn" onclick="toggleMulticast()" style="padding: 8px 16px; background: var(--panel-input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85rem;">
@@ -742,7 +742,7 @@
                 <span id="multicastStatus" style="color: #888; font-size: 0.85rem;"></span>
             </div>
             <div style="margin-bottom:12px;">
-                <span style="color:#aaa;font-size:0.85rem;"><i class="fas fa-shield-alt"></i> Target units are selected per stream below (empty = all)</span>
+                <span style="color:#aaa;font-size:0.85rem;"><i class="fas fa-shield-alt"></i> Target units are selected per stream below (empty = all). Each stream is assigned a slot (stream_share_N.html) for independent distribution.</span>
             </div>
             <div id="incomingStreamsContainer" class="incoming-streams-grid">
                 <div class="no-streams">
@@ -771,10 +771,12 @@
         let frameCapture = null;
         let isSharing = false;
         let incomingStreams = new Map(); // Track incoming streams from other EUDs
-        let selectedBroadcastStream = null; // Currently selected stream to broadcast
-        let multicastEnabled = false; // Multicast rotation mode
-        let multicastInterval = null; // Multicast rotation timer
+        let selectedBroadcastStream = null; // Currently selected stream to broadcast (single mode)
+        let multicastEnabled = false; // Multicast mode – allows parallel broadcasting to multiple slots
+        let multicastInterval = null; // Unused in parallel mode, kept for compatibility
         let availableUnits = []; // Units available for per-stream target selection
+        const MAX_STREAM_SLOTS = 15; // Maximum number of simultaneous multicast streams
+        let streamSlotMap = {}; // streamId -> assigned slot number (1-15)
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -811,6 +813,23 @@
             const container = document.getElementById('unit-checks-' + streamId);
             if (!container) return [];
             return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        }
+
+        // Get selected stream slot number for a specific stream card
+        function getSelectedSlot(streamId) {
+            if (!streamId) return null;
+            const sel = document.querySelector(`select[data-stream-id="${streamId}"]`);
+            if (!sel || !sel.value) return null;
+            return parseInt(sel.value);
+        }
+
+        // Get the next available slot not already in use
+        function getNextAvailableSlot() {
+            const used = new Set(Object.values(streamSlotMap));
+            for (let s = 1; s <= MAX_STREAM_SLOTS; s++) {
+                if (!used.has(s)) return s;
+            }
+            return null;
         }
 
         // Setup source tabs
@@ -1503,11 +1522,15 @@
         function renderIncomingStreams() {
             const container = document.getElementById('incomingStreamsContainer');
             
-            // Save current checkbox selections before re-rendering
+            // Save current checkbox selections and slot selections before re-rendering
             const savedSelections = {};
+            const savedSlots = {};
             container.querySelectorAll('.unit-checkbox-group').forEach(group => {
                 const sid = group.id.replace('unit-checks-', '');
                 savedSelections[sid] = Array.from(group.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            });
+            container.querySelectorAll('select[data-stream-slot]').forEach(sel => {
+                savedSlots[sel.dataset.streamId] = sel.value;
             });
 
             if (incomingStreams.size === 0) {
@@ -1521,10 +1544,25 @@
                 return;
             }
 
+            // Build list of used slots so we can show which are taken
+            const usedSlots = Object.values(streamSlotMap);
+
             let html = '';
             for (const [streamId, stream] of incomingStreams.entries()) {
-                const isSelected = selectedBroadcastStream === streamId;
-                const badgeHtml = isSelected ? '<div class="stream-badge">BROADCASTING</div>' : '';
+                const isSelected = multicastEnabled
+                    ? (streamId in streamSlotMap)
+                    : selectedBroadcastStream === streamId;
+                const currentSlot = streamSlotMap[streamId] || (savedSlots[streamId] ? parseInt(savedSlots[streamId]) : '');
+                const badgeHtml = isSelected
+                    ? `<div class="stream-badge">${multicastEnabled ? 'SLOT ' + currentSlot : 'BROADCASTING'}</div>`
+                    : '';
+
+                // Build slot options (1-15)
+                let slotOptions = '<option value="">-- Select Slot --</option>';
+                for (let s = 1; s <= MAX_STREAM_SLOTS; s++) {
+                    const taken = usedSlots.includes(s) && streamSlotMap[streamId] !== s;
+                    slotOptions += `<option value="${s}" ${currentSlot === s ? 'selected' : ''} ${taken ? 'disabled' : ''}>${taken ? 'Slot ' + s + ' (used)' : 'Slot ' + s}</option>`;
+                }
                 
                 html += `
                     <div class="incoming-stream-card ${isSelected ? 'selected' : ''}" id="stream-card-${streamId}">
@@ -1563,12 +1601,18 @@
                                     }
                                 </div>
                             </div>
+                            <div style="margin-bottom:10px;">
+                                <span class="unit-checkbox-group-label"><i class="fas fa-th-large"></i> Stream Slot (stream_share_N.html):</span>
+                                <select data-stream-slot data-stream-id="${streamId}" style="width:100%;padding:6px;background:var(--panel-input-bg);border:1px solid var(--border-color);border-radius:4px;color:var(--text-main);font-family:'Courier New',monospace;font-size:0.85rem;margin-top:4px;">
+                                    ${slotOptions}
+                                </select>
+                            </div>
                             <div class="incoming-stream-actions">
                                 ${!isSelected ? 
                                     `<button class="stream-select-btn broadcast" onclick="selectStreamToBroadcast('${streamId}')">
                                         <i class="fas fa-broadcast-tower"></i> Broadcast This
                                     </button>` :
-                                    `<button class="stream-select-btn stop" onclick="deselectStream()">
+                                    `<button class="stream-select-btn stop" onclick="deselectStream('${streamId}')">
                                         <i class="fas fa-stop"></i> Stop Broadcasting
                                     </button>`
                                 }
@@ -1598,18 +1642,38 @@
                 return;
             }
 
-            // Enforce single-broadcast: warn if another stream is already broadcasting
-            if (selectedBroadcastStream && selectedBroadcastStream !== streamId && !multicastEnabled) {
+            // In multicast mode allow parallel broadcasting; in single mode enforce one stream at a time
+            if (!multicastEnabled && selectedBroadcastStream && selectedBroadcastStream !== streamId) {
                 showToast('⚠️ Another stream is already broadcasting! Stop it first or enable Multicast.', 'error');
                 return;
             }
 
-            // Deselect previous stream
-            if (selectedBroadcastStream) {
-                deselectStream();
+            // In multicast mode check slot limit
+            if (multicastEnabled && !(streamId in streamSlotMap)) {
+                const usedCount = Object.keys(streamSlotMap).length;
+                if (usedCount >= MAX_STREAM_SLOTS) {
+                    showToast(`⚠️ Maximum of ${MAX_STREAM_SLOTS} simultaneous streams reached.`, 'error');
+                    return;
+                }
+            }
+
+            // Determine the target slot
+            let slot = getSelectedSlot(streamId) || streamSlotMap[streamId];
+            if (!slot) {
+                slot = getNextAvailableSlot();
+                if (!slot) {
+                    showToast(`⚠️ All ${MAX_STREAM_SLOTS} stream slots are in use.`, 'error');
+                    return;
+                }
+            }
+
+            // In single mode, deselect previous stream first
+            if (!multicastEnabled && selectedBroadcastStream && selectedBroadcastStream !== streamId) {
+                deselectStream(selectedBroadcastStream);
             }
 
             selectedBroadcastStream = streamId;
+            streamSlotMap[streamId] = slot;
             renderIncomingStreams();
 
             // Notify all clients via WebSocket
@@ -1618,37 +1682,41 @@
                 ws.send(JSON.stringify({
                     type: 'broadcast_selected',
                     streamId: streamId,
+                    slot: slot,
                     source: stream.source,
                     details: stream.details,
                     target_units: targetUnits,
                     timestamp: Date.now()
                 }));
-                // Also send stream_share so stream_share.html receives the full stream data
-                // and _active_stream_share is updated for polling clients.
-                // This is the admin-approval step: only reaching here means the admin clicked "Broadcast This".
+                // Also send stream_share with the slot so per-slot viewers (stream_share_N.html)
+                // and the legacy stream_share.html all receive the full stream data.
                 ws.send(JSON.stringify({
                     type: 'stream_share',
                     streamId: streamId,
+                    slot: slot,
                     active: true,
                     isCamera: stream.isCamera || false,
                     stream_url: stream.stream_url || null,
                     source: stream.source,
                     details: stream.details,
+                    username: stream.username || '',
                     target_units: targetUnits,
                     timestamp: Date.now()
                 }));
             }
 
-            showToast(`Now broadcasting: ${stream.source}`, 'success');
-            console.log('Selected stream to broadcast:', streamId);
+            showToast(`Broadcasting on Slot ${slot}: ${stream.source}`, 'success');
+            console.log('Selected stream to broadcast:', streamId, 'slot:', slot);
         }
 
-        // Deselect current broadcast stream
-        function deselectStream() {
-            if (!selectedBroadcastStream) return;
+        // Deselect a broadcast stream (by streamId, or current if omitted)
+        function deselectStream(streamId) {
+            const sid = streamId || selectedBroadcastStream;
+            if (!sid) return;
 
-            const streamId = selectedBroadcastStream;
-            selectedBroadcastStream = null;
+            const slot = streamSlotMap[sid];
+            delete streamSlotMap[sid];
+            if (selectedBroadcastStream === sid) selectedBroadcastStream = null;
             renderIncomingStreams();
 
             // Notify all clients
@@ -1656,12 +1724,14 @@
                 ws.send(JSON.stringify({
                     type: 'broadcast_selected',
                     streamId: null,
+                    slot: slot || null,
                     timestamp: Date.now()
                 }));
-                // Also clear _active_stream_share so stream_share.html polling doesn't re-activate the stream
+                // Also clear the per-slot state so polling viewers stop showing the stream
                 ws.send(JSON.stringify({
                     type: 'stream_share',
-                    streamId: streamId,
+                    streamId: sid,
+                    slot: slot || null,
                     active: false,
                     timestamp: Date.now()
                 }));
@@ -1670,54 +1740,23 @@
             showToast('Broadcast stopped', 'info');
         }
 
-        // Enable multicast rotation — cycles through all available streams every 15 seconds
+        // Enable multicast — allows multiple streams to be broadcast simultaneously to different slots
         function enableMulticast() {
             if (multicastEnabled) return;
-            if (incomingStreams.size < 2) {
-                showToast('Multicast requires at least 2 incoming streams', 'error');
+            if (incomingStreams.size < 1) {
+                showToast('Multicast requires at least 1 incoming stream', 'error');
                 return;
             }
             multicastEnabled = true;
-            let streamIds = Array.from(incomingStreams.keys());
-            let currentIndex = 0;
-            showToast('Multicast enabled — rotating every 15 seconds', 'success');
-            multicastInterval = setInterval(() => {
-                streamIds = Array.from(incomingStreams.keys());
-                if (streamIds.length < 2) {
-                    disableMulticast();
-                    return;
+            // Auto-assign slots to all incoming streams that don't yet have one
+            for (const [sid] of incomingStreams.entries()) {
+                if (!(sid in streamSlotMap)) {
+                    const nextSlot = getNextAvailableSlot();
+                    if (nextSlot) streamSlotMap[sid] = nextSlot;
                 }
-                currentIndex = (currentIndex + 1) % streamIds.length;
-                const nextId = streamIds[currentIndex];
-                const nextStream = incomingStreams.get(nextId);
-                // Bypass single-broadcast guard during multicast rotation
-                selectedBroadcastStream = nextId;
-                renderIncomingStreams();
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    const targetUnits = getSelectedTargetUnits(nextId);
-                    ws.send(JSON.stringify({
-                        type: 'broadcast_selected',
-                        streamId: nextId,
-                        source: nextStream ? nextStream.source : nextId,
-                        details: nextStream ? nextStream.details : '',
-                        target_units: targetUnits,
-                        timestamp: Date.now()
-                    }));
-                    // Also send stream_share so stream_share.html gets the full stream data
-                    ws.send(JSON.stringify({
-                        type: 'stream_share',
-                        streamId: nextId,
-                        active: true,
-                        isCamera: nextStream ? (nextStream.isCamera || false) : false,
-                        stream_url: nextStream ? (nextStream.stream_url || null) : null,
-                        source: nextStream ? nextStream.source : nextId,
-                        details: nextStream ? nextStream.details : '',
-                        target_units: targetUnits,
-                        timestamp: Date.now()
-                    }));
-                }
-                showToast(`Multicast: Switching to ${nextStream ? nextStream.source : nextId}`, 'info');
-            }, 15000);
+            }
+            renderIncomingStreams();
+            showToast(`Multicast enabled — up to ${MAX_STREAM_SLOTS} streams can now be broadcast simultaneously`, 'success');
         }
 
         // Toggle multicast on/off
@@ -1732,12 +1771,12 @@
                 if (multicastEnabled) {
                     document.getElementById('multicastToggleBtn').innerHTML = '<i class="fas fa-random"></i> Disable Multicast';
                     document.getElementById('multicastToggleBtn').style.borderColor = 'var(--accent-green)';
-                    document.getElementById('multicastStatus').textContent = 'Rotating every 15s';
+                    document.getElementById('multicastStatus').textContent = `Parallel mode – max ${MAX_STREAM_SLOTS} streams`;
                 }
             }
         }
 
-        // Disable multicast rotation
+        // Disable multicast — revert to single-broadcast mode
         function disableMulticast() {
             if (!multicastEnabled) return;
             multicastEnabled = false;
@@ -1745,6 +1784,8 @@
                 clearInterval(multicastInterval);
                 multicastInterval = null;
             }
+            // Keep existing slot assignments but clear multi-select
+            renderIncomingStreams();
             showToast('Multicast disabled', 'info');
         }
         function startFrameCapture() {

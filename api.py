@@ -5888,6 +5888,11 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
 # Thread-safe for simple dict replacement (GIL-protected single assignment).
 _active_stream_share: Dict = {"active": False}
 
+# Per-slot stream share state for multicast distribution (up to 15 simultaneous streams).
+# Each slot can carry an independent stream targeted to specific units.
+MAX_STREAM_SLOTS = 15
+_active_stream_shares: Dict[int, Dict] = {i: {"active": False, "slot": i} for i in range(1, MAX_STREAM_SLOTS + 1)}
+
 # Server-side camera frame rate limiting: track last relay time per source connection.
 # Prevents flooding the event loop when clients send frames faster than they can be relayed.
 _CAMERA_FRAME_MIN_INTERVAL = 0.15  # minimum seconds between relayed frames (≈6.67 fps max)
@@ -5913,6 +5918,37 @@ async def set_stream_share(data: Dict = Body(...)):
     # Also broadcast via WebSocket
     broadcast_websocket_update("camera", "stream_share", _active_stream_share)
     return {"status": "success"}
+
+@app.get("/api/stream_slots", summary="Get all active stream slots")
+def get_stream_slots():
+    """Return all stream slot states (slots 1-15) for multicast distribution."""
+    return {"slots": list(_active_stream_shares.values()), "max_slots": MAX_STREAM_SLOTS}
+
+@app.get("/api/stream_share/{slot}", summary="Get shared stream state for a specific slot")
+def get_stream_share_slot(slot: int = Path(..., ge=1, le=MAX_STREAM_SLOTS)):
+    """Return the currently active stream info for the given slot (polled by stream_share_N.html)."""
+    return _active_stream_shares.get(slot, {"active": False, "slot": slot})
+
+@app.post("/api/stream_share/{slot}", summary="Set shared stream state for a specific slot")
+async def set_stream_share_slot(slot: int = Path(..., ge=1, le=MAX_STREAM_SLOTS), data: Dict = Body(...)):
+    """Update the stream state for a specific slot (called by stream.html multicast broadcasting)."""
+    global _active_stream_shares
+    slot_state = {
+        "active": data.get("active", False),
+        "slot": slot,
+        "streamId": data.get("streamId"),
+        "stream_url": data.get("stream_url"),
+        "stream_type": data.get("stream_type", "video"),
+        "isCamera": data.get("isCamera", False),
+        "source": data.get("source"),
+        "details": data.get("details"),
+        "target_units": data.get("target_units", []),
+        "username": data.get("username"),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    _active_stream_shares[slot] = slot_state
+    broadcast_websocket_update("camera", "stream_share", slot_state)
+    return {"status": "success", "slot": slot}
 
 # ===========================
 # WebSocket Endpoint
@@ -5984,29 +6020,55 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Persist state for polling endpoint (/api/stream_share)
                     global _active_stream_share
                     is_camera = data.get('isCamera', False)
+                    stream_type = data.get('stream_type', 'mjpeg' if is_camera else 'video')
                     _active_stream_share = {
                         "active": data.get('active', False),
                         "streamId": data.get('streamId', 'camera_main'),
                         "stream_url": data.get('stream_url'),
-                        "stream_type": data.get('stream_type', 'mjpeg' if is_camera else 'video'),
+                        "stream_type": stream_type,
                         "isCamera": is_camera,
                         "source": data.get('source'),
                         "details": data.get('details'),
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }
-                    await websocket_manager.publish_to_channel('camera', {
+                    # Also update per-slot state when a slot is provided (multicast distribution)
+                    slot = data.get('slot')
+                    if slot is not None:
+                        try:
+                            slot_int = int(slot)
+                            if 1 <= slot_int <= MAX_STREAM_SLOTS:
+                                _active_stream_shares[slot_int] = {
+                                    "active": data.get('active', False),
+                                    "slot": slot_int,
+                                    "streamId": data.get('streamId', 'camera_main'),
+                                    "stream_url": data.get('stream_url'),
+                                    "stream_type": stream_type,
+                                    "isCamera": is_camera,
+                                    "source": data.get('source'),
+                                    "details": data.get('details'),
+                                    "target_units": data.get('target_units', []),
+                                    "username": data.get('username'),
+                                    "timestamp": datetime.now(timezone.utc).isoformat()
+                                }
+                        except (ValueError, TypeError):
+                            pass
+                    relay_msg = {
                         'type': 'stream_share',
                         'channel': 'camera',
                         'streamId': data.get('streamId', 'camera_main'),
                         'active': data.get('active', False),
                         'isCamera': is_camera,
                         'stream_url': data.get('stream_url'),
-                        'stream_type': _active_stream_share['stream_type'],
+                        'stream_type': stream_type,
                         'source': data.get('source'),
                         'details': data.get('details'),
+                        'target_units': data.get('target_units', []),
                         'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
-                    })
+                    }
+                    if slot is not None:
+                        relay_msg['slot'] = slot
+                    await websocket_manager.publish_to_channel('camera', relay_msg)
                     relay_handled = True
                     
                 elif message_type == 'stream_available':

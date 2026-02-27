@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Stream Viewer Slot 13 - LPU5 Tactical</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .stream-container {
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .stream-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+
+    .stream-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .stream-placeholder {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #333;
+      text-align: center;
+      font-size: 2rem;
+    }
+
+    .slot-badge {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,123,255,0.7);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      pointer-events: none;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+<div class="stream-container">
+  <div class="stream-content" id="streamContent">
+    <video id="streamVideo" class="stream-video" autoplay muted controls></video>
+    <img id="streamImage" class="stream-video" style="display:none;" alt="Stream">
+    <div class="stream-placeholder" id="streamPlaceholder">
+      <i class="fas fa-video-slash"></i>
+    </div>
+  </div>
+</div>
+<div class="slot-badge">Slot 13</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const STREAM_SLOT = 13;
+
+  const streamVideo = document.getElementById('streamVideo');
+  const streamImage = document.getElementById('streamImage');
+  const streamPlaceholder = document.getElementById('streamPlaceholder');
+
+  let isCameraStream = false;
+  let ws = null;
+  let currentBroadcastStreamId = null;
+
+  function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = protocol + '//' + window.location.host + '/ws';
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onopen = function() {
+        ws.send(JSON.stringify({ type: 'subscribe', channel: 'camera' }));
+      };
+      ws.onmessage = function(event) {
+        try {
+          var data = JSON.parse(event.data);
+          // Only process events that belong to this slot (or have no slot = legacy broadcast)
+          var msgSlot = data.slot !== undefined ? parseInt(data.slot) : null;
+          var slotMatch = (msgSlot === null || msgSlot === STREAM_SLOT);
+          if (data.type === 'stream_share' && slotMatch) {
+            if (data.active) {
+              currentBroadcastStreamId = data.streamId || null;
+              isCameraStream = !!data.isCamera;
+              if (!data.isCamera && data.stream_url) {
+                showStream(data);
+              } else if (data.isCamera) {
+                streamPlaceholder.style.display = 'none';
+                streamVideo.style.display = 'none';
+                streamImage.style.display = 'block';
+              }
+            } else if (!data.streamId || data.streamId === currentBroadcastStreamId) {
+              hideStream();
+            }
+          } else if (data.type === 'camera_frame' && slotMatch) {
+            if (data.frame && currentBroadcastStreamId &&
+                (data.streamId === currentBroadcastStreamId || !data.streamId)) {
+              showCameraFrame(data.frame);
+            }
+          } else if (data.type === 'broadcast_selected' && slotMatch) {
+            currentBroadcastStreamId = data.streamId || null;
+            if (!currentBroadcastStreamId) {
+              hideStream();
+            }
+          } else if (data.type === 'camera_stream_stop' && slotMatch) {
+            hideStream();
+          }
+        } catch (e) { console.warn('Failed to parse WebSocket message:', e); }
+      };
+      ws.onclose = function() {
+        ws = null;
+        setTimeout(connectWebSocket, 5000);
+      };
+      ws.onerror = function() {};
+    } catch (e) {
+      console.error('Stream viewer WebSocket failed:', e);
+    }
+  }
+
+  function showCameraFrame(frame) {
+    streamPlaceholder.style.display = 'none';
+    streamVideo.style.display = 'none';
+    streamImage.style.display = 'block';
+    streamImage.src = frame;
+    isCameraStream = true;
+  }
+
+  function checkForSharedStream() {
+    var headers = {};
+    var token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    fetch('/api/stream_share/' + STREAM_SLOT, { headers: headers })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.active) {
+          if (data.isCamera) {
+            isCameraStream = true;
+            currentBroadcastStreamId = data.streamId || null;
+            streamPlaceholder.style.display = 'none';
+            streamVideo.style.display = 'none';
+            streamImage.style.display = 'block';
+          } else if (data.stream_url) {
+            showStream(data);
+          }
+        } else {
+          if (!isCameraStream) hideStream();
+        }
+      })
+      .catch(function(err) { console.error('Error checking stream slot:', err); });
+  }
+
+  function showStream(data) {
+    streamPlaceholder.style.display = 'none';
+    isCameraStream = false;
+    if (data.stream_type === 'mjpeg') {
+      streamVideo.style.display = 'none';
+      streamImage.style.display = 'block';
+      streamImage.src = data.stream_url;
+    } else {
+      streamImage.style.display = 'none';
+      streamVideo.style.display = 'block';
+      if (streamVideo.src !== data.stream_url) {
+        streamVideo.src = data.stream_url;
+        streamVideo.load();
+        streamVideo.play().catch(function(e) { console.warn('Autoplay prevented:', e); });
+      }
+    }
+  }
+
+  function hideStream() {
+    isCameraStream = false;
+    streamVideo.style.display = 'none';
+    streamImage.style.display = 'none';
+    streamPlaceholder.style.display = 'block';
+    if (streamVideo.src) { streamVideo.pause(); streamVideo.src = ''; }
+    if (streamImage.src) { streamImage.src = ''; }
+  }
+
+  connectWebSocket();
+  setInterval(checkForSharedStream, 10000);
+  checkForSharedStream();
+
+  console.log('Stream viewer slot ' + STREAM_SLOT + ' initialized');
+})();
+</script>
+
+</body>
+</html>
