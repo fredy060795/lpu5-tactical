@@ -557,7 +557,7 @@
                     <td>${m.location || '—'}</td>
                     <td class="status-${m.status}">${m.status}</td>
                     <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <button class="btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="window.open('Mission_Order.html?id=${m.id}','_blank')" title="Order View">
+                        <button class="btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="window.open('mission_Overview.html?id=${m.id}','_blank')" title="Overview">
                             <i class="fas fa-eye"></i> ORDER
                         </button>
                         ${m.status === 'ONGOING' ? `
@@ -647,7 +647,7 @@
     function openOrderView() {
         const missionId = document.getElementById('orderMissionSelect').value;
         if (!missionId) { alert('❌ Please select a mission first.'); return; }
-        window.open(`Mission_Order.html?id=${missionId}`, '_blank');
+        window.open(`mission_Overview.html?id=${missionId}`, '_blank');
     }
 
     async function uploadAttachment() {
