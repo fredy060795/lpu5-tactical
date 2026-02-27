@@ -1666,7 +1666,7 @@ def get_missions():
         return [
             {
                 "id": m.id,
-                "objective": m.name,
+                "objective": m.name or (m.data.get("objective") if m.data else None),
                 "description": m.description,
                 "status": m.status,
                 "created_at": m.created_at.isoformat() if m.created_at else None,
@@ -1749,7 +1749,7 @@ def api_mission_details(mission_id: str = Path(...)):
         # Map back to legacy format for frontend
         m_dict = {
             "id": mission.id,
-            "objective": mission.name,
+            "objective": mission.name or (mission.data.get("objective") if mission.data else None),
             "description": mission.description,
             "status": mission.status,
             "created_at": mission.created_at.isoformat() if mission.created_at else None,
