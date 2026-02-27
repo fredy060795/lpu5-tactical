@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MISSION ORDER</title>
+    <title>MISSION OVERVIEW</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -277,7 +277,7 @@
 
 <header>
     <i class="fas fa-scroll" style="font-size:1.4em;"></i>
-    <h1>MISSION ORDER &mdash; <span id="headerTitle">...</span></h1>
+    <h1>MISSION OVERVIEW &mdash; <span id="headerTitle">...</span></h1>
 </header>
 
 <div id="pageLayout">
@@ -401,7 +401,7 @@
             const m = await res.json();
 
             document.getElementById('headerTitle').textContent = m.objective || m.name || id;
-            document.title = 'ORDER – ' + (m.objective || id);
+            document.title = 'OVERVIEW – ' + (m.objective || id);
 
             const d = m.data || {};
             const statusClass = `status-${m.status || 'ONGOING'}`;
