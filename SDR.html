@@ -188,10 +188,6 @@
             color: #2ecc71;
             z-index: 2;
         }
-        .sdr-mode-badge.simulated {
-            background: rgba(243,156,18,0.2);
-            color: #f39c12;
-        }
 
         #spectrumCanvas, #waterfallCanvas {
             width: 100%;
@@ -487,7 +483,7 @@
 
             <!-- Combined Spectrum + Waterfall display -->
             <div class="sdr-display-wrap" id="sdrDisplayWrap">
-                <span class="sdr-mode-badge simulated" id="sdrModeBadge">SIM</span>
+                <span class="sdr-mode-badge" id="sdrModeBadge">LIVE</span>
 
                 <!-- Spectrum canvas (FFT line plot) -->
                 <canvas id="spectrumCanvas" height="180"></canvas>
@@ -625,7 +621,7 @@
     // State
     // =====================================================================
     let sdrConnected   = false;
-    let sdrMode        = 'simulated'; // 'hardware' | 'simulated'
+    let sdrMode        = 'hardware'; // hardware only
     let mqttConnected  = false;
     let continuousScan = false;
     let scanTimer      = null;
@@ -837,13 +833,8 @@
     function setModeBadge(mode) {
         var badge = document.getElementById('sdrModeBadge');
         if (!badge) return;
-        if (mode === 'rtlsdr_hardware' || mode === 'rtl_power') {
-            badge.textContent = 'LIVE';
-            badge.className   = 'sdr-mode-badge';
-        } else {
-            badge.textContent = 'SIM';
-            badge.className   = 'sdr-mode-badge simulated';
-        }
+        badge.textContent = 'LIVE';
+        badge.className   = 'sdr-mode-badge';
     }
 
     // =====================================================================
@@ -900,11 +891,6 @@
             if (devices.length === 0) {
                 statusEl.textContent = 'No RTL-SDR found';
                 statusEl.className   = 'status-badge status-offline';
-                var opt = document.createElement('option');
-                opt.value = 'auto'; opt.textContent = 'Auto-Detect (simulation mode)';
-                opt.dataset.rtlsdr = '1';
-                select.appendChild(opt);
-                select.value = 'auto';
             } else {
                 devices.forEach(function(dev, idx) {
                     var opt = document.createElement('option');
@@ -960,25 +946,22 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             sdrConnected = true;
-            sdrMode      = data.mode || 'simulated';
+            sdrMode      = data.mode || 'hardware';
 
-            statusEl.textContent = (sdrMode === 'hardware' ? 'Connected (HW)' : 'Connected (SIM)');
+            statusEl.textContent = 'Connected (HW)';
             statusEl.className   = 'status-badge status-online';
-            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (' + sdrMode.toUpperCase() + ')';
+            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (HW)';
             mainStatus.className = 'status-badge status-online';
 
-            setModeBadge(sdrMode === 'hardware' ? 'rtlsdr_hardware' : 'simulated');
+            setModeBadge(sdrMode);
             console.log('[SDR] Connected — mode:', sdrMode, 'devices:', data.devices);
         })
         .catch(function(e) {
             console.error('[SDR] connect failed:', e);
-            // Graceful fallback: allow simulation even if API is unreachable
-            sdrConnected = true;
-            sdrMode      = 'simulated';
-            statusEl.textContent = 'Connected (SIM)';
-            statusEl.className   = 'status-badge status-online';
-            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (SIM)';
-            mainStatus.className = 'status-badge status-online';
+            statusEl.textContent = 'Connection failed';
+            statusEl.className   = 'status-badge status-offline';
+            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Offline';
+            mainStatus.className = 'status-badge status-offline';
         });
     };
 
@@ -1015,7 +998,7 @@
             var spectrum   = data.spectrum  || [];
             var fStart     = data.freq_start_mhz;
             var fEnd       = data.freq_end_mhz;
-            var source     = data.source    || 'simulated';
+            var source     = data.source    || 'hardware';
 
             setModeBadge(source);
 
@@ -1039,7 +1022,7 @@
 
             // Log entry
             var distStr = blocked ? 'squelch' : (distance !== null ? distance.toFixed(1) + ' m' : '--');
-            addLogEntry(freq, mode, peak, distStr, source === 'rtlsdr_hardware' ? 'HW' : (source === 'rtl_power' ? 'CLI' : 'SIM'));
+            addLogEntry(freq, mode, peak, distStr, source === 'rtl_power' ? 'CLI' : 'HW');
         })
         .catch(function(e) {
             console.error('[SDR] measure failed:', e);
@@ -1182,11 +1165,11 @@
 
     function addLogEntry(freq, mode, power, distance, source) {
         var ts = new Date().toLocaleTimeString('en-US');
-        source = source || 'SIM';
+        source = source || 'HW';
         measurementLog.push({ time: ts, freq: freq, mode: mode, power: power, distance: distance, source: source });
         var tbody = document.getElementById('logBody');
         if (measurementLog.length === 1) tbody.innerHTML = '';
-        var srcColor = (source === 'HW' || source === 'CLI') ? '#2ecc71' : '#f39c12';
+        var srcColor = '#2ecc71';
         var tr = document.createElement('tr');
         tr.innerHTML = '<td>' + ts + '</td>' +
             '<td>' + freq.toFixed(3) + '</td>' +
@@ -1237,7 +1220,7 @@
         measurementLog.forEach(function(e) {
             csv += e.time + ',' + e.freq + ',' + e.mode + ',' +
                 (typeof e.power === 'number' ? e.power.toFixed(2) : e.power) + ',' +
-                e.distance + ',' + (e.source || 'SIM') + '\n';
+                e.distance + ',' + (e.source || 'HW') + '\n';
         });
         var a  = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
