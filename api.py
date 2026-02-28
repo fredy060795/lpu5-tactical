@@ -340,12 +340,28 @@ async def lifespan(application):
                 else:
                     logger.warning("⚠️  Failed to start TAK receiver thread")
             # Forward all existing LPU5 data to TAK server in a background thread
+            # (5-second delay lets the server finish initialization before sending)
+            def _delayed_tak_forward():
+                time.sleep(5)
+                _forward_all_lpu5_data_to_tak()
+
             threading.Thread(
-                target=_forward_all_lpu5_data_to_tak,
+                target=_delayed_tak_forward,
                 daemon=True,
                 name="tak-initial-forward",
             ).start()
             logger.info("✅ TAK initial data forward scheduled")
+            # Start periodic TAK sync thread
+            global _TAK_PERIODIC_SYNC_THREAD
+            if _TAK_PERIODIC_SYNC_THREAD is None or not _TAK_PERIODIC_SYNC_THREAD.is_alive():
+                _TAK_PERIODIC_SYNC_STOP_EVENT.clear()
+                _TAK_PERIODIC_SYNC_THREAD = threading.Thread(
+                    target=_tak_periodic_sync_worker,
+                    daemon=True,
+                    name="tak-periodic-sync",
+                )
+                _TAK_PERIODIC_SYNC_THREAD.start()
+                logger.info("✅ TAK periodic sync worker started (interval=60s)")
     except Exception as e:
         logger.error("Error starting TAK receiver thread: %s", e)
 
@@ -386,6 +402,12 @@ async def lifespan(application):
     # Stop marker broadcast thread
     try:
         _MARKER_BROADCAST_STOP_EVENT.set()
+    except Exception:
+        pass
+
+    # Stop TAK periodic sync thread
+    try:
+        _TAK_PERIODIC_SYNC_STOP_EVENT.set()
     except Exception:
         pass
 
@@ -1255,6 +1277,10 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 marker.data = new_data
                 flag_modified(marker, "data")
             else:
+                if uid.startswith("mesh-"):
+                    # ATAK is echoing back a Meshtastic node we forwarded; skip
+                    # creating a duplicate marker to avoid double rendering.
+                    return
                 marker = MapMarker(
                     id=uid,
                     name=callsign,
@@ -1502,7 +1528,7 @@ def _forward_all_lpu5_data_to_tak() -> dict:
 
     db = SessionLocal()
     try:
-        markers = db.query(MapMarker).all()
+        markers = db.query(MapMarker).filter(MapMarker.created_by != "tak_server").all()
         for marker in markers:
             try:
                 marker_dict = {
@@ -1712,6 +1738,31 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
                 break
             time.sleep(1)
     logger.info("Marker broadcast worker stopped")
+
+
+# Periodic TAK sync worker
+_TAK_PERIODIC_SYNC_THREAD = None
+_TAK_PERIODIC_SYNC_STOP_EVENT = threading.Event()
+
+def _tak_periodic_sync_worker(interval_seconds: int = 60):
+    """
+    Periodic worker that forwards all LPU5 map markers to the TAK server every
+    *interval_seconds* seconds.  Runs as a background daemon thread while the
+    application is alive.
+    """
+    logger.info("TAK periodic sync worker started (interval=%s s)", interval_seconds)
+    while not _TAK_PERIODIC_SYNC_STOP_EVENT.is_set():
+        for _ in range(max(1, interval_seconds)):
+            if _TAK_PERIODIC_SYNC_STOP_EVENT.is_set():
+                break
+            time.sleep(1)
+        if _TAK_PERIODIC_SYNC_STOP_EVENT.is_set():
+            break
+        try:
+            _forward_all_lpu5_data_to_tak()
+        except Exception as _sync_err:
+            logger.warning("TAK periodic sync error: %s", _sync_err)
+    logger.info("TAK periodic sync worker stopped")
 
 
 # -------------------------
