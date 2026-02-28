@@ -330,11 +330,30 @@ async def lifespan(application):
         except Exception as e:
             logger.error("Error starting CoT listener service: %s", e)
 
+    # Auto-start TAK receiver thread if TAK integration is enabled for tcp/ssl
+    try:
+        tak_cfg = _get_tak_config()
+        if (tak_cfg.get("tak_forward_enabled")
+                and tak_cfg.get("tak_server_host")
+                and tak_cfg.get("tak_connection_type", "udp") in ("tcp", "ssl")):
+            if _start_tak_receiver_thread():
+                logger.info("✅ TAK receiver thread started")
+            else:
+                logger.warning("⚠️  Failed to start TAK receiver thread")
+    except Exception as e:
+        logger.error("Error starting TAK receiver thread: %s", e)
+
     logger.info("Startup complete. DB files ensured.")
 
     yield
 
     # ---- Shutdown logic ----
+    # Stop TAK receiver thread
+    try:
+        _stop_tak_receiver_thread()
+    except Exception as e:
+        logger.error("Error stopping TAK receiver thread: %s", e)
+
     # Stop CoT listener service
     try:
         _stop_cot_listener()
@@ -1007,6 +1026,311 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
     except Exception as e:
         logger.warning("Failed to forward CoT to TAK server: %s", e)
         return False
+
+
+# -------------------------
+# TAK Receiver Thread (bidirectional persistent connection)
+# -------------------------
+
+_TAK_RECEIVER_THREAD: Optional[threading.Thread] = None
+_TAK_RECEIVER_STOP = threading.Event()
+_TAK_SOCKET = None
+_TAK_SOCKET_LOCK = threading.Lock()
+_TAK_RECEIVER_STATS: Dict[str, Any] = {
+    "connected": False,
+    "packets_received": 0,
+    "parse_errors": 0,
+    "last_error": None,
+    "connected_since": None,
+}
+_TAK_RECEIVER_STATS_LOCK = threading.Lock()
+
+
+def _process_incoming_cot(cot_xml: str) -> None:
+    """Parse an incoming CoT XML event, upsert a MapMarker, and broadcast to WebSocket clients."""
+    import xml.etree.ElementTree as _ET
+    try:
+        root = _ET.fromstring(cot_xml)
+        if root.tag != "event":
+            return
+
+        uid = root.get("uid")
+        if not uid:
+            return
+        event_type = root.get("type", "")
+
+        # Only process unit/marker types; skip ping-acks and other system types
+        relevant_prefixes = ("a-f", "a-h", "a-n", "a-u", "b-m-p")
+        if not any(event_type.startswith(p) for p in relevant_prefixes):
+            return
+
+        point = root.find("point")
+        if point is None:
+            return
+        try:
+            lat = float(point.get("lat", 0))
+            lng = float(point.get("lon", 0))
+        except (TypeError, ValueError):
+            return
+
+        # Basic coordinate validation
+        if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lng <= 180.0):
+            return
+
+        # Extract callsign from detail/contact
+        detail = root.find("detail")
+        callsign = uid
+        if detail is not None:
+            contact = detail.find("contact")
+            if contact is not None:
+                callsign = contact.get("callsign") or callsign
+
+        # Map CoT type to LPU5 internal type
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
+        else:
+            if event_type.startswith("a-f"):
+                lpu5_type = "friendly"
+            elif event_type.startswith("a-h"):
+                lpu5_type = "hostile"
+            elif event_type.startswith("a-n"):
+                lpu5_type = "neutral"
+            else:
+                lpu5_type = "unknown"
+
+        # Upsert MapMarker
+        db = SessionLocal()
+        try:
+            marker = db.query(MapMarker).filter(MapMarker.id == uid).first()
+            if marker:
+                marker.lat = lat
+                marker.lng = lng
+                marker.name = callsign
+                marker.type = lpu5_type
+                new_data = dict(marker.data) if marker.data else {}
+                new_data["cot_type"] = event_type
+                marker.data = new_data
+                flag_modified(marker, "data")
+            else:
+                marker = MapMarker(
+                    id=uid,
+                    name=callsign,
+                    lat=lat,
+                    lng=lng,
+                    type=lpu5_type,
+                    created_by="tak_server",
+                    data={"cot_type": event_type},
+                )
+                db.add(marker)
+            db.commit()
+
+            # Broadcast to WebSocket clients
+            broadcast_websocket_update("markers", "tak_unit_update", {
+                "id": uid,
+                "callsign": callsign,
+                "lat": lat,
+                "lng": lng,
+                "type": lpu5_type,
+                "cot_type": event_type,
+                "created_by": "tak_server",
+            })
+            logger.info("TAK event received: %s (%s) @ %.6f, %.6f", callsign, event_type, lat, lng)
+        finally:
+            db.close()
+
+        with _TAK_RECEIVER_STATS_LOCK:
+            _TAK_RECEIVER_STATS["packets_received"] += 1
+
+    except Exception as e:
+        logger.debug("Failed to parse incoming CoT: %s", e)
+        with _TAK_RECEIVER_STATS_LOCK:
+            _TAK_RECEIVER_STATS["parse_errors"] += 1
+
+
+def _tak_receiver_loop() -> None:
+    """Background thread that maintains a persistent TAK server connection and receives CoT events."""
+    import ssl as _ssl_recv
+    backoff_delays = [5, 10, 30, 60]
+    attempt = 0
+    while not _TAK_RECEIVER_STOP.is_set():
+        try:
+            tak_cfg = _get_tak_config()
+            if not tak_cfg["tak_forward_enabled"] or not tak_cfg["tak_server_host"]:
+                for _ in range(10):
+                    if _TAK_RECEIVER_STOP.is_set():
+                        return
+                    time.sleep(1)
+                continue
+
+            host = tak_cfg["tak_server_host"]
+            port = tak_cfg["tak_server_port"]
+            conn_type = tak_cfg.get("tak_connection_type", "ssl")
+
+            if conn_type not in ("tcp", "ssl"):
+                # UDP is send-only; no persistent receiver possible
+                for _ in range(10):
+                    if _TAK_RECEIVER_STOP.is_set():
+                        return
+                    time.sleep(1)
+                continue
+
+            sock = None
+            try:
+                if conn_type == "ssl":
+                    # TAK servers commonly use self-signed certificates; verification is
+                    # intentionally disabled to allow field-deployed TAK server connections
+                    # (consistent with the outbound forward_cot_to_tak behaviour).
+                    ctx = _ssl_recv.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = _ssl_recv.CERT_NONE
+                    ctx.minimum_version = _ssl_recv.TLSVersion.TLSv1_2
+                    client_cert = tak_cfg.get("tak_client_cert", "")
+                    client_key = tak_cfg.get("tak_client_key", "")
+                    if client_cert:
+                        try:
+                            ctx.load_cert_chain(certfile=client_cert, keyfile=client_key or None)
+                        except Exception as cert_err:
+                            logger.warning("TAK receiver: failed to load client cert '%s': %s", client_cert, cert_err)
+                            with _TAK_RECEIVER_STATS_LOCK:
+                                _TAK_RECEIVER_STATS["last_error"] = str(cert_err)
+                            raise
+                    raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    raw.settimeout(_TAK_SOCKET_TIMEOUT)
+                    sock = ctx.wrap_socket(raw, server_hostname=host)
+                else:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(_TAK_SOCKET_TIMEOUT)
+
+                sock.connect((host, port))
+                sock.settimeout(30.0)  # Blocking recv with timeout for clean shutdown
+
+                with _TAK_SOCKET_LOCK:
+                    global _TAK_SOCKET
+                    _TAK_SOCKET = sock
+
+                with _TAK_RECEIVER_STATS_LOCK:
+                    _TAK_RECEIVER_STATS["connected"] = True
+                    _TAK_RECEIVER_STATS["connected_since"] = datetime.now(timezone.utc).isoformat()
+                    _TAK_RECEIVER_STATS["last_error"] = None
+
+                logger.info("TAK receiver connected to %s:%s (%s)", host, port, conn_type.upper())
+                attempt = 0  # Reset backoff on successful connection
+
+                # Send auth if configured
+                username = tak_cfg.get("tak_username", "")
+                password = tak_cfg.get("tak_password", "")
+                if username and password:
+                    auth_data = _build_tak_auth_xml(username, password)
+                    sock.sendall(auth_data)
+
+                # Receive loop
+                buf = b""
+                while not _TAK_RECEIVER_STOP.is_set():
+                    try:
+                        chunk = sock.recv(_TAK_RECV_BUFFER)
+                        if not chunk:
+                            logger.warning("TAK server closed connection")
+                            break
+                        buf += chunk
+                        # Process all complete CoT events in the buffer.
+                        # Search for both the opening <event and closing </event>
+                        # so partial or out-of-band data before the tag is discarded.
+                        while b"</event>" in buf:
+                            start = buf.find(b"<event")
+                            end = buf.find(b"</event>")
+                            if start == -1 or start > end:
+                                # Discard leading garbage up through this </event>
+                                buf = buf[end + 8:]
+                                continue
+                            packet = buf[start:end + 8]
+                            buf = buf[end + 8:]
+                            _process_incoming_cot(packet.decode("utf-8", errors="ignore"))
+                    except socket.timeout:
+                        continue  # No data yet; check stop event and retry
+                    except (OSError, Exception) as recv_err:
+                        if not _TAK_RECEIVER_STOP.is_set():
+                            logger.error("TAK receiver read error: %s", recv_err)
+                        break
+
+            except (socket.timeout, socket.gaierror, ConnectionRefusedError, OSError) as conn_err:
+                logger.warning("TAK receiver connection to %s:%s failed: %s", host, port, conn_err)
+                with _TAK_RECEIVER_STATS_LOCK:
+                    _TAK_RECEIVER_STATS["last_error"] = str(conn_err)
+
+        except Exception as outer_err:
+            logger.warning("TAK receiver unexpected error: %s", outer_err)
+            with _TAK_RECEIVER_STATS_LOCK:
+                _TAK_RECEIVER_STATS["last_error"] = str(outer_err)
+
+        finally:
+            with _TAK_SOCKET_LOCK:
+                if _TAK_SOCKET is not None:
+                    try:
+                        _TAK_SOCKET.close()
+                    except Exception:
+                        pass
+                    _TAK_SOCKET = None
+            with _TAK_RECEIVER_STATS_LOCK:
+                _TAK_RECEIVER_STATS["connected"] = False
+                _TAK_RECEIVER_STATS["connected_since"] = None
+
+        if _TAK_RECEIVER_STOP.is_set():
+            break
+
+        delay = backoff_delays[min(attempt, len(backoff_delays) - 1)]
+        attempt += 1
+        logger.info("TAK receiver reconnecting in %ss (attempt %s)", delay, attempt)
+        for _ in range(delay):
+            if _TAK_RECEIVER_STOP.is_set():
+                break
+            time.sleep(1)
+
+    logger.info("TAK receiver thread stopped")
+
+
+def _start_tak_receiver_thread() -> bool:
+    """Start the TAK receiver background thread. Returns True if started or already running."""
+    global _TAK_RECEIVER_THREAD
+    if _TAK_RECEIVER_THREAD is not None and _TAK_RECEIVER_THREAD.is_alive():
+        logger.debug("TAK receiver thread already running")
+        return True
+    _TAK_RECEIVER_STOP.clear()
+    _TAK_RECEIVER_THREAD = threading.Thread(
+        target=_tak_receiver_loop,
+        daemon=True,
+        name="tak-receiver",
+    )
+    _TAK_RECEIVER_THREAD.start()
+    logger.info("TAK receiver thread started")
+    return True
+
+
+def _stop_tak_receiver_thread() -> None:
+    """Stop the TAK receiver background thread gracefully."""
+    global _TAK_RECEIVER_THREAD
+    _TAK_RECEIVER_STOP.set()
+    with _TAK_SOCKET_LOCK:
+        if _TAK_SOCKET is not None:
+            try:
+                _TAK_SOCKET.close()
+            except Exception:
+                pass
+    if _TAK_RECEIVER_THREAD is not None and _TAK_RECEIVER_THREAD.is_alive():
+        _TAK_RECEIVER_THREAD.join(timeout=5)
+    _TAK_RECEIVER_THREAD = None
+    logger.info("TAK receiver thread stopped")
+
+
+def _is_tak_connected() -> bool:
+    """Return True if the TAK receiver has an active socket connection."""
+    with _TAK_RECEIVER_STATS_LOCK:
+        return bool(_TAK_RECEIVER_STATS.get("connected"))
+
+
+def _get_tak_connection_stats() -> dict:
+    """Return a copy of the TAK receiver statistics dict."""
+    with _TAK_RECEIVER_STATS_LOCK:
+        return dict(_TAK_RECEIVER_STATS)
 
 
 # -------------------------
@@ -5953,6 +6277,70 @@ async def upload_tak_cert(
 
     save_json("config", cfg)
     return {"status": "success", **{k: os.path.basename(v) for k, v in saved.items()}}
+
+
+@app.get("/api/tak/status", summary="Get TAK receiver connection status")
+def get_tak_status():
+    """
+    Return the current TAK receiver connection state and statistics.
+
+    Returns:
+    - connected: whether the receiver thread has an active socket
+    - packets_received: number of CoT events successfully parsed from the server
+    - parse_errors: number of malformed CoT packets that could not be parsed
+    - last_error: last connection or parse error message, or null
+    - connected_since: ISO timestamp of when the current connection was established
+    - receiver_running: whether the background receiver thread is alive
+    """
+    stats = _get_tak_connection_stats()
+    stats["receiver_running"] = (
+        _TAK_RECEIVER_THREAD is not None and _TAK_RECEIVER_THREAD.is_alive()
+    )
+    return stats
+
+
+@app.post("/api/tak/connect", summary="Manually start the TAK receiver thread")
+def tak_connect(authorization: Optional[str] = Header(None)):
+    """
+    Manually start the persistent TAK receiver background thread.
+
+    Requires a valid Bearer token.  The thread will auto-connect to the
+    configured TAK server (tak_server_host / tak_server_port).
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    tak_cfg = _get_tak_config()
+    if not tak_cfg.get("tak_forward_enabled"):
+        raise HTTPException(status_code=400, detail="TAK integration is disabled; enable tak_forward_enabled first")
+    if not tak_cfg.get("tak_server_host"):
+        raise HTTPException(status_code=400, detail="No TAK server host configured")
+    if tak_cfg.get("tak_connection_type", "udp") not in ("tcp", "ssl"):
+        raise HTTPException(status_code=400, detail="TAK receiver requires tcp or ssl connection type (udp is send-only)")
+
+    started = _start_tak_receiver_thread()
+    return {"status": "started" if started else "already_running"}
+
+
+@app.post("/api/tak/disconnect", summary="Stop the TAK receiver thread")
+def tak_disconnect(authorization: Optional[str] = Header(None)):
+    """
+    Gracefully stop the persistent TAK receiver background thread and close
+    the active socket connection.
+
+    Requires a valid Bearer token.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    _stop_tak_receiver_thread()
+    return {"status": "stopped"}
 
 
 @app.post("/api/geofence/create", summary="Create geofence")
