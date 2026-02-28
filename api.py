@@ -6029,7 +6029,7 @@ def _start_cot_listener() -> bool:
         if _cot_listener_service and _cot_listener_service.stats.get("running"):
             return True
         cfg = load_json("config") or {}
-        tcp_port = int(cfg.get("cot_listener_tcp_port", 8087))
+        tcp_port = int(cfg.get("cot_listener_tcp_port", 8088))
         udp_port = int(cfg.get("cot_listener_udp_port", 4242))
         _cot_listener_service = CoTListenerService(
             tcp_port=tcp_port,
