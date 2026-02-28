@@ -864,6 +864,11 @@ def _get_tak_config() -> dict:
     tak_username = cfg.get("tak_username", "")
     tak_password = cfg.get("tak_password", "")
 
+    # tak_client_cert / tak_client_key — paths to PEM files for mTLS client authentication.
+    # Required when the TAK server demands a client certificate (TLS 1.3 mandatory mTLS).
+    tak_client_cert = cfg.get("tak_client_cert", "")
+    tak_client_key = cfg.get("tak_client_key", "")
+
     raw_host = str(tak_host).strip() if tak_host else ""
     if raw_host:
         raw_host = re.sub(r'^https?://', '', raw_host).rstrip('/')
@@ -875,6 +880,8 @@ def _get_tak_config() -> dict:
         "tak_connection_type":  tak_type,
         "tak_username":         str(tak_username).strip() if tak_username else "",
         "tak_password":         str(tak_password) if tak_password else "",
+        "tak_client_cert":      str(tak_client_cert).strip() if tak_client_cert else "",
+        "tak_client_key":       str(tak_client_key).strip() if tak_client_key else "",
     }
 
 
@@ -954,6 +961,16 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
             ctx.check_hostname = False
             ctx.verify_mode = _ssl.CERT_NONE
             ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
+            # Load client certificate when configured (required for mTLS / TLS 1.3
+            # servers that send TLSV13_ALERT_CERTIFICATE_REQUIRED).
+            client_cert = tak_cfg.get("tak_client_cert", "")
+            client_key = tak_cfg.get("tak_client_key", "")
+            if client_cert:
+                try:
+                    ctx.load_cert_chain(certfile=client_cert, keyfile=client_key or None)
+                except Exception as cert_err:
+                    logger.warning("Failed to load TAK client certificate '%s': %s", client_cert, cert_err)
+                    return False
             raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             raw.settimeout(_TAK_SOCKET_TIMEOUT)
             sock = ctx.wrap_socket(raw, server_hostname=host)
