@@ -798,20 +798,46 @@ def ensure_default_unit():
 # -------------------------
 
 def _get_tak_config() -> dict:
-    """Return TAK server config from config.json with safe defaults."""
+    """Return TAK server config from config.json with safe defaults.
+
+    Reads root-level snake_case keys first (written by PUT /api/tak/config).
+    Falls back to the nested 'network' section (camelCase) written by network.html
+    via POST /api/config when the root-level keys have not been set explicitly.
+    """
     cfg = load_json("config") or {}
+    net = cfg.get("network") if isinstance(cfg.get("network"), dict) else {}
+
+    # tak_forward_enabled / enableTakIntegration
+    tak_enabled = cfg.get("tak_forward_enabled")
+    if tak_enabled is None:
+        tak_enabled = net.get("enableTakIntegration", False)
+
+    # tak_server_host / takServerUrl
+    tak_host = cfg.get("tak_server_host") or net.get("takServerUrl", "")
+
+    # tak_server_port / takServerPort
+    try:
+        tak_port = int(cfg.get("tak_server_port") or net.get("takServerPort") or 4242)
+    except (TypeError, ValueError):
+        tak_port = 4242
+
+    # tak_connection_type / takConnectionType  (udp | tcp | ssl)
+    tak_type = cfg.get("tak_connection_type") or net.get("takConnectionType", "udp")
+
     return {
-        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
-        "tak_server_host":     cfg.get("tak_server_host", ""),
-        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+        "tak_forward_enabled":  bool(tak_enabled),
+        "tak_server_host":      str(tak_host).strip() if tak_host else "",
+        "tak_server_port":      tak_port,
+        "tak_connection_type":  tak_type,
     }
 
 
 def forward_cot_to_tak(cot_xml: str) -> bool:
     """
-    Forward a CoT XML string to the configured ATAK/TAK server via UDP.
+    Forward a CoT XML string to the configured ATAK/TAK server.
 
-    The standard TAK protocol uses UDP unicast (or multicast) on port 4242.
+    Supports UDP (legacy port 4242), TCP (standard port 8087), and SSL/TLS
+    (secure port 8089) based on the tak_connection_type configuration.
     Returns True on success, False if forwarding is disabled or an error occurs.
     """
     try:
@@ -821,22 +847,61 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
 
         host = tak_cfg["tak_server_host"]
         port = tak_cfg["tak_server_port"]
+        conn_type = tak_cfg.get("tak_connection_type", "udp")
         data = cot_xml.encode("utf-8")
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            sock.settimeout(2)
-            sock.sendto(data, (host, port))
-        except socket.timeout:
-            logger.warning("CoT forward to TAK server %s:%s timed out", host, port)
-            return False
-        except socket.gaierror as e:
-            logger.warning("CoT forward DNS/address error for %s:%s: %s", host, port, e)
-            return False
-        finally:
-            sock.close()
+        if conn_type == "tcp":
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.settimeout(5)
+                sock.connect((host, port))
+                sock.sendall(data)
+            except socket.timeout:
+                logger.warning("CoT TCP forward to TAK server %s:%s timed out", host, port)
+                return False
+            except (socket.gaierror, ConnectionRefusedError, OSError) as e:
+                logger.warning("CoT TCP forward to TAK server %s:%s failed: %s", host, port, e)
+                return False
+            finally:
+                sock.close()
+        elif conn_type == "ssl":
+            import ssl as _ssl
+            # TAK servers commonly use self-signed certificates; verification is
+            # intentionally disabled to allow field-deployed TAK server connections.
+            ctx = _ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = _ssl.CERT_NONE
+            ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
+            raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            raw.settimeout(5)
+            sock = ctx.wrap_socket(raw, server_hostname=host)
+            try:
+                sock.connect((host, port))
+                sock.sendall(data)
+            except socket.timeout:
+                logger.warning("CoT SSL forward to TAK server %s:%s timed out", host, port)
+                return False
+            except (socket.gaierror, ConnectionRefusedError, OSError) as e:
+                logger.warning("CoT SSL forward to TAK server %s:%s failed: %s", host, port, e)
+                return False
+            finally:
+                sock.close()
+        else:
+            # UDP (default/legacy TAK protocol on port 4242)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                sock.settimeout(5)
+                sock.sendto(data, (host, port))
+            except socket.timeout:
+                logger.warning("CoT UDP forward to TAK server %s:%s timed out", host, port)
+                return False
+            except socket.gaierror as e:
+                logger.warning("CoT UDP forward DNS/address error for %s:%s: %s", host, port, e)
+                return False
+            finally:
+                sock.close()
 
-        logger.info("Forwarded CoT to TAK server %s:%s (%d bytes)", host, port, len(data))
+        logger.info("Forwarded CoT to TAK server %s:%s (%s, %d bytes)", host, port, conn_type, len(data))
         return True
     except Exception as e:
         logger.warning("Failed to forward CoT to TAK server: %s", e)
@@ -5284,6 +5349,7 @@ def get_tak_config():
         "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
         "tak_server_host":     cfg.get("tak_server_host", ""),
         "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+        "tak_connection_type": cfg.get("tak_connection_type", "udp"),
     }
 
 
@@ -5295,7 +5361,8 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     Body fields (all optional):
     - tak_forward_enabled (bool): Enable/disable forwarding to ATAK/TAK server
     - tak_server_host (str): TAK server IP or hostname
-    - tak_server_port (int): UDP port on the TAK server (default 4242)
+    - tak_server_port (int): Port on the TAK server (default 4242)
+    - tak_connection_type (str): Connection type — "udp", "tcp", or "ssl" (default "udp")
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -5317,6 +5384,11 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         if not (1 <= port <= 65535):
             raise HTTPException(status_code=400, detail="tak_server_port must be 1–65535")
         cfg["tak_server_port"] = port
+    if "tak_connection_type" in data:
+        conn_type = str(data["tak_connection_type"]).lower()
+        if conn_type not in ("udp", "tcp", "ssl"):
+            raise HTTPException(status_code=400, detail="tak_connection_type must be 'udp', 'tcp', or 'ssl'")
+        cfg["tak_connection_type"] = conn_type
 
     save_json("config", cfg)
     logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_")})
@@ -5326,6 +5398,7 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
         "tak_server_host":     cfg.get("tak_server_host", ""),
         "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+        "tak_connection_type": cfg.get("tak_connection_type", "udp"),
     }
 
 
