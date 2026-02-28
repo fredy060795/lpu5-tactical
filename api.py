@@ -2240,6 +2240,7 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
             "lat": new_marker.lat,
             "lng": new_marker.lng,
             "name": new_marker.name,
+            "description": new_marker.description,
             "type": new_marker.type,
             "color": new_marker.color,
             "icon": new_marker.icon,
@@ -2256,7 +2257,11 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
             try:
                 cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
                 if cot_event:
-                    forward_cot_to_tak(cot_event.to_xml())
+                    ok = forward_cot_to_tak(cot_event.to_xml())
+                    if ok:
+                        logger.info("CoT forward on marker_created succeeded: marker_id=%s", new_marker.id)
+                    else:
+                        logger.debug("CoT forward on marker_created skipped (TAK forwarding disabled or not configured): marker_id=%s", new_marker.id)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_created failed: %s", _fwd_err)
 
@@ -2306,6 +2311,7 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
             "lat": marker.lat,
             "lng": marker.lng,
             "name": marker.name,
+            "description": marker.description,
             "type": marker.type,
             "color": marker.color,
             "icon": marker.icon,
@@ -2322,7 +2328,11 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
             try:
                 cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
                 if cot_event:
-                    forward_cot_to_tak(cot_event.to_xml())
+                    ok = forward_cot_to_tak(cot_event.to_xml())
+                    if ok:
+                        logger.info("CoT forward on marker_updated succeeded: marker_id=%s", marker_id)
+                    else:
+                        logger.debug("CoT forward on marker_updated skipped (TAK forwarding disabled or not configured): marker_id=%s", marker_id)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_updated failed: %s", _fwd_err)
 
@@ -2355,14 +2365,38 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
         # Prevent deletion of GPS position markers (except by the owning user for position updates)
         if marker.type == 'gps_position' and marker.created_by != current_username:
             raise HTTPException(status_code=403, detail="GPS position markers cannot be deleted")
-            
+
+        # Capture marker data before deletion for CoT tombstone forwarding
+        marker_snapshot = {
+            "id": marker.id,
+            "lat": marker.lat,
+            "lng": marker.lng,
+            "name": marker.name,
+            "description": marker.description,
+            "type": marker.type,
+            "data": marker.data,
+        }
+
         db.delete(marker)
         db.commit()
         
         log_audit("delete_marker", current_username, {"marker_id": marker_id})
         broadcast_websocket_update("markers", "marker_deleted", {"id": marker_id})
         broadcast_websocket_update("symbols", "symbol_deleted", {"id": marker_id})
-        
+
+        # Forward CoT tombstone to TAK server so remote ATAK clients remove the entity
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            try:
+                tombstone = CoTProtocolHandler.marker_to_cot_tombstone(marker_snapshot)
+                if tombstone:
+                    ok = forward_cot_to_tak(tombstone.to_xml())
+                    if ok:
+                        logger.info("CoT tombstone forwarded on marker_deleted: marker_id=%s", marker_id)
+                    else:
+                        logger.debug("CoT tombstone skipped on marker_deleted (TAK forwarding disabled or not configured): marker_id=%s", marker_id)
+            except Exception as _fwd_err:
+                logger.warning("CoT tombstone forward on marker_deleted failed: %s", _fwd_err)
+
         return {"status": "success"}
     except Exception as e:
         db.rollback()
@@ -2556,6 +2590,7 @@ def create_overlay(data: dict = Body(...)):
         }
         
         broadcast_websocket_update("overlays", "overlay_created", overlay_dict)
+        logger.info("Overlay created: id=%s name=%r created_by=%r (TAK CoT sync not applicable for image overlays)", overlay.id, overlay.name, overlay.created_by)
         return {"status": "success", "overlay": overlay_dict}
     except Exception as e:
         db.rollback()
@@ -2601,6 +2636,7 @@ def update_overlay(overlay_id: str, data: dict = Body(...)):
         }
         
         broadcast_websocket_update("overlays", "overlay_updated", overlay_dict)
+        logger.info("Overlay updated: id=%s name=%r (TAK CoT sync not applicable for image overlays)", overlay_id, overlay_dict.get("name"))
         return {"status": "success", "overlay": overlay_dict}
     except Exception as e:
         db.rollback()
@@ -2620,6 +2656,7 @@ def delete_overlay(overlay_id: str):
         db.delete(overlay)
         db.commit()
         broadcast_websocket_update("overlays", "overlay_deleted", {"id": overlay_id})
+        logger.info("Overlay deleted: id=%s (TAK CoT sync not applicable for image overlays)", overlay_id)
         return {"status": "success"}
     except Exception as e:
         db.rollback()
@@ -2861,14 +2898,27 @@ async def sync_upload(data: dict = Body(...), authorization: Optional[str] = Hea
         # CoT Events
         if "cot_events" in data and isinstance(data["cot_events"], list):
             updates["cot_events"] = len(data["cot_events"])
-            # Broadcast CoT events to subscribed clients
-            if websocket_manager:
-                for cot_event in data["cot_events"]:
+            # Broadcast CoT events to subscribed clients and forward to TAK server
+            for cot_event in data["cot_events"]:
+                if websocket_manager:
                     await websocket_manager.publish_to_channel('cot', {
                         'type': 'cot_event',
                         'event': cot_event,
                         'timestamp': timestamp
                     })
+                # Forward raw CoT XML to TAK server if present
+                if AUTONOMOUS_MODULES_AVAILABLE:
+                    cot_xml = cot_event.get("xml") if isinstance(cot_event, dict) else None
+                    if cot_xml:
+                        cot_uid = cot_event.get("uid", "<unknown>") if isinstance(cot_event, dict) else "<unknown>"
+                        try:
+                            ok = forward_cot_to_tak(cot_xml)
+                            if ok:
+                                logger.info("CoT event forwarded to TAK server via sync_upload: uid=%s", cot_uid)
+                            else:
+                                logger.debug("CoT event forward skipped via sync_upload (TAK forwarding disabled or not configured): uid=%s", cot_uid)
+                        except Exception as _fwd_err:
+                            logger.warning("CoT event forward via sync_upload failed: uid=%s err=%s", cot_uid, _fwd_err)
         
         logger.info(f"Sync upload processed: {updates}")
         

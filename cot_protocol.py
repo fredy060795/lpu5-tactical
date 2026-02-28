@@ -360,6 +360,37 @@ class CoTProtocolHandler:
             return None
 
     @staticmethod
+    def marker_to_cot_tombstone(marker: Dict[str, Any]) -> Optional[CoTEvent]:
+        """
+        Create a CoT tombstone (deletion) event for a map marker.
+
+        TAK clients remove an entity from their map when they receive a CoT
+        event whose ``stale`` timestamp is equal to (or earlier than) the
+        event's ``time`` timestamp.  This method produces such an event so
+        that deleting a marker in LPU5 propagates the deletion to ATAK/WinTAK.
+
+        Args:
+            marker: Map marker dictionary (must contain at least ``id``, ``lat``,
+                    and ``lng`` / ``lon`` keys).
+
+        Returns:
+            CoTEvent configured as a tombstone, or None if conversion fails.
+        """
+        try:
+            cot_event = CoTProtocolHandler.marker_to_cot(marker)
+            if cot_event is None:
+                return None
+            # Make the event immediately stale so TAK clients remove the entity.
+            now = datetime.now(timezone.utc)
+            cot_event.time = now
+            cot_event.start = now
+            cot_event.stale = now
+            return cot_event
+        except Exception as e:
+            logger.error("Failed to build CoT tombstone for marker %s: %s", marker.get("id"), e)
+            return None
+
+    @staticmethod
     def cot_to_marker(cot_event: CoTEvent) -> Dict[str, Any]:
         """
         Convert a CoT event to map marker
