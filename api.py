@@ -1162,6 +1162,8 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
                 sock.close()
 
         logger.info("Forwarded CoT to TAK server %s:%s (%s, %d bytes)", host, port, conn_type, len(data))
+        with _TAK_RECEIVER_STATS_LOCK:
+            _TAK_RECEIVER_STATS["packets_sent"] += 1
         return True
     except Exception as e:
         logger.warning("Failed to forward CoT to TAK server: %s", e)
@@ -1178,6 +1180,7 @@ _TAK_SOCKET = None
 _TAK_SOCKET_LOCK = threading.Lock()
 _TAK_RECEIVER_STATS: Dict[str, Any] = {
     "connected": False,
+    "packets_sent": 0,
     "packets_received": 0,
     "parse_errors": 0,
     "last_error": None,
