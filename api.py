@@ -1021,11 +1021,11 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
     """
     Convert a single Meshtastic node position to a CoT friendly-unit event and
     forward it to the configured TAK server.  Returns True on successful forward.
-    Silently skips when TAK forwarding is disabled or coordinates are (0, 0).
+    Nodes without GPS are forwarded at coordinates (0.0, 0.0) so TAK still
+    receives them and can distribute the node identity globally.
+    Silently skips only when TAK forwarding is disabled.
     """
     if not AUTONOMOUS_MODULES_AVAILABLE:
-        return False
-    if lat == 0.0 and lng == 0.0:
         return False
     try:
         marker_dict = {
