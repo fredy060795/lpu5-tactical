@@ -330,18 +330,22 @@ async def lifespan(application):
         except Exception as e:
             logger.error("Error starting CoT listener service: %s", e)
 
-    # Auto-start TAK receiver thread if TAK integration is enabled for tcp/ssl
+    # Auto-start TAK receiver thread and forward existing data if TAK integration is enabled
     try:
         tak_cfg = _get_tak_config()
-        if (tak_cfg.get("tak_forward_enabled")
-                and tak_cfg.get("tak_server_host")
-                and tak_cfg.get("tak_connection_type", "udp") in ("tcp", "ssl")):
-            if _start_tak_receiver_thread():
-                logger.info("✅ TAK receiver thread started")
-            else:
-                logger.warning("⚠️  Failed to start TAK receiver thread")
         if tak_cfg.get("tak_forward_enabled") and tak_cfg.get("tak_server_host"):
-            threading.Thread(target=_forward_all_lpu5_data_to_tak, daemon=True, name="tak-initial-forward").start()
+            if tak_cfg.get("tak_connection_type", "udp") in ("tcp", "ssl"):
+                if _start_tak_receiver_thread():
+                    logger.info("✅ TAK receiver thread started")
+                else:
+                    logger.warning("⚠️  Failed to start TAK receiver thread")
+            # Forward all existing LPU5 data to TAK server in a background thread
+            threading.Thread(
+                target=_forward_all_lpu5_data_to_tak,
+                daemon=True,
+                name="tak-initial-forward",
+            ).start()
+            logger.info("✅ TAK initial data forward scheduled")
     except Exception as e:
         logger.error("Error starting TAK receiver thread: %s", e)
 
@@ -1072,7 +1076,6 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
     When tak_username and tak_password are configured, an XML auth packet is
     sent before the CoT payload on TCP and SSL connections.
     Returns True on success, False if forwarding is disabled or an error occurs.
-    Updates _TAK_RECEIVER_STATS["packets_sent"] on each successful send.
     """
     try:
         tak_cfg = _get_tak_config()
@@ -1476,6 +1479,64 @@ def _get_tak_connection_stats() -> dict:
         return dict(_TAK_RECEIVER_STATS)
 
 
+def _forward_all_lpu5_data_to_tak() -> dict:
+    """
+    Forward all existing LPU5 map markers to the configured TAK server.
+
+    Called on startup when TAK integration is enabled to ensure the TAK server
+    receives the current state of all markers.  Skips markers that cannot be
+    converted to a valid CoT event (e.g. incomplete coordinate data).
+
+    Returns a dict with counts: forwarded, skipped, failed.
+    """
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        logger.debug("_forward_all_lpu5_data_to_tak: skipped — autonomous modules not available")
+        return {"forwarded": 0, "skipped": 0, "failed": 0}
+    tak_cfg = _get_tak_config()
+    if not tak_cfg["tak_forward_enabled"] or not tak_cfg["tak_server_host"]:
+        return {"forwarded": 0, "skipped": 0, "failed": 0}
+
+    forwarded = 0
+    skipped = 0
+    failed = 0
+
+    db = SessionLocal()
+    try:
+        markers = db.query(MapMarker).all()
+        for marker in markers:
+            try:
+                marker_dict = {
+                    "id": marker.id,
+                    "name": marker.name,
+                    "lat": marker.lat,
+                    "lng": marker.lng,
+                    "type": marker.type,
+                    "created_by": marker.created_by,
+                }
+                if isinstance(marker.data, dict):
+                    for k, v in marker.data.items():
+                        if k not in marker_dict:
+                            marker_dict[k] = v
+                cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
+                if cot_event:
+                    if forward_cot_to_tak(cot_event.to_xml()):
+                        forwarded += 1
+                    else:
+                        failed += 1
+                else:
+                    skipped += 1
+            except Exception as _fwd_err:
+                logger.debug("Failed to forward marker %s to TAK: %s", marker.id, _fwd_err)
+                failed += 1
+    finally:
+        db.close()
+
+    logger.info(
+        "_forward_all_lpu5_data_to_tak: forwarded=%d skipped=%d failed=%d",
+        forwarded, skipped, failed,
+    )
+    return {"forwarded": forwarded, "skipped": skipped, "failed": failed}
+
 # -------------------------
 # Background meshtastic -> markers sync
 # -------------------------
@@ -1486,7 +1547,7 @@ _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
 
 def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: float) -> bool:
     """
-    Convert a single Meshtastic node position to a CoT event and
+    Convert a single Meshtastic node position to a CoT friendly-unit event and
     forward it to the configured TAK server.  Returns True on successful forward.
     Nodes without GPS are forwarded at coordinates (0.0, 0.0) so TAK still
     receives them and can distribute the node identity globally.
@@ -1501,7 +1562,7 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
             "callsign": name,
             "lat": lat,
             "lng": lng,
-            "type": "node",
+            "type": "friendly",
             "meshtastic_node": True,
             "node_id": node_id,
             "source": "meshtastic",
@@ -1512,56 +1573,6 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
     except Exception as _fwd_err:
         logger.debug("TAK forward for Meshtastic node %s failed: %s", node_id, _fwd_err)
     return False
-
-
-def _forward_all_lpu5_data_to_tak():
-    """
-    Forward all LPU5 map markers and symbols to the TAK server.
-    Called on startup to ensure ATAK sees everything that exists in LPU5.
-    Excludes Meshtastic nodes (handled by their own sync).
-    """
-    if not AUTONOMOUS_MODULES_AVAILABLE:
-        return
-
-    tak_cfg = _get_tak_config()
-    if not tak_cfg["tak_forward_enabled"] or not tak_cfg["tak_server_host"]:
-        return
-
-    forwarded_count = 0
-
-    try:
-        # Forward all non-Meshtastic map markers
-        db = SessionLocal()
-        try:
-            markers = db.query(MapMarker).filter(
-                MapMarker.created_by.notin_(_MESHTASTIC_CREATED_BY)
-            ).all()
-
-            for m in markers:
-                try:
-                    if not m.lat or not m.lng:
-                        continue
-                    marker_dict = {
-                        "id": m.id,
-                        "name": m.name or "Marker",
-                        "callsign": m.name or "Marker",
-                        "lat": m.lat,
-                        "lng": m.lng,
-                        "type": m.type or "friendly",
-                    }
-                    cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
-                    if cot_event and forward_cot_to_tak(cot_event.to_xml()):
-                        forwarded_count += 1
-                except Exception as _e:
-                    logger.debug("Failed to forward marker %s to TAK: %s", m.id, _e)
-        finally:
-            db.close()
-
-        if forwarded_count > 0:
-            logger.info("Forwarded %d LPU5 markers to TAK server", forwarded_count)
-
-    except Exception as e:
-        logger.warning("Error in _forward_all_lpu5_data_to_tak: %s", e)
 
 
 def sync_meshtastic_nodes_to_map_markers_once():
@@ -4988,7 +4999,6 @@ def api_ingest_node(data: dict = Body(...)):
         if marker:
              marker.lat = latf
              marker.lng = lngf
-             marker.type = "node"
              marker.timestamp = datetime.now(timezone.utc) # Note: MapMarker model uses created_at, update it? 
              # MapMarker doesn't have updated_at default, let's assume we just update position
         else:
@@ -5425,7 +5435,7 @@ def sync_meshtastic_nodes_to_map_markers_db():
                     name=marker_name,
                     lat=node.lat or 0.0,
                     lng=node.lng or 0.0,
-                    type="friendly",
+                    type="node",
                     created_by="meshtastic_sync",
                     data={"unit_id": node.id, "hardware": node.hardware_model}
                 )
