@@ -1,5 +1,8 @@
 {
     "tactical_overlay": null,
     "marker_broadcast_enabled": true,
-    "marker_broadcast_interval_seconds": 60
+    "marker_broadcast_interval_seconds": 60,
+    "tak_forward_enabled": false,
+    "tak_server_host": "",
+    "tak_server_port": 4242
 }

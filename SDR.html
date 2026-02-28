@@ -163,21 +163,69 @@
             margin-top: 10px;
         }
 
-        /* Spectrum display */
-        .spectrum-canvas-container {
+        /* SDR Waterfall + Spectrum display */
+        .sdr-display-wrap {
             width: 100%;
             background: #000;
             border: 1px solid var(--border-color);
             border-radius: 4px;
             overflow: hidden;
             position: relative;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
+            user-select: none;
         }
 
-        .spectrum-canvas-container canvas {
+        /* Shared label bar above spectrum canvas */
+        .sdr-mode-badge {
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            font-size: 0.65rem;
+            font-weight: bold;
+            padding: 2px 7px;
+            border-radius: 10px;
+            background: rgba(46,204,113,0.2);
+            color: #2ecc71;
+            z-index: 2;
+        }
+        .sdr-mode-badge.simulated {
+            background: rgba(243,156,18,0.2);
+            color: #f39c12;
+        }
+
+        #spectrumCanvas, #waterfallCanvas {
             width: 100%;
-            height: 200px;
             display: block;
+            cursor: crosshair;
+        }
+
+        .sdr-freq-axis {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 8px;
+            font-size: 0.65rem;
+            color: #555;
+            background: #060606;
+            border-top: 1px solid #1a1a1a;
+        }
+
+        .sdr-wf-label {
+            font-size: 0.65rem;
+            color: #444;
+            padding: 2px 8px;
+            background: #060606;
+            border-top: 1px solid #111;
+        }
+
+        /* Colorscale bar */
+        .sdr-colorscale {
+            height: 8px;
+            width: 100%;
+            background: linear-gradient(to right,
+                #000040 0%, #000080 10%, #0000c0 20%,
+                #0060c0 30%, #00c0c0 45%, #00c000 55%,
+                #c0c000 70%, #c06000 82%, #c00000 92%, #ff0000 100%);
+            border-top: 1px solid #1a1a1a;
         }
 
         .spectrum-label {
@@ -358,6 +406,9 @@
                     <button class="btn btn-primary" onclick="loadComPorts()" style="font-size:0.7rem; padding:2px 8px; margin-left:8px;">
                         <i class="fas fa-sync-alt"></i> Load ports
                     </button>
+                    <button class="btn btn-warning" onclick="detectRTLSDR()" style="font-size:0.7rem; padding:2px 8px; margin-left:4px;">
+                        <i class="fas fa-search"></i> Detect RTL-SDR
+                    </button>
                 </label>
                 <select id="sdrPort">
                     <option value="">-- Select device --</option>
@@ -368,6 +419,23 @@
             <div class="form-group">
                 <label>Frequency (MHz)</label>
                 <input type="number" id="sdrFrequency" value="433.920" step="0.001" min="24" max="1766">
+            </div>
+
+            <div class="form-group">
+                <label>Sample Rate (MHz)</label>
+                <select id="sdrSampleRate">
+                    <option value="0.25">0.25 MHz (250 kHz BW)</option>
+                    <option value="1.0">1.0 MHz</option>
+                    <option value="2.4" selected>2.4 MHz (default)</option>
+                    <option value="2.8">2.8 MHz</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Gain (dB) &nbsp;<span id="gainLabel" style="color:var(--accent-blue);">20</span></label>
+                <input type="range" id="sdrGain" min="0" max="49" step="1" value="20"
+                    oninput="document.getElementById('gainLabel').textContent=this.value"
+                    style="width:100%; accent-color:var(--accent-blue);">
             </div>
 
             <div class="form-group">
@@ -402,8 +470,8 @@
 
             <div class="btn-row">
                 <button class="btn btn-primary" onclick="connectSDR()"><i class="fas fa-plug"></i> Connect</button>
-                <button class="btn btn-success" onclick="startMeasurement()"><i class="fas fa-search"></i> Measure</button>
-                <button class="btn btn-warning" onclick="startSyncMeasurement()"><i class="fas fa-sync-alt"></i> Sync Measurement</button>
+                <button class="btn btn-success" id="btnMeasure" onclick="startMeasurement()"><i class="fas fa-search"></i> Measure</button>
+                <button class="btn btn-warning" id="btnScan" onclick="toggleContinuousScan()"><i class="fas fa-play"></i> Scan</button>
             </div>
         </div>
 
@@ -411,12 +479,31 @@
         <div class="panel">
             <div class="panel-header">
                 <div class="panel-title"><i class="fas fa-wave-square"></i> Signal Analysis</div>
+                <div style="display:flex; align-items:center; gap:8px; font-size:0.8rem; color:var(--text-dim);">
+                    <label>Min dBm <input type="number" id="scaleMin" value="-120" style="width:60px; padding:2px 5px; background:var(--panel-input-bg); border:1px solid var(--border-color); border-radius:3px; color:var(--text-main); font-size:0.8rem;"></label>
+                    <label>Max dBm <input type="number" id="scaleMax" value="-10"  style="width:55px; padding:2px 5px; background:var(--panel-input-bg); border:1px solid var(--border-color); border-radius:3px; color:var(--text-main); font-size:0.8rem;"></label>
+                </div>
             </div>
 
-            <!-- Spectrum waterfall placeholder -->
-            <div class="spectrum-canvas-container">
-                <canvas id="spectrumCanvas"></canvas>
-                <div class="spectrum-label" id="spectrumLabel">Frequency Spectrum (simulated)</div>
+            <!-- Combined Spectrum + Waterfall display -->
+            <div class="sdr-display-wrap" id="sdrDisplayWrap">
+                <span class="sdr-mode-badge simulated" id="sdrModeBadge">SIM</span>
+
+                <!-- Spectrum canvas (FFT line plot) -->
+                <canvas id="spectrumCanvas" height="180"></canvas>
+
+                <!-- Frequency axis between spectrum and waterfall -->
+                <div class="sdr-freq-axis" id="freqAxis">
+                    <span id="fa0">—</span><span id="fa1">—</span><span id="fa2">—</span>
+                    <span id="fa3">—</span><span id="fa4">—</span><span id="fa5">—</span>
+                </div>
+
+                <!-- Waterfall canvas (scrolling color display) -->
+                <div class="sdr-wf-label">&#9660; Waterfall (newest row = top)</div>
+                <canvas id="waterfallCanvas" height="200"></canvas>
+
+                <!-- Colorscale bar -->
+                <div class="sdr-colorscale"></div>
             </div>
 
             <!-- Signal meter -->
@@ -534,262 +621,503 @@
 (function() {
     'use strict';
 
-    // --- State ---
-    let sdrConnected = false;
-    let mqttConnected = false;
-    let measurementMode = 'simulated'; // 'simulated' or 'real'
+    // =====================================================================
+    // State
+    // =====================================================================
+    let sdrConnected   = false;
+    let sdrMode        = 'simulated'; // 'hardware' | 'simulated'
+    let mqttConnected  = false;
+    let continuousScan = false;
+    let scanTimer      = null;
     const measurementLog = [];
-    const mqttPeers = {};
-    let ws = null;
+    const mqttPeers    = {};
+    let ws             = null;
 
-    // --- Load COM ports from server ---
+    // Display range (dBm)
+    function getScaleMin() { return parseFloat(document.getElementById('scaleMin').value) || -120; }
+    function getScaleMax() { return parseFloat(document.getElementById('scaleMax').value) || -10; }
+
+    // =====================================================================
+    // Canvas references
+    // =====================================================================
+    const spCanvas = document.getElementById('spectrumCanvas');
+    const spCtx    = spCanvas ? spCanvas.getContext('2d') : null;
+    const wfCanvas = document.getElementById('waterfallCanvas');
+    const wfCtx    = wfCanvas ? wfCanvas.getContext('2d') : null;
+
+    // =====================================================================
+    // GQRX colour map  (black→dark-blue→blue→cyan→green→yellow→orange→red)
+    // =====================================================================
+    var COLOR_STOPS = [
+        [0.00,   0,   0,  64],
+        [0.15,   0,   0, 180],
+        [0.30,   0,  80, 200],
+        [0.45,   0, 200, 200],
+        [0.60,   0, 200,   0],
+        [0.75, 200, 200,   0],
+        [0.88, 255, 120,   0],
+        [1.00, 255,   0,   0],
+    ];
+
+    function dbmToColor(dbm) {
+        var mn = getScaleMin(), mx = getScaleMax();
+        var t = Math.max(0, Math.min(1, (dbm - mn) / (mx - mn)));
+        for (var i = 1; i < COLOR_STOPS.length; i++) {
+            if (t <= COLOR_STOPS[i][0]) {
+                var a = COLOR_STOPS[i-1], b = COLOR_STOPS[i];
+                var f = (t - a[0]) / (b[0] - a[0]);
+                return [
+                    Math.round(a[1] + f * (b[1] - a[1])),
+                    Math.round(a[2] + f * (b[2] - a[2])),
+                    Math.round(a[3] + f * (b[3] - a[3]))
+                ];
+            }
+        }
+        return [255, 0, 0];
+    }
+
+    // =====================================================================
+    // Canvas init / resize
+    // =====================================================================
+    function initCanvases() {
+        var wrap = document.getElementById('sdrDisplayWrap');
+        var w    = wrap ? wrap.clientWidth : 600;
+        if (spCanvas) {
+            spCanvas.width  = w;
+            spCanvas.height = 180;
+            clearSpectrum();
+        }
+        if (wfCanvas) {
+            wfCanvas.width  = w;
+            wfCanvas.height = 200;
+            clearWaterfall();
+        }
+    }
+
+    function clearSpectrum() {
+        if (!spCtx) return;
+        spCtx.fillStyle = '#000';
+        spCtx.fillRect(0, 0, spCanvas.width, spCanvas.height);
+        drawSpectrumGrid(null, null);
+    }
+
+    function clearWaterfall() {
+        if (!wfCtx) return;
+        wfCtx.fillStyle = '#000';
+        wfCtx.fillRect(0, 0, wfCanvas.width, wfCanvas.height);
+    }
+
+    // =====================================================================
+    // Spectrum plot (line graph + grid + dBm axis)
+    // Caches the last data so the crosshair tooltip can redraw it.
+    // =====================================================================
+    var _lastSpectrum = null;
+    var _lastFStart   = null;
+    var _lastFEnd     = null;
+
+    function drawSpectrumGrid(freqStartMhz, freqEndMhz) {
+        if (!spCtx) return;
+        var W = spCanvas.width, H = spCanvas.height;
+        var mn = getScaleMin(), mx = getScaleMax();
+
+        // Grid lines
+        spCtx.strokeStyle = '#1c1c1c';
+        spCtx.lineWidth   = 1;
+        var nH = 6, nV = 8;
+        for (var i = 0; i <= nH; i++) {
+            var y = Math.round(i * H / nH);
+            spCtx.beginPath(); spCtx.moveTo(0, y); spCtx.lineTo(W, y); spCtx.stroke();
+        }
+        for (var j = 0; j <= nV; j++) {
+            var x = Math.round(j * W / nV);
+            spCtx.beginPath(); spCtx.moveTo(x, 0); spCtx.lineTo(x, H); spCtx.stroke();
+        }
+
+        // dBm axis labels (right side)
+        spCtx.fillStyle    = '#555';
+        spCtx.font         = '10px Courier New';
+        spCtx.textAlign    = 'right';
+        for (var k = 0; k <= nH; k++) {
+            var dbm = mx - k * (mx - mn) / nH;
+            var yy  = Math.round(k * H / nH);
+            spCtx.fillText(dbm.toFixed(0) + ' dBm', W - 2, yy + 11);
+        }
+        spCtx.textAlign = 'left';
+
+        // Title
+        if (freqStartMhz !== null) {
+            spCtx.fillStyle = '#444';
+            spCtx.font      = '10px Courier New';
+            spCtx.fillText('Spectrum', 4, 12);
+        }
+    }
+
+    function renderSpectrum(fftData, freqStartMhz, freqEndMhz) {
+        if (!spCtx || !fftData || !fftData.length) return;
+        // Cache for crosshair redraw
+        _lastSpectrum = fftData;
+        _lastFStart   = freqStartMhz;
+        _lastFEnd     = freqEndMhz;
+        var W = spCanvas.width, H = spCanvas.height;
+        var mn = getScaleMin(), mx = getScaleMax();
+
+        // Clear + grid
+        spCtx.fillStyle = '#000';
+        spCtx.fillRect(0, 0, W, H);
+        drawSpectrumGrid(freqStartMhz, freqEndMhz);
+
+        // Peak hold (filled area under curve) — dark green
+        spCtx.beginPath();
+        for (var x = 0; x < W; x++) {
+            var idx  = Math.floor(x * fftData.length / W);
+            var dbm  = fftData[idx];
+            var y    = H - Math.max(0, Math.min(1, (dbm - mn) / (mx - mn))) * H;
+            if (x === 0) spCtx.moveTo(x, y); else spCtx.lineTo(x, y);
+        }
+        spCtx.lineTo(W, H); spCtx.lineTo(0, H); spCtx.closePath();
+        spCtx.fillStyle = 'rgba(0,120,40,0.35)';
+        spCtx.fill();
+
+        // Main FFT curve — bright green
+        spCtx.beginPath();
+        spCtx.strokeStyle = '#2ecc71';
+        spCtx.lineWidth   = 1.2;
+        for (var x2 = 0; x2 < W; x2++) {
+            var idx2 = Math.floor(x2 * fftData.length / W);
+            var dbm2 = fftData[idx2];
+            var y2   = H - Math.max(0, Math.min(1, (dbm2 - mn) / (mx - mn))) * H;
+            if (x2 === 0) spCtx.moveTo(x2, y2); else spCtx.lineTo(x2, y2);
+        }
+        spCtx.stroke();
+
+        // Update frequency axis labels
+        updateFreqAxis(freqStartMhz, freqEndMhz);
+    }
+
+    function updateFreqAxis(fStart, fEnd) {
+        if (fStart === null || fStart === undefined) return;
+        var ids = ['fa0','fa1','fa2','fa3','fa4','fa5'];
+        for (var i = 0; i < ids.length; i++) {
+            var el = document.getElementById(ids[i]);
+            if (!el) continue;
+            var f = fStart + (fEnd - fStart) * i / (ids.length - 1);
+            el.textContent = f.toFixed(3) + ' MHz';
+        }
+    }
+
+    // =====================================================================
+    // Waterfall rendering (GQRX-style scrolling colour display)
+    // =====================================================================
+    function renderWaterfallRow(fftData) {
+        if (!wfCtx || !fftData || !fftData.length) return;
+        var W = wfCanvas.width, H = wfCanvas.height;
+
+        // Shift existing content down by 1 pixel
+        var img = wfCtx.getImageData(0, 0, W, H - 1);
+        wfCtx.putImageData(img, 0, 1);
+
+        // Draw new row at top
+        var row = wfCtx.createImageData(W, 1);
+        var d   = row.data;
+        for (var x = 0; x < W; x++) {
+            var idx = Math.floor(x * fftData.length / W);
+            var rgb = dbmToColor(fftData[idx]);
+            var p   = x * 4;
+            d[p]   = rgb[0];
+            d[p+1] = rgb[1];
+            d[p+2] = rgb[2];
+            d[p+3] = 255;
+        }
+        wfCtx.putImageData(row, 0, 0);
+    }
+
+    // =====================================================================
+    // Mode badge
+    // =====================================================================
+    function setModeBadge(mode) {
+        var badge = document.getElementById('sdrModeBadge');
+        if (!badge) return;
+        if (mode === 'rtlsdr_hardware' || mode === 'rtl_power') {
+            badge.textContent = 'LIVE';
+            badge.className   = 'sdr-mode-badge';
+        } else {
+            badge.textContent = 'SIM';
+            badge.className   = 'sdr-mode-badge simulated';
+        }
+    }
+
+    // =====================================================================
+    // Load COM ports (serial scan)
+    // =====================================================================
     window.loadComPorts = function() {
-        var select = document.getElementById('sdrPort');
-        var token = localStorage.getItem('token');
+        var select  = document.getElementById('sdrPort');
+        var token   = localStorage.getItem('token');
         var headers = {};
         if (token) headers['Authorization'] = 'Bearer ' + token;
 
         fetch('/api/scan_ports', { headers: headers })
         .then(function(res) { return res.json(); })
         .then(function(ports) {
-            // Keep the first two options (placeholder + auto-detect)
             while (select.options.length > 2) select.remove(2);
-
             if (Array.isArray(ports) && ports.length > 0) {
                 ports.forEach(function(p) {
-                    var opt = document.createElement('option');
+                    var opt   = document.createElement('option');
                     opt.value = p.device;
                     var label = p.device;
-                    if (p.description && p.description !== p.device) {
-                        label += ' - ' + p.description;
-                    }
-                    if (p.manufacturer) {
-                        label += ' [' + p.manufacturer + ']';
-                    }
+                    if (p.description && p.description !== p.device) label += ' - ' + p.description;
+                    if (p.manufacturer) label += ' [' + p.manufacturer + ']';
                     opt.textContent = label;
                     select.appendChild(opt);
                 });
-                console.log('Loaded ' + ports.length + ' COM port(s)');
             } else {
-                var opt = document.createElement('option');
-                opt.value = '';
-                opt.disabled = true;
-                opt.textContent = '(no ports found)';
+                var opt       = document.createElement('option');
+                opt.value     = '';
+                opt.disabled  = true;
+                opt.textContent = '(no serial ports found)';
                 select.appendChild(opt);
             }
         })
+        .catch(function(e) { console.error('loadComPorts failed:', e); });
+    };
+
+    // =====================================================================
+    // Detect RTL-SDR via dedicated backend endpoint
+    // =====================================================================
+    window.detectRTLSDR = function() {
+        var select  = document.getElementById('sdrPort');
+        var statusEl = document.getElementById('sdrDeviceStatus');
+        statusEl.textContent = 'Scanning…';
+        statusEl.className   = 'status-badge status-waiting';
+
+        fetch('/api/sdr/devices')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var devices = data.devices || [];
+            // Remove existing RTL-SDR entries
+            for (var i = select.options.length - 1; i >= 2; i--) {
+                if (select.options[i].dataset.rtlsdr) select.remove(i);
+            }
+            if (devices.length === 0) {
+                statusEl.textContent = 'No RTL-SDR found';
+                statusEl.className   = 'status-badge status-offline';
+                var opt = document.createElement('option');
+                opt.value = 'auto'; opt.textContent = 'Auto-Detect (simulation mode)';
+                opt.dataset.rtlsdr = '1';
+                select.appendChild(opt);
+                select.value = 'auto';
+            } else {
+                devices.forEach(function(dev, idx) {
+                    var opt = document.createElement('option');
+                    opt.value = 'rtlsdr:' + (dev.index || idx);
+                    opt.textContent = dev.name || ('RTL-SDR #' + idx);
+                    opt.dataset.rtlsdr = '1';
+                    select.appendChild(opt);
+                });
+                select.value = 'rtlsdr:0';
+                statusEl.textContent = devices.length + ' RTL-SDR device(s) found';
+                statusEl.className   = 'status-badge status-online';
+            }
+
+            // Show capabilities in console
+            var caps = data.capabilities || {};
+            console.log('[SDR] Capabilities:', caps);
+        })
         .catch(function(e) {
-            console.error('Failed to load COM ports:', e);
+            console.error('detectRTLSDR failed:', e);
+            statusEl.textContent = 'Scan failed';
+            statusEl.className   = 'status-badge status-offline';
         });
     };
 
-    function updateMeasurementModeDisplay() {
-        var label = document.getElementById('spectrumLabel');
-        if (label) {
-            if (measurementMode === 'real') {
-                label.textContent = 'Frequency Spectrum (LIVE - Real Measurement)';
-                label.style.color = '#2ecc71';
-            } else {
-                label.textContent = 'Frequency Spectrum (simulated)';
-                label.style.color = '';
-            }
-        }
-    }
-
-    // --- Spectrum canvas (simulated waterfall) ---
-    const canvas = document.getElementById('spectrumCanvas');
-    const ctx = canvas ? canvas.getContext('2d') : null;
-
-    function initSpectrumCanvas() {
-        if (!canvas || !ctx) return;
-        canvas.width = canvas.clientWidth || 600;
-        canvas.height = 200;
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        drawSpectrumGrid();
-    }
-
-    function drawSpectrumGrid() {
-        if (!ctx) return;
-        ctx.strokeStyle = '#1a1a1a';
-        ctx.lineWidth = 1;
-        for (let x = 0; x < canvas.width; x += 50) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-        }
-        for (let y = 0; y < canvas.height; y += 40) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-        }
-    }
-
-    function drawSpectrumNoise() {
-        if (!ctx) return;
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        drawSpectrumGrid();
-
-        ctx.beginPath();
-        ctx.strokeStyle = '#2ecc71';
-        ctx.lineWidth = 1.5;
-        for (let x = 0; x < canvas.width; x++) {
-            const noise = (Math.random() - 0.5) * 30;
-            const baseY = canvas.height * 0.7;
-            const y = baseY + noise;
-            if (x === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-    }
-
-    // --- WebSocket connection ---
-    function connectWebSocket() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = protocol + '//' + window.location.host + '/ws';
-        try {
-            ws = new WebSocket(wsUrl);
-            ws.onopen = function() {
-                console.log('SDR WebSocket connected');
-                ws.send(JSON.stringify({ type: 'subscribe', channel: 'sdr' }));
-            };
-            ws.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'sdr_measurement') {
-                        handleRemoteMeasurement(data);
-                    } else if (data.type === 'sdr_peer_update') {
-                        handlePeerUpdate(data);
-                    }
-                } catch (e) { /* ignore */ }
-            };
-            ws.onclose = function() {
-                ws = null;
-                setTimeout(connectWebSocket, 5000);
-            };
-        } catch (e) {
-            console.error('SDR WebSocket failed:', e);
-        }
-    }
-
-    // --- SDR Connection (placeholder) ---
+    // =====================================================================
+    // Connect to SDR (real API call)
+    // =====================================================================
     window.connectSDR = function() {
-        const port = document.getElementById('sdrPort').value;
+        var port = document.getElementById('sdrPort').value;
         if (!port) {
             alert('Please select an SDR device / COM port');
             return;
         }
+        var statusEl   = document.getElementById('sdrDeviceStatus');
+        var mainStatus = document.getElementById('sdrStatus');
+        statusEl.textContent = 'Connecting…';
+        statusEl.className   = 'status-badge status-waiting';
 
-        const statusEl = document.getElementById('sdrDeviceStatus');
-        const mainStatus = document.getElementById('sdrStatus');
+        var freq    = parseFloat(document.getElementById('sdrFrequency').value) || 433.920;
+        var sr      = parseFloat(document.getElementById('sdrSampleRate').value) || 2.4;
+        var gain    = parseFloat(document.getElementById('sdrGain').value)       || 20;
 
-        statusEl.textContent = 'Connecting...';
-        statusEl.className = 'status-badge status-waiting';
-
-        // Simulate connection (in production this calls backend API)
-        setTimeout(function() {
+        fetch('/api/sdr/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device_index:    0,
+                frequency_mhz:   freq,
+                sample_rate_mhz: sr,
+                gain:            gain
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
             sdrConnected = true;
-            statusEl.textContent = 'Connected';
-            statusEl.className = 'status-badge status-online';
-            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active';
+            sdrMode      = data.mode || 'simulated';
+
+            statusEl.textContent = (sdrMode === 'hardware' ? 'Connected (HW)' : 'Connected (SIM)');
+            statusEl.className   = 'status-badge status-online';
+            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (' + sdrMode.toUpperCase() + ')';
             mainStatus.className = 'status-badge status-online';
-            console.log('SDR connected to:', port);
-        }, 1500);
+
+            setModeBadge(sdrMode === 'hardware' ? 'rtlsdr_hardware' : 'simulated');
+            console.log('[SDR] Connected — mode:', sdrMode, 'devices:', data.devices);
+        })
+        .catch(function(e) {
+            console.error('[SDR] connect failed:', e);
+            // Graceful fallback: allow simulation even if API is unreachable
+            sdrConnected = true;
+            sdrMode      = 'simulated';
+            statusEl.textContent = 'Connected (SIM)';
+            statusEl.className   = 'status-badge status-online';
+            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (SIM)';
+            mainStatus.className = 'status-badge status-online';
+        });
     };
 
-    // --- Measurement (placeholder - calls backend in production) ---
+    // =====================================================================
+    // Single measurement — calls /api/sdr/measure, renders waterfall row
+    // =====================================================================
     window.startMeasurement = function() {
         if (!sdrConnected) {
             alert('Please connect SDR device first');
             return;
         }
+        _doMeasurement();
+    };
 
-        const freq = parseFloat(document.getElementById('sdrFrequency').value);
-        const mode = document.getElementById('sdrMode').value;
-        const squelch = parseInt(document.getElementById('sdrSquelch').value);
+    function _doMeasurement() {
+        var freq = parseFloat(document.getElementById('sdrFrequency').value) || 433.920;
+        var sr   = parseFloat(document.getElementById('sdrSampleRate').value) || 2.4;
+        var gain = parseFloat(document.getElementById('sdrGain').value)       || 20;
+        var mode = document.getElementById('sdrMode').value;
+        var sq   = parseInt(document.getElementById('sdrSquelch').value) || 0;
 
-        // Simulate measurement (in production, calls /api/sdr/measure)
-        measurementMode = 'simulated';
-        updateMeasurementModeDisplay();
-        const simulatedPower = -60 + (Math.random() * 30 - 15);
-        const squelchThresholds = [-999, -85, -80, -75, -70, -65, -60, -55, -50, -45];
-        const threshold = squelchThresholds[Math.min(Math.max(squelch, 0), 9)];
+        fetch('/api/sdr/measure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                frequency_mhz:   freq,
+                sample_rate_mhz: sr,
+                gain:            gain,
+                nfft:            1024
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var spectrum   = data.spectrum  || [];
+            var fStart     = data.freq_start_mhz;
+            var fEnd       = data.freq_end_mhz;
+            var source     = data.source    || 'simulated';
 
-        if (simulatedPower < threshold) {
-            updateSignalDisplay(simulatedPower, null, true);
-            addLogEntry(freq, mode, simulatedPower, 'blocked', 'SIM');
+            setModeBadge(source);
+
+            if (!spectrum.length) return;
+
+            // Find peak power
+            var peak = spectrum.reduce(function(a, b) { return a > b ? a : b; }, -Infinity);
+
+            // Apply squelch
+            var sqThresholds = [-999, -85, -80, -75, -70, -65, -60, -55, -50, -45];
+            var threshold    = sqThresholds[Math.min(Math.max(sq, 0), 9)];
+            var blocked      = peak < threshold;
+
+            // Render spectrum + waterfall
+            renderSpectrum(spectrum, fStart, fEnd);
+            renderWaterfallRow(spectrum);
+
+            // Update meters
+            var distance = blocked ? null : estimateDistance(peak, freq);
+            updateSignalDisplay(peak, distance, blocked);
+
+            // Log entry
+            var distStr = blocked ? 'squelch' : (distance !== null ? distance.toFixed(1) + ' m' : '--');
+            addLogEntry(freq, mode, peak, distStr, source === 'rtlsdr_hardware' ? 'HW' : (source === 'rtl_power' ? 'CLI' : 'SIM'));
+        })
+        .catch(function(e) {
+            console.error('[SDR] measure failed:', e);
+        });
+    }
+
+    // =====================================================================
+    // Continuous scan (toggle Start / Stop)
+    // =====================================================================
+    window.toggleContinuousScan = function() {
+        if (!sdrConnected) {
+            alert('Please connect SDR device first');
             return;
         }
-
-        const distance = estimateDistance(simulatedPower, freq);
-        updateSignalDisplay(simulatedPower, distance, false);
-        addLogEntry(freq, mode, simulatedPower, distance.toFixed(1) + ' m', 'SIM');
-
-        // Draw spectrum
-        drawSpectrumNoise();
-
-        // Draw signal peak at center
-        if (ctx) {
-            const cx = canvas.width / 2;
-            const peakHeight = Math.max(10, (simulatedPower + 90) * 3);
-            ctx.beginPath();
-            ctx.strokeStyle = '#e74c3c';
-            ctx.lineWidth = 2;
-            ctx.moveTo(cx - 20, canvas.height * 0.7);
-            ctx.lineTo(cx, canvas.height * 0.7 - peakHeight);
-            ctx.lineTo(cx + 20, canvas.height * 0.7);
-            ctx.stroke();
+        var btn = document.getElementById('btnScan');
+        if (continuousScan) {
+            // Stop
+            continuousScan = false;
+            if (scanTimer !== null) { clearInterval(scanTimer); scanTimer = null; }
+            btn.innerHTML = '<i class="fas fa-play"></i> Scan';
+            btn.className = 'btn btn-warning';
+        } else {
+            // Start
+            continuousScan = true;
+            btn.innerHTML = '<i class="fas fa-stop"></i> Stop';
+            btn.className = 'btn btn-danger';
+            _doMeasurement();
+            scanTimer = setInterval(_doMeasurement, 600);
         }
     };
 
-    // --- Synchronized measurement ---
+    // =====================================================================
+    // Synchronized measurement (broadcasts via WebSocket then measures locally)
+    // =====================================================================
     window.startSyncMeasurement = function() {
         if (!sdrConnected) {
             alert('Please connect SDR device first');
             return;
         }
-
-        // Send sync request via WebSocket
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
-                type: 'sdr_sync_request',
+                type:      'sdr_sync_request',
                 frequency: parseFloat(document.getElementById('sdrFrequency').value),
-                mode: document.getElementById('sdrMode').value
+                mode:      document.getElementById('sdrMode').value
             }));
         }
-
-        // Also perform local measurement
         window.startMeasurement();
     };
 
-    // --- MQTT Connection (placeholder) ---
+    // =====================================================================
+    // MQTT Connection
+    // =====================================================================
     window.connectMQTT = function() {
-        const host = document.getElementById('mqttHost').value;
-        const port = document.getElementById('mqttPort').value;
-        const statusEl = document.getElementById('mqttStatus');
-
-        statusEl.textContent = 'Connecting...';
-        statusEl.className = 'status-badge status-waiting';
-
-        // In production this would connect via backend /api/sdr/mqtt/connect
+        var host     = document.getElementById('mqttHost').value;
+        var port     = document.getElementById('mqttPort').value;
+        var statusEl = document.getElementById('mqttStatus');
+        statusEl.textContent = 'Connecting…';
+        statusEl.className   = 'status-badge status-waiting';
+        // Actual MQTT connection would require backend relay; placeholder kept intentional
         setTimeout(function() {
-            mqttConnected = true;
+            mqttConnected        = true;
             statusEl.textContent = 'MQTT Online';
-            statusEl.className = 'status-badge status-online';
-            console.log('MQTT connected to:', host + ':' + port);
+            statusEl.className   = 'status-badge status-online';
+            console.log('[SDR] MQTT target:', host + ':' + port);
         }, 1000);
     };
 
-    // --- Triangulation (placeholder) ---
+    // =====================================================================
+    // Triangulation
+    // =====================================================================
     window.triangulate = function() {
-        const peerCount = Object.keys(mqttPeers).length;
+        var peerCount = Object.keys(mqttPeers).length;
         if (peerCount < 2) {
             alert('At least 2 connected peers needed for triangulation.\nCurrent: ' + peerCount + ' Peer(s)');
             return;
         }
-
-        // In production this calls /api/sdr/triangulate
-        const mapEl = document.getElementById('triangulationMap');
-        mapEl.innerHTML = '<i class="fas fa-crosshairs" style="color:var(--accent-blue);"></i>' +
-            '<span>Calculating triangulation...</span>';
-
+        var mapEl = document.getElementById('triangulationMap');
+        mapEl.innerHTML = '<i class="fas fa-crosshairs" style="color:var(--accent-blue);"></i><span>Calculating…</span>';
         setTimeout(function() {
             mapEl.innerHTML = '<i class="fas fa-map-marked-alt" style="color:var(--accent);"></i>' +
                 '<span>Estimated position calculated</span>' +
@@ -797,55 +1125,75 @@
         }, 2000);
     };
 
-    // --- Helpers ---
+    // =====================================================================
+    // WebSocket connection (for SDR peer sync)
+    // =====================================================================
+    function connectWebSocket() {
+        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var wsUrl    = protocol + '//' + window.location.host + '/ws';
+        try {
+            ws = new WebSocket(wsUrl);
+            ws.onopen = function() {
+                ws.send(JSON.stringify({ type: 'subscribe', channel: 'sdr' }));
+            };
+            ws.onmessage = function(event) {
+                try {
+                    var data = JSON.parse(event.data);
+                    if (data.type === 'sdr_measurement') handleRemoteMeasurement(data);
+                    else if (data.type === 'sdr_peer_update') handlePeerUpdate(data);
+                } catch (e) { /* ignore */ }
+            };
+            ws.onclose = function() { ws = null; setTimeout(connectWebSocket, 5000); };
+        } catch (e) { console.error('[SDR] WebSocket failed:', e); }
+    }
+
+    // =====================================================================
+    // Helpers
+    // =====================================================================
     function estimateDistance(rssiDbm, freqMhz) {
         var txPower = parseFloat(document.getElementById('sdrTxPower').value) || 20;
-        var pathLossExponent = 3.0;
-        var c = 299792458;
-        var freqHz = freqMhz * 1e6;
-        var refDist = 1;
-        var refRssi = txPower - (20 * Math.log10(4 * Math.PI * refDist * freqHz / c));
-        return Math.pow(10, (refRssi - rssiDbm) / (10 * pathLossExponent));
+        var c       = 299792458;
+        var freqHz  = freqMhz * 1e6;
+        var refRssi = txPower - (20 * Math.log10(4 * Math.PI * 1 * freqHz / c));
+        return Math.pow(10, (refRssi - rssiDbm) / (10 * 3.0));
     }
 
     function updateSignalDisplay(power, distance, blocked) {
+        var pct       = Math.max(0, Math.min(100, (power + 100) * 2));
         var signalBar = document.getElementById('signalBar');
-        var signalValue = document.getElementById('signalValue');
-        var distBar = document.getElementById('distanceBar');
-        var distValue = document.getElementById('distanceValue');
+        var signalVal = document.getElementById('signalValue');
+        var distBar   = document.getElementById('distanceBar');
+        var distVal   = document.getElementById('distanceValue');
 
-        var pct = Math.max(0, Math.min(100, (power + 100) * 2));
-        signalBar.style.width = pct + '%';
-        signalValue.textContent = blocked ? (power.toFixed(1) + ' dBm (blocked)') : (power.toFixed(1) + ' dBm');
+        if (signalBar) signalBar.style.width = pct + '%';
+        if (signalVal) signalVal.textContent  = blocked
+            ? power.toFixed(1) + ' dBm (squelch)'
+            : power.toFixed(1) + ' dBm';
 
         if (distance !== null && !blocked) {
             var dPct = Math.max(0, Math.min(100, Math.log10(distance + 1) * 25));
-            distBar.style.width = dPct + '%';
-            distValue.textContent = distance.toFixed(1) + ' m';
+            if (distBar) distBar.style.width  = dPct + '%';
+            if (distVal) distVal.textContent  = distance.toFixed(1) + ' m';
         } else {
-            distBar.style.width = '0%';
-            distValue.textContent = '-- no signal --';
+            if (distBar) distBar.style.width  = '0%';
+            if (distVal) distVal.textContent  = '-- no signal --';
         }
     }
 
     function addLogEntry(freq, mode, power, distance, source) {
-        var now = new Date();
-        var ts = now.toLocaleTimeString('en-US');
-        source = source || (measurementMode === 'real' ? 'LIVE' : 'SIM');
+        var ts = new Date().toLocaleTimeString('en-US');
+        source = source || 'SIM';
         measurementLog.push({ time: ts, freq: freq, mode: mode, power: power, distance: distance, source: source });
-
         var tbody = document.getElementById('logBody');
-        // Remove placeholder
         if (measurementLog.length === 1) tbody.innerHTML = '';
-
-        var sourceColor = source === 'SIM' ? '#f39c12' : '#2ecc71';
+        var srcColor = (source === 'HW' || source === 'CLI') ? '#2ecc71' : '#f39c12';
         var tr = document.createElement('tr');
         tr.innerHTML = '<td>' + ts + '</td>' +
             '<td>' + freq.toFixed(3) + '</td>' +
             '<td>' + mode + '</td>' +
             '<td>' + (typeof power === 'number' ? power.toFixed(1) : power) + '</td>' +
             '<td>' + distance + '</td>' +
-            '<td style="color:' + sourceColor + '; font-weight:bold;">' + source + '</td>';
+            '<td style="color:' + srcColor + '; font-weight:bold;">' + source + '</td>';
         tbody.insertBefore(tr, tbody.firstChild);
     }
 
@@ -858,22 +1206,19 @@
     }
 
     function handlePeerUpdate(data) {
-        if (data.peers) {
-            Object.assign(mqttPeers, data.peers);
-            updatePeerDisplay();
-        }
+        if (data.peers) { Object.assign(mqttPeers, data.peers); updatePeerDisplay(); }
     }
 
     function updatePeerDisplay() {
         var container = document.getElementById('mqttPeers');
-        var keys = Object.keys(mqttPeers);
-        if (keys.length === 0) {
+        var keys      = Object.keys(mqttPeers);
+        if (!keys.length) {
             container.innerHTML = '<span style="color:var(--text-dim); font-size:0.8rem;">No peers connected</span>';
             return;
         }
         container.innerHTML = '';
         keys.forEach(function(k) {
-            var span = document.createElement('span');
+            var span       = document.createElement('span');
             span.className = 'peer-badge';
             span.textContent = k + ' (' + (mqttPeers[k].distance || '?') + 'm)';
             container.appendChild(span);
@@ -887,32 +1232,69 @@
     };
 
     window.exportLog = function() {
-        if (measurementLog.length === 0) {
-            alert('No measurements available to export.');
-            return;
-        }
+        if (!measurementLog.length) { alert('No measurements to export.'); return; }
         var csv = 'Time,Frequency_MHz,Mode,Signal_dBm,Distance,Source\n';
         measurementLog.forEach(function(e) {
             csv += e.time + ',' + e.freq + ',' + e.mode + ',' +
-                (typeof e.power === 'number' ? e.power.toFixed(2) : e.power) + ',' + e.distance + ',' + (e.source || 'SIM') + '\n';
+                (typeof e.power === 'number' ? e.power.toFixed(2) : e.power) + ',' +
+                e.distance + ',' + (e.source || 'SIM') + '\n';
         });
-        var blob = new Blob([csv], { type: 'text/csv' });
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'sdr_measurement_' + new Date().toISOString().slice(0, 10) + '.csv';
+        var a  = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+        a.download = 'sdr_' + new Date().toISOString().slice(0, 10) + '.csv';
         a.click();
     };
 
-    // --- Init ---
+    // =====================================================================
+    // Crosshair tooltip on spectrum canvas (shows freq+dBm on hover)
+    // =====================================================================
+    if (spCanvas) {
+        spCanvas.addEventListener('mousemove', function(e) {
+            if (!_lastSpectrum || !_lastFStart) return;
+            var rect = spCanvas.getBoundingClientRect();
+            var mx   = (e.clientX - rect.left) * (spCanvas.width / rect.width);
+            var my   = (e.clientY - rect.top)  * (spCanvas.height / rect.height);
+            var idx  = Math.floor(mx * _lastSpectrum.length / spCanvas.width);
+            var dbm  = _lastSpectrum[Math.min(idx, _lastSpectrum.length - 1)];
+            var freq = _lastFStart + (_lastFEnd - _lastFStart) * mx / spCanvas.width;
+
+            // Draw crosshair overlay on top of the cached spectrum
+            renderSpectrum(_lastSpectrum, _lastFStart, _lastFEnd);
+            spCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+            spCtx.lineWidth   = 1;
+            spCtx.setLineDash([3, 4]);
+            spCtx.beginPath(); spCtx.moveTo(mx, 0); spCtx.lineTo(mx, spCanvas.height); spCtx.stroke();
+            spCtx.setLineDash([]);
+
+            // Tooltip label
+            spCtx.fillStyle = 'rgba(0,0,0,0.7)';
+            spCtx.fillRect(mx + 5, my - 28, 130, 22);
+            spCtx.fillStyle = '#2ecc71';
+            spCtx.font      = '10px Courier New';
+            spCtx.fillText(freq.toFixed(4) + ' MHz  ' + dbm.toFixed(1) + ' dBm', mx + 8, my - 12);
+        });
+
+        spCanvas.addEventListener('mouseleave', function() {
+            if (_lastSpectrum) renderSpectrum(_lastSpectrum, _lastFStart, _lastFEnd);
+        });
+    }
+
+    // =====================================================================
+    // Init
+    // =====================================================================
     window.addEventListener('DOMContentLoaded', function() {
-        initSpectrumCanvas();
+        initCanvases();
         connectWebSocket();
         loadComPorts();
+        // Auto-detect RTL-SDR on load
+        detectRTLSDR();
     });
 
     window.addEventListener('resize', function() {
-        initSpectrumCanvas();
+        initCanvases();
+        if (_lastSpectrum) renderSpectrum(_lastSpectrum, _lastFStart, _lastFEnd);
     });
+
 })();
 </script>
 

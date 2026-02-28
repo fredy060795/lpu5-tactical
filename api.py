@@ -794,6 +794,56 @@ def ensure_default_unit():
 
 
 # -------------------------
+# TAK Server forwarding helpers
+# -------------------------
+
+def _get_tak_config() -> dict:
+    """Return TAK server config from config.json with safe defaults."""
+    cfg = load_json("config") or {}
+    return {
+        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
+        "tak_server_host":     cfg.get("tak_server_host", ""),
+        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+    }
+
+
+def forward_cot_to_tak(cot_xml: str) -> bool:
+    """
+    Forward a CoT XML string to the configured ATAK/TAK server via UDP.
+
+    The standard TAK protocol uses UDP unicast (or multicast) on port 4242.
+    Returns True on success, False if forwarding is disabled or an error occurs.
+    """
+    try:
+        tak_cfg = _get_tak_config()
+        if not tak_cfg["tak_forward_enabled"] or not tak_cfg["tak_server_host"]:
+            return False
+
+        host = tak_cfg["tak_server_host"]
+        port = tak_cfg["tak_server_port"]
+        data = cot_xml.encode("utf-8")
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.settimeout(2)
+            sock.sendto(data, (host, port))
+        except socket.timeout:
+            logger.warning("CoT forward to TAK server %s:%s timed out", host, port)
+            return False
+        except socket.gaierror as e:
+            logger.warning("CoT forward DNS/address error for %s:%s: %s", host, port, e)
+            return False
+        finally:
+            sock.close()
+
+        logger.info("Forwarded CoT to TAK server %s:%s (%d bytes)", host, port, len(data))
+        return True
+    except Exception as e:
+        logger.warning("Failed to forward CoT to TAK server: %s", e)
+        return False
+
+
+# -------------------------
 # Background meshtastic -> markers sync
 # -------------------------
 _MESHTASTIC_SYNC_THREAD = None
@@ -2099,7 +2149,16 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
         
         # Broadcast marker update to all connected clients
         broadcast_websocket_update("markers", "marker_created", marker_dict)
-        
+
+        # Forward to ATAK/TAK server if enabled
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            try:
+                cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
+                if cot_event:
+                    forward_cot_to_tak(cot_event.to_xml())
+            except Exception as _fwd_err:
+                logger.warning("CoT forward on marker_created failed: %s", _fwd_err)
+
         return {"status": "success", "marker": marker_dict}
     except Exception as e:
         db.rollback()
@@ -2156,7 +2215,16 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
         
         log_audit("update_marker", current_username, {"marker_id": marker_id})
         broadcast_websocket_update("markers", "marker_updated", marker_dict)
-        
+
+        # Forward to ATAK/TAK server if enabled
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            try:
+                cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
+                if cot_event:
+                    forward_cot_to_tak(cot_event.to_xml())
+            except Exception as _fwd_err:
+                logger.warning("CoT forward on marker_updated failed: %s", _fwd_err)
+
         return {"status": "success", "marker": marker_dict}
 
     except HTTPException:
@@ -5102,6 +5170,165 @@ def marker_to_cot(marker: Dict = Body(...)):
         logger.exception("marker_to_cot failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/cot/ingest", summary="Ingest raw CoT XML from ATAK/TAK client")
+async def ingest_cot_xml(request: Request):
+    """
+    Accept a raw Cursor-on-Target (CoT) XML message from an ATAK/TAK client.
+
+    The request body should contain the CoT XML string (Content-Type: text/xml
+    or application/xml).  The event is parsed, stored as a map marker and
+    broadcast to all connected WebSocket clients so it appears on every
+    client's map in real time.
+
+    If TAK forwarding is enabled the event is also echoed to the configured
+    TAK server so it can be relayed to other ATAK devices.
+    """
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Autonomous modules not available")
+
+    try:
+        body = await request.body()
+        xml_string = body.decode("utf-8", errors="replace").strip()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Cannot read request body: {e}")
+
+    if not xml_string:
+        raise HTTPException(status_code=400, detail="Empty request body")
+
+    # Validate before doing anything else
+    if not CoTProtocolHandler.validate_cot_xml(xml_string):
+        raise HTTPException(status_code=400, detail="Invalid CoT XML")
+
+    try:
+        cot_event = CoTEvent.from_xml(xml_string)
+        if not cot_event:
+            raise HTTPException(status_code=400, detail="Failed to parse CoT XML")
+
+        # Convert to map marker and upsert into DB
+        marker_dict = CoTProtocolHandler.cot_to_marker(cot_event)
+
+        with SessionLocal() as db:
+            existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
+            if existing:
+                existing.lat   = marker_dict["lat"]
+                existing.lng   = marker_dict["lng"]
+                existing.name  = marker_dict.get("name") or marker_dict["id"]
+                existing.type  = marker_dict.get("type", "unknown")
+                # Preserve non-CoT fields already stored; only overwrite CoT-specific keys
+                extra = dict(existing.data) if isinstance(existing.data, dict) else {}
+                extra["cot_type"]  = marker_dict.get("cot_type")
+                extra["source"]    = "cot"
+                extra["callsign"]  = marker_dict.get("callsign")
+                existing.data  = extra
+                db.commit()
+                db.refresh(existing)
+                event_type = "marker_updated"
+                stored_dict = {
+                    "id": existing.id, "lat": existing.lat, "lng": existing.lng,
+                    "name": existing.name, "type": existing.type,
+                    "color": existing.color, "icon": existing.icon,
+                    "created_by": existing.created_by,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": existing.data,
+                }
+            else:
+                new_marker = MapMarker(
+                    id=marker_dict["id"],
+                    lat=marker_dict["lat"],
+                    lng=marker_dict["lng"],
+                    name=marker_dict.get("name") or marker_dict["id"],
+                    description=marker_dict.get("description"),
+                    type=marker_dict.get("type", "unknown"),
+                    color="#3498db",
+                    icon="default",
+                    created_by="cot_ingest",
+                    data={"cot_type": marker_dict.get("cot_type"), "source": "cot", "callsign": marker_dict.get("callsign")},
+                )
+                db.add(new_marker)
+                db.commit()
+                db.refresh(new_marker)
+                event_type = "marker_created"
+                stored_dict = {
+                    "id": new_marker.id, "lat": new_marker.lat, "lng": new_marker.lng,
+                    "name": new_marker.name, "type": new_marker.type,
+                    "color": new_marker.color, "icon": new_marker.icon,
+                    "created_by": new_marker.created_by,
+                    "timestamp": new_marker.created_at.isoformat() if new_marker.created_at else datetime.now(timezone.utc).isoformat(),
+                    "data": new_marker.data,
+                }
+
+        # Broadcast to WebSocket clients
+        broadcast_websocket_update("markers", event_type, stored_dict)
+
+        # Echo to TAK server (relay)
+        forward_cot_to_tak(xml_string)
+
+        return {
+            "status": "success",
+            "action": event_type,
+            "marker": stored_dict,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("ingest_cot_xml failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tak/config", summary="Get TAK server forwarding configuration")
+def get_tak_config():
+    """Return the current TAK server forwarding configuration."""
+    cfg = load_json("config") or {}
+    return {
+        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
+        "tak_server_host":     cfg.get("tak_server_host", ""),
+        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+    }
+
+
+@app.put("/api/tak/config", summary="Update TAK server forwarding configuration")
+def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Header(None)):
+    """
+    Update the TAK server forwarding configuration.
+
+    Body fields (all optional):
+    - tak_forward_enabled (bool): Enable/disable forwarding to ATAK/TAK server
+    - tak_server_host (str): TAK server IP or hostname
+    - tak_server_port (int): UDP port on the TAK server (default 4242)
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    cfg = load_json("config") or {}
+
+    if "tak_forward_enabled" in data:
+        cfg["tak_forward_enabled"] = bool(data["tak_forward_enabled"])
+    if "tak_server_host" in data:
+        cfg["tak_server_host"] = str(data["tak_server_host"]).strip()
+    if "tak_server_port" in data:
+        try:
+            port = int(data["tak_server_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="tak_server_port must be a numeric value")
+        if not (1 <= port <= 65535):
+            raise HTTPException(status_code=400, detail="tak_server_port must be 1–65535")
+        cfg["tak_server_port"] = port
+
+    save_json("config", cfg)
+    logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_")})
+
+    return {
+        "status": "success",
+        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
+        "tak_server_host":     cfg.get("tak_server_host", ""),
+        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+    }
+
+
 # ===========================
 # Geofencing Endpoints
 # ===========================
@@ -5771,7 +5998,9 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
         
         lat = symbol.get("lat")
         lng = symbol.get("lng")
-        symbol_type = symbol.get("type", "marker")
+        # Normalise to lowercase so that type IDs are consistent across all
+        # TAK clients (ATAK/ITAK/WinTAK/XTAK) — e.g. "raute" == "Raute".
+        symbol_type = symbol.get("type", "marker").lower()
         source_page = symbol.get("source_page", "unknown")
         
         if lat is None or lng is None:
@@ -6303,6 +6532,326 @@ def get_data_server_status():
             "status": "error",
             "message": "Failed to get data server status"
         }
+
+# ===========================
+# SDR (Software-Defined Radio) Endpoints
+# ===========================
+
+import subprocess as _subprocess
+import shutil as _shutil
+import math as _math
+
+# Optional: pyrtlsdr — install with `pip install pyrtlsdr` on the deployment host
+try:
+    from rtlsdr import RtlSdr as _RtlSdr  # type: ignore
+    _RTLSDR_LIB = True
+except ImportError:
+    _RtlSdr = None
+    _RTLSDR_LIB = False
+
+# Optional: numpy — provides fast FFT; install with `pip install numpy`
+try:
+    import numpy as _np  # type: ignore
+    _NUMPY_LIB = True
+except ImportError:
+    _np = None
+    _NUMPY_LIB = False
+
+# RTL-SDR USB identifiers (Realtek chipset, common dongles)
+_RTL_SDR_VID = 0x0bda
+_RTL_SDR_PIDS = {0x2832, 0x2838, 0x2888}
+_SDR_DEFAULT_NFFT = 1024
+
+
+def _detect_rtlsdr_devices() -> list:
+    """
+    Detect RTL-SDR USB sticks using multiple methods:
+    1. pyrtlsdr device enumeration (most reliable)
+    2. lsusb output parsing (Linux/macOS)
+    3. pyserial VID/PID scan (cross-platform)
+    4. Presence of rtl_test CLI tool
+    """
+    devices = []
+
+    # Method 1: pyrtlsdr
+    if _RTLSDR_LIB:
+        try:
+            count = _RtlSdr.get_device_count()
+            for i in range(count):
+                try:
+                    name = _RtlSdr.get_device_name(i)
+                except Exception:
+                    name = f"RTL-SDR Device #{i}"
+                devices.append({"index": i, "name": name, "source": "pyrtlsdr", "available": True})
+            if devices:
+                return devices
+        except Exception:
+            pass
+
+    # Method 2: lsusb (Linux/macOS)
+    if _shutil.which("lsusb"):
+        try:
+            out = _subprocess.run(["lsusb"], capture_output=True, text=True, timeout=5)
+            for line in out.stdout.splitlines():
+                ll = line.lower()
+                if "0bda:2832" in ll or "0bda:2838" in ll or ("realtek" in ll and "sdr" in ll):
+                    devices.append({"index": len(devices), "name": line.strip(), "source": "lsusb", "available": True})
+        except Exception:
+            pass
+
+    # Method 3: pyserial VID/PID
+    if serial_list_ports:
+        try:
+            for p in serial_list_ports.comports():
+                vid = getattr(p, "vid", None)
+                pid = getattr(p, "pid", None)
+                if vid == _RTL_SDR_VID and pid in _RTL_SDR_PIDS:
+                    devices.append({
+                        "index": len(devices),
+                        "name": f"{p.description or p.device} (RTL-SDR)",
+                        "source": "serial_usb",
+                        "device": p.device,
+                        "available": True,
+                    })
+        except Exception:
+            pass
+
+    # Method 4: CLI tools present (implies RTL-SDR library installed)
+    if not devices and _shutil.which("rtl_test"):
+        devices.append({"index": 0, "name": "RTL-SDR (rtl-sdr tools detected)", "source": "rtl_tools", "available": True})
+
+    return devices
+
+
+def _simulate_spectrum(center_freq_hz: float, sample_rate_hz: float, nfft: int) -> list:
+    """
+    Generate a realistic-looking simulated SDR spectrum.
+    Noise floor ~-95 dBm with Gaussian jitter; pre-programmed signal peaks at
+    common frequencies (FM broadcast, NOAA weather, aviation, PMR446, ISM433/868).
+    """
+    bw_per_bin = sample_rate_hz / nfft
+    spectrum = [random.gauss(-95.0, 2.5) for _ in range(nfft)]
+
+    def add_peak(freq_hz: float, peak_dbm: float, bw_hz: float):
+        for i in range(nfft):
+            f = center_freq_hz + (i - nfft / 2) * bw_per_bin
+            d = f - freq_hz
+            if abs(d) < bw_hz * 3:
+                p = peak_dbm - 20.0 * (d / bw_hz) ** 2
+                if p > spectrum[i]:
+                    spectrum[i] = p
+
+    # FM broadcast 87.5–108 MHz
+    for fm in [89.0, 91.5, 93.3, 95.7, 97.5, 99.7, 101.1, 103.5, 105.7, 107.9]:
+        add_peak(fm * 1e6, random.uniform(-35, -20), 150e3)
+
+    # NOAA Weather Radio
+    for noaa in [162.400e6, 162.425e6, 162.450e6, 162.475e6, 162.500e6, 162.525e6, 162.550e6]:
+        add_peak(noaa, random.uniform(-60, -45), 25e3)
+
+    # Aviation AM (VHF)
+    for acft in [121.500e6, 126.200e6, 130.400e6]:
+        add_peak(acft, random.uniform(-75, -50), 30e3)
+
+    # PMR446 (8 channels, 12.5 kHz spacing)
+    for ch in range(8):
+        if random.random() > 0.6:
+            add_peak(446.00625e6 + ch * 12500, random.uniform(-75, -40), 12500)
+
+    # 433 MHz ISM (key fobs, sensors, LoRa)
+    if random.random() > 0.4:
+        add_peak(433.920e6, random.uniform(-72, -40), 20e3)
+    add_peak(433.050e6, random.uniform(-88, -65), 50e3)
+    add_peak(434.050e6, random.uniform(-88, -68), 30e3)
+
+    # 868 MHz ISM (LoRa, Z-Wave, SigFox)
+    for lora_f in [868.100e6, 868.300e6, 868.500e6, 869.525e6]:
+        if random.random() > 0.5:
+            add_peak(lora_f, random.uniform(-78, -50), 250e3)
+
+    # 2.4 GHz WiFi channels 1–13
+    for wch in range(1, 14):
+        add_peak((2412 + (wch - 1) * 5) * 1e6, random.uniform(-72, -45), 22e6)
+
+    return spectrum
+
+
+def _get_spectrum_data(center_freq_hz: float, sample_rate_hz: float, gain: float, nfft: int) -> dict:
+    """
+    Acquire spectrum data. Tries (in order):
+    1. pyrtlsdr + numpy — direct IQ sampling + FFT
+    2. rtl_power subprocess — CLI-based sweeping
+    3. Realistic simulation fallback
+    """
+    # 1. pyrtlsdr + numpy
+    if _RTLSDR_LIB and _NUMPY_LIB:
+        try:
+            sdr = _RtlSdr()
+            try:
+                sdr.sample_rate = sample_rate_hz
+                sdr.center_freq = center_freq_hz
+                sdr.gain = gain
+                samples = sdr.read_samples(nfft * 8)
+            finally:
+                sdr.close()
+
+            window = _np.hanning(nfft)
+            fft_data = _np.fft.fftshift(_np.fft.fft(samples[:nfft] * window, nfft))
+            # Normalize to approx dBm (relative to 1 mW into 50 Ω)
+            # -6.0 dB: empirical reference-level offset (full-scale IQ → ~dBm into 50 Ω)
+            power = (20.0 * _np.log10(_np.abs(fft_data) / nfft + 1e-10) - 6.0).tolist()
+            return {"spectrum": power, "source": "rtlsdr_hardware", "nfft": nfft}
+        except Exception as exc:
+            logger.warning("RTL-SDR hardware read failed: %s", exc)
+
+    # 2. rtl_power subprocess
+    if _shutil.which("rtl_power"):
+        try:
+            freq_start = int(center_freq_hz - sample_rate_hz / 2)
+            freq_end = int(center_freq_hz + sample_rate_hz / 2)
+            step = max(1, int(sample_rate_hz / nfft))
+            result = _subprocess.run(
+                ["rtl_power", "-f", f"{freq_start}:{freq_end}:{step}",
+                 "-g", str(int(gain)), "-e", "1s", "/dev/null"],
+                capture_output=True, text=True, timeout=10,
+            )
+            powers: list = []
+            for line in result.stdout.strip().splitlines():
+                parts = line.split(",")
+                if len(parts) > 6:
+                    try:
+                        powers.extend(float(x.strip()) for x in parts[6:])
+                    except ValueError:
+                        pass
+            if powers:
+                # Resample to exactly nfft bins
+                src_len = len(powers)
+                resampled = [powers[int(i * src_len / nfft)] for i in range(nfft)]
+                return {"spectrum": resampled, "source": "rtl_power", "nfft": nfft}
+        except Exception as exc:
+            logger.warning("rtl_power subprocess failed: %s", exc)
+
+    # 3. Simulation
+    return {"spectrum": _simulate_spectrum(center_freq_hz, sample_rate_hz, nfft), "source": "simulated", "nfft": nfft}
+
+
+@app.get("/api/sdr/devices", summary="Detect RTL-SDR USB devices")
+def sdr_get_devices():
+    """
+    Detect connected RTL-SDR dongles using pyrtlsdr, lsusb, pyserial VID/PID,
+    and CLI tool presence.  Returns device list and backend capability flags.
+    """
+    devices = _detect_rtlsdr_devices()
+    return {
+        "devices": devices,
+        "count": len(devices),
+        "capabilities": {
+            "pyrtlsdr":  _RTLSDR_LIB,
+            "numpy":     _NUMPY_LIB,
+            "rtl_power": bool(_shutil.which("rtl_power")),
+            "rtl_test":  bool(_shutil.which("rtl_test")),
+        },
+    }
+
+
+@app.get("/api/sdr/status", summary="RTL-SDR hardware status")
+def sdr_status():
+    """Return current RTL-SDR hardware availability and library status."""
+    devices = _detect_rtlsdr_devices()
+    return {
+        "available":       len(devices) > 0,
+        "device_count":    len(devices),
+        "devices":         devices,
+        "library_rtlsdr":  _RTLSDR_LIB,
+        "library_numpy":   _NUMPY_LIB,
+        "cli_rtl_power":   bool(_shutil.which("rtl_power")),
+        "cli_rtl_test":    bool(_shutil.which("rtl_test")),
+    }
+
+
+@app.post("/api/sdr/connect", summary="Connect to RTL-SDR device")
+def sdr_connect_device(data: dict = Body(...)):
+    """
+    Attempt to connect to an RTL-SDR device.  Returns connection status and
+    the operational mode (hardware / simulated) so the UI can indicate whether
+    real hardware is being used.
+
+    Body fields (all optional):
+    - device_index (int)     — 0-based device index (default 0)
+    - frequency_mhz (float)  — initial center frequency in MHz (default 433.92)
+    - sample_rate_mhz (float)— sample rate in MHz (default 2.4)
+    - gain (float)           — tuner gain in dB (default 20.0)
+    """
+    freq_mhz        = float(data.get("frequency_mhz",  433.920))
+    sample_rate_mhz = float(data.get("sample_rate_mhz", 2.4))
+    gain            = float(data.get("gain", 20.0))
+
+    devices = _detect_rtlsdr_devices()
+    hw_available = len(devices) > 0
+    has_driver    = _RTLSDR_LIB or bool(_shutil.which("rtl_power")) or bool(_shutil.which("rtl_test"))
+    mode = "hardware" if (hw_available and has_driver) else "simulated"
+
+    return {
+        "status":           "connected",
+        "mode":             mode,
+        "device_count":     len(devices),
+        "devices":          devices,
+        "frequency_mhz":    freq_mhz,
+        "sample_rate_mhz":  sample_rate_mhz,
+        "gain":             gain,
+        "capabilities": {
+            "pyrtlsdr":  _RTLSDR_LIB,
+            "numpy":     _NUMPY_LIB,
+            "rtl_power": bool(_shutil.which("rtl_power")),
+        },
+    }
+
+
+@app.post("/api/sdr/measure", summary="Get SDR spectrum measurement")
+def sdr_measure(data: dict = Body(...)):
+    """
+    Return a spectrum measurement as an array of power values (dBm per FFT bin).
+
+    Body fields:
+    - frequency_mhz (float)   — center frequency in MHz (default 433.92)
+    - sample_rate_mhz (float) — bandwidth in MHz (default 2.4)
+    - gain (float)            — tuner gain in dB (default 20.0)
+    - nfft (int)              — FFT size, power-of-2, 64–2048 (default 1024)
+
+    Response:
+    - spectrum (list[float])  — nfft power values in dBm
+    - source (str)            — 'rtlsdr_hardware', 'rtl_power', or 'simulated'
+    - freq_start_mhz / freq_end_mhz — display frequency range
+    - bw_per_bin_hz           — bandwidth per bin
+    """
+    freq_mhz        = float(data.get("frequency_mhz",  433.920))
+    sample_rate_mhz = float(data.get("sample_rate_mhz", 2.4))
+    gain            = float(data.get("gain", 20.0))
+    nfft_req        = int(data.get("nfft", _SDR_DEFAULT_NFFT))
+
+    # Clamp nfft to nearest power-of-2 in [64, 2048]
+    # Use `nfft * 2 <= min(nfft_req, 2048)` so we can actually reach 2048.
+    nfft = 64
+    while nfft * 2 <= min(nfft_req, 2048):
+        nfft *= 2
+
+    center_freq_hz  = freq_mhz * 1e6
+    sample_rate_hz  = sample_rate_mhz * 1e6
+
+    result = _get_spectrum_data(center_freq_hz, sample_rate_hz, gain, nfft)
+
+    return {
+        "spectrum":        result["spectrum"],
+        "source":          result["source"],
+        "nfft":            nfft,
+        "freq_start_mhz":  (center_freq_hz - sample_rate_hz / 2) / 1e6,
+        "freq_end_mhz":    (center_freq_hz + sample_rate_hz / 2) / 1e6,
+        "center_freq_mhz": freq_mhz,
+        "sample_rate_mhz": sample_rate_mhz,
+        "bw_per_bin_hz":   sample_rate_hz / nfft,
+        "timestamp":       datetime.now(timezone.utc).isoformat(),
+    }
+
 
 # -------------------------
 # Generic error handler
