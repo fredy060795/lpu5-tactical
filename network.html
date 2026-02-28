@@ -820,7 +820,8 @@ async function testTakConnection() {
         const response = await fetch('/api/tak/test');
         const result = await response.json();
         if (result.reachable) {
-            showStatus('TAK: ' + result.message, 'success');
+            const exchanged = result.data_exchanged ? ' ✓ Data exchanged.' : '';
+            showStatus('TAK: ' + result.message + exchanged, 'success');
         } else {
             showStatus('TAK unreachable: ' + result.message, 'error');
         }
