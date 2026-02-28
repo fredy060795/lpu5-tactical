@@ -529,6 +529,53 @@
         </div>
     </div>
 
+    <!-- CoT Listener Section -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-satellite-dish"></i>
+            CoT Listener (Inbound ATAK Data)
+        </div>
+
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            The CoT listener opens local TCP and UDP sockets so that ATAK clients can
+            send CoT XML directly to this server. Received events are stored as map
+            markers and broadcast to all connected clients in real time.
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label">TCP Port (ATAK direct connect)</label>
+                <input type="number" class="form-input" id="cotListenerTcpPort" value="8087" min="1" max="65535">
+            </div>
+            <div class="form-group">
+                <label class="form-label">UDP Port (legacy / multicast)</label>
+                <input type="number" class="form-input" id="cotListenerUdpPort" value="4242" min="1" max="65535">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="cotListenerAutoStart">
+                <label for="cotListenerAutoStart">Start listener automatically on server startup</label>
+            </div>
+        </div>
+
+        <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-success" id="cotListenerStartBtn" onclick="startCotListener()">
+                <i class="fas fa-play"></i> Start Listener
+            </button>
+            <button class="btn btn-danger" id="cotListenerStopBtn" onclick="stopCotListener()">
+                <i class="fas fa-stop"></i> Stop Listener
+            </button>
+            <button class="btn" onclick="refreshCotListenerStatus()">
+                <i class="fas fa-sync"></i> Refresh Status
+            </button>
+        </div>
+
+        <div id="cotListenerStatus" class="info-box" style="margin-top:8px;display:none;"></div>
+    </div>
+
     <!-- CoT (Cursor on Target) Settings -->
     <div class="section">
         <div class="section-header">
@@ -698,6 +745,17 @@ async function loadNetworkSettings() {
             document.getElementById('cotIncludeTeam').checked = networkConfig.cotIncludeTeam !== false;
             document.getElementById('cotIncludeRemarks').checked = networkConfig.cotIncludeRemarks || false;
 
+            // CoT Listener ports & auto-start
+            try {
+                const cfgRaw = await fetch('/api/config');
+                if (cfgRaw.ok) {
+                    const rawCfg = await cfgRaw.json();
+                    document.getElementById('cotListenerTcpPort').value = rawCfg.cot_listener_tcp_port || 8087;
+                    document.getElementById('cotListenerUdpPort').value = rawCfg.cot_listener_udp_port || 4242;
+                    document.getElementById('cotListenerAutoStart').checked = rawCfg.cot_listener_enabled || false;
+                }
+            } catch (_) { /* use defaults */ }
+
             // Update UI state
             updateForwardingState();
             updatePublicIpState();
@@ -820,13 +878,82 @@ async function testTakConnection() {
         const response = await fetch('/api/tak/test');
         const result = await response.json();
         if (result.reachable) {
-            showStatus('TAK: ' + result.message, 'success');
+            const exchanged = result.data_exchanged ? ' ✓ Data exchanged.' : '';
+            showStatus('TAK: ' + result.message + exchanged, 'success');
         } else {
             showStatus('TAK unreachable: ' + result.message, 'error');
         }
     } catch (error) {
         console.error('TAK connection test failed:', error);
         showStatus('TAK connection test failed: ' + error.message, 'error');
+    }
+}
+
+function _showCotListenerStatus(result) {
+    const div = document.getElementById('cotListenerStatus');
+    div.style.display = 'block';
+    if (result.running) {
+        div.className = 'success-box';
+        div.innerHTML = `<i class="fas fa-check-circle"></i> Listener running — TCP:${result.tcp_port || '?'} UDP:${result.udp_port || '?'} | events_received: ${result.events_received || 0} | events_ingested: ${result.events_ingested || 0} | uptime: ${result.uptime_seconds || 0}s`;
+    } else if (result.available === false) {
+        div.className = 'warning-box';
+        div.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${result.message || 'CoT listener not available'}`;
+    } else {
+        div.className = 'info-box';
+        div.innerHTML = `<i class="fas fa-info-circle"></i> ${result.message || 'Listener stopped'}`;
+    }
+}
+
+async function refreshCotListenerStatus() {
+    try {
+        const resp = await fetch('/api/cot/listener/status');
+        const result = await resp.json();
+        _showCotListenerStatus(result);
+    } catch (e) {
+        console.error('CoT listener status error:', e);
+    }
+}
+
+async function startCotListener() {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const tcpPort = parseInt(document.getElementById('cotListenerTcpPort').value) || 8087;
+    const udpPort = parseInt(document.getElementById('cotListenerUdpPort').value) || 4242;
+    const autoStart = document.getElementById('cotListenerAutoStart').checked;
+
+    // Persist port config to server config first
+    try {
+        await fetch('/api/tak/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ cot_listener_tcp_port: tcpPort, cot_listener_udp_port: udpPort, cot_listener_enabled: autoStart })
+        });
+    } catch (_) { /* ignore config save errors */ }
+
+    try {
+        const resp = await fetch('/api/cot/listener/start', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const result = await resp.json();
+        _showCotListenerStatus(result);
+        showStatus('CoT listener started', 'success');
+    } catch (e) {
+        showStatus('Failed to start CoT listener: ' + e.message, 'error');
+    }
+}
+
+async function stopCotListener() {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    try {
+        const resp = await fetch('/api/cot/listener/stop', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const result = await resp.json();
+        _showCotListenerStatus({ running: false, available: true, message: 'Listener stopped.' });
+        showStatus('CoT listener stopped', 'success');
+    } catch (e) {
+        showStatus('Failed to stop CoT listener: ' + e.message, 'error');
     }
 }
 
@@ -905,6 +1032,7 @@ document.getElementById('enableCoT').addEventListener('change', updateCoTState);
 document.addEventListener('DOMContentLoaded', function() {
     loadServerInfo();
     loadNetworkSettings();
+    refreshCotListenerStatus();
 });
 </script>
 

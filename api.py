@@ -128,6 +128,15 @@ except Exception as e:
     gateway_list_ports = None
     GATEWAY_SERVICE_AVAILABLE = False
 
+# Import CoT listener service
+try:
+    from cot_listener_service import CoTListenerService
+    COT_LISTENER_AVAILABLE = True
+except Exception as e:  # pragma: no cover
+    logger.warning("CoT listener service not available: %s", e)
+    CoTListenerService = None
+    COT_LISTENER_AVAILABLE = False
+
 # RBAC permissions system has been removed - all users have full access
 # Keeping basic authentication (verify_token, get_current_user) for user identity
 PERMISSIONS_AVAILABLE = False
@@ -306,11 +315,32 @@ async def lifespan(application):
         _MARKER_BROADCAST_THREAD.start()
         logger.info("✅ Marker broadcast worker started (interval=%ss)", broadcast_interval)
 
+    # Start CoT listener service if enabled in config
+    try:
+        cfg = load_json("config") or {}
+        cot_listener_enabled = cfg.get("cot_listener_enabled", False)
+    except Exception:
+        cot_listener_enabled = False
+    if cot_listener_enabled and COT_LISTENER_AVAILABLE:
+        try:
+            if _start_cot_listener():
+                logger.info("✅ CoT listener service started")
+            else:
+                logger.warning("⚠️  Failed to start CoT listener service")
+        except Exception as e:
+            logger.error("Error starting CoT listener service: %s", e)
+
     logger.info("Startup complete. DB files ensured.")
 
     yield
 
     # ---- Shutdown logic ----
+    # Stop CoT listener service
+    try:
+        _stop_cot_listener()
+    except Exception as e:
+        logger.error("Error stopping CoT listener service: %s", e)
+
     # Stop gateway service
     global _gateway_service
     if _gateway_service:
@@ -800,6 +830,8 @@ def ensure_default_unit():
 # -------------------------
 
 _TAK_SOCKET_TIMEOUT = 5  # seconds for TAK server socket operations
+_TAK_PING_RESPONSE_TIMEOUT = 3  # seconds to wait for a server ping-ack response
+_TAK_RECV_BUFFER = 4096  # bytes to read from server response
 
 def _get_tak_config() -> dict:
     """Return TAK server config from config.json with safe defaults.
@@ -855,6 +887,22 @@ def _build_tak_auth_xml(username: str, password: str) -> bytes:
         '<?xml version="1.0" encoding="UTF-8"?>'
         f'<auth><cot username="{u}" password="{p}"/></auth>'
     ).encode("utf-8")
+
+
+def _build_cot_ping_xml() -> str:
+    """Build a minimal CoT t-x-c-t ping XML string for server connectivity testing."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    stale = now + timedelta(seconds=30)
+    fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    uid = f"LPU5-PING-{uuid.uuid4().hex[:8].upper()}"
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<event version="2.0" uid="{uid}" type="t-x-c-t" how="m-g"'
+        f' time="{fmt(now)}" start="{fmt(now)}" stale="{fmt(stale)}">'
+        '<point lat="0.0" lon="0.0" hae="0.0" ce="9999999.0" le="9999999.0"/>'
+        '<detail/></event>'
+    )
 
 
 def forward_cot_to_tak(cot_xml: str) -> bool:
@@ -3139,6 +3187,10 @@ _gateway_service = None
 _gateway_thread = None
 _gateway_service_lock = threading.Lock()
 
+# Global CoT listener service instance
+_cot_listener_service = None
+_cot_listener_lock = threading.Lock()
+
 def _close_meshtastic_interface(iface, port_name: str = "unknown", operation: str = "operation"):
     """
     Safely close a Meshtastic interface with proper error handling and logging.
@@ -5246,6 +5298,156 @@ async def gateway_send_message(data: dict = Body(...)):
             raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 # ===========================
+# CoT Listener Service
+# ===========================
+
+def _cot_listener_ingest_callback(xml_string: str) -> None:
+    """
+    Ingest callback for the CoT listener service.
+
+    Parses the received CoT XML, upserts the corresponding map marker into
+    the database, and broadcasts the change to all WebSocket clients.
+    Mirrors the logic in POST /api/cot/ingest without the HTTP layer.
+    """
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        return
+    try:
+        if not CoTProtocolHandler.validate_cot_xml(xml_string):
+            logger.debug("CoT listener: invalid CoT XML ignored")
+            return
+        cot_event = CoTEvent.from_xml(xml_string)
+        if not cot_event:
+            return
+        marker_dict = CoTProtocolHandler.cot_to_marker(cot_event)
+        with SessionLocal() as db:
+            existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
+            if existing:
+                existing.lat = marker_dict["lat"]
+                existing.lng = marker_dict["lng"]
+                existing.name = marker_dict.get("name") or marker_dict["id"]
+                existing.type = marker_dict.get("type", "unknown")
+                extra = dict(existing.data) if isinstance(existing.data, dict) else {}
+                extra["cot_type"] = marker_dict.get("cot_type")
+                extra["source"] = "cot"
+                extra["callsign"] = marker_dict.get("callsign")
+                existing.data = extra
+                db.commit()
+                db.refresh(existing)
+                event_type = "marker_updated"
+                stored = {
+                    "id": existing.id, "lat": existing.lat, "lng": existing.lng,
+                    "name": existing.name, "type": existing.type,
+                    "color": existing.color, "icon": existing.icon,
+                    "created_by": existing.created_by,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": existing.data,
+                }
+            else:
+                new_marker = MapMarker(
+                    id=marker_dict["id"],
+                    lat=marker_dict["lat"],
+                    lng=marker_dict["lng"],
+                    name=marker_dict.get("name") or marker_dict["id"],
+                    description=marker_dict.get("description"),
+                    type=marker_dict.get("type", "unknown"),
+                    color="#3498db",
+                    icon="default",
+                    created_by="cot_ingest",
+                    data={"cot_type": marker_dict.get("cot_type"), "source": "cot",
+                          "callsign": marker_dict.get("callsign")},
+                )
+                db.add(new_marker)
+                db.commit()
+                db.refresh(new_marker)
+                event_type = "marker_created"
+                stored = {
+                    "id": new_marker.id, "lat": new_marker.lat, "lng": new_marker.lng,
+                    "name": new_marker.name, "type": new_marker.type,
+                    "color": new_marker.color, "icon": new_marker.icon,
+                    "created_by": new_marker.created_by,
+                    "timestamp": new_marker.created_at.isoformat() if new_marker.created_at else datetime.now(timezone.utc).isoformat(),
+                    "data": new_marker.data,
+                }
+        broadcast_websocket_update("markers", event_type, stored)
+        # Echo back to TAK server if forwarding is enabled
+        forward_cot_to_tak(xml_string)
+    except Exception as exc:
+        logger.exception("_cot_listener_ingest_callback failed: %s", exc)
+
+
+def _start_cot_listener() -> bool:
+    """Start the CoT listener service using config.json settings."""
+    global _cot_listener_service
+    if not COT_LISTENER_AVAILABLE:
+        return False
+    with _cot_listener_lock:
+        if _cot_listener_service and _cot_listener_service.stats.get("running"):
+            return True
+        cfg = load_json("config") or {}
+        tcp_port = int(cfg.get("cot_listener_tcp_port", 8087))
+        udp_port = int(cfg.get("cot_listener_udp_port", 4242))
+        _cot_listener_service = CoTListenerService(
+            tcp_port=tcp_port,
+            udp_port=udp_port,
+            ingest_callback=_cot_listener_ingest_callback,
+        )
+        return _cot_listener_service.start()
+
+
+def _stop_cot_listener() -> None:
+    """Stop the CoT listener service."""
+    global _cot_listener_service
+    with _cot_listener_lock:
+        if _cot_listener_service:
+            _cot_listener_service.stop()
+            _cot_listener_service = None
+
+
+@app.get("/api/cot/listener/status", summary="Get CoT listener service status")
+def cot_listener_status():
+    """Return the current status of the local CoT socket listener."""
+    if not COT_LISTENER_AVAILABLE:
+        return {"available": False, "message": "CoT listener service not available"}
+    with _cot_listener_lock:
+        if not _cot_listener_service:
+            return {"available": True, "running": False, "message": "CoT listener not started"}
+        return {"available": True, **_cot_listener_service.get_status()}
+
+
+@app.post("/api/cot/listener/start", summary="Start CoT listener service")
+def cot_listener_start(authorization: Optional[str] = Header(None)):
+    """
+    Start the local CoT TCP/UDP socket listener so that ATAK clients can
+    send CoT XML directly to this server.  Configuration is read from
+    config.json (cot_listener_tcp_port, cot_listener_udp_port).
+    """
+    if not COT_LISTENER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="CoT listener service not available")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if verify_token(authorization.split(" ")[1]) is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not _start_cot_listener():
+        raise HTTPException(status_code=500, detail="Failed to start CoT listener service")
+    with _cot_listener_lock:
+        status = _cot_listener_service.get_status() if _cot_listener_service else {}
+    return {"status": "started", **status}
+
+
+@app.post("/api/cot/listener/stop", summary="Stop CoT listener service")
+def cot_listener_stop(authorization: Optional[str] = Header(None)):
+    """Stop the local CoT socket listener."""
+    if not COT_LISTENER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="CoT listener service not available")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if verify_token(authorization.split(" ")[1]) is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    _stop_cot_listener()
+    return {"status": "stopped"}
+
+
+# ===========================
 # CoT (Cursor-on-Target) Protocol Endpoints
 # ===========================
 
@@ -5484,6 +5686,25 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         cfg["tak_username"] = str(data["tak_username"]).strip()
     if "tak_password" in data:
         cfg["tak_password"] = str(data["tak_password"])
+    # CoT listener settings (saved alongside TAK config for convenience)
+    if "cot_listener_tcp_port" in data:
+        try:
+            port = int(data["cot_listener_tcp_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="cot_listener_tcp_port must be a numeric value")
+        if not (1 <= port <= 65535):
+            raise HTTPException(status_code=400, detail="cot_listener_tcp_port must be 1–65535")
+        cfg["cot_listener_tcp_port"] = port
+    if "cot_listener_udp_port" in data:
+        try:
+            port = int(data["cot_listener_udp_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="cot_listener_udp_port must be a numeric value")
+        if not (1 <= port <= 65535):
+            raise HTTPException(status_code=400, detail="cot_listener_udp_port must be 1–65535")
+        cfg["cot_listener_udp_port"] = port
+    if "cot_listener_enabled" in data:
+        cfg["cot_listener_enabled"] = bool(data["cot_listener_enabled"])
 
     save_json("config", cfg)
     logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_") and k != "tak_password"})
@@ -5501,34 +5722,109 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
 @app.get("/api/tak/test", summary="Test TAK server connectivity")
 def test_tak_connection():
     """
-    Test connectivity to the configured TAK server by attempting a socket connection.
-    Returns reachable=True/False and a descriptive message.
+    Test connectivity to the configured TAK server by sending a CoT ping packet
+    and attempting to read the server response where the protocol allows it.
+
+    - UDP: sends a CoT t-x-c-t ping datagram; response not expected (UDP is fire-and-forget).
+    - TCP/SSL: connects, sends a CoT t-x-c-t ping, and reads any response
+      (TAK servers reply with a t-x-c-t-r ping-ack).
+
+    Returns reachable, data_exchanged, and a descriptive message.
     """
     tak_cfg = _get_tak_config()
     host = tak_cfg.get("tak_server_host", "").strip()
     port = tak_cfg.get("tak_server_port", 4242)
     conn_type = tak_cfg.get("tak_connection_type", "udp")
+    username = tak_cfg.get("tak_username", "")
+    password = tak_cfg.get("tak_password", "")
+    auth_data = _build_tak_auth_xml(username, password) if (username and password) else None
 
     if not host:
-        return {"reachable": False, "message": "No TAK server host configured"}
+        return {"reachable": False, "data_exchanged": False, "message": "No TAK server host configured"}
+
+    ping_data = _build_cot_ping_xml().encode("utf-8")
 
     if conn_type == "udp":
-        # UDP is connectionless; just validate address resolution
+        # UDP is connectionless: send a CoT ping packet to verify the data path.
+        # A response is not expected because TAK servers do not send UDP acks.
         try:
-            socket.getaddrinfo(host, port)
-            return {"reachable": True, "message": f"Host {host} resolved successfully (UDP - no handshake possible)"}
+            addrs = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
+            if not addrs:
+                raise socket.gaierror(f"No address found for {host}")
+            af, _, _, _, addr = addrs[0]
+            sock = socket.socket(af, socket.SOCK_DGRAM)
+            try:
+                sock.settimeout(_TAK_SOCKET_TIMEOUT)
+                sock.sendto(ping_data, addr)
+            finally:
+                sock.close()
+            return {
+                "reachable": True,
+                "data_exchanged": True,
+                "message": f"CoT ping sent to {host}:{port} (UDP – no response expected)",
+            }
         except socket.gaierror as e:
-            return {"reachable": False, "message": f"DNS resolution failed for {host}: {e}"}
+            return {"reachable": False, "data_exchanged": False, "message": f"DNS resolution failed for {host}: {e}"}
+        except (socket.timeout, OSError) as e:
+            return {"reachable": False, "data_exchanged": False, "message": f"UDP send to {host}:{port} failed: {e}"}
     else:
-        # TCP / SSL: attempt actual socket connect (create_connection handles IPv4 and IPv6)
+        # TCP / SSL: connect, send a CoT ping, then attempt to read the server response.
+        import ssl as _ssl_test
+        data_exchanged = False
+        response_data = b""
         try:
-            sock = socket.create_connection((host, port), timeout=_TAK_SOCKET_TIMEOUT)
-            sock.close()
-            return {"reachable": True, "message": f"Successfully connected to {host}:{port} ({conn_type.upper()})"}
+            if conn_type == "ssl":
+                addrs = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+                if not addrs:
+                    raise socket.gaierror(f"No address found for {host}")
+                af, _, _, _, addr = addrs[0]
+                ctx = _ssl_test.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = _ssl_test.CERT_NONE
+                ctx.minimum_version = _ssl_test.TLSVersion.TLSv1_2
+                raw = socket.socket(af, socket.SOCK_STREAM)
+                raw.settimeout(_TAK_SOCKET_TIMEOUT)
+                sock = ctx.wrap_socket(raw, server_hostname=host)
+                sock.connect(addr)
+            else:
+                # create_connection handles both IPv4 and IPv6
+                sock = socket.create_connection((host, port), timeout=_TAK_SOCKET_TIMEOUT)
+            try:
+                if auth_data:
+                    sock.sendall(auth_data)
+                sock.sendall(ping_data)
+                data_exchanged = True
+                # Try to read a server response (t-x-c-t-r ping-ack or any CoT reply).
+                # Use a shorter timeout so the endpoint returns promptly if no ack comes.
+                sock.settimeout(_TAK_PING_RESPONSE_TIMEOUT)
+                try:
+                    response_data = sock.recv(_TAK_RECV_BUFFER)
+                except socket.timeout:
+                    pass  # server did not respond within timeout – still counts as connected
+            finally:
+                sock.close()
+
+            if response_data:
+                return {
+                    "reachable": True,
+                    "data_exchanged": True,
+                    "message": (
+                        f"TAK server at {host}:{port} ({conn_type.upper()}) "
+                        f"responded ({len(response_data)} bytes)"
+                    ),
+                }
+            return {
+                "reachable": True,
+                "data_exchanged": data_exchanged,
+                "message": (
+                    f"Connected and sent CoT ping to {host}:{port} ({conn_type.upper()}); "
+                    "no response received"
+                ),
+            }
         except socket.timeout:
-            return {"reachable": False, "message": f"Connection to {host}:{port} timed out"}
+            return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} timed out"}
         except (socket.gaierror, ConnectionRefusedError, OSError) as e:
-            return {"reachable": False, "message": f"Connection to {host}:{port} failed: {e}"}
+            return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} failed: {e}"}
 
 
 @app.post("/api/geofence/create", summary="Create geofence")
