@@ -850,6 +850,14 @@
         top: 70px;
       }
 
+      .icon-flyout {
+        /* On phones, expand the flyout to nearly full width */
+        right: 64px;
+        left: 8px;
+        max-width: calc(100vw - 72px);
+        top: 70px;
+      }
+
       .stream-window {
         width: 300px;
         bottom: 10px;
@@ -863,6 +871,12 @@
         max-width: none;
         height: 60%;
         bottom: 10px;
+      }
+
+      #set-btn {
+        /* Make the SET POINT button larger and more reachable on touch screens */
+        padding: 12px 20px;
+        font-size: 1rem;
       }
     }
   </style>
@@ -985,8 +999,8 @@
       <button class="fly-sym-btn" id="symTrashBtn" title="Delete Mode"><i class="fas fa-trash"
           style="color:#ff6666"></i></button>
     </div>
-    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol — click on the map to place. Trash activates
-      delete mode: click symbol to remove. Stop ends placement mode.</div>
+    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol and click on the map to place it once. Placement mode deactivates automatically. Use Stop to cancel before placing. Trash activates
+      delete mode: click symbol to remove.</div>
   </div>
 
   <div id="fly-settings" class="icon-flyout" role="dialog" aria-hidden="true">
@@ -2543,6 +2557,12 @@
         }
 
         renderSettingsList();
+
+        // Auto-deactivate placement mode after one symbol is placed so that
+        // further map clicks do not accidentally set additional markers.
+        stopPlacingSymbol();
+        document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active'));
+        activeSymbol = null;
       }
 
       function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); deleteSymbolFromServer(id); }

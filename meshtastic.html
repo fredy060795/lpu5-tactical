@@ -352,6 +352,11 @@
             .composer { grid-template-columns:1fr; }
         }
 
+        @media (max-width:768px){
+            button, .btn, input[type="submit"] { min-height:44px; }
+            .composer input, .composer textarea { font-size:16px; } /* prevent iOS zoom */
+        }
+
         /* Channel Admin Styles */
         .channel-admin-card {
             background: #1e1e1e;
