@@ -142,9 +142,14 @@
               showCameraFrame(data.frame);
             }
           } else if (data.type === 'broadcast_selected' && slotMatch) {
-            currentBroadcastStreamId = data.streamId || null;
-            if (!currentBroadcastStreamId) {
+            if (data.active === false) {
+              currentBroadcastStreamId = null;
               hideStream();
+            } else {
+              currentBroadcastStreamId = data.streamId || null;
+              if (!currentBroadcastStreamId) {
+                hideStream();
+              }
             }
           } else if (data.type === 'camera_stream_stop' && slotMatch) {
             hideStream();
@@ -224,6 +229,7 @@
 
   function hideStream() {
     isCameraStream = false;
+    currentBroadcastStreamId = null;
     streamVideo.style.display = 'none';
     streamImage.style.display = 'none';
     streamPlaceholder.style.display = 'block';

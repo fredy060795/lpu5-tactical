@@ -1448,15 +1448,16 @@
             } else if (message.type === 'broadcast_selected') {
                 // HQ selected a stream to broadcast - start/stop sending frames as needed
                 console.log('Broadcast selected received:', message);
-                if (message.streamId === 'camera_main' && mediaStream && !frameCapture) {
+                if (message.streamId === 'camera_main' && message.active !== false && mediaStream && !frameCapture) {
                     startFrameCapture();
-                } else if (message.streamId !== 'camera_main' && frameCapture) {
-                    // Our stream was deselected or a different stream was selected – stop capture
+                } else if (message.streamId === 'camera_main' && message.active === false && frameCapture) {
+                    // Admin specifically stopped camera_main broadcast – stop frame capture
                     clearInterval(frameCapture);
                     frameCapture = null;
                     isSharing = false;
                     document.getElementById('shareToAdminMapBtn').innerHTML = '<i class="fas fa-map-marked-alt"></i> An Admin Map senden';
                 }
+                // If a different stream is selected or deselected, do not affect camera_main frame capture
             }
         }
 
@@ -1482,15 +1483,33 @@
 
         // Remove incoming stream
         function removeIncomingStream(streamId) {
-            if (incomingStreams.has(streamId)) {
-                incomingStreams.delete(streamId);
-                renderIncomingStreams();
-                
-                // If this was the selected broadcast stream, deselect it
-                if (selectedBroadcastStream === streamId) {
-                    selectedBroadcastStream = null;
+            if (!incomingStreams.has(streamId)) return;
+
+            // If this stream was being broadcast, stop it and notify viewers
+            const slot = streamSlotMap[streamId] || null;
+            if (slot !== null || selectedBroadcastStream === streamId) {
+                delete streamSlotMap[streamId];
+                if (selectedBroadcastStream === streamId) selectedBroadcastStream = null;
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'broadcast_selected',
+                        streamId: streamId,
+                        active: false,
+                        slot: slot || null,
+                        timestamp: Date.now()
+                    }));
+                    ws.send(JSON.stringify({
+                        type: 'stream_share',
+                        streamId: streamId,
+                        slot: slot || null,
+                        active: false,
+                        timestamp: Date.now()
+                    }));
                 }
             }
+
+            incomingStreams.delete(streamId);
+            renderIncomingStreams();
         }
 
         // Update frame for incoming camera stream
@@ -1682,6 +1701,7 @@
                 ws.send(JSON.stringify({
                     type: 'broadcast_selected',
                     streamId: streamId,
+                    active: true,
                     slot: slot,
                     source: stream.source,
                     details: stream.details,
@@ -1723,7 +1743,8 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'broadcast_selected',
-                    streamId: null,
+                    streamId: sid,
+                    active: false,
                     slot: slot || null,
                     timestamp: Date.now()
                 }));
