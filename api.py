@@ -794,6 +794,56 @@ def ensure_default_unit():
 
 
 # -------------------------
+# TAK Server forwarding helpers
+# -------------------------
+
+def _get_tak_config() -> dict:
+    """Return TAK server config from config.json with safe defaults."""
+    cfg = load_json("config") or {}
+    return {
+        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
+        "tak_server_host":     cfg.get("tak_server_host", ""),
+        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+    }
+
+
+def forward_cot_to_tak(cot_xml: str) -> bool:
+    """
+    Forward a CoT XML string to the configured ATAK/TAK server via UDP.
+
+    The standard TAK protocol uses UDP unicast (or multicast) on port 4242.
+    Returns True on success, False if forwarding is disabled or an error occurs.
+    """
+    try:
+        tak_cfg = _get_tak_config()
+        if not tak_cfg["tak_forward_enabled"] or not tak_cfg["tak_server_host"]:
+            return False
+
+        host = tak_cfg["tak_server_host"]
+        port = tak_cfg["tak_server_port"]
+        data = cot_xml.encode("utf-8")
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.settimeout(2)
+            sock.sendto(data, (host, port))
+        except socket.timeout:
+            logger.warning("CoT forward to TAK server %s:%s timed out", host, port)
+            return False
+        except socket.gaierror as e:
+            logger.warning("CoT forward DNS/address error for %s:%s: %s", host, port, e)
+            return False
+        finally:
+            sock.close()
+
+        logger.info("Forwarded CoT to TAK server %s:%s (%d bytes)", host, port, len(data))
+        return True
+    except Exception as e:
+        logger.warning("Failed to forward CoT to TAK server: %s", e)
+        return False
+
+
+# -------------------------
 # Background meshtastic -> markers sync
 # -------------------------
 _MESHTASTIC_SYNC_THREAD = None
@@ -2099,7 +2149,16 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
         
         # Broadcast marker update to all connected clients
         broadcast_websocket_update("markers", "marker_created", marker_dict)
-        
+
+        # Forward to ATAK/TAK server if enabled
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            try:
+                cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
+                if cot_event:
+                    forward_cot_to_tak(cot_event.to_xml())
+            except Exception as _fwd_err:
+                logger.warning("CoT forward on marker_created failed: %s", _fwd_err)
+
         return {"status": "success", "marker": marker_dict}
     except Exception as e:
         db.rollback()
@@ -2156,7 +2215,16 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
         
         log_audit("update_marker", current_username, {"marker_id": marker_id})
         broadcast_websocket_update("markers", "marker_updated", marker_dict)
-        
+
+        # Forward to ATAK/TAK server if enabled
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            try:
+                cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
+                if cot_event:
+                    forward_cot_to_tak(cot_event.to_xml())
+            except Exception as _fwd_err:
+                logger.warning("CoT forward on marker_updated failed: %s", _fwd_err)
+
         return {"status": "success", "marker": marker_dict}
 
     except HTTPException:
@@ -5101,6 +5169,165 @@ def marker_to_cot(marker: Dict = Body(...)):
     except Exception as e:
         logger.exception("marker_to_cot failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/cot/ingest", summary="Ingest raw CoT XML from ATAK/TAK client")
+async def ingest_cot_xml(request: Request):
+    """
+    Accept a raw Cursor-on-Target (CoT) XML message from an ATAK/TAK client.
+
+    The request body should contain the CoT XML string (Content-Type: text/xml
+    or application/xml).  The event is parsed, stored as a map marker and
+    broadcast to all connected WebSocket clients so it appears on every
+    client's map in real time.
+
+    If TAK forwarding is enabled the event is also echoed to the configured
+    TAK server so it can be relayed to other ATAK devices.
+    """
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Autonomous modules not available")
+
+    try:
+        body = await request.body()
+        xml_string = body.decode("utf-8", errors="replace").strip()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Cannot read request body: {e}")
+
+    if not xml_string:
+        raise HTTPException(status_code=400, detail="Empty request body")
+
+    # Validate before doing anything else
+    if not CoTProtocolHandler.validate_cot_xml(xml_string):
+        raise HTTPException(status_code=400, detail="Invalid CoT XML")
+
+    try:
+        cot_event = CoTEvent.from_xml(xml_string)
+        if not cot_event:
+            raise HTTPException(status_code=400, detail="Failed to parse CoT XML")
+
+        # Convert to map marker and upsert into DB
+        marker_dict = CoTProtocolHandler.cot_to_marker(cot_event)
+
+        with SessionLocal() as db:
+            existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
+            if existing:
+                existing.lat   = marker_dict["lat"]
+                existing.lng   = marker_dict["lng"]
+                existing.name  = marker_dict.get("name") or marker_dict["id"]
+                existing.type  = marker_dict.get("type", "unknown")
+                # Preserve non-CoT fields already stored; only overwrite CoT-specific keys
+                extra = dict(existing.data) if isinstance(existing.data, dict) else {}
+                extra["cot_type"]  = marker_dict.get("cot_type")
+                extra["source"]    = "cot"
+                extra["callsign"]  = marker_dict.get("callsign")
+                existing.data  = extra
+                db.commit()
+                db.refresh(existing)
+                event_type = "marker_updated"
+                stored_dict = {
+                    "id": existing.id, "lat": existing.lat, "lng": existing.lng,
+                    "name": existing.name, "type": existing.type,
+                    "color": existing.color, "icon": existing.icon,
+                    "created_by": existing.created_by,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": existing.data,
+                }
+            else:
+                new_marker = MapMarker(
+                    id=marker_dict["id"],
+                    lat=marker_dict["lat"],
+                    lng=marker_dict["lng"],
+                    name=marker_dict.get("name") or marker_dict["id"],
+                    description=marker_dict.get("description"),
+                    type=marker_dict.get("type", "unknown"),
+                    color="#3498db",
+                    icon="default",
+                    created_by="cot_ingest",
+                    data={"cot_type": marker_dict.get("cot_type"), "source": "cot", "callsign": marker_dict.get("callsign")},
+                )
+                db.add(new_marker)
+                db.commit()
+                db.refresh(new_marker)
+                event_type = "marker_created"
+                stored_dict = {
+                    "id": new_marker.id, "lat": new_marker.lat, "lng": new_marker.lng,
+                    "name": new_marker.name, "type": new_marker.type,
+                    "color": new_marker.color, "icon": new_marker.icon,
+                    "created_by": new_marker.created_by,
+                    "timestamp": new_marker.created_at.isoformat() if new_marker.created_at else datetime.now(timezone.utc).isoformat(),
+                    "data": new_marker.data,
+                }
+
+        # Broadcast to WebSocket clients
+        broadcast_websocket_update("markers", event_type, stored_dict)
+
+        # Echo to TAK server (relay)
+        forward_cot_to_tak(xml_string)
+
+        return {
+            "status": "success",
+            "action": event_type,
+            "marker": stored_dict,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("ingest_cot_xml failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tak/config", summary="Get TAK server forwarding configuration")
+def get_tak_config():
+    """Return the current TAK server forwarding configuration."""
+    cfg = load_json("config") or {}
+    return {
+        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
+        "tak_server_host":     cfg.get("tak_server_host", ""),
+        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+    }
+
+
+@app.put("/api/tak/config", summary="Update TAK server forwarding configuration")
+def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Header(None)):
+    """
+    Update the TAK server forwarding configuration.
+
+    Body fields (all optional):
+    - tak_forward_enabled (bool): Enable/disable forwarding to ATAK/TAK server
+    - tak_server_host (str): TAK server IP or hostname
+    - tak_server_port (int): UDP port on the TAK server (default 4242)
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    cfg = load_json("config") or {}
+
+    if "tak_forward_enabled" in data:
+        cfg["tak_forward_enabled"] = bool(data["tak_forward_enabled"])
+    if "tak_server_host" in data:
+        cfg["tak_server_host"] = str(data["tak_server_host"]).strip()
+    if "tak_server_port" in data:
+        try:
+            port = int(data["tak_server_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="tak_server_port must be a numeric value")
+        if not (1 <= port <= 65535):
+            raise HTTPException(status_code=400, detail="tak_server_port must be 1–65535")
+        cfg["tak_server_port"] = port
+
+    save_json("config", cfg)
+    logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_")})
+
+    return {
+        "status": "success",
+        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
+        "tak_server_host":     cfg.get("tak_server_host", ""),
+        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+    }
+
 
 # ===========================
 # Geofencing Endpoints
