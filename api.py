@@ -7183,6 +7183,13 @@ def get_map_symbols():
                 # Skip meshtastic-synced markers — rendered by updateMeshtasticNodes()
                 if s.type == "node" or (s.created_by and s.created_by in _MESHTASTIC_CREATED_BY):
                     continue
+                # Skip ATAK-echoed meshtastic node markers (uid prefix "mesh-") —
+                # these originate from _forward_meshtastic_node_to_tak and are
+                # re-ingested as TAK units; they are already shown as blue circles
+                # by updateMeshtasticNodes() so we exclude them here to avoid a
+                # duplicate white-dot rendering.
+                if s.created_by == "tak_server" and s.id.startswith("mesh-"):
+                    continue
                 # Basic fields
                 s_dict = {
                     "id": s.id,
@@ -7293,7 +7300,20 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
         # Broadcast to WebSocket clients using helper
         broadcast_websocket_update("symbols", "symbol_created", symbol_data)
         broadcast_websocket_update("markers", "marker_created", symbol_data)
-        
+
+        # Forward to ATAK/TAK server if enabled
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            try:
+                cot_event = CoTProtocolHandler.marker_to_cot(symbol_data)
+                if cot_event:
+                    ok = forward_cot_to_tak(cot_event.to_xml())
+                    if ok:
+                        logger.info("CoT forward on place_map_symbol succeeded: symbol_id=%s", new_symbol.id)
+                    else:
+                        logger.debug("CoT forward on place_map_symbol skipped (TAK forwarding disabled or not configured): symbol_id=%s", new_symbol.id)
+            except Exception as _fwd_err:
+                logger.warning("CoT forward on place_map_symbol failed: %s", _fwd_err)
+
         return {"status": "success", "symbol": symbol_data}
 
     except HTTPException:
@@ -7318,13 +7338,39 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
             # Prevent deletion of GPS position markers (except by the owning user for position updates)
             if marker.type == 'gps_position' and marker.created_by != current_username:
                 raise HTTPException(status_code=403, detail="GPS position markers cannot be deleted")
-            
+
+            # Capture values before deletion and commit to avoid detached instance access
+            marker_lat = marker.lat
+            marker_lng = marker.lng
+            marker_type = marker.type
+            marker_name = marker.name
+
             db.delete(marker)
             db.commit()
-            
+
         # Broadcast to WebSocket clients using helper
         broadcast_websocket_update("symbols", "symbol_deleted", {"id": symbol_id})
         broadcast_websocket_update("markers", "marker_deleted", {"id": symbol_id})
+
+        # Forward tombstone to ATAK/TAK server if enabled
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            try:
+                marker_snapshot = {
+                    "id": symbol_id,
+                    "lat": marker_lat,
+                    "lng": marker_lng,
+                    "type": marker_type,
+                    "name": marker_name,
+                }
+                tombstone = CoTProtocolHandler.marker_to_cot_tombstone(marker_snapshot)
+                if tombstone:
+                    ok = forward_cot_to_tak(tombstone.to_xml())
+                    if ok:
+                        logger.info("CoT tombstone on delete_map_symbol succeeded: symbol_id=%s", symbol_id)
+                    else:
+                        logger.debug("CoT tombstone on delete_map_symbol skipped (TAK forwarding disabled or not configured): symbol_id=%s", symbol_id)
+            except Exception as _fwd_err:
+                logger.warning("CoT tombstone on delete_map_symbol failed: %s", _fwd_err)
         
         return {"status": "success", "message": "Symbol deleted"}
     except HTTPException:
