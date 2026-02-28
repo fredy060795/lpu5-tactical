@@ -962,6 +962,14 @@
           }
           break;
 
+        case 'tak_unit_update':
+          // Handle TAK server unit updates — refresh markers
+          if (data.data && data.channel === 'markers') {
+            console.log('Received TAK unit update:', data.data);
+            sync();
+          }
+          break;
+
         case 'chat_message':
         case 'new_message':
           // Handle chat messages (from WebSocket broadcast)

@@ -340,6 +340,8 @@ async def lifespan(application):
                 logger.info("✅ TAK receiver thread started")
             else:
                 logger.warning("⚠️  Failed to start TAK receiver thread")
+        if tak_cfg.get("tak_forward_enabled") and tak_cfg.get("tak_server_host"):
+            threading.Thread(target=_forward_all_lpu5_data_to_tak, daemon=True, name="tak-initial-forward").start()
     except Exception as e:
         logger.error("Error starting TAK receiver thread: %s", e)
 
@@ -998,9 +1000,9 @@ def _get_tak_config() -> dict:
 
     # tak_server_port / takServerPort
     try:
-        tak_port = int(cfg.get("tak_server_port") or net.get("takServerPort") or 4242)
+        tak_port = int(cfg.get("tak_server_port") or net.get("takServerPort") or 8089)
     except (TypeError, ValueError):
-        tak_port = 4242
+        tak_port = 8089
 
     # tak_connection_type / takConnectionType  (udp | tcp | ssl)
     tak_type = cfg.get("tak_connection_type") or net.get("takConnectionType", "udp")
@@ -1070,6 +1072,7 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
     When tak_username and tak_password are configured, an XML auth packet is
     sent before the CoT payload on TCP and SSL connections.
     Returns True on success, False if forwarding is disabled or an error occurs.
+    Updates _TAK_RECEIVER_STATS["packets_sent"] on each successful send.
     """
     try:
         tak_cfg = _get_tak_config()
@@ -1156,6 +1159,8 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
                 sock.close()
 
         logger.info("Forwarded CoT to TAK server %s:%s (%s, %d bytes)", host, port, conn_type, len(data))
+        with _TAK_RECEIVER_STATS_LOCK:
+            _TAK_RECEIVER_STATS["packets_sent"] += 1
         return True
     except Exception as e:
         logger.warning("Failed to forward CoT to TAK server: %s", e)
@@ -1172,6 +1177,7 @@ _TAK_SOCKET = None
 _TAK_SOCKET_LOCK = threading.Lock()
 _TAK_RECEIVER_STATS: Dict[str, Any] = {
     "connected": False,
+    "packets_sent": 0,
     "packets_received": 0,
     "parse_errors": 0,
     "last_error": None,
@@ -1480,7 +1486,7 @@ _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
 
 def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: float) -> bool:
     """
-    Convert a single Meshtastic node position to a CoT friendly-unit event and
+    Convert a single Meshtastic node position to a CoT event and
     forward it to the configured TAK server.  Returns True on successful forward.
     Nodes without GPS are forwarded at coordinates (0.0, 0.0) so TAK still
     receives them and can distribute the node identity globally.
@@ -1495,7 +1501,7 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
             "callsign": name,
             "lat": lat,
             "lng": lng,
-            "type": "friendly",
+            "type": "node",
             "meshtastic_node": True,
             "node_id": node_id,
             "source": "meshtastic",
@@ -1506,6 +1512,56 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
     except Exception as _fwd_err:
         logger.debug("TAK forward for Meshtastic node %s failed: %s", node_id, _fwd_err)
     return False
+
+
+def _forward_all_lpu5_data_to_tak():
+    """
+    Forward all LPU5 map markers and symbols to the TAK server.
+    Called on startup to ensure ATAK sees everything that exists in LPU5.
+    Excludes Meshtastic nodes (handled by their own sync).
+    """
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        return
+
+    tak_cfg = _get_tak_config()
+    if not tak_cfg["tak_forward_enabled"] or not tak_cfg["tak_server_host"]:
+        return
+
+    forwarded_count = 0
+
+    try:
+        # Forward all non-Meshtastic map markers
+        db = SessionLocal()
+        try:
+            markers = db.query(MapMarker).filter(
+                MapMarker.created_by.notin_(_MESHTASTIC_CREATED_BY)
+            ).all()
+
+            for m in markers:
+                try:
+                    if not m.lat or not m.lng:
+                        continue
+                    marker_dict = {
+                        "id": m.id,
+                        "name": m.name or "Marker",
+                        "callsign": m.name or "Marker",
+                        "lat": m.lat,
+                        "lng": m.lng,
+                        "type": m.type or "friendly",
+                    }
+                    cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
+                    if cot_event and forward_cot_to_tak(cot_event.to_xml()):
+                        forwarded_count += 1
+                except Exception as _e:
+                    logger.debug("Failed to forward marker %s to TAK: %s", m.id, _e)
+        finally:
+            db.close()
+
+        if forwarded_count > 0:
+            logger.info("Forwarded %d LPU5 markers to TAK server", forwarded_count)
+
+    except Exception as e:
+        logger.warning("Error in _forward_all_lpu5_data_to_tak: %s", e)
 
 
 def sync_meshtastic_nodes_to_map_markers_once():
@@ -4932,6 +4988,7 @@ def api_ingest_node(data: dict = Body(...)):
         if marker:
              marker.lat = latf
              marker.lng = lngf
+             marker.type = "node"
              marker.timestamp = datetime.now(timezone.utc) # Note: MapMarker model uses created_at, update it? 
              # MapMarker doesn't have updated_at default, let's assume we just update position
         else:
@@ -4940,7 +4997,7 @@ def api_ingest_node(data: dict = Body(...)):
                 name=marker_name_convention,
                 lat=latf,
                 lng=lngf,
-                type="friendly",
+                type="node",
                 created_by="ingest_node",
                 data={"unit_id": existing_node.id, "hardware": existing_node.hardware_model}
             )
@@ -6163,7 +6220,7 @@ def get_tak_config():
     return {
         "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
         "tak_server_host":     cfg.get("tak_server_host", ""),
-        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+        "tak_server_port":     int(cfg.get("tak_server_port", 8089)),
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
         "tak_username":        cfg.get("tak_username", ""),
         "tak_client_cert":     cfg.get("tak_client_cert", ""),
@@ -6179,7 +6236,7 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     Body fields (all optional):
     - tak_forward_enabled (bool): Enable/disable forwarding to ATAK/TAK server
     - tak_server_host (str): TAK server IP or hostname
-    - tak_server_port (int): Port on the TAK server (default 4242)
+    - tak_server_port (int): Port on the TAK server (default 8089)
     - tak_connection_type (str): Connection type — "udp", "tcp", or "ssl" (default "udp")
     - tak_username (str): TAK server login username
     - tak_password (str): TAK server login password
@@ -6248,7 +6305,7 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         "status": "success",
         "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
         "tak_server_host":     cfg.get("tak_server_host", ""),
-        "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
+        "tak_server_port":     int(cfg.get("tak_server_port", 8089)),
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
         "tak_username":        cfg.get("tak_username", ""),
         "tak_client_cert":     cfg.get("tak_client_cert", ""),
@@ -6270,7 +6327,7 @@ def test_tak_connection():
     """
     tak_cfg = _get_tak_config()
     host = tak_cfg.get("tak_server_host", "").strip()
-    port = tak_cfg.get("tak_server_port", 4242)
+    port = tak_cfg.get("tak_server_port", 8089)
     conn_type = tak_cfg.get("tak_connection_type", "udp")
     username = tak_cfg.get("tak_username", "")
     password = tak_cfg.get("tak_password", "")
