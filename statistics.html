@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MISSION ARCHIVE & STATS</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -57,6 +58,13 @@
         .small { font-size: 0.8em; color:#aaa; }
 
         .toggle-btn { background:#222; border:1px solid #444; color:#ddd; padding:6px 8px; cursor:pointer; }
+
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            body { padding-left: 56px; padding-right: 8px; }
+            table { font-size: 0.8em; }
+            .btn { min-height: 44px; }
+        }
     </style>
 
     <style>

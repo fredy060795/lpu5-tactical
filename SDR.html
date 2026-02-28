@@ -357,6 +357,29 @@
             .page-title {
                 font-size: 1.3rem;
             }
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            .btn-row {
+                flex-wrap: wrap;
+            }
+            .btn {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            .sdr-display-wrap canvas {
+                width: 100% !important;
+            }
+            .log-container {
+                overflow-x: auto;
+            }
+        }
+        @media (max-width: 480px) {
+            .page-subtitle {
+                font-size: 0.75rem;
+            }
         }
     </style>
 </head>
@@ -611,6 +634,35 @@
             </div>
         </div>
     </div>
+
+    <!-- Audio Output Panel -->
+    <div class="panel" style="margin-top:16px;">
+        <div class="panel-header">
+            <div class="panel-title"><i class="fas fa-volume-up"></i> Audio Output</div>
+            <span class="status-badge status-offline" id="audioStatus">Audio Off</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:8px;">
+            <button class="btn btn-primary" id="audioToggleBtn" onclick="toggleAudio()">
+                <i class="fas fa-play"></i> Enable Audio
+            </button>
+            <button class="btn btn-warning" id="muteBtn" onclick="toggleMute()" disabled>
+                <i class="fas fa-volume-mute"></i> Mute
+            </button>
+            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:160px;">
+                <i class="fas fa-volume-down" style="color:var(--text-dim);"></i>
+                <input type="range" id="audioVolume" min="0" max="100" value="70"
+                    oninput="setAudioVolume(this.value)"
+                    style="flex:1; accent-color:var(--accent-blue);">
+                <i class="fas fa-volume-up" style="color:var(--text-dim);"></i>
+                <span id="audioVolumeLabel" style="color:var(--accent-blue); min-width:36px; text-align:right;">70%</span>
+            </div>
+        </div>
+        <div style="margin-top:10px; font-size:0.8rem; color:var(--text-dim);">
+            <i class="fas fa-info-circle"></i>
+            Audio tone reflects demodulated signal. Pitch = frequency offset from center; volume = signal strength.
+            Audio activates when SDR is scanning and signal exceeds squelch threshold.
+        </div>
+    </div>
 </div>
 
 <script>
@@ -628,6 +680,114 @@
     const measurementLog = [];
     const mqttPeers    = {};
     let ws             = null;
+
+    // =====================================================================
+    // Audio Output State
+    // =====================================================================
+    let audioCtx         = null;
+    let audioGain        = null;  // master gain node
+    let audioOsc         = null;  // oscillator node
+    let audioEnabled     = false;
+    let audioMuted       = false;
+    let audioVolume      = 0.70;  // 0..1
+
+    function _initAudio() {
+        if (audioCtx) return; // already initialised
+        try {
+            audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+            audioGain = audioCtx.createGain();
+            audioGain.gain.value = 0;          // start silent
+            audioGain.connect(audioCtx.destination);
+
+            audioOsc = audioCtx.createOscillator();
+            audioOsc.type      = 'sine';
+            audioOsc.frequency.value = 800;    // default 800 Hz tone
+            audioOsc.connect(audioGain);
+            audioOsc.start();
+        } catch (e) {
+            console.error('[SDR] AudioContext init failed:', e);
+        }
+    }
+
+    window.toggleAudio = function() {
+        audioEnabled = !audioEnabled;
+        var btn       = document.getElementById('audioToggleBtn');
+        var muteBtn   = document.getElementById('muteBtn');
+        var statusEl  = document.getElementById('audioStatus');
+
+        if (audioEnabled) {
+            _initAudio();
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            btn.innerHTML  = '<i class="fas fa-stop"></i> Disable Audio';
+            btn.className  = 'btn btn-danger';
+            muteBtn.disabled = false;
+            statusEl.textContent = audioMuted ? 'Muted' : 'Audio On';
+            statusEl.className   = 'status-badge status-' + (audioMuted ? 'waiting' : 'online');
+        } else {
+            if (audioGain) audioGain.gain.value = 0;
+            btn.innerHTML  = '<i class="fas fa-play"></i> Enable Audio';
+            btn.className  = 'btn btn-primary';
+            muteBtn.disabled = true;
+            statusEl.textContent = 'Audio Off';
+            statusEl.className   = 'status-badge status-offline';
+        }
+    };
+
+    window.toggleMute = function() {
+        audioMuted = !audioMuted;
+        var btn      = document.getElementById('muteBtn');
+        var statusEl = document.getElementById('audioStatus');
+
+        if (audioMuted) {
+            if (audioGain) audioGain.gain.value = 0;
+            btn.innerHTML = '<i class="fas fa-volume-mute"></i> Unmute';
+            btn.className = 'btn btn-success';
+            statusEl.textContent = 'Muted';
+            statusEl.className   = 'status-badge status-waiting';
+        } else {
+            btn.innerHTML = '<i class="fas fa-volume-mute"></i> Mute';
+            btn.className = 'btn btn-warning';
+            statusEl.textContent = 'Audio On';
+            statusEl.className   = 'status-badge status-online';
+        }
+    };
+
+    window.setAudioVolume = function(val) {
+        audioVolume = val / 100;
+        document.getElementById('audioVolumeLabel').textContent = val + '%';
+        // Volume is applied on the next signal update via _updateAudioTone
+    };
+
+    /**
+     * Update audio tone based on latest measurement.
+     * pitch  – frequency of tone (Hz)  — derived from FFT peak offset from center
+     * level  – gain (0..1) — derived from normalised signal strength
+     */
+    function _updateAudioTone(peakDbm, freqMhz, blocked) {
+        if (!audioEnabled || !audioCtx || !audioGain || !audioOsc) return;
+        if (audioMuted || blocked) {
+            audioGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+            return;
+        }
+
+        // Map peak power (-100 … -30 dBm) to volume (0 … 1)
+        var MIN_DBM  = -100;
+        var DBM_RANGE = 70;
+        var normLevel  = Math.max(0, Math.min(1, (peakDbm - MIN_DBM) / DBM_RANGE));
+        var targetGain = normLevel * audioVolume;
+
+        // Map frequency offset to tone pitch (400 Hz … 1200 Hz)
+        var BASE_PITCH_HZ  = 800;
+        var PITCH_RANGE_HZ = 400;
+        var centerFreq = parseFloat(document.getElementById('sdrFrequency').value) || 433.920;
+        var offsetMhz  = freqMhz - centerFreq;
+        var maxOffset  = (parseFloat(document.getElementById('sdrSampleRate').value) || 2.4) / 2;
+        var normOffset = Math.max(-1, Math.min(1, offsetMhz / maxOffset));
+        var pitch      = BASE_PITCH_HZ + normOffset * PITCH_RANGE_HZ; // 400–1200 Hz
+
+        audioOsc.frequency.setTargetAtTime(pitch, audioCtx.currentTime, 0.05);
+        audioGain.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.05);
+    }
 
     // Display range (dBm)
     function getScaleMin() { return parseFloat(document.getElementById('scaleMin').value) || -120; }
@@ -1019,6 +1179,9 @@
             // Update meters
             var distance = blocked ? null : estimateDistance(peak, freq);
             updateSignalDisplay(peak, distance, blocked);
+
+            // Update audio tone
+            _updateAudioTone(peak, freq, blocked);
 
             // Log entry
             var distStr = blocked ? 'squelch' : (distance !== null ? distance.toFixed(1) + ' m' : '--');
