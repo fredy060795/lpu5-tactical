@@ -1017,6 +1017,33 @@ _MESHTASTIC_SYNC_STOP_EVENT = threading.Event()
 # created_by values used by meshtastic code paths — used to filter meshtastic markers from general endpoints
 _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
 
+def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: float) -> bool:
+    """
+    Convert a single Meshtastic node position to a CoT friendly-unit event and
+    forward it to the configured TAK server.  Returns True on successful forward.
+    Silently skips when TAK forwarding is disabled or coordinates are (0, 0).
+    """
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        return False
+    if lat == 0.0 and lng == 0.0:
+        return False
+    try:
+        marker_dict = {
+            "id": f"mesh-{node_id}",
+            "name": name,
+            "callsign": name,
+            "lat": lat,
+            "lng": lng,
+            "type": "friendly",
+        }
+        cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
+        if cot_event:
+            return forward_cot_to_tak(cot_event.to_xml())
+    except Exception as _fwd_err:
+        logger.debug("TAK forward for Meshtastic node %s failed: %s", node_id, _fwd_err)
+    return False
+
+
 def sync_meshtastic_nodes_to_map_markers_once():
     """
     One-shot sync: reads meshtastic_nodes from DB and upserts markers into map_markers table.
@@ -1067,6 +1094,20 @@ def sync_meshtastic_nodes_to_map_markers_once():
 
         db.commit()
         logger.info("sync_meshtastic_nodes_to_map_markers_once completed: created=%d updated=%d", created, updated)
+
+        # Forward nodes with valid GPS to the TAK server so TAK can distribute them globally.
+        forwarded = sum(
+            1 for n in nodes
+            if _forward_meshtastic_node_to_tak(
+                str(n.id),
+                n.long_name or n.short_name or str(n.id) or "node",
+                n.lat if n.lat is not None else 0.0,
+                n.lng if n.lng is not None else 0.0,
+            )
+        )
+        if forwarded:
+            logger.info("Meshtastic sync: forwarded %d/%d nodes to TAK server", forwarded, len(nodes))
+
         return {"status": "success", "created": created, "updated": updated}
     except Exception as e:
         db.rollback()
@@ -4442,7 +4483,11 @@ def api_ingest_node(data: dict = Body(...)):
         
         db.commit()
         db.refresh(existing_node)
-        
+
+        # Forward live node position to the TAK server so TAK distributes it globally.
+        if _forward_meshtastic_node_to_tak(str(existing_node.id), friendly, latf, lngf):
+            logger.info("Meshtastic node %s forwarded to TAK server", existing_node.id)
+
         log_audit("ingest_node", "gateway", {"mesh_id": mesh_id, "name": friendly})
         
         return {
@@ -5656,6 +5701,7 @@ def get_tak_config():
         "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
         "tak_username":        cfg.get("tak_username", ""),
+        "tak_client_cert":     cfg.get("tak_client_cert", ""),
     }
 
 
@@ -5703,6 +5749,10 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         cfg["tak_username"] = str(data["tak_username"]).strip()
     if "tak_password" in data:
         cfg["tak_password"] = str(data["tak_password"])
+    if "tak_client_cert" in data:
+        cfg["tak_client_cert"] = str(data["tak_client_cert"]).strip()
+    if "tak_client_key" in data:
+        cfg["tak_client_key"] = str(data["tak_client_key"]).strip()
     # CoT listener settings (saved alongside TAK config for convenience)
     if "cot_listener_tcp_port" in data:
         try:
@@ -5733,6 +5783,7 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
         "tak_username":        cfg.get("tak_username", ""),
+        "tak_client_cert":     cfg.get("tak_client_cert", ""),
     }
 
 
@@ -5754,6 +5805,8 @@ def test_tak_connection():
     conn_type = tak_cfg.get("tak_connection_type", "udp")
     username = tak_cfg.get("tak_username", "")
     password = tak_cfg.get("tak_password", "")
+    client_cert = tak_cfg.get("tak_client_cert", "")
+    client_key = tak_cfg.get("tak_client_key", "")
     auth_data = _build_tak_auth_xml(username, password) if (username and password) else None
 
     if not host:
@@ -5799,6 +5852,12 @@ def test_tak_connection():
                 ctx.check_hostname = False
                 ctx.verify_mode = _ssl_test.CERT_NONE
                 ctx.minimum_version = _ssl_test.TLSVersion.TLSv1_2
+                # Load client certificate if configured (required for mTLS servers)
+                if client_cert:
+                    try:
+                        ctx.load_cert_chain(certfile=client_cert, keyfile=client_key or None)
+                    except Exception as cert_err:
+                        return {"reachable": False, "data_exchanged": False, "message": f"Failed to load client certificate '{client_cert}': {cert_err}"}
                 raw = socket.socket(af, socket.SOCK_STREAM)
                 raw.settimeout(_TAK_SOCKET_TIMEOUT)
                 sock = ctx.wrap_socket(raw, server_hostname=host)
@@ -5842,6 +5901,58 @@ def test_tak_connection():
             return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} timed out"}
         except (socket.gaierror, ConnectionRefusedError, OSError) as e:
             return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} failed: {e}"}
+
+
+@app.post("/api/tak/cert", summary="Upload client certificate and private key for TAK mTLS")
+async def upload_tak_cert(
+    cert_file: UploadFile = File(None),
+    key_file: UploadFile = File(None),
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Upload a PEM client certificate and/or private key used for mutual TLS
+    authentication with a TAK server (required when the server returns
+    TLSV13_ALERT_CERTIFICATE_REQUIRED).
+
+    - **cert_file**: PEM-encoded client certificate (.pem / .crt / .cer)
+    - **key_file**: PEM-encoded private key (.pem / .key)
+
+    Uploaded files are stored in the application directory and their paths are
+    saved to config.json as ``tak_client_cert`` and ``tak_client_key``.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    cfg = load_json("config") or {}
+    saved: dict = {}
+
+    if cert_file and cert_file.filename:
+        cert_path = os.path.join(base_path, "tak_client_cert.pem")
+        content = await cert_file.read()
+        with open(cert_path, "wb") as fh:
+            fh.write(content)
+        cfg["tak_client_cert"] = cert_path
+        saved["tak_client_cert"] = cert_path
+        logger.info("TAK client certificate uploaded by %s (%d bytes)", payload.get("username"), len(content))
+
+    if key_file and key_file.filename:
+        key_path = os.path.join(base_path, "tak_client_key.pem")
+        content = await key_file.read()
+        with open(key_path, "wb") as fh:
+            fh.write(content)
+        os.chmod(key_path, 0o600)
+        cfg["tak_client_key"] = key_path
+        saved["tak_client_key"] = key_path
+        logger.info("TAK client key uploaded by %s (%d bytes)", payload.get("username"), len(content))
+
+    if not saved:
+        raise HTTPException(status_code=400, detail="No cert_file or key_file provided")
+
+    save_json("config", cfg)
+    return {"status": "success", **{k: os.path.basename(v) for k, v in saved.items()}}
 
 
 @app.post("/api/geofence/create", summary="Create geofence")

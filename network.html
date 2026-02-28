@@ -498,9 +498,15 @@
                     <input type="number" class="form-input" id="takServerPort" placeholder="8089" disabled>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">SSL Certificate (optional)</label>
-                    <input type="file" class="form-input" id="takSslCert" accept=".pem,.crt,.cer" disabled>
+                <div class="form-group" id="takCertGroup">
+                    <label class="form-label">Client Certificate (mTLS, .pem/.crt)</label>
+                    <input type="file" class="form-input" id="takClientCert" accept=".pem,.crt,.cer" disabled>
+                    <small id="takClientCertStatus" style="color:#aaa;font-size:0.85em;"></small>
+                </div>
+
+                <div class="form-group" id="takKeyGroup">
+                    <label class="form-label">Client Private Key (mTLS, .pem/.key)</label>
+                    <input type="file" class="form-input" id="takClientKey" accept=".pem,.key" disabled>
                 </div>
 
                 <div class="form-group">
@@ -722,6 +728,10 @@ async function loadNetworkSettings() {
                     document.getElementById('takConnectionType').value = takCfg.tak_connection_type || networkConfig.takConnectionType || 'tcp';
                     document.getElementById('takServerPort').value = takCfg.tak_server_port || networkConfig.takServerPort || '8089';
                     document.getElementById('takUsername').value = takCfg.tak_username || '';
+                    if (takCfg.tak_client_cert) {
+                        const certName = takCfg.tak_client_cert.split(/[\\/]/).pop();
+                        document.getElementById('takClientCertStatus').textContent = '✓ ' + certName;
+                    }
                 } else {
                     document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
                     document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
@@ -833,6 +843,30 @@ async function saveNetworkSettings() {
         if (takPassword) { takBody.tak_password = takPassword; }
         const token = _getAuthToken();
         if (token) {
+            // Upload client certificate and key if selected (mTLS support)
+            const certFile = document.getElementById('takClientCert').files[0];
+            const keyFile = document.getElementById('takClientKey').files[0];
+            if (certFile || keyFile) {
+                const formData = new FormData();
+                if (certFile) formData.append('cert_file', certFile);
+                if (keyFile) formData.append('key_file', keyFile);
+                const certResp = await fetch('/api/tak/cert', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                if (certResp.ok) {
+                    const certResult = await certResp.json();
+                    if (certResult.tak_client_cert) {
+                        document.getElementById('takClientCertStatus').textContent = '✓ ' + certResult.tak_client_cert;
+                    }
+                } else {
+                    const err = await certResp.json().catch(() => ({}));
+                    showStatus('Settings saved, but client certificate upload failed: ' + (err.detail || certResp.status), 'error');
+                    return;
+                }
+            }
+
             const takResp = await fetch('/api/tak/config', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -1005,7 +1039,8 @@ function updateTakIntegrationState() {
     document.getElementById('takServerUrl').disabled = !enabled;
     document.getElementById('takConnectionType').disabled = !enabled;
     document.getElementById('takServerPort').disabled = !enabled;
-    document.getElementById('takSslCert').disabled = !enabled;
+    document.getElementById('takClientCert').disabled = !enabled;
+    document.getElementById('takClientKey').disabled = !enabled;
     document.getElementById('takAutoReconnect').disabled = !enabled;
     document.getElementById('takUsername').disabled = !enabled;
     document.getElementById('takPassword').disabled = !enabled;
