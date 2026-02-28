@@ -797,11 +797,12 @@
             const sel = document.getElementById('overviewCameraSelect');
             ws.send(JSON.stringify({
               type: 'stream_available',
-              streamId: 'overview_camera',
+              streamId: getOverviewStreamId(),
               active: true,
               isCamera: true,
               source: (sel && sel.selectedIndex >= 0 && sel.options[sel.selectedIndex]) ? (sel.options[sel.selectedIndex].text || 'Overview Camera') : 'Overview Camera',
               details: 'Camera stream from Overview',
+              username: getOverviewUsername(),
               timestamp: Date.now()
             }));
           }
@@ -1130,7 +1131,7 @@
         case 'broadcast_selected':
           // stream.html selected a stream to broadcast — start sending frames if our camera is selected
           if (data.channel === 'camera') {
-            if (data.streamId === 'overview_camera' && overviewMediaStream) {
+            if (data.streamId === getOverviewStreamId() && overviewMediaStream) {
               startOverviewFrameCapture();
             }
           }
@@ -4143,6 +4144,37 @@
     let overviewMediaStream = null;
     let overviewFrameCapture = null;
 
+    // Returns a per-user stream ID so that multiple users streaming from
+    // overview.html are treated as separate streams in stream.html.
+    // Falls back to a session-unique random suffix so that unauthenticated
+    // users do not collide with each other.
+    (function() {
+      let _overviewStreamSuffix = null;
+      window._getOverviewStreamSuffix = function() {
+        if (!_overviewStreamSuffix) {
+          _overviewStreamSuffix = Math.random().toString(36).slice(2, 8);
+        }
+        return _overviewStreamSuffix;
+      };
+    })();
+
+    function getOverviewStreamId() {
+      const username = currentUserName ||
+                       localStorage.getItem('lpu5_username') ||
+                       sessionStorage.getItem('currentUser') ||
+                       ('anon_' + window._getOverviewStreamSuffix());
+      return 'overview_camera_' + username;
+    }
+
+    // Resolve the username for stream announcement messages consistently
+    // with getOverviewStreamId() so both fields always agree.
+    function getOverviewUsername() {
+      return currentUserName ||
+             localStorage.getItem('lpu5_username') ||
+             sessionStorage.getItem('currentUser') ||
+             ('anon_' + window._getOverviewStreamSuffix());
+    }
+
     function startOverviewFrameCapture() {
       if (overviewFrameCapture) return; // already running
       if (!overviewMediaStream) return;
@@ -4177,7 +4209,7 @@
         ctx.drawImage(video, 0, 0, width, height);
         const frame = canvas.toDataURL('image/jpeg', 0.5);
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'camera_frame', frame: frame, streamId: 'overview_camera' }));
+          ws.send(JSON.stringify({ type: 'camera_frame', frame: frame, streamId: getOverviewStreamId() }));
         }
       }, 500);
       console.log('Overview frame capture started');
@@ -4363,11 +4395,12 @@
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'stream_available',
-            streamId: 'overview_camera',
+            streamId: getOverviewStreamId(),
             active: true,
             isCamera: true,
             source: select?.options[select.selectedIndex]?.text || 'Overview Camera',
             details: 'Camera stream from Overview',
+            username: getOverviewUsername(),
             timestamp: Date.now()
           }));
         }
@@ -4405,7 +4438,7 @@
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'stream_available',
-            streamId: 'overview_camera',
+            streamId: getOverviewStreamId(),
             active: false,
             timestamp: Date.now()
           }));
