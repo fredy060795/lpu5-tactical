@@ -128,6 +128,15 @@ except Exception as e:
     gateway_list_ports = None
     GATEWAY_SERVICE_AVAILABLE = False
 
+# Import CoT listener service
+try:
+    from cot_listener_service import CoTListenerService
+    COT_LISTENER_AVAILABLE = True
+except Exception as e:  # pragma: no cover
+    logger.warning("CoT listener service not available: %s", e)
+    CoTListenerService = None
+    COT_LISTENER_AVAILABLE = False
+
 # RBAC permissions system has been removed - all users have full access
 # Keeping basic authentication (verify_token, get_current_user) for user identity
 PERMISSIONS_AVAILABLE = False
@@ -306,11 +315,32 @@ async def lifespan(application):
         _MARKER_BROADCAST_THREAD.start()
         logger.info("✅ Marker broadcast worker started (interval=%ss)", broadcast_interval)
 
+    # Start CoT listener service if enabled in config
+    try:
+        cfg = load_json("config") or {}
+        cot_listener_enabled = cfg.get("cot_listener_enabled", False)
+    except Exception:
+        cot_listener_enabled = False
+    if cot_listener_enabled and COT_LISTENER_AVAILABLE:
+        try:
+            if _start_cot_listener():
+                logger.info("✅ CoT listener service started")
+            else:
+                logger.warning("⚠️  Failed to start CoT listener service")
+        except Exception as e:
+            logger.error("Error starting CoT listener service: %s", e)
+
     logger.info("Startup complete. DB files ensured.")
 
     yield
 
     # ---- Shutdown logic ----
+    # Stop CoT listener service
+    try:
+        _stop_cot_listener()
+    except Exception as e:
+        logger.error("Error stopping CoT listener service: %s", e)
+
     # Stop gateway service
     global _gateway_service
     if _gateway_service:
@@ -3157,6 +3187,10 @@ _gateway_service = None
 _gateway_thread = None
 _gateway_service_lock = threading.Lock()
 
+# Global CoT listener service instance
+_cot_listener_service = None
+_cot_listener_lock = threading.Lock()
+
 def _close_meshtastic_interface(iface, port_name: str = "unknown", operation: str = "operation"):
     """
     Safely close a Meshtastic interface with proper error handling and logging.
@@ -5264,6 +5298,156 @@ async def gateway_send_message(data: dict = Body(...)):
             raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 # ===========================
+# CoT Listener Service
+# ===========================
+
+def _cot_listener_ingest_callback(xml_string: str) -> None:
+    """
+    Ingest callback for the CoT listener service.
+
+    Parses the received CoT XML, upserts the corresponding map marker into
+    the database, and broadcasts the change to all WebSocket clients.
+    Mirrors the logic in POST /api/cot/ingest without the HTTP layer.
+    """
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        return
+    try:
+        if not CoTProtocolHandler.validate_cot_xml(xml_string):
+            logger.debug("CoT listener: invalid CoT XML ignored")
+            return
+        cot_event = CoTEvent.from_xml(xml_string)
+        if not cot_event:
+            return
+        marker_dict = CoTProtocolHandler.cot_to_marker(cot_event)
+        with SessionLocal() as db:
+            existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
+            if existing:
+                existing.lat = marker_dict["lat"]
+                existing.lng = marker_dict["lng"]
+                existing.name = marker_dict.get("name") or marker_dict["id"]
+                existing.type = marker_dict.get("type", "unknown")
+                extra = dict(existing.data) if isinstance(existing.data, dict) else {}
+                extra["cot_type"] = marker_dict.get("cot_type")
+                extra["source"] = "cot"
+                extra["callsign"] = marker_dict.get("callsign")
+                existing.data = extra
+                db.commit()
+                db.refresh(existing)
+                event_type = "marker_updated"
+                stored = {
+                    "id": existing.id, "lat": existing.lat, "lng": existing.lng,
+                    "name": existing.name, "type": existing.type,
+                    "color": existing.color, "icon": existing.icon,
+                    "created_by": existing.created_by,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": existing.data,
+                }
+            else:
+                new_marker = MapMarker(
+                    id=marker_dict["id"],
+                    lat=marker_dict["lat"],
+                    lng=marker_dict["lng"],
+                    name=marker_dict.get("name") or marker_dict["id"],
+                    description=marker_dict.get("description"),
+                    type=marker_dict.get("type", "unknown"),
+                    color="#3498db",
+                    icon="default",
+                    created_by="cot_ingest",
+                    data={"cot_type": marker_dict.get("cot_type"), "source": "cot",
+                          "callsign": marker_dict.get("callsign")},
+                )
+                db.add(new_marker)
+                db.commit()
+                db.refresh(new_marker)
+                event_type = "marker_created"
+                stored = {
+                    "id": new_marker.id, "lat": new_marker.lat, "lng": new_marker.lng,
+                    "name": new_marker.name, "type": new_marker.type,
+                    "color": new_marker.color, "icon": new_marker.icon,
+                    "created_by": new_marker.created_by,
+                    "timestamp": new_marker.created_at.isoformat() if new_marker.created_at else datetime.now(timezone.utc).isoformat(),
+                    "data": new_marker.data,
+                }
+        broadcast_websocket_update("markers", event_type, stored)
+        # Echo back to TAK server if forwarding is enabled
+        forward_cot_to_tak(xml_string)
+    except Exception as exc:
+        logger.exception("_cot_listener_ingest_callback failed: %s", exc)
+
+
+def _start_cot_listener() -> bool:
+    """Start the CoT listener service using config.json settings."""
+    global _cot_listener_service
+    if not COT_LISTENER_AVAILABLE:
+        return False
+    with _cot_listener_lock:
+        if _cot_listener_service and _cot_listener_service.stats.get("running"):
+            return True
+        cfg = load_json("config") or {}
+        tcp_port = int(cfg.get("cot_listener_tcp_port", 8087))
+        udp_port = int(cfg.get("cot_listener_udp_port", 4242))
+        _cot_listener_service = CoTListenerService(
+            tcp_port=tcp_port,
+            udp_port=udp_port,
+            ingest_callback=_cot_listener_ingest_callback,
+        )
+        return _cot_listener_service.start()
+
+
+def _stop_cot_listener() -> None:
+    """Stop the CoT listener service."""
+    global _cot_listener_service
+    with _cot_listener_lock:
+        if _cot_listener_service:
+            _cot_listener_service.stop()
+            _cot_listener_service = None
+
+
+@app.get("/api/cot/listener/status", summary="Get CoT listener service status")
+def cot_listener_status():
+    """Return the current status of the local CoT socket listener."""
+    if not COT_LISTENER_AVAILABLE:
+        return {"available": False, "message": "CoT listener service not available"}
+    with _cot_listener_lock:
+        if not _cot_listener_service:
+            return {"available": True, "running": False, "message": "CoT listener not started"}
+        return {"available": True, **_cot_listener_service.get_status()}
+
+
+@app.post("/api/cot/listener/start", summary="Start CoT listener service")
+def cot_listener_start(authorization: Optional[str] = Header(None)):
+    """
+    Start the local CoT TCP/UDP socket listener so that ATAK clients can
+    send CoT XML directly to this server.  Configuration is read from
+    config.json (cot_listener_tcp_port, cot_listener_udp_port).
+    """
+    if not COT_LISTENER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="CoT listener service not available")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if verify_token(authorization.split(" ")[1]) is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not _start_cot_listener():
+        raise HTTPException(status_code=500, detail="Failed to start CoT listener service")
+    with _cot_listener_lock:
+        status = _cot_listener_service.get_status() if _cot_listener_service else {}
+    return {"status": "started", **status}
+
+
+@app.post("/api/cot/listener/stop", summary="Stop CoT listener service")
+def cot_listener_stop(authorization: Optional[str] = Header(None)):
+    """Stop the local CoT socket listener."""
+    if not COT_LISTENER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="CoT listener service not available")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if verify_token(authorization.split(" ")[1]) is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    _stop_cot_listener()
+    return {"status": "stopped"}
+
+
+# ===========================
 # CoT (Cursor-on-Target) Protocol Endpoints
 # ===========================
 
@@ -5502,6 +5686,25 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         cfg["tak_username"] = str(data["tak_username"]).strip()
     if "tak_password" in data:
         cfg["tak_password"] = str(data["tak_password"])
+    # CoT listener settings (saved alongside TAK config for convenience)
+    if "cot_listener_tcp_port" in data:
+        try:
+            port = int(data["cot_listener_tcp_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="cot_listener_tcp_port must be a numeric value")
+        if not (1 <= port <= 65535):
+            raise HTTPException(status_code=400, detail="cot_listener_tcp_port must be 1–65535")
+        cfg["cot_listener_tcp_port"] = port
+    if "cot_listener_udp_port" in data:
+        try:
+            port = int(data["cot_listener_udp_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="cot_listener_udp_port must be a numeric value")
+        if not (1 <= port <= 65535):
+            raise HTTPException(status_code=400, detail="cot_listener_udp_port must be 1–65535")
+        cfg["cot_listener_udp_port"] = port
+    if "cot_listener_enabled" in data:
+        cfg["cot_listener_enabled"] = bool(data["cot_listener_enabled"])
 
     save_json("config", cfg)
     logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_") and k != "tak_password"})
