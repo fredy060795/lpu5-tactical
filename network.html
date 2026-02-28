@@ -478,7 +478,8 @@
 
                 <div class="form-group">
                     <label class="form-label">TAK Server Host/IP</label>
-                    <input type="text" class="form-input" id="takServerUrl" placeholder="192.168.1.100 or takserver.example.com" disabled>
+                    <input type="text" class="form-input" id="takServerUrl" placeholder="192.168.1.100 or takserver.example.com" disabled
+                        oninput="this.value=_cleanTakHost(this.value)">
                 </div>
 
                 <div class="form-group">
@@ -517,6 +518,12 @@
                 <div class="form-group">
                     <label class="form-label">TAK Server Password</label>
                     <input type="password" class="form-input" id="takPassword" placeholder="Password" autocomplete="current-password" disabled>
+                </div>
+
+                <div class="form-group">
+                    <button class="btn" id="takTestBtn" onclick="testTakConnection()" disabled>
+                        <i class="fas fa-plug"></i> Test TAK Connection
+                    </button>
                 </div>
             </div>
         </div>
@@ -608,6 +615,11 @@ function _getAuthToken() {
     try { return JSON.parse(localStorage.getItem('lpu5_user') || '{}').token || null; } catch (_) { return null; }
 }
 
+// Strip URL schemes (http:// / https://) and trailing slashes from a host string
+function _cleanTakHost(value) {
+    return value.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+}
+
 // Load server info on page load
 async function loadServerInfo() {
     try {
@@ -652,21 +664,31 @@ async function loadNetworkSettings() {
             document.getElementById('enableRateLimiting').checked = networkConfig.enableRateLimiting || false;
             document.getElementById('logNetworkAccess').checked = networkConfig.logNetworkAccess !== false;
 
-            // TAK Server
-            document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
-            document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
-            document.getElementById('takConnectionType').value = networkConfig.takConnectionType || 'tcp';
-            document.getElementById('takServerPort').value = networkConfig.takServerPort || '8089';
-            document.getElementById('takAutoReconnect').checked = networkConfig.takAutoReconnect !== false;
-
-            // Load TAK credentials (username only; password is write-only)
+            // TAK Server – load from authenticated config endpoint (root-level keys) with
+            // fallback to the network section for backwards-compatibility
             try {
                 const takResp = await fetch('/api/tak/config');
                 if (takResp.ok) {
                     const takCfg = await takResp.json();
+                    document.getElementById('enableTakIntegration').checked = takCfg.tak_forward_enabled !== undefined ? takCfg.tak_forward_enabled : (networkConfig.enableTakIntegration || false);
+                    document.getElementById('takServerUrl').value = takCfg.tak_server_host || networkConfig.takServerUrl || '';
+                    document.getElementById('takConnectionType').value = takCfg.tak_connection_type || networkConfig.takConnectionType || 'tcp';
+                    document.getElementById('takServerPort').value = takCfg.tak_server_port || networkConfig.takServerPort || '8089';
                     document.getElementById('takUsername').value = takCfg.tak_username || '';
+                } else {
+                    document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
+                    document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
+                    document.getElementById('takConnectionType').value = networkConfig.takConnectionType || 'tcp';
+                    document.getElementById('takServerPort').value = networkConfig.takServerPort || '8089';
                 }
-            } catch (_e) { console.warn('Could not load TAK credentials:', _e); }
+            } catch (_e) {
+                console.warn('Could not load TAK config:', _e);
+                document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
+                document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
+                document.getElementById('takConnectionType').value = networkConfig.takConnectionType || 'tcp';
+                document.getElementById('takServerPort').value = networkConfig.takServerPort || '8089';
+            }
+            document.getElementById('takAutoReconnect').checked = networkConfig.takAutoReconnect !== false;
 
             // CoT Settings
             document.getElementById('enableCoT').checked = networkConfig.enableCoT || false;
@@ -740,21 +762,32 @@ async function saveNetworkSettings() {
             return;
         }
 
-        // Save TAK credentials separately via the authenticated endpoint
+        // Save TAK credentials and settings via the authenticated endpoint
         const takEnabled = document.getElementById('enableTakIntegration').checked;
-        if (takEnabled) {
-            const token = _getAuthToken();
-            if (token) {
-                const takUsername = document.getElementById('takUsername').value.trim();
-                const takPassword = document.getElementById('takPassword').value;
-                const credBody = { tak_username: takUsername };
-                if (takPassword) { credBody.tak_password = takPassword; }
-                await fetch('/api/tak/config', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify(credBody)
-                });
+        const takBody = {
+            tak_forward_enabled: takEnabled,
+            tak_server_host: _cleanTakHost(document.getElementById('takServerUrl').value),
+            tak_server_port: parseInt(document.getElementById('takServerPort').value, 10) || 8089,
+            tak_connection_type: document.getElementById('takConnectionType').value,
+            tak_username: document.getElementById('takUsername').value.trim(),
+        };
+        const takPassword = document.getElementById('takPassword').value;
+        if (takPassword) { takBody.tak_password = takPassword; }
+        const token = _getAuthToken();
+        if (token) {
+            const takResp = await fetch('/api/tak/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(takBody)
+            });
+            if (!takResp.ok) {
+                const err = await takResp.json().catch(() => ({}));
+                showStatus('Settings saved, but TAK config update failed: ' + (err.detail || takResp.status), 'error');
+                return;
             }
+        } else {
+            showStatus('Network settings saved. TAK-specific settings (host/port/credentials) could not be saved - no valid authentication token found. Please log in and save again.', 'error');
+            return;
         }
 
         showStatus('Settings saved successfully', 'success');
@@ -777,6 +810,23 @@ async function testConnection() {
     } catch (error) {
         console.error('Connection test failed:', error);
         showStatus('Connection failed: ' + error.message, 'error');
+    }
+}
+
+// Test TAK server connectivity
+async function testTakConnection() {
+    showStatus('Testing TAK server connection...', 'info');
+    try {
+        const response = await fetch('/api/tak/test');
+        const result = await response.json();
+        if (result.reachable) {
+            showStatus('TAK: ' + result.message, 'success');
+        } else {
+            showStatus('TAK unreachable: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('TAK connection test failed:', error);
+        showStatus('TAK connection test failed: ' + error.message, 'error');
     }
 }
 
@@ -832,6 +882,7 @@ function updateTakIntegrationState() {
     document.getElementById('takAutoReconnect').disabled = !enabled;
     document.getElementById('takUsername').disabled = !enabled;
     document.getElementById('takPassword').disabled = !enabled;
+    document.getElementById('takTestBtn').disabled = !enabled;
 }
 
 // Update CoT state

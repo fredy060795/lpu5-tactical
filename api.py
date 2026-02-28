@@ -30,6 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta, timezone
 import os
 import json
+import re
 import uuid
 import hashlib
 import jwt
@@ -798,6 +799,8 @@ def ensure_default_unit():
 # TAK Server forwarding helpers
 # -------------------------
 
+_TAK_SOCKET_TIMEOUT = 5  # seconds for TAK server socket operations
+
 def _get_tak_config() -> dict:
     """Return TAK server config from config.json with safe defaults.
 
@@ -829,9 +832,13 @@ def _get_tak_config() -> dict:
     tak_username = cfg.get("tak_username", "")
     tak_password = cfg.get("tak_password", "")
 
+    raw_host = str(tak_host).strip() if tak_host else ""
+    if raw_host:
+        raw_host = re.sub(r'^https?://', '', raw_host).rstrip('/')
+
     return {
         "tak_forward_enabled":  bool(tak_enabled),
-        "tak_server_host":      str(tak_host).strip() if tak_host else "",
+        "tak_server_host":      raw_host,
         "tak_server_port":      tak_port,
         "tak_connection_type":  tak_type,
         "tak_username":         str(tak_username).strip() if tak_username else "",
@@ -878,7 +885,7 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
         if conn_type == "tcp":
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
-                sock.settimeout(5)
+                sock.settimeout(_TAK_SOCKET_TIMEOUT)
                 sock.connect((host, port))
                 if auth_data:
                     sock.sendall(auth_data)
@@ -900,7 +907,7 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
             ctx.verify_mode = _ssl.CERT_NONE
             ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
             raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            raw.settimeout(5)
+            raw.settimeout(_TAK_SOCKET_TIMEOUT)
             sock = ctx.wrap_socket(raw, server_hostname=host)
             try:
                 sock.connect((host, port))
@@ -919,12 +926,12 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
             # UDP (default/legacy TAK protocol on port 4242)
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             try:
-                sock.settimeout(5)
+                sock.settimeout(_TAK_SOCKET_TIMEOUT)
                 sock.sendto(data, (host, port))
             except socket.timeout:
                 logger.warning("CoT UDP forward to TAK server %s:%s timed out", host, port)
                 return False
-            except socket.gaierror as e:
+            except (socket.gaierror, OSError) as e:
                 logger.warning("CoT UDP forward DNS/address error for %s:%s: %s", host, port, e)
                 return False
             finally:
@@ -5407,7 +5414,9 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     if "tak_forward_enabled" in data:
         cfg["tak_forward_enabled"] = bool(data["tak_forward_enabled"])
     if "tak_server_host" in data:
-        cfg["tak_server_host"] = str(data["tak_server_host"]).strip()
+        host = str(data["tak_server_host"]).strip()
+        host = re.sub(r'^https?://', '', host).rstrip('/')
+        cfg["tak_server_host"] = host
     if "tak_server_port" in data:
         try:
             port = int(data["tak_server_port"])
@@ -5439,9 +5448,38 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     }
 
 
-# ===========================
-# Geofencing Endpoints
-# ===========================
+@app.get("/api/tak/test", summary="Test TAK server connectivity")
+def test_tak_connection():
+    """
+    Test connectivity to the configured TAK server by attempting a socket connection.
+    Returns reachable=True/False and a descriptive message.
+    """
+    tak_cfg = _get_tak_config()
+    host = tak_cfg.get("tak_server_host", "").strip()
+    port = tak_cfg.get("tak_server_port", 4242)
+    conn_type = tak_cfg.get("tak_connection_type", "udp")
+
+    if not host:
+        return {"reachable": False, "message": "No TAK server host configured"}
+
+    if conn_type == "udp":
+        # UDP is connectionless; just validate address resolution
+        try:
+            socket.getaddrinfo(host, port)
+            return {"reachable": True, "message": f"Host {host} resolved successfully (UDP - no handshake possible)"}
+        except socket.gaierror as e:
+            return {"reachable": False, "message": f"DNS resolution failed for {host}: {e}"}
+    else:
+        # TCP / SSL: attempt actual socket connect (create_connection handles IPv4 and IPv6)
+        try:
+            sock = socket.create_connection((host, port), timeout=_TAK_SOCKET_TIMEOUT)
+            sock.close()
+            return {"reachable": True, "message": f"Successfully connected to {host}:{port} ({conn_type.upper()})"}
+        except socket.timeout:
+            return {"reachable": False, "message": f"Connection to {host}:{port} timed out"}
+        except (socket.gaierror, ConnectionRefusedError, OSError) as e:
+            return {"reachable": False, "message": f"Connection to {host}:{port} failed: {e}"}
+
 
 @app.post("/api/geofence/create", summary="Create geofence")
 def create_geofence(data: Dict = Body(...)):
