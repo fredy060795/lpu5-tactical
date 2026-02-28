@@ -11,7 +11,7 @@ broadcast), mirroring the approach used by meshtastic_gateway_service.py.
 Usage alongside api.py:
 
     service = CoTListenerService(
-        tcp_port=8087,
+        tcp_port=8088,
         udp_port=4242,
         ingest_callback=my_ingest_fn,
     )
@@ -21,7 +21,7 @@ Usage alongside api.py:
 
 Standalone (for testing):
 
-    python cot_listener_service.py --tcp-port 8087 --udp-port 4242
+    python cot_listener_service.py --tcp-port 8088 --udp-port 4242
 """
 
 import argparse
@@ -61,7 +61,7 @@ class CoTListenerService:
 
     def __init__(
         self,
-        tcp_port: int = 8087,
+        tcp_port: int = 8088,
         udp_port: int = 4242,
         ingest_callback: Optional[Callable[[str], None]] = None,
         bind_address: str = "0.0.0.0",
@@ -343,7 +343,7 @@ def _standalone_ingest(xml_string: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="CoT Socket Listener Service (standalone)")
-    parser.add_argument("--tcp-port", type=int, default=8087, help="TCP listen port (default 8087)")
+    parser.add_argument("--tcp-port", type=int, default=8088, help="TCP listen port (default 8088)")
     parser.add_argument("--udp-port", type=int, default=4242, help="UDP listen port (default 4242)")
     parser.add_argument("--bind", default="0.0.0.0", help="Bind address (default 0.0.0.0)")
     args = parser.parse_args()

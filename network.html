@@ -552,7 +552,7 @@
         <div class="form-grid">
             <div class="form-group">
                 <label class="form-label">TCP Port (ATAK direct connect)</label>
-                <input type="number" class="form-input" id="cotListenerTcpPort" value="8087" min="1" max="65535">
+                <input type="number" class="form-input" id="cotListenerTcpPort" value="8088" min="1" max="65535">
             </div>
             <div class="form-group">
                 <label class="form-label">UDP Port (legacy / multicast)</label>
@@ -760,7 +760,7 @@ async function loadNetworkSettings() {
                 const cfgRaw = await fetch('/api/config');
                 if (cfgRaw.ok) {
                     const rawCfg = await cfgRaw.json();
-                    document.getElementById('cotListenerTcpPort').value = rawCfg.cot_listener_tcp_port || 8087;
+                    document.getElementById('cotListenerTcpPort').value = rawCfg.cot_listener_tcp_port || 8088;
                     document.getElementById('cotListenerUdpPort').value = rawCfg.cot_listener_udp_port || 4242;
                     document.getElementById('cotListenerAutoStart').checked = rawCfg.cot_listener_enabled || false;
                 }
@@ -950,7 +950,7 @@ async function refreshCotListenerStatus() {
 
 async function startCotListener() {
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const tcpPort = parseInt(document.getElementById('cotListenerTcpPort').value) || 8087;
+    const tcpPort = parseInt(document.getElementById('cotListenerTcpPort').value) || 8088;
     const udpPort = parseInt(document.getElementById('cotListenerUdpPort').value) || 4242;
     const autoStart = document.getElementById('cotListenerAutoStart').checked;
 
