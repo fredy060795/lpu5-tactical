@@ -12,5 +12,6 @@ meshtastic>=2.7.7
 slowapi>=0.1.9
 python-dotenv>=1.0.0
 requests>=2.31.0
+cryptography>=41.0.0
 Pillow>=10.2.0
 httpx>=0.27.0

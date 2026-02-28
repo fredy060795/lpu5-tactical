@@ -852,6 +852,132 @@ _TAK_SOCKET_TIMEOUT = 5  # seconds for TAK server socket operations
 _TAK_PING_RESPONSE_TIMEOUT = 3  # seconds to wait for a server ping-ack response
 _TAK_RECV_BUFFER = 4096  # bytes to read from server response
 
+def _load_tak_certificates(cert_path: str, key_path: str = None, cert_password: str = None):
+    """
+    Load TAK client certificates supporting both PEM and PKCS#12 (.p12/.pfx) formats.
+
+    For PKCS#12 files:
+    - Extracts certificate and private key
+    - Converts to PEM format for use with Python's ssl module
+    - Supports password-protected files
+
+    For PEM files:
+    - Loads certificate and separate key file (existing behavior)
+
+    Args:
+        cert_path: Path to certificate file (.pem, .p12, or .pfx)
+        key_path: Path to private key file (only for PEM format, ignored for P12)
+        cert_password: Password for PKCS#12 file (optional)
+
+    Returns:
+        Tuple of (cert_pem_bytes, key_pem_bytes)
+
+    Raises:
+        FileNotFoundError: Certificate file doesn't exist
+        ValueError: Invalid certificate format or missing password
+        ImportError: cryptography library not installed (required for P12)
+    """
+    from pathlib import Path
+
+    if not cert_path or not Path(cert_path).exists():
+        raise FileNotFoundError(f"Certificate file not found: {cert_path}")
+
+    cert_path_lower = cert_path.lower()
+    is_p12 = cert_path_lower.endswith(('.p12', '.pfx'))
+
+    if is_p12:
+        # Load PKCS#12 format
+        try:
+            from cryptography.hazmat.primitives.serialization import pkcs12, Encoding, PrivateFormat, NoEncryption
+
+            with open(cert_path, 'rb') as f:
+                p12_data = f.read()
+
+            password_bytes = cert_password.encode('utf-8') if cert_password else None
+
+            try:
+                private_key, certificate, _ = pkcs12.load_key_and_certificates(p12_data, password_bytes)
+            except ValueError as e:
+                if "password" in str(e).lower() and not cert_password:
+                    raise ValueError(
+                        "PKCS#12 file is password-protected but no password provided. "
+                        "Set 'tak_client_cert_password' in config.json"
+                    )
+                raise
+
+            if not private_key or not certificate:
+                raise ValueError("PKCS#12 file does not contain valid certificate and private key")
+
+            # Convert to PEM format (required by Python's ssl.SSLContext.load_cert_chain)
+            cert_pem = certificate.public_bytes(Encoding.PEM)
+            key_pem = private_key.private_bytes(
+                encoding=Encoding.PEM,
+                format=PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=NoEncryption()
+            )
+
+            logger.info("Successfully loaded PKCS#12 certificate: %s", cert_path)
+            return cert_pem, key_pem
+
+        except ImportError:
+            raise ImportError(
+                "cryptography library required for PKCS#12 (.p12/.pfx) certificate support. "
+                "Install with: pip install cryptography"
+            )
+    else:
+        # Load PEM format (existing behavior)
+        with open(cert_path, 'rb') as f:
+            cert_pem = f.read()
+
+        key_pem = None
+        if key_path and Path(key_path).exists():
+            with open(key_path, 'rb') as f:
+                key_pem = f.read()
+
+        logger.info("Successfully loaded PEM certificate: %s", cert_path)
+        return cert_pem, key_pem
+
+
+from contextlib import contextmanager as _contextmanager
+
+@_contextmanager
+def _temp_cert_chain(cert_pem: bytes, key_pem: bytes):
+    """
+    Context manager that writes cert/key PEM bytes to temporary files with
+    restrictive permissions (0o600) and yields their paths.  Both files are
+    deleted on exit regardless of whether an exception occurred.
+    """
+    import tempfile
+    import os as _os_cert
+
+    cert_path = None
+    key_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='wb', suffix='.pem', delete=False) as cf:
+            cf.write(cert_pem)
+            cert_path = cf.name
+        _os_cert.chmod(cert_path, 0o600)
+
+        if key_pem:
+            with tempfile.NamedTemporaryFile(mode='wb', suffix='.pem', delete=False) as kf:
+                kf.write(key_pem)
+                key_path = kf.name
+            _os_cert.chmod(key_path, 0o600)
+
+        yield cert_path, key_path
+    finally:
+        try:
+            if cert_path:
+                _os_cert.unlink(cert_path)
+        except OSError:
+            pass
+        try:
+            if key_path:
+                _os_cert.unlink(key_path)
+        except OSError:
+            pass
+
+
 def _get_tak_config() -> dict:
     """Return TAK server config from config.json with safe defaults.
 
@@ -888,19 +1014,23 @@ def _get_tak_config() -> dict:
     tak_client_cert = cfg.get("tak_client_cert", "")
     tak_client_key = cfg.get("tak_client_key", "")
 
+    # tak_client_cert_password — password for PKCS#12 (.p12/.pfx) files (optional)
+    tak_cert_password = cfg.get("tak_client_cert_password", "")
+
     raw_host = str(tak_host).strip() if tak_host else ""
     if raw_host:
         raw_host = re.sub(r'^https?://', '', raw_host).rstrip('/')
 
     return {
-        "tak_forward_enabled":  bool(tak_enabled),
-        "tak_server_host":      raw_host,
-        "tak_server_port":      tak_port,
-        "tak_connection_type":  tak_type,
-        "tak_username":         str(tak_username).strip() if tak_username else "",
-        "tak_password":         str(tak_password) if tak_password else "",
-        "tak_client_cert":      str(tak_client_cert).strip() if tak_client_cert else "",
-        "tak_client_key":       str(tak_client_key).strip() if tak_client_key else "",
+        "tak_forward_enabled":      bool(tak_enabled),
+        "tak_server_host":          raw_host,
+        "tak_server_port":          tak_port,
+        "tak_connection_type":      tak_type,
+        "tak_username":             str(tak_username).strip() if tak_username else "",
+        "tak_password":             str(tak_password) if tak_password else "",
+        "tak_client_cert":          str(tak_client_cert).strip() if tak_client_cert else "",
+        "tak_client_key":           str(tak_client_key).strip() if tak_client_key else "",
+        "tak_client_cert_password": str(tak_cert_password) if tak_cert_password else "",
     }
 
 
@@ -980,13 +1110,17 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
             ctx.check_hostname = False
             ctx.verify_mode = _ssl.CERT_NONE
             ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
-            # Load client certificate when configured (required for mTLS / TLS 1.3
-            # servers that send TLSV13_ALERT_CERTIFICATE_REQUIRED).
+            # Load client certificate when configured (supports both PEM and PKCS#12 formats)
             client_cert = tak_cfg.get("tak_client_cert", "")
             client_key = tak_cfg.get("tak_client_key", "")
+            cert_password = tak_cfg.get("tak_client_cert_password", "")
             if client_cert:
                 try:
-                    ctx.load_cert_chain(certfile=client_cert, keyfile=client_key or None)
+                    # Load certificate (automatically detects PEM or P12 format)
+                    cert_pem, key_pem = _load_tak_certificates(client_cert, client_key, cert_password)
+                    # Python's ssl module requires file paths, not bytes, so write to temp files
+                    with _temp_cert_chain(cert_pem, key_pem) as (cert_temp_path, key_temp_path):
+                        ctx.load_cert_chain(certfile=cert_temp_path, keyfile=key_temp_path)
                 except Exception as cert_err:
                     logger.warning("Failed to load TAK client certificate '%s': %s", client_cert, cert_err)
                     return False
@@ -1186,9 +1320,12 @@ def _tak_receiver_loop() -> None:
                     ctx.minimum_version = _ssl_recv.TLSVersion.TLSv1_2
                     client_cert = tak_cfg.get("tak_client_cert", "")
                     client_key = tak_cfg.get("tak_client_key", "")
+                    cert_password = tak_cfg.get("tak_client_cert_password", "")
                     if client_cert:
                         try:
-                            ctx.load_cert_chain(certfile=client_cert, keyfile=client_key or None)
+                            cert_pem, key_pem = _load_tak_certificates(client_cert, client_key, cert_password)
+                            with _temp_cert_chain(cert_pem, key_pem) as (cert_temp_path, key_temp_path):
+                                ctx.load_cert_chain(certfile=cert_temp_path, keyfile=key_temp_path)
                         except Exception as cert_err:
                             logger.warning("TAK receiver: failed to load client cert '%s': %s", client_cert, cert_err)
                             with _TAK_RECEIVER_STATS_LOCK:
@@ -1359,6 +1496,9 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
             "lat": lat,
             "lng": lng,
             "type": "friendly",
+            "meshtastic_node": True,
+            "node_id": node_id,
+            "source": "meshtastic",
         }
         cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
         if cot_event:
@@ -1377,7 +1517,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
     try:
         nodes = db.query(MeshtasticNode).all()
         # Index existing markers created by meshtastic sync
-        existing_markers = db.query(MapMarker).filter(MapMarker.created_by == "import_meshtastic").all()
+        existing_markers = db.query(MapMarker).filter(MapMarker.created_by.in_(["import_meshtastic", "meshtastic_sync"])).all()
         
         by_unit = {str(m.data.get("unit_id") if isinstance(m.data, dict) else ""): m for m in existing_markers if m.data}
         
@@ -1398,6 +1538,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 marker.lat = float(lat)
                 marker.lng = float(lng)
                 marker.name = f"{n.hardware_model or ''} = {name}"
+                marker.type = "node"  # Ensure type is "node" not "friendly"
                 marker_data = marker.data if isinstance(marker.data, dict) else {}
                 marker_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 marker.data = marker_data
@@ -6026,6 +6167,7 @@ def get_tak_config():
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
         "tak_username":        cfg.get("tak_username", ""),
         "tak_client_cert":     cfg.get("tak_client_cert", ""),
+        "tak_client_cert_password": cfg.get("tak_client_cert_password", ""),
     }
 
 
@@ -6077,6 +6219,8 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         cfg["tak_client_cert"] = str(data["tak_client_cert"]).strip()
     if "tak_client_key" in data:
         cfg["tak_client_key"] = str(data["tak_client_key"]).strip()
+    if "tak_client_cert_password" in data:
+        cfg["tak_client_cert_password"] = str(data["tak_client_cert_password"])
     # CoT listener settings (saved alongside TAK config for convenience)
     if "cot_listener_tcp_port" in data:
         try:
@@ -6108,6 +6252,7 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
         "tak_username":        cfg.get("tak_username", ""),
         "tak_client_cert":     cfg.get("tak_client_cert", ""),
+        "tak_client_cert_password": cfg.get("tak_client_cert_password", ""),
     }
 
 
@@ -6131,6 +6276,7 @@ def test_tak_connection():
     password = tak_cfg.get("tak_password", "")
     client_cert = tak_cfg.get("tak_client_cert", "")
     client_key = tak_cfg.get("tak_client_key", "")
+    cert_password = tak_cfg.get("tak_client_cert_password", "")
     auth_data = _build_tak_auth_xml(username, password) if (username and password) else None
 
     if not host:
@@ -6179,7 +6325,9 @@ def test_tak_connection():
                 # Load client certificate if configured (required for mTLS servers)
                 if client_cert:
                     try:
-                        ctx.load_cert_chain(certfile=client_cert, keyfile=client_key or None)
+                        cert_pem, key_pem = _load_tak_certificates(client_cert, client_key, cert_password)
+                        with _temp_cert_chain(cert_pem, key_pem) as (cert_temp_path, key_temp_path):
+                            ctx.load_cert_chain(certfile=cert_temp_path, keyfile=key_temp_path)
                     except Exception as cert_err:
                         return {"reachable": False, "data_exchanged": False, "message": f"Failed to load client certificate '{client_cert}': {cert_err}"}
                 raw = socket.socket(af, socket.SOCK_STREAM)
