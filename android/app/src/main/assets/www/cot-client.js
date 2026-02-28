@@ -219,6 +219,63 @@ class COTEvent {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // TAK compatibility: symbol-type mappings
+    //
+    // LPU5 uses German shape names ("raute", "rechteck", …) internally.
+    // All TAK clients (ATAK, ITAK, WinTAK, XTAK) expect the CoT event
+    // `type` attribute to carry the official TAK type code (e.g. "b-m-p-s-m"
+    // for a spot-map marker).  These two tables must be kept in sync with
+    // cot_protocol.py so that symbols have the same IDs on both sides and
+    // server-side sync does not produce duplicates or errors.
+    // -----------------------------------------------------------------------
+
+    /** LPU5 type name → TAK CoT type code */
+    static get LPU5_TO_COT_TYPE() {
+        return {
+            raute:    'b-m-p-s-m',
+            quadrat:  'b-m-p-s-m',
+            blume:    'b-m-p-s-m',
+            rechteck: 'u-d-r',
+            friendly: 'a-f-G-U-C',
+            hostile:  'a-h-G-U-C',
+            neutral:  'a-n-G-U-C',
+            unknown:  'a-u-G-U-C',
+            pending:  'a-p-G-U-C',
+        };
+    }
+
+    /** TAK CoT type prefix → LPU5 type name.
+     *  Ordered longest-prefix-first so that more-specific codes are matched
+     *  before shorter prefix alternatives when iterating. */
+    static get COT_TO_LPU5_TYPE() {
+        return [
+            ['b-m-p-s-m', 'raute'],    // TAK spot-map marker (all shapes)
+            ['u-d-c-c',   'raute'],    // TAK drawing circle → diamond
+            ['u-d-r',     'rechteck'], // TAK drawing rectangle
+            ['u-d-f',     'raute'],    // TAK drawing freehand → diamond
+            ['a-f',       'friendly'], // friendly (any sub-type)
+            ['a-h',       'hostile'],
+            ['a-n',       'neutral'],
+            ['a-u',       'unknown'],
+            ['a-p',       'pending'],
+        ];
+    }
+
+    /** Convert a lowercase LPU5 type to the matching TAK CoT type string */
+    static lpu5TypeToCot(lpu5Type) {
+        return COTEvent.LPU5_TO_COT_TYPE[(lpu5Type || '').toLowerCase()] || 'a-u-G-U-C';
+    }
+
+    /** Convert a TAK CoT type string back to the LPU5 symbol type */
+    static cotTypeToLpu5(cotType) {
+        if (!cotType) return 'unknown';
+        for (const [prefix, lpu5] of COTEvent.COT_TO_LPU5_TYPE) {
+            if (cotType.startsWith(prefix)) return lpu5;
+        }
+        return 'unknown';
+    }
+
     /**
      * Build a COT type string from components
      */
@@ -259,20 +316,18 @@ class COTProtocolHandler {
             const uid = marker.id || COTEvent.prototype._generateUID();
             const lat = parseFloat(marker.lat || 0);
             const lon = parseFloat(marker.lng || marker.lon || 0);
-            
-            // Determine COT type based on marker properties
-            let affiliation = 'unknown';
-            const status = (marker.status || '').toLowerCase();
-            if (status.includes('friendly') || status.includes('active') || status.includes('aktiv')) {
-                affiliation = 'friendly';
-            } else if (status.includes('hostile') || status.includes('kia')) {
-                affiliation = 'hostile';
-            } else if (status.includes('neutral')) {
-                affiliation = 'neutral';
+
+            // If the marker already carries a TAK-originated cotType/cot_type,
+            // reuse it exactly so that the symbol identity is preserved when
+            // re-broadcasting to other TAK clients.
+            let type = marker.cotType || marker.cot_type;
+            if (!type) {
+                // Derive the TAK CoT type from the LPU5 symbol type field.
+                // Normalise to lowercase for consistent lookup.
+                const lpu5Type = (marker.type || marker.status || 'unknown').toLowerCase();
+                type = COTEvent.lpu5TypeToCot(lpu5Type);
             }
-            
-            const type = COTEvent.buildCOTType(affiliation);
-            
+
             return new COTEvent({
                 uid,
                 type,
@@ -293,17 +348,10 @@ class COTProtocolHandler {
      * Convert a COT event to map marker
      */
     static cotToMarker(cotEvent) {
-        // Parse COT type for affiliation
-        const typeParts = cotEvent.type.split('-');
-        let affiliation = 'unknown';
-        
-        if (typeParts.length >= 2) {
-            const atom = typeParts[1];
-            if (atom === 'f') affiliation = 'friendly';
-            else if (atom === 'h') affiliation = 'hostile';
-            else if (atom === 'n') affiliation = 'neutral';
-        }
-        
+        // Map the TAK CoT type back to the LPU5 internal symbol type so the
+        // correct icon is rendered in admin_map / overview.
+        const lpu5Type = COTEvent.cotTypeToLpu5(cotEvent.type);
+
         return {
             id: cotEvent.uid,
             name: cotEvent.callsign,
@@ -312,7 +360,8 @@ class COTProtocolHandler {
             lng: cotEvent.lon,
             lon: cotEvent.lon,
             altitude: cotEvent.hae,
-            status: affiliation,
+            type: lpu5Type,
+            status: lpu5Type,
             description: cotEvent.remarks,
             team: cotEvent.teamName,
             role: cotEvent.teamRole,

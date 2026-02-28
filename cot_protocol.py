@@ -266,15 +266,66 @@ class CoTEvent:
 
 class CoTProtocolHandler:
     """Handles CoT protocol operations including conversion and validation"""
-    
+
+    # Mapping from LPU5 symbol type names to TAK-compatible CoT type codes.
+    # These must match the identifiers used by ATAK/ITAK/WinTAK/XTAK exactly
+    # so that symbols sync correctly across all TAK server implementations.
+    LPU5_TO_COT_TYPE: Dict[str, str] = {
+        "raute":     "b-m-p-s-m",   # spot-map marker (diamond/rhombus shape)
+        "quadrat":   "b-m-p-s-m",   # spot-map marker (square shape)
+        "blume":     "b-m-p-s-m",   # spot-map marker (flower shape)
+        "rechteck":  "u-d-r",        # TAK drawing rectangle
+        "friendly":  "a-f-G-U-C",   # friendly ground unit
+        "hostile":   "a-h-G-U-C",   # hostile ground unit
+        "neutral":   "a-n-G-U-C",   # neutral ground unit
+        "unknown":   "a-u-G-U-C",   # unknown ground unit
+        "pending":   "a-p-G-U-C",   # pending ground unit
+    }
+
+    # Reverse mapping: TAK CoT type prefix → LPU5 symbol type.
+    # Stored as a list of (prefix, lpu5_type) tuples ordered longest-prefix
+    # first so that more-specific codes are matched before shorter ones when
+    # iterating with str.startswith().
+    COT_TO_LPU5_TYPE: List[tuple] = [
+        ("b-m-p-s-m", "raute"),     # TAK spot-map marker (all shapes)
+        ("u-d-c-c",   "raute"),     # TAK drawing circle → diamond
+        ("u-d-r",     "rechteck"),  # TAK drawing rectangle
+        ("u-d-f",     "raute"),     # TAK drawing freehand → diamond
+        ("a-f",       "friendly"),  # friendly affiliation (any sub-type)
+        ("a-h",       "hostile"),   # hostile affiliation
+        ("a-n",       "neutral"),   # neutral affiliation
+        ("a-u",       "unknown"),   # unknown affiliation
+        ("a-p",       "pending"),   # pending affiliation
+    ]
+
+    @classmethod
+    def lpu5_type_to_cot(cls, lpu5_type: str) -> str:
+        """
+        Convert a lowercase LPU5 symbol type to a TAK CoT type string.
+        Falls back to the generic unknown ground-unit code if not found.
+        """
+        return cls.LPU5_TO_COT_TYPE.get(lpu5_type.lower(), "a-u-G-U-C")
+
+    @classmethod
+    def cot_type_to_lpu5(cls, cot_type: str) -> str:
+        """
+        Convert a TAK CoT type string to the corresponding LPU5 symbol type.
+        Uses prefix matching (longest-first order) so sub-types resolve to
+        their base category.  Falls back to "unknown".
+        """
+        for prefix, lpu5 in cls.COT_TO_LPU5_TYPE:
+            if cot_type.startswith(prefix):
+                return lpu5
+        return "unknown"
+
     @staticmethod
     def marker_to_cot(marker: Dict[str, Any]) -> Optional[CoTEvent]:
         """
         Convert a map marker to CoT event
-        
+
         Args:
             marker: Map marker dictionary
-            
+
         Returns:
             CoTEvent object or None if conversion fails
         """
@@ -282,19 +333,18 @@ class CoTProtocolHandler:
             uid = marker.get("id", str(uuid.uuid4()))
             lat = float(marker.get("lat", 0.0))
             lon = float(marker.get("lng", 0.0))
-            
-            # Determine CoT type based on marker properties
-            status = marker.get("status", "unknown").lower()
-            affiliation = "unknown"
-            if "friendly" in status or "active" in status or "aktiv" in status:
-                affiliation = "friendly"
-            elif "hostile" in status or "kia" in status:
-                affiliation = "hostile"
-            elif "neutral" in status:
-                affiliation = "neutral"
-            
-            cot_type = CoTEvent.build_cot_type(atom=affiliation)
-            
+
+            # If the marker already carries a TAK-originated cot_type, reuse it
+            # so that the exact symbol (including sub-type detail) is preserved
+            # when re-broadcasting to other TAK clients.
+            cot_type = marker.get("cot_type") or marker.get("cotType")
+            if not cot_type:
+                # Derive a TAK CoT type from the LPU5 symbol type field,
+                # falling back to the status field for backwards compatibility
+                # (matches the JS COTProtocolHandler.markerToCOT() logic).
+                lpu5_type = (marker.get("type") or marker.get("status") or "unknown").lower()
+                cot_type = CoTProtocolHandler.lpu5_type_to_cot(lpu5_type)
+
             return CoTEvent(
                 uid=uid,
                 cot_type=cot_type,
@@ -308,30 +358,22 @@ class CoTProtocolHandler:
         except Exception as e:
             logger.error(f"Failed to convert marker to CoT: {e}")
             return None
-    
+
     @staticmethod
     def cot_to_marker(cot_event: CoTEvent) -> Dict[str, Any]:
         """
         Convert a CoT event to map marker
-        
+
         Args:
             cot_event: CoTEvent object
-            
+
         Returns:
             Map marker dictionary
         """
-        # Parse CoT type for affiliation
-        cot_parts = cot_event.cot_type.split("-")
-        affiliation = "unknown"
-        if len(cot_parts) >= 2:
-            atom = cot_parts[1]
-            if atom == "f":
-                affiliation = "friendly"
-            elif atom == "h":
-                affiliation = "hostile"
-            elif atom == "n":
-                affiliation = "neutral"
-        
+        # Map the TAK CoT type back to the LPU5 internal symbol type so the
+        # correct icon is rendered in admin_map / overview.
+        lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(cot_event.cot_type)
+
         return {
             "id": cot_event.uid,
             "name": cot_event.callsign,
@@ -339,7 +381,8 @@ class CoTProtocolHandler:
             "lat": cot_event.lat,
             "lng": cot_event.lon,
             "altitude": cot_event.hae,
-            "status": affiliation,
+            "type": lpu5_type,
+            "status": lpu5_type,
             "description": cot_event.remarks,
             "team": cot_event.team_name,
             "role": cot_event.team_role,

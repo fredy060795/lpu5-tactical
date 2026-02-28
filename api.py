@@ -5771,7 +5771,9 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
         
         lat = symbol.get("lat")
         lng = symbol.get("lng")
-        symbol_type = symbol.get("type", "marker")
+        # Normalise to lowercase so that type IDs are consistent across all
+        # TAK clients (ATAK/ITAK/WinTAK/XTAK) — e.g. "raute" == "Raute".
+        symbol_type = symbol.get("type", "marker").lower()
         source_page = symbol.get("source_page", "unknown")
         
         if lat is None or lng is None:
