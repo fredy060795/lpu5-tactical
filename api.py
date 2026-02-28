@@ -42,6 +42,7 @@ import time
 import socket
 import asyncio
 import sys
+import xml.sax.saxutils as _sax_utils
 
 # Fix Windows asyncio ProactorEventLoop issue that causes
 # "Exception in callback _ProactorBasePipeTransport._call_connection_lost"
@@ -824,12 +825,29 @@ def _get_tak_config() -> dict:
     # tak_connection_type / takConnectionType  (udp | tcp | ssl)
     tak_type = cfg.get("tak_connection_type") or net.get("takConnectionType", "udp")
 
+    # tak_username / tak_password — credentials for TAK server authentication
+    tak_username = cfg.get("tak_username", "")
+    tak_password = cfg.get("tak_password", "")
+
     return {
         "tak_forward_enabled":  bool(tak_enabled),
         "tak_server_host":      str(tak_host).strip() if tak_host else "",
         "tak_server_port":      tak_port,
         "tak_connection_type":  tak_type,
+        "tak_username":         str(tak_username).strip() if tak_username else "",
+        "tak_password":         str(tak_password) if tak_password else "",
     }
+
+
+def _build_tak_auth_xml(username: str, password: str) -> bytes:
+    """Build a TAK server XML authentication packet from the given credentials."""
+    _attr_extras = {'"': "&quot;"}
+    u = _sax_utils.escape(username, _attr_extras)
+    p = _sax_utils.escape(password, _attr_extras)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        f'<auth><cot username="{u}" password="{p}"/></auth>'
+    ).encode("utf-8")
 
 
 def forward_cot_to_tak(cot_xml: str) -> bool:
@@ -838,6 +856,8 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
 
     Supports UDP (legacy port 4242), TCP (standard port 8087), and SSL/TLS
     (secure port 8089) based on the tak_connection_type configuration.
+    When tak_username and tak_password are configured, an XML auth packet is
+    sent before the CoT payload on TCP and SSL connections.
     Returns True on success, False if forwarding is disabled or an error occurs.
     """
     try:
@@ -849,12 +869,19 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
         port = tak_cfg["tak_server_port"]
         conn_type = tak_cfg.get("tak_connection_type", "udp")
         data = cot_xml.encode("utf-8")
+        username = tak_cfg.get("tak_username", "")
+        password = tak_cfg.get("tak_password", "")
+        if bool(username) != bool(password):
+            logger.warning("TAK server has only partial credentials configured (username=%s, password_set=%s); authentication will be skipped", bool(username), bool(password))
+        auth_data = _build_tak_auth_xml(username, password) if (username and password) else None
 
         if conn_type == "tcp":
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
                 sock.settimeout(5)
                 sock.connect((host, port))
+                if auth_data:
+                    sock.sendall(auth_data)
                 sock.sendall(data)
             except socket.timeout:
                 logger.warning("CoT TCP forward to TAK server %s:%s timed out", host, port)
@@ -877,6 +904,8 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
             sock = ctx.wrap_socket(raw, server_hostname=host)
             try:
                 sock.connect((host, port))
+                if auth_data:
+                    sock.sendall(auth_data)
                 sock.sendall(data)
             except socket.timeout:
                 logger.warning("CoT SSL forward to TAK server %s:%s timed out", host, port)
@@ -5350,6 +5379,7 @@ def get_tak_config():
         "tak_server_host":     cfg.get("tak_server_host", ""),
         "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
+        "tak_username":        cfg.get("tak_username", ""),
     }
 
 
@@ -5363,6 +5393,8 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     - tak_server_host (str): TAK server IP or hostname
     - tak_server_port (int): Port on the TAK server (default 4242)
     - tak_connection_type (str): Connection type — "udp", "tcp", or "ssl" (default "udp")
+    - tak_username (str): TAK server login username
+    - tak_password (str): TAK server login password
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -5389,9 +5421,13 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         if conn_type not in ("udp", "tcp", "ssl"):
             raise HTTPException(status_code=400, detail="tak_connection_type must be 'udp', 'tcp', or 'ssl'")
         cfg["tak_connection_type"] = conn_type
+    if "tak_username" in data:
+        cfg["tak_username"] = str(data["tak_username"]).strip()
+    if "tak_password" in data:
+        cfg["tak_password"] = str(data["tak_password"])
 
     save_json("config", cfg)
-    logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_")})
+    logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_") and k != "tak_password"})
 
     return {
         "status": "success",
@@ -5399,6 +5435,7 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         "tak_server_host":     cfg.get("tak_server_host", ""),
         "tak_server_port":     int(cfg.get("tak_server_port", 4242)),
         "tak_connection_type": cfg.get("tak_connection_type", "udp"),
+        "tak_username":        cfg.get("tak_username", ""),
     }
 
 

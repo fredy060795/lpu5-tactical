@@ -4,5 +4,7 @@
     "marker_broadcast_interval_seconds": 60,
     "tak_forward_enabled": false,
     "tak_server_host": "",
-    "tak_server_port": 4242
+    "tak_server_port": 4242,
+    "tak_username": "",
+    "tak_password": ""
 }

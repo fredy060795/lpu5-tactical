@@ -497,6 +497,16 @@
                         <label for="takAutoReconnect">Reconnect automatically</label>
                     </div>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label">TAK Server Username</label>
+                    <input type="text" class="form-input" id="takUsername" placeholder="Username" autocomplete="username" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">TAK Server Password</label>
+                    <input type="password" class="form-input" id="takPassword" placeholder="Password" autocomplete="current-password" disabled>
+                </div>
             </div>
         </div>
     </div>
@@ -580,6 +590,13 @@
 </div>
 
 <script>
+// Retrieve stored auth token from localStorage
+function _getAuthToken() {
+    const direct = localStorage.getItem('lpu5_token');
+    if (direct) return direct;
+    try { return JSON.parse(localStorage.getItem('lpu5_user') || '{}').token || null; } catch (_) { return null; }
+}
+
 // Load server info on page load
 async function loadServerInfo() {
     try {
@@ -630,6 +647,15 @@ async function loadNetworkSettings() {
             document.getElementById('takConnectionType').value = networkConfig.takConnectionType || 'tcp';
             document.getElementById('takServerPort').value = networkConfig.takServerPort || '8089';
             document.getElementById('takAutoReconnect').checked = networkConfig.takAutoReconnect !== false;
+
+            // Load TAK credentials (username only; password is write-only)
+            try {
+                const takResp = await fetch('/api/tak/config');
+                if (takResp.ok) {
+                    const takCfg = await takResp.json();
+                    document.getElementById('takUsername').value = takCfg.tak_username || '';
+                }
+            } catch (_e) { console.warn('Could not load TAK credentials:', _e); }
 
             // CoT Settings
             document.getElementById('enableCoT').checked = networkConfig.enableCoT || false;
@@ -698,11 +724,29 @@ async function saveNetworkSettings() {
             body: JSON.stringify(networkConfig)
         });
 
-        if (response.ok) {
-            showStatus('Settings saved successfully', 'success');
-        } else {
+        if (!response.ok) {
             showStatus('Error saving settings', 'error');
+            return;
         }
+
+        // Save TAK credentials separately via the authenticated endpoint
+        const takEnabled = document.getElementById('enableTakIntegration').checked;
+        if (takEnabled) {
+            const token = _getAuthToken();
+            if (token) {
+                const takUsername = document.getElementById('takUsername').value.trim();
+                const takPassword = document.getElementById('takPassword').value;
+                const credBody = { tak_username: takUsername };
+                if (takPassword) { credBody.tak_password = takPassword; }
+                await fetch('/api/tak/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(credBody)
+                });
+            }
+        }
+
+        showStatus('Settings saved successfully', 'success');
     } catch (error) {
         console.error('Error saving network settings:', error);
         showStatus('Error saving settings', 'error');
@@ -775,6 +819,8 @@ function updateTakIntegrationState() {
     document.getElementById('takServerPort').disabled = !enabled;
     document.getElementById('takSslCert').disabled = !enabled;
     document.getElementById('takAutoReconnect').disabled = !enabled;
+    document.getElementById('takUsername').disabled = !enabled;
+    document.getElementById('takPassword').disabled = !enabled;
 }
 
 // Update CoT state
