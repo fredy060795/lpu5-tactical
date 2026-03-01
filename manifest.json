@@ -1,11 +1,11 @@
 {
-  "name": "LPU5 Tactical Network with Meshtastic",
-  "short_name": "LPU5-Mesh",
-  "description": "Tactical Network Management System with Off-Grid Meshtastic LoRa Integration and COT Support",
+  "name": "AEGIS Tactical — Autonomous Encrypted Global Information System",
+  "short_name": "AEGIS-Mesh",
+  "description": "AEGIS Tactical — Autonomous Encrypted Global Information System with Off-Grid Meshtastic LoRa Integration and COT Support",
   "start_url": "/overview.html",
   "display": "standalone",
   "background_color": "#0a0a0a",
-  "theme_color": "#28a745",
+  "theme_color": "#1565C0",
   "orientation": "any",
   "icons": [
     {

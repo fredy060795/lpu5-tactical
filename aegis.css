@@ -1,0 +1,312 @@
+/**
+ * AEGIS Tactical — Central Brand Stylesheet
+ * AEGIS = Autonomous Encrypted Global Information System
+ *
+ * Color System:
+ *   --aegis-blue      Primary / Brand color
+ *   --aegis-green     Save / Success / Confirm
+ *   --aegis-red       Cancel / Danger / Abort
+ *   --aegis-bg        Page background
+ *   --aegis-panel     Panel / card background
+ *   --aegis-border    Border / separator
+ *   --aegis-text      Primary text
+ *   --aegis-text-dim  Secondary / muted text
+ */
+
+:root {
+  /* Brand colours */
+  --aegis-blue:       #1565C0;
+  --aegis-blue-light: #1976D2;
+  --aegis-blue-dim:   #0d47a1;
+  --aegis-blue-glow:  rgba(21, 101, 192, 0.35);
+
+  /* Semantic colours */
+  --aegis-green:      #28a745;
+  --aegis-green-dark: #1e7e34;
+  --aegis-red:        #dc3545;
+  --aegis-red-dark:   #b02a37;
+  --aegis-yellow:     #ffc107;
+
+  /* Surface colours */
+  --aegis-bg:         #0a0a0a;
+  --aegis-panel:      #1a1a1a;
+  --aegis-panel-alt:  #121212;
+  --aegis-border:     #333333;
+  --aegis-border-dim: #282828;
+
+  /* Text colours */
+  --aegis-text:       #d0d0d0;
+  --aegis-text-dim:   #888888;
+  --aegis-text-muted: #555555;
+
+  /* Typography */
+  --aegis-font:       'Courier New', Courier, monospace;
+  --aegis-font-size:  1rem;
+  --aegis-line-height: 1.5;
+}
+
+/* ===== GLOBAL BASE ===== */
+.aegis-body {
+  background: var(--aegis-bg);
+  color: var(--aegis-text);
+  font-family: var(--aegis-font);
+  font-size: var(--aegis-font-size);
+  line-height: var(--aegis-line-height);
+  margin: 0;
+  padding: 0;
+}
+
+/* ===== TYPOGRAPHY ===== */
+.aegis-title {
+  font-family: var(--aegis-font);
+  font-weight: bold;
+  color: var(--aegis-blue-light);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.aegis-subtitle {
+  font-family: var(--aegis-font);
+  color: var(--aegis-text-dim);
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ===== BUTTONS ===== */
+
+/* Base button */
+.aegis-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  font-family: var(--aegis-font);
+  font-size: 0.9em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+  user-select: none;
+}
+
+.aegis-btn:focus {
+  outline: 2px solid var(--aegis-blue-light);
+  outline-offset: 2px;
+}
+
+.aegis-btn:active {
+  transform: translateY(1px);
+}
+
+/* Primary — brand blue */
+.aegis-btn-primary {
+  background: var(--aegis-blue);
+  color: #ffffff;
+  border-color: var(--aegis-blue-light);
+}
+.aegis-btn-primary:hover {
+  background: var(--aegis-blue-light);
+  box-shadow: 0 0 12px var(--aegis-blue-glow);
+}
+
+/* Save / Confirm — green */
+.aegis-btn-save {
+  background: var(--aegis-green);
+  color: #ffffff;
+  border-color: var(--aegis-green-dark);
+}
+.aegis-btn-save:hover {
+  background: var(--aegis-green-dark);
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.4);
+}
+
+/* Cancel / Abort / Danger — red */
+.aegis-btn-cancel {
+  background: var(--aegis-red);
+  color: #ffffff;
+  border-color: var(--aegis-red-dark);
+}
+.aegis-btn-cancel:hover {
+  background: var(--aegis-red-dark);
+  box-shadow: 0 0 10px rgba(220, 53, 69, 0.4);
+}
+
+/* Secondary — subtle dark */
+.aegis-btn-secondary {
+  background: var(--aegis-panel);
+  color: var(--aegis-text);
+  border-color: var(--aegis-border);
+}
+.aegis-btn-secondary:hover {
+  background: #252525;
+  border-color: #444;
+}
+
+/* Warning */
+.aegis-btn-warning {
+  background: var(--aegis-yellow);
+  color: #1a1a1a;
+  border-color: #e0a800;
+}
+.aegis-btn-warning:hover {
+  background: #e0a800;
+}
+
+/* Small variant */
+.aegis-btn-sm {
+  padding: 6px 14px;
+  font-size: 0.8em;
+}
+
+/* Large variant */
+.aegis-btn-lg {
+  padding: 14px 32px;
+  font-size: 1em;
+}
+
+/* Icon-only button */
+.aegis-btn-icon {
+  padding: 8px;
+  border-radius: 4px;
+}
+
+/* Disabled state */
+.aegis-btn:disabled,
+.aegis-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ===== FORM ELEMENTS ===== */
+.aegis-input,
+.aegis-select,
+.aegis-textarea {
+  background: #000000;
+  color: var(--aegis-text);
+  border: 1px solid var(--aegis-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-family: var(--aegis-font);
+  font-size: 0.95em;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.aegis-input:focus,
+.aegis-select:focus,
+.aegis-textarea:focus {
+  outline: none;
+  border-color: var(--aegis-blue-light);
+  box-shadow: 0 0 6px var(--aegis-blue-glow);
+}
+
+.aegis-label {
+  display: block;
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--aegis-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+/* ===== PANEL / CARD ===== */
+.aegis-panel {
+  background: var(--aegis-panel);
+  border: 1px solid var(--aegis-border);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.aegis-panel-header {
+  font-size: 0.8em;
+  font-weight: bold;
+  color: var(--aegis-blue-light);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  border-bottom: 1px solid var(--aegis-border);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+/* ===== STATUS / BADGE ===== */
+.aegis-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.aegis-badge-success  { background: rgba(40,167,69,0.2);   color: #28a745; border: 1px solid #28a745; }
+.aegis-badge-danger   { background: rgba(220,53,69,0.2);   color: #dc3545; border: 1px solid #dc3545; }
+.aegis-badge-primary  { background: rgba(21,101,192,0.2);  color: #42a5f5; border: 1px solid #1565C0; }
+.aegis-badge-warning  { background: rgba(255,193,7,0.2);   color: #ffc107; border: 1px solid #ffc107; }
+
+/* ===== LOGO ===== */
+.aegis-logo {
+  display: block;
+  object-fit: contain;
+}
+
+/* ===== HEADER BAR ===== */
+.aegis-header {
+  background: var(--aegis-panel-alt);
+  border-bottom: 1px solid var(--aegis-border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.aegis-header-title {
+  font-size: 1.1em;
+  font-weight: bold;
+  color: var(--aegis-blue-light);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* ===== ALERTS ===== */
+.aegis-alert {
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  margin: 8px 0;
+}
+.aegis-alert-danger  { background: rgba(220,53,69,0.15); border: 1px solid var(--aegis-red);   color: #ff6b6b; }
+.aegis-alert-success { background: rgba(40,167,69,0.15); border: 1px solid var(--aegis-green); color: #5cb85c; }
+.aegis-alert-info    { background: rgba(21,101,192,0.15); border: 1px solid var(--aegis-blue);  color: #42a5f5; }
+
+/* ===== TABLE ===== */
+.aegis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.aegis-table th {
+  background: var(--aegis-panel-alt);
+  color: var(--aegis-blue-light);
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 1px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--aegis-border);
+  text-align: left;
+}
+.aegis-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--aegis-border-dim);
+  color: var(--aegis-text);
+}
+.aegis-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
