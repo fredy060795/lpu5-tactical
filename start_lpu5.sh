@@ -77,6 +77,39 @@ else
     fi
 fi
 
+# ── Hardware dependency checks ─────────────────────────────────────────────
+echo ""
+echo -e "${BLUE}[*]${NC} Checking hardware dependencies..."
+
+SDR_TOOLS_MISSING=0
+
+for tool in rtl_tcp rtl_power rtl_test rtl_fm; do
+    if command -v "$tool" &> /dev/null; then
+        echo -e "${GREEN}[OK]${NC} $tool found: $(command -v $tool)"
+    else
+        echo -e "${YELLOW}[WARN]${NC} $tool not found"
+        SDR_TOOLS_MISSING=1
+    fi
+done
+
+if [ "$SDR_TOOLS_MISSING" = "1" ]; then
+    echo ""
+    echo -e "${YELLOW}[WARN]${NC} One or more RTL-SDR system tools are missing."
+    echo -e "${YELLOW}[WARN]${NC} SDR features (spectrum view, audio streaming) will not be available"
+    echo -e "${YELLOW}[WARN]${NC} until these tools are installed."
+    echo ""
+    echo -e "${BLUE}[INFO]${NC} Install RTL-SDR tools:"
+    echo -e "${BLUE}[INFO]${NC}   Debian/Ubuntu/Raspberry Pi:  sudo apt install rtl-sdr"
+    echo -e "${BLUE}[INFO]${NC}   Fedora/RHEL:                 sudo dnf install rtl-sdr"
+    echo -e "${BLUE}[INFO]${NC}   Arch Linux:                  sudo pacman -S rtl-sdr"
+    echo -e "${BLUE}[INFO]${NC} After installing, start rtl_tcp with: rtl_tcp -a 0.0.0.0"
+    echo ""
+    echo -e "${BLUE}[INFO]${NC} You can also check dependency status at runtime via:"
+    echo -e "${BLUE}[INFO]${NC}   GET /api/dependencies/check"
+    echo ""
+fi
+# ── End hardware dependency checks ────────────────────────────────────────
+
 # Check for SSL certificates
 if [ ! -f "key.pem" ] || [ ! -f "cert.pem" ]; then
     echo -e "${YELLOW}[WARN]${NC} SSL certificates not found (key.pem / cert.pem)"

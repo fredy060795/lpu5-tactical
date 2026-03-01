@@ -43,6 +43,37 @@ echo [*] Installing/updating dependencies...
 pip install --upgrade pip >nul 2>&1
 pip install -r requirements.txt
 
+REM ── Hardware dependency checks ───────────────────────────────────────────
+echo.
+echo [*] Checking hardware dependencies...
+set SDR_TOOLS_MISSING=0
+
+for %%T in (rtl_tcp.exe rtl_power.exe rtl_test.exe rtl_fm.exe) do (
+    where %%T >nul 2>&1
+    if errorlevel 1 (
+        echo [WARN] %%T not found in PATH
+        set SDR_TOOLS_MISSING=1
+    ) else (
+        echo [OK] %%T found
+    )
+)
+
+if "%SDR_TOOLS_MISSING%"=="1" (
+    echo.
+    echo [WARN] One or more RTL-SDR system tools are missing.
+    echo [WARN] SDR features (spectrum view, audio streaming) will not be available until these tools are installed.
+    echo.
+    echo [INFO] Install RTL-SDR tools for Windows:
+    echo [INFO]   Download from: https://osmocom.org/projects/rtl-sdr/wiki
+    echo [INFO]   Extract and add the folder to your PATH.
+    echo [INFO]   Then start: rtl_tcp.exe
+    echo.
+    echo [INFO] Check dependency status at runtime via:
+    echo [INFO]   GET /api/dependencies/check
+    echo.
+)
+REM ── End hardware dependency checks ──────────────────────────────────────
+
 :start_server
 echo.
 echo [*] Starting server (api.py)...
