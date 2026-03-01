@@ -467,6 +467,13 @@
             Connect this server to a TAK Server for advanced tactical operations (similar to ATAK/WINTAK).
         </div>
 
+        <div class="info-box" style="background:#fff8e1;border-left:4px solid #f59e0b;">
+            <i class="fas fa-lightbulb" style="color:#f59e0b;"></i>
+            <strong>WinTAK / ATAK on the same machine?</strong>
+            Use <strong>Connection Type: TCP</strong>, Host: <code>127.0.0.1</code>, Port: <code>8087</code> — no certificate required.
+            SSL (port 8089) requires a client certificate; use TCP for local connections to avoid this.
+        </div>
+
         <div class="grid-2">
             <div>
                 <div class="form-group">
@@ -484,7 +491,7 @@
 
                 <div class="form-group">
                     <label class="form-label">Connection Type</label>
-                    <select class="form-select" id="takConnectionType" disabled>
+                    <select class="form-select" id="takConnectionType" disabled onchange="_onTakConnectionTypeChange(this.value)">
                         <option value="tcp">TCP</option>
                         <option value="udp">UDP</option>
                         <option value="ssl">SSL/TLS</option>
@@ -878,6 +885,20 @@ async function testConnection() {
     } catch (error) {
         console.error('Connection test failed:', error);
         showStatus('Connection failed: ' + error.message, 'error');
+    }
+}
+
+// Auto-update the port suggestion when the TAK connection type changes.
+// Default ports: TCP=8087 (no SSL), UDP=4242, SSL=8089.
+function _onTakConnectionTypeChange(type) {
+    const portInput = document.getElementById('takServerPort');
+    if (!portInput || portInput.disabled) return;
+    const currentPort = parseInt(portInput.value, 10);
+    const defaultPorts = { tcp: 8087, udp: 4242, ssl: 8089 };
+    // Only overwrite when the port is still set to a known TAK default (avoid clobbering custom values).
+    const knownDefaults = new Set(Object.values(defaultPorts));
+    if (!currentPort || knownDefaults.has(currentPort)) {
+        portInput.value = defaultPorts[type] || 8089;
     }
 }
 
