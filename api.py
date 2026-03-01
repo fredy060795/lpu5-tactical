@@ -1622,7 +1622,9 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
         }
         cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
         if cot_event:
-            return forward_cot_to_tak(cot_event.to_xml())
+            cot_xml = cot_event.to_xml()
+            _forward_cot_multicast(cot_xml)
+            return forward_cot_to_tak(cot_xml)
     except Exception as _fwd_err:
         logger.debug("TAK forward for Meshtastic node %s failed: %s", node_id, _fwd_err)
     return False
@@ -1740,6 +1742,29 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
             if marker_list:
                 broadcast_websocket_update("markers", "markers_sync", {"markers": marker_list, "sync_type": "periodic"})
                 logger.debug("Broadcasted %s markers for periodic sync", len(marker_list))
+                # Also send LPU5-originated markers via SA Multicast so ATAK/WinTAK
+                # clients on the same network always receive the full current state.
+                if AUTONOMOUS_MODULES_AVAILABLE:
+                    mcast_sent = 0
+                    for m in markers:
+                        if m.created_by not in ("cot_ingest", "tak_server"):
+                            try:
+                                mdict = {
+                                    "id": m.id, "lat": m.lat, "lng": m.lng,
+                                    "name": m.name, "type": m.type,
+                                    "created_by": m.created_by,
+                                }
+                                if isinstance(m.data, dict):
+                                    for k, v in m.data.items():
+                                        if k not in mdict:
+                                            mdict[k] = v
+                                cot_evt = CoTProtocolHandler.marker_to_cot(mdict)
+                                if cot_evt and _forward_cot_multicast(cot_evt.to_xml()):
+                                    mcast_sent += 1
+                            except Exception as _mc_err:
+                                logger.debug("SA Multicast send for marker %s failed: %s", m.id, _mc_err)
+                    if mcast_sent:
+                        logger.debug("Sent %d markers via SA Multicast for periodic sync", mcast_sent)
             
             # Broadcast all overlays for sync
             overlays = db.query(Overlay).all()
