@@ -551,29 +551,30 @@
 
         <div class="info-box">
             <i class="fas fa-info-circle"></i>
-            The CoT listener opens local TCP and UDP sockets so that ATAK clients can
-            send CoT XML directly to this server. Received events are stored as map
-            markers and broadcast to all connected clients in real time.
-            The listener starts automatically on server startup.
-            <br><br>
-            <strong>SA Multicast (239.2.3.1:6969 UDP)</strong> enables bidirectional CoT exchange with WinTAK/ATAK
-            using the standard Situational Awareness multicast group. When enabled, LPU5 joins the multicast group
-            to receive position updates <em>and</em> sends marker updates back to all TAK clients on the same LAN
-            — no dedicated TAK server required.
+            The CoT listener opens a local TCP socket (port 8088) so that ATAK clients can send CoT XML directly
+            to this server. Received events are stored as map markers and broadcast to all connected clients in
+            real time. The listener starts automatically on server startup.<br><br>
+            <strong>Only TCP port 8088 is required for importing data from ATAK.</strong>
+            UDP (port 4242) and SA Multicast (239.2.3.1:6969) are optional extensions and are not needed for
+            basic ATAK data import.
         </div>
 
         <div class="info-box" style="background:#e8f5e9;border-left:4px solid #4caf50;color:#1a1a1a;">
             <i class="fas fa-mobile-alt" style="color:#2e7d32;"></i>
-            <strong>WinTAK / ATAK on the same Windows machine — recommended setup:</strong>
+            <strong>ATAK / WinTAK — recommended setup (TCP port 8088):</strong>
             <ol style="margin:6px 0 0 18px;padding:0;">
-                <li>Enable <strong>SA Multicast</strong> below and set group <code>239.2.3.1</code>, port <code>6969</code>.</li>
-                <li>In WinTAK open <em>Settings → Network → Multicast</em> and ensure SA Multicast is active on <code>239.2.3.1:6969 UDP</code>.</li>
-                <li>LPU5 will automatically receive WinTAK position updates and push marker changes back via the same multicast group.</li>
+                <li>In ATAK/WinTAK: open <em>Settings → Network → Server Connections → Add Connection</em></li>
+                <li>Connection type: <strong>TCP (no SSL)</strong>, Address: <code id="cotListenerHostHint">127.0.0.1</code>, Port: <code>8088</code></li>
+                <li>Save and connect.</li>
             </ol>
-            <strong>Alternative — TCP direct connect (bidirectional):</strong> In WinTAK/ATAK open <em>Settings → Network → Server Connections</em>,
-            set <strong>Address</strong> to <code id="cotListenerHostHint">127.0.0.1</code> and <strong>Port</strong> to <code>8088</code> (TCP, no SSL).
-            For ATAK on a different device, replace <code>127.0.0.1</code> with this server's IP shown at the top of this page.<br>
-            <em>When connected via TCP, WinTAK/ATAK receives all existing LPU5 markers immediately on connect and all subsequent changes in real time — no TAK server required.</em>
+            <strong>Forcing ATAK to send all data to LPU5 automatically:</strong>
+            When ATAK connects to LPU5 via <em>Server Connections (Streaming/TCP)</em>, it automatically sends
+            <strong>all SA data</strong> — own position, all team member positions, and shared map items —
+            directly to LPU5 in real time. No manual per-user sharing is required; the server connection
+            causes ATAK to broadcast all data globally to LPU5.<br><br>
+            For ATAK on a different device: replace <code>127.0.0.1</code> with this server's IP shown at the top of this page.<br><br>
+            <strong>SA Multicast (239.2.3.1:6969 UDP) and UDP port 4242 are not required for data import</strong>
+            and can remain disabled.
         </div>
 
         <div class="form-grid">
@@ -589,8 +590,8 @@
 
         <div class="form-group">
             <div class="checkbox-group">
-                <input type="checkbox" id="saMulticastEnabled" checked>
-                <label for="saMulticastEnabled"><strong>Enable SA Multicast</strong> — bidirectional CoT exchange with WinTAK/ATAK (recommended when both run on the same machine)</label>
+                <input type="checkbox" id="saMulticastEnabled">
+                <label for="saMulticastEnabled"><strong>Enable SA Multicast</strong> (optional) — bidirectional CoT exchange over 239.2.3.1:6969 UDP. Not required for basic ATAK data import.</label>
             </div>
         </div>
 
