@@ -6705,10 +6705,9 @@ def get_chat_channels(authorization: Optional[str] = Header(None)):
                     if user:
                         # Admin and operator roles see all channels
                         if user.role not in ("admin", "operator"):
-                            user_chat_channels = user.chat_channels
-                            if user_chat_channels:
-                                # Always include "all" channel
-                                allowed_ids = set(user_chat_channels) | {"all"}
+                            # Always include "all" channel; non-admin users only see
+                            # their assigned channels even when the list is empty
+                            allowed_ids = set(user.chat_channels or []) | {"all"}
             except Exception as _ch_err:
                 logger.debug("Channel filter auth check failed: %s", _ch_err)
 

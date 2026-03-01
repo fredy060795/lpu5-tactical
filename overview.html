@@ -739,7 +739,8 @@
     const symbolLayers = new Map(); // symbol id -> L.marker layer (symbols from /api/map/symbols)
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
-    let chatUnreadCount = 0; // Unread chat message counter
+    const chatUnreadByChannel = {}; // Unread counts per channel id
+    function _chatTotalUnread() { return Object.values(chatUnreadByChannel).reduce(function(a,b){return a+b;},0); }
     const _sentChatMessageIds = new Set(); // Track IDs of messages we sent to suppress WebSocket echoes
     const _recentChatKeys = new Set(); // Deduplication for cross-tab chat messages
     function _chatDedupKey(sender, text, ts) {
@@ -1005,7 +1006,12 @@
               const chatRecipientEl = document.getElementById('chat-recipient');
               const selectedChannel = chatRecipientEl ? chatRecipientEl.value : 'all';
               const msgChannel = msg.channel_id || 'all';
-              if (selectedChannel !== 'all' && msgChannel !== selectedChannel) break;
+              // Message for a different channel: track as unread but skip display
+              if (selectedChannel !== 'all' && msgChannel !== selectedChannel) {
+                chatUnreadByChannel[msgChannel] = (chatUnreadByChannel[msgChannel] || 0) + 1;
+                updateChatNotificationBadge();
+                break;
+              }
               // Deduplicate: skip if already received via localStorage broadcast
               const _dedupKey = _chatDedupKey(msg.username, msg.text, msg.timestamp);
               if (_recentChatKeys.has(_dedupKey)) break;
@@ -1024,7 +1030,7 @@
               // Update unread badge if chat window is not open
               const chatWin = document.getElementById('chat-window');
               if (!chatWin || !chatWin.classList.contains('open')) {
-                chatUnreadCount++;
+                chatUnreadByChannel[msgChannel] = (chatUnreadByChannel[msgChannel] || 0) + 1;
                 updateChatNotificationBadge();
               }
               // Mark as delivered
@@ -2455,11 +2461,33 @@
         badge.className = 'chat-notification-badge';
         chatBtn.appendChild(badge);
       }
-      if (chatUnreadCount > 0) {
-        badge.textContent = chatUnreadCount > 99 ? '99+' : chatUnreadCount;
+      const total = _chatTotalUnread();
+      const sel = document.getElementById('chat-recipient');
+      if (total > 0) {
+        badge.textContent = total > 99 ? '99+' : total;
         badge.classList.add('show');
+        // Build tooltip listing each channel that has unread messages
+        const channelLabels = Object.entries(chatUnreadByChannel)
+          .filter(function(e) { return e[1] > 0; })
+          .map(function(e) {
+            const cid = e[0], cnt = e[1];
+            const opt = sel ? Array.from(sel.options).find(function(o) { return o.value === cid; }) : null;
+            const name = (opt && opt.getAttribute('data-channel-name')) || cid;
+            return name + ' (' + cnt + ')';
+          });
+        badge.title = channelLabels.join(', ');
       } else {
         badge.classList.remove('show');
+        badge.title = '';
+      }
+      // Update dropdown option labels to show per-channel unread counts
+      if (sel) {
+        Array.from(sel.options).forEach(function(opt) {
+          const base = opt.getAttribute('data-channel-name');
+          if (!base) return; // skip options without a stored name
+          const cnt = chatUnreadByChannel[opt.value] || 0;
+          opt.textContent = cnt > 0 ? '● ' + base + ' (' + cnt + ')' : base;
+        });
       }
     }
 
@@ -2468,8 +2496,11 @@
       if (chatWindow) {
         chatWindow.classList.add('open');
         chatWindow.classList.remove('minimized');
-        // Reset unread badge
-        chatUnreadCount = 0;
+        // Reset unread badge for the currently selected channel only;
+        // other channels may still have unread messages visible in the dropdown
+        const _selForReset = document.getElementById('chat-recipient');
+        const _selChannel = _selForReset ? _selForReset.value : null;
+        if (_selChannel) delete chatUnreadByChannel[_selChannel];
         updateChatNotificationBadge();
         // Load channels for chat recipient dropdown, then load messages
         loadChatUsers().then(() => loadChatMessages());
@@ -2642,12 +2673,17 @@
           const channels = (result && result.channels) ? result.channels : [];
           select.innerHTML = '';
           if (channels.length === 0) {
-            select.innerHTML = '<option value="all">All Units</option>';
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Units';
+            allOpt.setAttribute('data-channel-name', 'All Units');
+            select.appendChild(allOpt);
           } else {
             channels.forEach(ch => {
               const opt = document.createElement('option');
               opt.value = ch.id;
               opt.textContent = ch.name || ch.id;
+              opt.setAttribute('data-channel-name', ch.name || ch.id);
               if (ch.color) opt.style.color = ch.color;
               select.appendChild(opt);
             });
@@ -2662,6 +2698,7 @@
             const opt = document.createElement('option');
             opt.value = user.id;
             opt.textContent = user.username || user.unit || user.id;
+            opt.setAttribute('data-channel-name', user.username || user.unit || user.id);
             select.appendChild(opt);
           });
         })
@@ -2680,6 +2717,9 @@
       const channelId = (select && select.value) ? select.value : 'all';
       const messagesDiv = document.getElementById('chat-messages');
       if (!messagesDiv) return;
+      // Clear unread count for the channel now being viewed
+      delete chatUnreadByChannel[channelId];
+      updateChatNotificationBadge();
 
       fetch('/api/chat/messages/' + encodeURIComponent(channelId), {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -2911,7 +2951,8 @@
             // Update unread badge if chat window is not open
             const chatWin = document.getElementById('chat-window');
             if (!chatWin || !chatWin.classList.contains('open')) {
-              chatUnreadCount++;
+              const _bcc = (data && data.channel_id) || 'all';
+              chatUnreadByChannel[_bcc] = (chatUnreadByChannel[_bcc] || 0) + 1;
               updateChatNotificationBadge();
             }
           } catch (err) {
@@ -3933,10 +3974,8 @@
       // Update chat notification badge if chat window is closed
       const chatWin = document.getElementById('chat-window');
       if (!chatWin || !chatWin.classList.contains('open')) {
-        if (typeof chatUnreadCount !== 'undefined') {
-          chatUnreadCount++;
-          if (typeof updateChatNotificationBadge === 'function') updateChatNotificationBadge();
-        }
+        chatUnreadByChannel['meshtastic'] = (chatUnreadByChannel['meshtastic'] || 0) + 1;
+        if (typeof updateChatNotificationBadge === 'function') updateChatNotificationBadge();
       }
 
       // If it's a COT message, add marker to map
