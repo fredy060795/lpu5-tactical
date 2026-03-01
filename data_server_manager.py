@@ -28,6 +28,7 @@ class DataServerManager:
         self.base_url = f"http://{data_server_host}:{data_server_port}"
         self._broadcast_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="broadcast")
         self._broadcast_session = requests.Session()
+        self._executor_shutdown = False
         
     def start(self, timeout: int = 10) -> bool:
         """
@@ -43,6 +44,13 @@ class DataServerManager:
             logger.warning("Data server is already running")
             return True
         
+        # Recreate the thread pool and HTTP session if they were shut down by a
+        # previous stop() call, so the manager can be restarted cleanly.
+        if self._executor_shutdown:
+            self._broadcast_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="broadcast")
+            self._broadcast_session = requests.Session()
+            self._executor_shutdown = False
+
         try:
             # Get the path to data_server.py
             current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -100,6 +108,7 @@ class DataServerManager:
             # Shut down the broadcast thread pool
             self._broadcast_executor.shutdown(wait=False)
             self._broadcast_session.close()
+            self._executor_shutdown = True
             
             # Try graceful shutdown first
             self.process.terminate()
@@ -205,6 +214,10 @@ class DataServerManager:
             }
             self._broadcast_executor.submit(self._do_broadcast, payload)
             return True
+        except RuntimeError as e:
+            # Executor was shut down (e.g. during application shutdown) – not an error
+            logger.debug(f"Broadcast skipped: executor is shut down ({e})")
+            return False
         except Exception as e:
             logger.error(f"Failed to submit broadcast: {e}")
             return False
