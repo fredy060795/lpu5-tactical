@@ -7810,65 +7810,12 @@ def _detect_rtlsdr_devices() -> list:
     return devices
 
 
-def _simulate_spectrum(center_freq_hz: float, sample_rate_hz: float, nfft: int) -> list:
-    """
-    Generate a realistic-looking simulated SDR spectrum.
-    Noise floor ~-95 dBm with Gaussian jitter; pre-programmed signal peaks at
-    common frequencies (FM broadcast, NOAA weather, aviation, PMR446, ISM433/868).
-    """
-    bw_per_bin = sample_rate_hz / nfft
-    spectrum = [random.gauss(-95.0, 2.5) for _ in range(nfft)]
-
-    def add_peak(freq_hz: float, peak_dbm: float, bw_hz: float):
-        for i in range(nfft):
-            f = center_freq_hz + (i - nfft / 2) * bw_per_bin
-            d = f - freq_hz
-            if abs(d) < bw_hz * 3:
-                p = peak_dbm - 20.0 * (d / bw_hz) ** 2
-                if p > spectrum[i]:
-                    spectrum[i] = p
-
-    # FM broadcast 87.5–108 MHz
-    for fm in [89.0, 91.5, 93.3, 95.7, 97.5, 99.7, 101.1, 103.5, 105.7, 107.9]:
-        add_peak(fm * 1e6, random.uniform(-35, -20), 150e3)
-
-    # NOAA Weather Radio
-    for noaa in [162.400e6, 162.425e6, 162.450e6, 162.475e6, 162.500e6, 162.525e6, 162.550e6]:
-        add_peak(noaa, random.uniform(-60, -45), 25e3)
-
-    # Aviation AM (VHF)
-    for acft in [121.500e6, 126.200e6, 130.400e6]:
-        add_peak(acft, random.uniform(-75, -50), 30e3)
-
-    # PMR446 (8 channels, 12.5 kHz spacing)
-    for ch in range(8):
-        if random.random() > 0.6:
-            add_peak(446.00625e6 + ch * 12500, random.uniform(-75, -40), 12500)
-
-    # 433 MHz ISM (key fobs, sensors, LoRa)
-    if random.random() > 0.4:
-        add_peak(433.920e6, random.uniform(-72, -40), 20e3)
-    add_peak(433.050e6, random.uniform(-88, -65), 50e3)
-    add_peak(434.050e6, random.uniform(-88, -68), 30e3)
-
-    # 868 MHz ISM (LoRa, Z-Wave, SigFox)
-    for lora_f in [868.100e6, 868.300e6, 868.500e6, 869.525e6]:
-        if random.random() > 0.5:
-            add_peak(lora_f, random.uniform(-78, -50), 250e3)
-
-    # 2.4 GHz WiFi channels 1–13
-    for wch in range(1, 14):
-        add_peak((2412 + (wch - 1) * 5) * 1e6, random.uniform(-72, -45), 22e6)
-
-    return spectrum
-
-
 def _get_spectrum_data(center_freq_hz: float, sample_rate_hz: float, gain: float, nfft: int) -> dict:
     """
-    Acquire spectrum data. Tries (in order):
+    Acquire spectrum data from real hardware only. Tries (in order):
     1. pyrtlsdr + numpy — direct IQ sampling + FFT
     2. rtl_power subprocess — CLI-based sweeping
-    3. Realistic simulation fallback
+    Raises HTTP 503 if neither method succeeds.
     """
     # 1. pyrtlsdr + numpy
     if _RTLSDR_LIB and _NUMPY_LIB:
@@ -7918,8 +7865,10 @@ def _get_spectrum_data(center_freq_hz: float, sample_rate_hz: float, gain: float
         except Exception as exc:
             logger.warning("rtl_power subprocess failed: %s", exc)
 
-    # 3. Simulation
-    return {"spectrum": _simulate_spectrum(center_freq_hz, sample_rate_hz, nfft), "source": "simulated", "nfft": nfft}
+    raise HTTPException(
+        status_code=503,
+        detail="No RTL-SDR hardware or rtl_power tool available for spectrum measurement",
+    )
 
 
 @app.get("/api/sdr/devices", summary="Detect RTL-SDR USB devices")
@@ -7959,9 +7908,7 @@ def sdr_status():
 @app.post("/api/sdr/connect", summary="Connect to RTL-SDR device")
 def sdr_connect_device(data: dict = Body(...)):
     """
-    Attempt to connect to an RTL-SDR device.  Returns connection status and
-    the operational mode (hardware / simulated) so the UI can indicate whether
-    real hardware is being used.
+    Connect to a real RTL-SDR device. Returns 503 if no hardware is detected.
 
     Body fields (all optional):
     - device_index (int)     — 0-based device index (default 0)
@@ -7976,11 +7923,16 @@ def sdr_connect_device(data: dict = Body(...)):
     devices = _detect_rtlsdr_devices()
     hw_available = len(devices) > 0
     has_driver    = _RTLSDR_LIB or bool(_shutil.which("rtl_power")) or bool(_shutil.which("rtl_test"))
-    mode = "hardware" if (hw_available and has_driver) else "simulated"
+
+    if not (hw_available and has_driver):
+        raise HTTPException(
+            status_code=503,
+            detail="No RTL-SDR hardware detected. Please connect an RTL-SDR device.",
+        )
 
     return {
         "status":           "connected",
-        "mode":             mode,
+        "mode":             "hardware",
         "device_count":     len(devices),
         "devices":          devices,
         "frequency_mhz":    freq_mhz,
@@ -8007,7 +7959,7 @@ def sdr_measure(data: dict = Body(...)):
 
     Response:
     - spectrum (list[float])  — nfft power values in dBm
-    - source (str)            — 'rtlsdr_hardware', 'rtl_power', or 'simulated'
+    - source (str)            — 'rtlsdr_hardware' or 'rtl_power'
     - freq_start_mhz / freq_end_mhz — display frequency range
     - bw_per_bin_hz           — bandwidth per bin
     """

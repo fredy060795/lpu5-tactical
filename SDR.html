@@ -675,7 +675,6 @@
     // State
     // =====================================================================
     let sdrConnected   = false;
-    let sdrMode        = 'hardware'; // hardware only
     let mqttConnected  = false;
     let continuousScan = false;
     let scanTimer      = null;
@@ -686,31 +685,10 @@
     // =====================================================================
     // Audio Output State
     // =====================================================================
-    let audioCtx         = null;
-    let audioGain        = null;  // master gain node
-    let audioOsc         = null;  // oscillator node (simulation fallback)
     let audioEl          = document.getElementById('sdrAudioEl');  // <audio> element for hardware streaming
     let audioEnabled     = false;
     let audioMuted       = false;
     let audioVolume      = 0.70;  // 0..1
-
-    function _initAudio() {
-        if (audioCtx) return; // already initialised
-        try {
-            audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
-            audioGain = audioCtx.createGain();
-            audioGain.gain.value = 0;          // start silent
-            audioGain.connect(audioCtx.destination);
-
-            audioOsc = audioCtx.createOscillator();
-            audioOsc.type      = 'sine';
-            audioOsc.frequency.value = 800;    // default 800 Hz tone
-            audioOsc.connect(audioGain);
-            audioOsc.start();
-        } catch (e) {
-            console.error('[SDR] AudioContext init failed:', e);
-        }
-    }
 
     /** Start real audio stream from /api/sdr/audio (hardware mode). */
     function _startAudioStream() {
@@ -774,7 +752,6 @@
         var statusEl = document.getElementById('audioStatus');
 
         if (audioMuted) {
-            if (audioGain) audioGain.gain.value = 0;
             if (audioEl)   audioEl.volume = 0;
             btn.innerHTML = '<i class="fas fa-volume-mute"></i> Unmute';
             btn.className = 'btn btn-success';
@@ -793,40 +770,7 @@
         audioVolume = val / 100;
         document.getElementById('audioVolumeLabel').textContent = val + '%';
         if (audioEl && !audioMuted) audioEl.volume = audioVolume;
-        // Oscillator volume applied on next _updateAudioTone call
     };
-
-    /**
-     * Update synthetic audio tone (simulation fallback only).
-     * Only active when sdrMode is not 'hardware'.
-     */
-    function _updateAudioTone(peakDbm, freqMhz, blocked) {
-        // Hardware mode uses the real audio stream; skip oscillator
-        if (sdrMode === 'hardware') return;
-        if (!audioEnabled || !audioCtx || !audioGain || !audioOsc) return;
-        if (audioMuted || blocked) {
-            audioGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-            return;
-        }
-
-        // Map peak power (-100 … -30 dBm) to volume (0 … 1)
-        var MIN_DBM  = -100;
-        var DBM_RANGE = 70;
-        var normLevel  = Math.max(0, Math.min(1, (peakDbm - MIN_DBM) / DBM_RANGE));
-        var targetGain = normLevel * audioVolume;
-
-        // Map frequency offset to tone pitch (400 Hz … 1200 Hz)
-        var BASE_PITCH_HZ  = 800;
-        var PITCH_RANGE_HZ = 400;
-        var centerFreq = parseFloat(document.getElementById('sdrFrequency').value) || 433.920;
-        var offsetMhz  = freqMhz - centerFreq;
-        var maxOffset  = (parseFloat(document.getElementById('sdrSampleRate').value) || 2.4) / 2;
-        var normOffset = Math.max(-1, Math.min(1, offsetMhz / maxOffset));
-        var pitch      = BASE_PITCH_HZ + normOffset * PITCH_RANGE_HZ; // 400–1200 Hz
-
-        audioOsc.frequency.setTargetAtTime(pitch, audioCtx.currentTime, 0.05);
-        audioGain.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.05);
-    }
 
     // Display range (dBm)
     function getScaleMin() { return parseFloat(document.getElementById('scaleMin').value) || -120; }
@@ -1145,15 +1089,14 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             sdrConnected = true;
-            sdrMode      = data.mode || 'hardware';
 
             statusEl.textContent = 'Connected (HW)';
             statusEl.className   = 'status-badge status-online';
             mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (HW)';
             mainStatus.className = 'status-badge status-online';
 
-            setModeBadge(sdrMode);
-            console.log('[SDR] Connected — mode:', sdrMode, 'devices:', data.devices);
+            setModeBadge('hardware');
+            console.log('[SDR] Connected — devices:', data.devices);
         })
         .catch(function(e) {
             console.error('[SDR] connect failed:', e);
@@ -1218,9 +1161,6 @@
             // Update meters
             var distance = blocked ? null : estimateDistance(peak, freq);
             updateSignalDisplay(peak, distance, blocked);
-
-            // Update audio tone
-            _updateAudioTone(peak, freq, blocked);
 
             // Log entry
             var distStr = blocked ? 'squelch' : (distance !== null ? distance.toFixed(1) + ' m' : '--');
