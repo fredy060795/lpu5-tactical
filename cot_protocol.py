@@ -157,7 +157,7 @@ class CoTEvent:
         track.set("speed", "0.0")
         track.set("course", "0.0")
         
-        return ET.tostring(event, encoding="unicode")
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + ET.tostring(event, encoding="unicode")
     
     @staticmethod
     def from_xml(xml_string: str) -> Optional['CoTEvent']:

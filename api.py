@@ -6438,6 +6438,21 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     save_json("config", cfg)
     logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_") and k != "tak_password"})
 
+    # Auto-start or stop the TAK receiver thread based on the updated config so
+    # that data from WinTAK/ATAK begins flowing to LPU5 without requiring a
+    # server restart or a manual click on "TAK Connect".
+    try:
+        if cfg.get("tak_forward_enabled") and cfg.get("tak_server_host"):
+            if cfg.get("tak_connection_type", "udp") in ("tcp", "ssl"):
+                _start_tak_receiver_thread()
+            # UDP is send-only; a receiver thread is not applicable – leave any
+            # existing thread running so a switch back to tcp/ssl is seamless.
+        else:
+            # TAK integration disabled or no host configured – stop the thread.
+            _stop_tak_receiver_thread()
+    except Exception as _recv_err:
+        logger.warning("Could not auto-manage TAK receiver thread after config update: %s", _recv_err)
+
     return {
         "status": "success",
         "tak_forward_enabled":  cfg.get("tak_forward_enabled", False),
@@ -7442,6 +7457,7 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
             # Prepare for broadcast
             symbol_data = {
                 "id": new_symbol.id,
+                "name": new_symbol.name,
                 "lat": new_symbol.lat,
                 "lng": new_symbol.lng,
                 "type": new_symbol.type,
@@ -7450,7 +7466,8 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
                 "timestamp": timestamp,
                 "label": new_symbol.name,
                 "color": new_symbol.color,
-                "icon": new_symbol.icon
+                "icon": new_symbol.icon,
+                "how": "h-g-i-g-o",
             }
         
         # Broadcast to WebSocket clients using helper
