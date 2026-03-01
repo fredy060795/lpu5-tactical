@@ -688,6 +688,48 @@
       background: rgba(255, 255, 255, 0.3);
     }
 
+    /* Measure tool active state */
+    #tsb-measure.active {
+      background: rgba(255, 215, 0, 0.25);
+      border: 1px solid rgba(255, 215, 0, 0.7);
+    }
+
+    #tsb-measure.active svg {
+      filter: drop-shadow(0 0 4px #ffd700);
+    }
+
+    /* Measure distance tooltip label */
+    .measure-label {
+      background: rgba(20, 20, 20, 0.88);
+      color: #ffd700;
+      border: 1px solid #ffd700;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.75rem;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* Measure hint shown while tool is active */
+    #measure-hint {
+      position: fixed;
+      top: 58px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 20, 20, 0.88);
+      color: #ffd700;
+      padding: 6px 16px;
+      border-radius: 16px;
+      font-weight: bold;
+      z-index: 9998;
+      display: none;
+      font-size: 0.78rem;
+      border: 1px solid rgba(255, 215, 0, 0.5);
+      pointer-events: none;
+    }
+
     /* Night Vision Mode */
     #night-vision-overlay {
       display: none;
@@ -771,6 +813,15 @@
           <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
         </svg>
       </button>
+      <button class="tsb-btn" id="tsb-measure" ontouchstart="handleToolInteraction(toggleMeasure, event)" onclick="handleToolInteraction(toggleMeasure, event)" title="Entfernung messen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="1.8">
+          <path d="M3 17L17 3"/>
+          <path d="M3 17h3v-3"/>
+          <line x1="7" y1="13" x2="7" y2="11"/>
+          <line x1="11" y1="9" x2="11" y2="7"/>
+          <line x1="15" y1="5" x2="15" y2="3"/>
+        </svg>
+      </button>
       <button class="tsb-btn" id="tsb-nightvision" aria-label="Night Vision" aria-pressed="false" ontouchstart="handleToolInteraction(() => toggleNightMode(), event)" onclick="handleToolInteraction(() => toggleNightMode(), event)" title="Night Vision">
         <svg viewBox="0 0 24 24" fill="none" stroke="#ff6633" stroke-width="1.8">
           <circle cx="12" cy="12" r="3"/>
@@ -787,6 +838,8 @@
       </button>
     </div>
   </div>
+
+  <div id="measure-hint">📏 Karte antippen zum Messen · Erneut tippen zum Beenden</div>
 
   <div id="crosshair"></div>
   <button id="set-btn" onclick="placeMarkerAtCrosshair()">SET POINT</button>
@@ -1546,6 +1599,9 @@
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
 
+      // Distance measurement click handler
+      map.on('click', onMapMeasureClick);
+
       // Network Status Listeners
       window.addEventListener('online', () => {
         if (typeof ApiClient !== 'undefined') ApiClient.processSyncQueue();
@@ -1674,6 +1730,91 @@
     }
     function mapZoomIn() { if (map) map.zoomIn(); }
     function mapZoomOut() { if (map) map.zoomOut(); }
+
+    // ---- Distance Measurement Tool ----
+    let measureActive = false;
+    let measurePoints = [];
+    let measureLayers = [];
+    let measurePolyline = null;
+
+    function toggleMeasure() {
+      if (measureActive) {
+        clearMeasure();
+      } else {
+        // Cancel any active symbol tool first
+        if (currentTool) { setTool(''); }
+        measureActive = true;
+        const btn = document.getElementById('tsb-measure');
+        if (btn) btn.classList.add('active');
+        const hint = document.getElementById('measure-hint');
+        if (hint) hint.style.display = 'block';
+      }
+    }
+
+    function clearMeasure() {
+      measureActive = false;
+      measurePoints = [];
+      measureLayers.forEach(function (l) { try { map.removeLayer(l); } catch (e) { } });
+      measureLayers = [];
+      measurePolyline = null;
+      const btn = document.getElementById('tsb-measure');
+      if (btn) btn.classList.remove('active');
+      const hint = document.getElementById('measure-hint');
+      if (hint) hint.style.display = 'none';
+    }
+
+    function onMapMeasureClick(e) {
+      if (!measureActive || !map) return;
+      const latlng = e.latlng;
+      measurePoints.push(latlng);
+
+      // Draw a small dot at the tapped point
+      const dot = L.circleMarker(latlng, {
+        radius: 5,
+        color: '#ffd700',
+        fillColor: '#ffd700',
+        fillOpacity: 1,
+        weight: 2
+      }).addTo(map);
+      measureLayers.push(dot);
+
+      // Update/recreate the polyline
+      if (measurePolyline) {
+        try { map.removeLayer(measurePolyline); } catch (e) { }
+        measureLayers = measureLayers.filter(function (l) { return l !== measurePolyline; });
+      }
+
+      if (measurePoints.length >= 2) {
+        measurePolyline = L.polyline(measurePoints, {
+          color: '#ffd700',
+          weight: 2,
+          dashArray: '6 4',
+          opacity: 0.9
+        }).addTo(map);
+        measureLayers.push(measurePolyline);
+
+        // Calculate total distance
+        let totalDist = 0;
+        for (let i = 1; i < measurePoints.length; i++) {
+          totalDist += measurePoints[i - 1].distanceTo(measurePoints[i]);
+        }
+        const distStr = totalDist >= 1000
+          ? (totalDist / 1000).toFixed(2) + ' km'
+          : Math.round(totalDist) + ' m';
+
+        // Show distance label at the last point (offset right so it doesn't overlap the dot)
+        const label = L.marker(latlng, {
+          icon: L.divIcon({
+            className: 'measure-label',
+            html: '📏 ' + distStr,
+            iconAnchor: [-8, 10] // negative x = shift label to the right of the marker dot
+          }),
+          interactive: false
+        }).addTo(map);
+        measureLayers.push(label);
+      }
+    }
+    // ---- End Distance Measurement Tool ----
     function togglePrecisionUI(show) {
       document.getElementById('crosshair').style.display = show ? 'block' : 'none';
       document.getElementById('set-btn').style.display = show ? 'block' : 'none';
