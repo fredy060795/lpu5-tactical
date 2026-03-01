@@ -1381,17 +1381,19 @@ def _process_incoming_cot(cot_xml: str) -> None:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
             if event_type.startswith("a-f"):
-                lpu5_type = "friendly"
+                lpu5_type = "rechteck"
             elif event_type.startswith("a-h"):
-                lpu5_type = "hostile"
+                lpu5_type = "raute"
             elif event_type.startswith("a-n"):
-                lpu5_type = "neutral"
+                lpu5_type = "quadrat"
+            elif event_type.startswith("a-u"):
+                lpu5_type = "blume"
             elif event_type == "b-m-p-s-m":
                 lpu5_type = "raute"
             elif event_type == "u-d-r":
                 lpu5_type = "rechteck"
             else:
-                lpu5_type = "unknown"
+                lpu5_type = "raute"
 
         # For spot-map markers the CoT type is the same for all LPU5 shapes.
         # When the callsign matches a known LPU5 shape name use it directly so

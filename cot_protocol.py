@@ -158,7 +158,9 @@ class CoTEvent:
         # Spot-map and drawing markers need <archive/> so ATAK persists them on
         # the map after they go stale.  Without this element ATAK removes the
         # entity from its overlay once the stale timestamp is reached.
-        if self.cot_type.startswith("b-m") or self.cot_type.startswith("u-d"):
+        # Military-affiliation markers (a-f/h/n/u) placed by LPU5 users are
+        # also archived so they persist on the ATAK map like spot-map markers.
+        if self.cot_type.startswith(("b-m", "u-d", "a-f", "a-h", "a-n", "a-u", "a-p")):
             ET.SubElement(detail, "archive")
 
         # Emit ATAK color element for spot-map markers so that the correct
@@ -290,16 +292,19 @@ class CoTProtocolHandler:
     # Mapping from LPU5 symbol type names to TAK-compatible CoT type codes.
     # These must match the identifiers used by ATAK/ITAK/WinTAK/XTAK exactly
     # so that symbols sync correctly across all TAK server implementations.
+    #
+    # LPU5 shapes are mapped to ATAK military-affiliation CoT types that share
+    # the same colour convention so that ATAK/WinTAK renders the correct icon
+    # colour for each shape:
+    #   rechteck (blue rectangle)  → Friendly  (a-f)  → blue   in ATAK (F.1.…)
+    #   blume    (yellow flower)   → Unknown   (a-u)  → yellow in ATAK (U.1.…)
+    #   quadrat  (green square)    → Neutral   (a-n)  → green  in ATAK (N.1.…)
+    #   raute    (red diamond)     → Hostile   (a-h)  → red    in ATAK (R.1.…)
     LPU5_TO_COT_TYPE: Dict[str, str] = {
-        "raute":        "b-m-p-s-m",   # spot-map marker (diamond/rhombus shape)
-        "quadrat":      "b-m-p-s-m",   # spot-map marker (square shape)
-        "blume":        "b-m-p-s-m",   # spot-map marker (flower shape)
-        # LPU5 stores "rechteck" as a lat/lon point without polygon geometry.
-        # TAK u-d-r (drawing rectangle) requires polygon vertices in the detail
-        # section which LPU5 does not store; ATAK will not display a u-d-r event
-        # that lacks geometry.  Use b-m-p-s-m (spot-map point) so the marker is
-        # at least visible as a point on the ATAK map.
-        "rechteck":     "b-m-p-s-m",   # spot-map point (rectangle icon in LPU5)
+        "raute":        "a-h-G-U-C",   # hostile ground unit (red diamond)
+        "quadrat":      "a-n-G-U-C",   # neutral ground unit (green square)
+        "blume":        "a-u-G-U-C",   # unknown ground unit (yellow flower)
+        "rechteck":     "a-f-G-U-C",   # friendly ground unit (blue rectangle)
         "friendly":     "a-f-G-U-C",   # friendly ground unit
         "hostile":      "a-h-G-U-C",   # hostile ground unit
         "neutral":      "a-n-G-U-C",   # neutral ground unit
@@ -323,6 +328,13 @@ class CoTProtocolHandler:
     # Stored as a list of (prefix, lpu5_type) tuples ordered longest-prefix
     # first so that more-specific codes are matched before shorter ones when
     # iterating with str.startswith().
+    #
+    # ATAK military-affiliation types map to the LPU5 shape that shares the
+    # same colour convention:
+    #   a-f (Friendly, blue)   → rechteck (blue rectangle)
+    #   a-u (Unknown, yellow)  → blume    (yellow flower)
+    #   a-n (Neutral, green)   → quadrat  (green square)
+    #   a-h (Hostile, red)     → raute    (red diamond)
     COT_TO_LPU5_TYPE: List[tuple] = [
         ("b-m-p-s-m", "raute"),     # TAK spot-map marker (all shapes)
         ("u-d-c-e",   "raute"),     # TAK drawing ellipse → diamond
@@ -330,11 +342,11 @@ class CoTProtocolHandler:
         ("u-d-r",     "rechteck"),  # TAK drawing rectangle
         ("u-d-f",     "raute"),     # TAK drawing freehand → diamond
         ("u-d-p",     "raute"),     # TAK drawing generic point → diamond
-        ("a-f",       "friendly"),  # friendly affiliation (any sub-type)
-        ("a-h",       "hostile"),   # hostile affiliation
-        ("a-n",       "neutral"),   # neutral affiliation
-        ("a-u",       "unknown"),   # unknown affiliation
-        ("a-p",       "pending"),   # pending affiliation
+        ("a-f",       "rechteck"),  # friendly affiliation → blue rectangle
+        ("a-h",       "raute"),     # hostile affiliation → red diamond
+        ("a-n",       "quadrat"),   # neutral affiliation → green square
+        ("a-u",       "blume"),     # unknown affiliation → yellow flower
+        ("a-p",       "raute"),     # pending affiliation → red diamond
     ]
 
     @classmethod

@@ -184,15 +184,17 @@ class TestMarkerToCotColorAndTeam(unittest.TestCase):
         self.assertEqual(evt.team_name, "Cyan")
 
     def test_spot_map_marker_color_in_xml(self):
+        # raute now maps to a-h-G-U-C (hostile); color element is not emitted
+        # for military-affiliation types — ATAK uses affiliation colour instead.
         marker = {"id": "m7", "lat": 1.0, "lng": 2.0, "type": "raute", "color": "#ffff00"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-h-G-U-C")
         xml_str = evt.to_xml()
         root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
         detail = root.find("detail")
         color_elem = detail.find("color")
-        self.assertIsNotNone(color_elem)
-        self.assertEqual(color_elem.get("argb"), "-256")
+        self.assertIsNone(color_elem, "No <color argb> element expected for military-affiliation type")
 
     def test_no_color_field_no_team(self):
         marker = {"id": "m8", "lat": 1.0, "lng": 2.0, "type": "friendly"}
@@ -205,6 +207,121 @@ class TestMarkerToCotColorAndTeam(unittest.TestCase):
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
         self.assertEqual(evt.cot_type, "a-f-G-U-C")
+
+
+class TestAtakSymbolTypeMappings(unittest.TestCase):
+    """Tests for the ATAK COT symbol type mappings.
+
+    LPU5 shapes map to ATAK military-affiliation CoT types so that ATAK
+    renders each shape with the correct colour:
+      rechteck (blue rectangle) → a-f-G-U-C  (Friendly, blue,   F.1.…)
+      blume    (yellow flower)  → a-u-G-U-C  (Unknown,  yellow, U.1.…)
+      quadrat  (green square)   → a-n-G-U-C  (Neutral,  green,  N.1.…)
+      raute    (red diamond)    → a-h-G-U-C  (Hostile,  red,    R.1.…)
+    """
+
+    # --- Forward mapping (LPU5 shape → ATAK CoT type) ---
+
+    def test_rechteck_maps_to_friendly(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("rechteck"), "a-f-G-U-C")
+
+    def test_blume_maps_to_unknown(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("blume"), "a-u-G-U-C")
+
+    def test_quadrat_maps_to_neutral(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("quadrat"), "a-n-G-U-C")
+
+    def test_raute_maps_to_hostile(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("raute"), "a-h-G-U-C")
+
+    def test_rechteck_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["rechteck"], "a-f-G-U-C")
+
+    def test_blume_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["blume"], "a-u-G-U-C")
+
+    def test_quadrat_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["quadrat"], "a-n-G-U-C")
+
+    def test_raute_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["raute"], "a-h-G-U-C")
+
+    # --- Reverse mapping (ATAK CoT type → LPU5 shape) ---
+
+    def test_friendly_cot_maps_to_rechteck(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-f-G-U-C"), "rechteck")
+
+    def test_unknown_cot_maps_to_blume(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-u-G-U-C"), "blume")
+
+    def test_neutral_cot_maps_to_quadrat(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-n-G-U-C"), "quadrat")
+
+    def test_hostile_cot_maps_to_raute(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-h-G-U-C"), "raute")
+
+    def test_friendly_subtype_resolves_to_rechteck(self):
+        # Any a-f-* sub-type should resolve to rechteck
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-f-G-I-U-T-H"), "rechteck")
+
+    def test_hostile_subtype_resolves_to_raute(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-h-G-U-C-I"), "raute")
+
+    # --- Archive element present for military-affiliation types ---
+
+    def test_friendly_event_has_archive_element(self):
+        evt = CoTEvent(uid="arch-1", cot_type="a-f-G-U-C", lat=0.0, lon=0.0)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNotNone(detail.find("archive"), "a-f type should include <archive/>")
+
+    def test_hostile_event_has_archive_element(self):
+        evt = CoTEvent(uid="arch-2", cot_type="a-h-G-U-C", lat=0.0, lon=0.0)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNotNone(detail.find("archive"), "a-h type should include <archive/>")
+
+    def test_neutral_event_has_archive_element(self):
+        evt = CoTEvent(uid="arch-3", cot_type="a-n-G-U-C", lat=0.0, lon=0.0)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNotNone(detail.find("archive"), "a-n type should include <archive/>")
+
+    def test_unknown_event_has_archive_element(self):
+        evt = CoTEvent(uid="arch-4", cot_type="a-u-G-U-C", lat=0.0, lon=0.0)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNotNone(detail.find("archive"), "a-u type should include <archive/>")
+
+    # --- marker_to_cot() produces correct ATAK types for LPU5 shapes ---
+
+    def test_marker_rechteck_produces_friendly_cot(self):
+        marker = {"id": "s1", "lat": 1.0, "lng": 2.0, "type": "rechteck"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-U-C")
+
+    def test_marker_blume_produces_unknown_cot(self):
+        marker = {"id": "s2", "lat": 1.0, "lng": 2.0, "type": "blume"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-u-G-U-C")
+
+    def test_marker_quadrat_produces_neutral_cot(self):
+        marker = {"id": "s3", "lat": 1.0, "lng": 2.0, "type": "quadrat"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-n-G-U-C")
+
+    def test_marker_raute_produces_hostile_cot(self):
+        marker = {"id": "s4", "lat": 1.0, "lng": 2.0, "type": "raute"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-h-G-U-C")
 
 
 if __name__ == "__main__":
