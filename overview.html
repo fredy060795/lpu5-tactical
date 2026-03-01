@@ -1996,8 +1996,6 @@
         measureActive = true;
         const btn = document.getElementById('tsb-measure');
         if (btn) btn.classList.add('active');
-        const hint = document.getElementById('measure-hint');
-        if (hint) hint.style.display = 'block';
       }
     }
 
@@ -2009,13 +2007,27 @@
       measurePolyline = null;
       const btn = document.getElementById('tsb-measure');
       if (btn) btn.classList.remove('active');
-      const hint = document.getElementById('measure-hint');
-      if (hint) hint.style.display = 'none';
     }
 
     function onMapMeasureClick(e) {
       if (!measureActive || !map) return;
-      const latlng = e.latlng;
+      let latlng;
+      if (mapBearing) {
+        // When the map is CSS-rotated the raw e.latlng is calculated by Leaflet
+        // without knowledge of the rotation, so it is wrong.  Correct the click
+        // by rotating the screen-offset from the map centre by -mapBearing.
+        const size = map.getSize();
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        const dx = e.originalEvent.clientX - cx;
+        const dy = e.originalEvent.clientY - cy;
+        const rad = -mapBearing * Math.PI / 180;
+        const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+        const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+        latlng = map.containerPointToLatLng(L.point(size.x / 2 + rx, size.y / 2 + ry));
+      } else {
+        latlng = e.latlng;
+      }
       measurePoints.push(latlng);
 
       // Draw a small dot at the tapped point
@@ -3605,15 +3617,11 @@
           battery.addEventListener('chargingchange', updateBattery);
         }).catch(function () {
           const levelEl = document.getElementById('tsb-battery-level');
-          const iconEl = document.getElementById('tsb-battery-icon');
           if (levelEl) levelEl.textContent = '';
-          if (iconEl) iconEl.style.display = 'none';
         });
       } else {
         const levelEl = document.getElementById('tsb-battery-level');
-        const iconEl = document.getElementById('tsb-battery-icon');
         if (levelEl) levelEl.textContent = '';
-        if (iconEl) iconEl.style.display = 'none';
       }
 
       // Network
