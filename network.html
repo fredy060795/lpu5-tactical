@@ -555,17 +555,24 @@
             send CoT XML directly to this server. Received events are stored as map
             markers and broadcast to all connected clients in real time.
             The listener starts automatically on server startup.
+            <br><br>
+            <strong>SA Multicast (239.2.3.1:6969 UDP)</strong> enables bidirectional CoT exchange with WinTAK/ATAK
+            using the standard Situational Awareness multicast group. When enabled, LPU5 joins the multicast group
+            to receive position updates <em>and</em> sends marker updates back to all TAK clients on the same LAN
+            — no dedicated TAK server required.
         </div>
 
         <div class="info-box" style="background:#e8f5e9;border-left:4px solid #4caf50;">
             <i class="fas fa-mobile-alt" style="color:#4caf50;"></i>
-            <strong>WinTAK / ATAK on the same machine — how to connect:</strong>
+            <strong>WinTAK / ATAK on the same Windows machine — recommended setup:</strong>
             <ol style="margin:6px 0 0 18px;padding:0;">
-                <li>In WinTAK/ATAK open <em>Settings → Network → Server Connections</em> and add a new server.</li>
-                <li>Set <strong>Address</strong> to <code id="cotListenerHostHint">127.0.0.1</code> and <strong>Port</strong> to <code>8088</code> (TCP, no SSL).</li>
-                <li>Make sure the CoT listener below shows <strong>Running</strong>. If not, click <em>Start Listener</em>.</li>
+                <li>Enable <strong>SA Multicast</strong> below and set group <code>239.2.3.1</code>, port <code>6969</code>.</li>
+                <li>In WinTAK open <em>Settings → Network → Multicast</em> and ensure SA Multicast is active on <code>239.2.3.1:6969 UDP</code>.</li>
+                <li>LPU5 will automatically receive WinTAK position updates and push marker changes back via the same multicast group.</li>
             </ol>
-            For ATAK on a different device on the same network, replace <code>127.0.0.1</code> with this server's IP address shown at the top of this page.
+            <strong>Alternative — TCP direct connect:</strong> In WinTAK/ATAK open <em>Settings → Network → Server Connections</em>,
+            set <strong>Address</strong> to <code id="cotListenerHostHint">127.0.0.1</code> and <strong>Port</strong> to <code>8088</code> (TCP, no SSL).
+            For ATAK on a different device, replace <code>127.0.0.1</code> with this server's IP shown at the top of this page.
         </div>
 
         <div class="form-grid">
@@ -574,8 +581,26 @@
                 <input type="number" class="form-input" id="cotListenerTcpPort" value="8088" min="1" max="65535">
             </div>
             <div class="form-group">
-                <label class="form-label">UDP Port (legacy / multicast)</label>
+                <label class="form-label">UDP Port (legacy unicast)</label>
                 <input type="number" class="form-input" id="cotListenerUdpPort" value="4242" min="1" max="65535">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="saMulticastEnabled">
+                <label for="saMulticastEnabled"><strong>Enable SA Multicast</strong> — bidirectional CoT exchange with WinTAK/ATAK (recommended when both run on the same machine)</label>
+            </div>
+        </div>
+
+        <div class="form-grid" id="saMulticastFields">
+            <div class="form-group">
+                <label class="form-label">SA Multicast Gruppe</label>
+                <input type="text" class="form-input" id="saMulticastGroup" value="239.2.3.1" placeholder="239.2.3.1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">SA Multicast Port (UDP)</label>
+                <input type="number" class="form-input" id="saMulticastPort" value="6969" min="1" max="65535" placeholder="6969">
             </div>
         </div>
 
@@ -789,6 +814,18 @@ async function loadNetworkSettings() {
                 }
             } catch (_) { /* use defaults */ }
 
+            // SA Multicast settings
+            try {
+                const takResp2 = await fetch('/api/tak/config');
+                if (takResp2.ok) {
+                    const takCfg2 = await takResp2.json();
+                    document.getElementById('saMulticastEnabled').checked = takCfg2.sa_multicast_enabled || false;
+                    document.getElementById('saMulticastGroup').value = takCfg2.sa_multicast_group || '239.2.3.1';
+                    document.getElementById('saMulticastPort').value = takCfg2.sa_multicast_port || 6969;
+                }
+            } catch (_) { /* use defaults */ }
+            updateSaMulticastState();
+
             // Update UI state
             updateForwardingState();
             updatePublicIpState();
@@ -863,6 +900,14 @@ async function saveNetworkSettings() {
             tak_username: document.getElementById('takUsername').value.trim(),
             tak_client_cert_path: document.getElementById('takClientCertPath').value.trim(),
             tak_client_key_path: document.getElementById('takClientKeyPath').value.trim(),
+            // CoT Listener settings
+            cot_listener_tcp_port: parseInt(document.getElementById('cotListenerTcpPort').value, 10) || 8088,
+            cot_listener_udp_port: parseInt(document.getElementById('cotListenerUdpPort').value, 10) || 4242,
+            cot_listener_enabled: document.getElementById('cotListenerAutoStart').checked,
+            // SA Multicast settings
+            sa_multicast_enabled: document.getElementById('saMulticastEnabled').checked,
+            sa_multicast_group: document.getElementById('saMulticastGroup').value.trim() || '239.2.3.1',
+            sa_multicast_port: parseInt(document.getElementById('saMulticastPort').value, 10) || 6969,
         };
         const takPassword = document.getElementById('takPassword').value;
         if (takPassword) { takBody.tak_password = takPassword; }
@@ -943,7 +988,10 @@ function _showCotListenerStatus(result) {
     div.style.display = 'block';
     if (result.running) {
         div.className = 'success-box';
-        div.innerHTML = `<i class="fas fa-check-circle"></i> Listener running — TCP:${result.tcp_port || '?'} UDP:${result.udp_port || '?'} | events_received: ${result.events_received || 0} | events_ingested: ${result.events_ingested || 0} | uptime: ${result.uptime_seconds || 0}s`;
+        const mcast = result.multicast_enabled
+            ? ` | SA Multicast: ${result.multicast_group || '239.2.3.1'}:${result.multicast_port || 6969} (${result.multicast_datagrams || 0} dgrams)`
+            : '';
+        div.innerHTML = `<i class="fas fa-check-circle"></i> Listener running — TCP:${result.tcp_port || '?'} UDP:${result.udp_port || '?'}${mcast} | events_received: ${result.events_received || 0} | events_ingested: ${result.events_ingested || 0} | uptime: ${result.uptime_seconds || 0}s`;
     } else if (result.available === false) {
         div.className = 'warning-box';
         div.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${result.message || 'CoT listener not available'}`;
@@ -968,13 +1016,23 @@ async function startCotListener() {
     const tcpPort = parseInt(document.getElementById('cotListenerTcpPort').value) || 8088;
     const udpPort = parseInt(document.getElementById('cotListenerUdpPort').value) || 4242;
     const autoStart = document.getElementById('cotListenerAutoStart').checked;
+    const saMulticastEnabled = document.getElementById('saMulticastEnabled').checked;
+    const saMulticastGroup = document.getElementById('saMulticastGroup').value.trim() || '239.2.3.1';
+    const saMulticastPort = parseInt(document.getElementById('saMulticastPort').value) || 6969;
 
-    // Persist port config to server config first
+    // Persist port and multicast config to server config first
     try {
         await fetch('/api/tak/config', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ cot_listener_tcp_port: tcpPort, cot_listener_udp_port: udpPort, cot_listener_enabled: autoStart })
+            body: JSON.stringify({
+                cot_listener_tcp_port: tcpPort,
+                cot_listener_udp_port: udpPort,
+                cot_listener_enabled: autoStart,
+                sa_multicast_enabled: saMulticastEnabled,
+                sa_multicast_group: saMulticastGroup,
+                sa_multicast_port: saMulticastPort,
+            })
         });
     } catch (_) { /* ignore config save errors */ }
 
@@ -1072,11 +1130,21 @@ function updateCoTState() {
     document.getElementById('cotIncludeRemarks').disabled = !enabled;
 }
 
+function updateSaMulticastState() {
+    const enabled = document.getElementById('saMulticastEnabled').checked;
+    const fields = document.getElementById('saMulticastFields');
+    if (fields) {
+        fields.style.opacity = enabled ? '1' : '0.5';
+        fields.querySelectorAll('input').forEach(el => { el.disabled = !enabled; });
+    }
+}
+
 // Event listeners
 document.getElementById('enableForwarding').addEventListener('change', updateForwardingState);
 document.getElementById('usePublicIp').addEventListener('change', updatePublicIpState);
 document.getElementById('enableTakIntegration').addEventListener('change', updateTakIntegrationState);
 document.getElementById('enableCoT').addEventListener('change', updateCoTState);
+document.getElementById('saMulticastEnabled').addEventListener('change', updateSaMulticastState);
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {

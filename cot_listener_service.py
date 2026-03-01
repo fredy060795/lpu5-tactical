@@ -27,6 +27,7 @@ Standalone (for testing):
 import argparse
 import logging
 import socket
+import struct
 import sys
 import threading
 import time
@@ -59,21 +60,32 @@ class CoTListenerService:
     store the event without a dependency on this file.
     """
 
+    # Default SA Multicast address and port used by WinTAK/ATAK for Situational Awareness.
+    SA_MULTICAST_GROUP = "239.2.3.1"
+    SA_MULTICAST_PORT  = 6969
+
     def __init__(
         self,
         tcp_port: int = 8088,
         udp_port: int = 4242,
         ingest_callback: Optional[Callable[[str], None]] = None,
         bind_address: str = "0.0.0.0",
+        multicast_enabled: bool = False,
+        multicast_group: str = SA_MULTICAST_GROUP,
+        multicast_port: int = SA_MULTICAST_PORT,
     ):
         self.tcp_port = tcp_port
         self.udp_port = udp_port
         self.ingest_callback = ingest_callback
         self.bind_address = bind_address
+        self.multicast_enabled = multicast_enabled
+        self.multicast_group = multicast_group
+        self.multicast_port = multicast_port
 
         self._stop = threading.Event()
         self._tcp_thread: Optional[threading.Thread] = None
         self._udp_thread: Optional[threading.Thread] = None
+        self._multicast_thread: Optional[threading.Thread] = None
         self._handler_threads: List[threading.Thread] = []
 
         self.stats: Dict = {
@@ -81,10 +93,14 @@ class CoTListenerService:
             "started_at": None,
             "tcp_port": tcp_port,
             "udp_port": udp_port,
+            "multicast_enabled": multicast_enabled,
+            "multicast_group": multicast_group,
+            "multicast_port": multicast_port,
             "events_received": 0,
             "events_ingested": 0,
             "tcp_connections": 0,
             "udp_datagrams": 0,
+            "multicast_datagrams": 0,
             "errors": 0,
         }
 
@@ -272,11 +288,110 @@ class CoTListenerService:
             logger.info("CoT UDP listener stopped")
 
     # ------------------------------------------------------------------
-    # Public interface
+    # SA Multicast listener loop (239.2.3.1:6969 by default)
     # ------------------------------------------------------------------
 
+    def _multicast_listener(self) -> None:
+        """Listen on the SA Multicast group for incoming CoT events from WinTAK/ATAK."""
+        sock: Optional[socket.socket] = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # On some platforms SO_REUSEPORT is needed to share the port with WinTAK
+            if hasattr(socket, "SO_REUSEPORT"):
+                try:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                except OSError:
+                    pass
+            sock.settimeout(1.0)
+            # Bind to the multicast port on all interfaces so we receive traffic
+            # destined for the group regardless of the source interface.
+            sock.bind(("", self.multicast_port))
+            # Join the SA Multicast group
+            # struct format: '4s' = 4-byte packed IPv4 address, 'L' = unsigned long (INADDR_ANY = all interfaces)
+            mreq = struct.pack("4sL", socket.inet_aton(self.multicast_group), socket.INADDR_ANY)
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            logger.info(
+                "CoT SA Multicast listener started on %s:%d",
+                self.multicast_group,
+                self.multicast_port,
+            )
+            while not self._stop.is_set():
+                try:
+                    data, addr = sock.recvfrom(_MAX_BUFFER)
+                except socket.timeout:
+                    continue
+                self.stats["multicast_datagrams"] += 1
+                text = data.decode("utf-8", errors="replace").strip()
+                events = self._extract_cot_events(text)
+                if events:
+                    for ev in events:
+                        self._ingest(ev)
+                elif text.startswith("<event") or "<event " in text:
+                    self._ingest(text)
+                else:
+                    logger.debug("SA Multicast datagram from %s not a CoT event – ignored", addr)
+        except OSError as exc:
+            if not self._stop.is_set():
+                logger.error(
+                    "CoT SA Multicast listener error on %s:%d: %s",
+                    self.multicast_group,
+                    self.multicast_port,
+                    exc,
+                )
+                self.stats["errors"] += 1
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+            logger.info("CoT SA Multicast listener stopped")
+
+    # ------------------------------------------------------------------
+    # SA Multicast send helper
+    # ------------------------------------------------------------------
+
+    def send_multicast(self, cot_xml: str) -> bool:
+        """
+        Send a CoT XML string to the SA Multicast group (e.g. 239.2.3.1:6969).
+
+        This allows LPU5 to push marker updates to WinTAK/ATAK on the same
+        LAN (or same machine) without requiring a dedicated TAK server.
+
+        Returns True on success, False on error.
+        """
+        if not self.multicast_enabled:
+            return False
+        try:
+            data = cot_xml.encode("utf-8")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            # Set TTL=32 so multicast traffic stays within the local network.
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 32)
+            sock.settimeout(2.0)
+            try:
+                sock.sendto(data, (self.multicast_group, self.multicast_port))
+            finally:
+                sock.close()
+            logger.debug(
+                "CoT sent to SA Multicast %s:%d (%d bytes)",
+                self.multicast_group,
+                self.multicast_port,
+                len(data),
+            )
+            return True
+        except Exception as exc:
+            logger.warning(
+                "CoT SA Multicast send to %s:%d failed: %s",
+                self.multicast_group,
+                self.multicast_port,
+                exc,
+            )
+            return False
+
+
     def start(self) -> bool:
-        """Start TCP and UDP listener threads.  Returns True on success."""
+        """Start TCP, UDP, and (optionally) SA Multicast listener threads.  Returns True on success."""
         if self.stats["running"]:
             logger.warning("CoTListenerService is already running")
             return True
@@ -296,24 +411,42 @@ class CoTListenerService:
         self._tcp_thread.start()
         self._udp_thread.start()
 
+        if self.multicast_enabled:
+            self._multicast_thread = threading.Thread(
+                target=self._multicast_listener,
+                daemon=True,
+                name="cot-listener-multicast",
+            )
+            self._multicast_thread.start()
+
         self.stats["running"] = True
         self.stats["started_at"] = datetime.now(timezone.utc).isoformat()
-        logger.info(
-            "✓ CoTListenerService started (TCP:%d, UDP:%d)",
-            self.tcp_port,
-            self.udp_port,
-        )
+        if self.multicast_enabled:
+            logger.info(
+                "✓ CoTListenerService started (TCP:%d, UDP:%d, SA Multicast:%s:%d)",
+                self.tcp_port,
+                self.udp_port,
+                self.multicast_group,
+                self.multicast_port,
+            )
+        else:
+            logger.info(
+                "✓ CoTListenerService started (TCP:%d, UDP:%d)",
+                self.tcp_port,
+                self.udp_port,
+            )
         return True
 
     def stop(self) -> None:
         """Signal listener threads to stop and wait for them to finish."""
         logger.info("Stopping CoTListenerService…")
         self._stop.set()
-        for t in [self._tcp_thread, self._udp_thread]:
+        for t in [self._tcp_thread, self._udp_thread, self._multicast_thread]:
             if t and t.is_alive():
                 t.join(timeout=5)
         self.stats["running"] = False
         logger.info("✓ CoTListenerService stopped")
+
 
     def get_status(self) -> Dict:
         """Return a copy of the current statistics dict."""
@@ -346,6 +479,18 @@ def main() -> None:
     parser.add_argument("--tcp-port", type=int, default=8088, help="TCP listen port (default 8088)")
     parser.add_argument("--udp-port", type=int, default=4242, help="UDP listen port (default 4242)")
     parser.add_argument("--bind", default="0.0.0.0", help="Bind address (default 0.0.0.0)")
+    parser.add_argument(
+        "--multicast", action="store_true", default=False,
+        help="Enable SA Multicast listener (default: disabled)"
+    )
+    parser.add_argument(
+        "--multicast-group", default=CoTListenerService.SA_MULTICAST_GROUP,
+        help=f"SA Multicast group (default {CoTListenerService.SA_MULTICAST_GROUP})"
+    )
+    parser.add_argument(
+        "--multicast-port", type=int, default=CoTListenerService.SA_MULTICAST_PORT,
+        help=f"SA Multicast port (default {CoTListenerService.SA_MULTICAST_PORT})"
+    )
     args = parser.parse_args()
 
     print()
@@ -355,6 +500,10 @@ def main() -> None:
     print(f"  TCP port : {args.tcp_port}")
     print(f"  UDP port : {args.udp_port}")
     print(f"  Bind     : {args.bind}")
+    if args.multicast:
+        print(f"  SA Mcast : {args.multicast_group}:{args.multicast_port} (enabled)")
+    else:
+        print(f"  SA Mcast : disabled (use --multicast to enable)")
     print("=" * 60)
     print()
 
@@ -363,6 +512,9 @@ def main() -> None:
         udp_port=args.udp_port,
         ingest_callback=_standalone_ingest,
         bind_address=args.bind,
+        multicast_enabled=args.multicast,
+        multicast_group=args.multicast_group,
+        multicast_port=args.multicast_port,
     )
     service.start()
 
@@ -375,6 +527,7 @@ def main() -> None:
                 f"[stats] events_received={s['events_received']}  "
                 f"tcp_conn={s['tcp_connections']}  "
                 f"udp_dgram={s['udp_datagrams']}  "
+                f"mcast_dgram={s.get('multicast_datagrams', 0)}  "
                 f"errors={s['errors']}"
             )
     except KeyboardInterrupt:
