@@ -927,48 +927,4 @@
 <!-- admin_users.js implements loading/creating/updating/deleting users and fills the table -->
 <script src="admin_users.js"></script>
 </body>
-</html><!-- BEGIN: restore createQRCode / copyQRData handlers -->
-<script>
-async function createQRCode(){
-  const username = (document.getElementById('qrUsername')||{value:''}).value.trim();
-  const password = (document.getElementById('qrPassword')||{value:''}).value;
-  if(!username || !password){ alert('Username and password required.'); return; }
-  try{
-    const payload = {
-      redirect_url: '/',
-      label: 'registration',
-      max_uses: 1,
-      expires_days: 365,
-      generate_png: true,
-      data: { username, password }
-    };
-    const res = await fetch('/api/qr/create', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
-    });
-    const body = await res.json().catch(()=>null);
-    if (!res.ok){
-      const msg = body && (body.message || body.detail) ? (body.message||body.detail) : `Status ${res.status}`;
-      alert('QR creation failed: ' + msg); return;
-    }
-    const png = body.png_base64 || (body.qr && body.qr.png_base64) || null;
-    const area = document.getElementById('qrPreviewArea');
-    if (area){
-      area.style.display = '';
-      if (png){ area.innerHTML = `<img src="data:image/png;base64,${png}" alt="QR">`; }
-      else { area.innerHTML = '<div class="small">QR created (PNG not available)</div>'; }
-    }
-    window._lastCreatedQR = body;
-    const copyBtn = document.getElementById('copyDataBtn');
-    if (copyBtn) copyBtn.disabled = false;
-  }catch(e){ console.error('createQRCode', e); alert('QR creation failed: ' + (e.message||e)); }
-}
-
-function copyQRData(){
-  try{
-    if (!window._lastCreatedQR) return alert('No QR data to copy');
-    const text = JSON.stringify(window._lastCreatedQR, null, 2);
-    navigator.clipboard.writeText(text).then(()=>{ alert('QR data copied to clipboard'); }, (err)=>{ alert('Copy failed: ' + err); });
-  }catch(e){ console.error('copyQRData', e); alert('Error copying'); }
-}
-</script>
-<!-- END: restore createQRCode / copyQRData handlers -->
+</html>
