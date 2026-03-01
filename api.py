@@ -24,7 +24,7 @@ Notes:
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Body, HTTPException, Request, Path, Header, WebSocket, WebSocketDisconnect, UploadFile, File, Form
-from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta, timezone
@@ -7726,6 +7726,7 @@ def get_data_server_status():
 import subprocess as _subprocess
 import shutil as _shutil
 import math as _math
+import struct as _struct
 
 # Optional: pyrtlsdr — install with `pip install pyrtlsdr` on the deployment host
 try:
@@ -8037,6 +8038,129 @@ def sdr_measure(data: dict = Body(...)):
         "bw_per_bin_hz":   sample_rate_hz / nfft,
         "timestamp":       datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _make_wav_header(sample_rate: int, channels: int, bits_per_sample: int) -> bytes:
+    """Return a streaming-friendly WAV header (data chunk size = 0xFFFFFFFF for unknown length)."""
+    byte_rate   = sample_rate * channels * bits_per_sample // 8
+    block_align = channels * bits_per_sample // 8
+    return _struct.pack(
+        '<4sI4s4sIHHIIHH4sI',
+        b'RIFF', 0xFFFFFFFF, b'WAVE',
+        b'fmt ', 16, 1, channels,
+        sample_rate, byte_rate, block_align, bits_per_sample,
+        b'data', 0xFFFFFFFF,
+    )
+
+
+@app.get("/api/sdr/audio", summary="Stream demodulated SDR audio")
+async def sdr_audio_stream(
+    frequency_mhz: float = 433.920,
+    mode: str = "fm",
+    sample_rate: int = 200000,
+    audio_rate: int = 48000,
+    gain: float = 20.0,
+    squelch: int = 0,
+):
+    """
+    Stream demodulated audio from an RTL-SDR dongle as WAV/PCM.
+
+    Query params:
+    - frequency_mhz  – center frequency in MHz (default 433.920)
+    - mode           – demodulation mode: fm, am, ssb/usb, lsb, wbfm (default fm)
+    - sample_rate    – SDR sample rate in Hz passed to rtl_fm (default 200000)
+    - audio_rate     – output audio sample rate in Hz (default 48000)
+    - gain           – tuner gain in dB (default 20.0)
+    - squelch        – squelch level 0–9 (default 0 = off)
+
+    Tries in order:
+    1. rtl_fm subprocess — pipes raw 16-bit PCM wrapped in a WAV header
+    2. pyrtlsdr + numpy — FM demodulation on IQ samples
+    Returns 503 if no hardware or tool is available.
+    """
+    mode_lower = mode.lower()
+
+    # 1. rtl_fm CLI tool
+    if _shutil.which("rtl_fm"):
+        _mode_map = {
+            "fm": "fm", "am": "am",
+            "ssb": "usb", "usb": "usb", "lsb": "lsb", "wbfm": "wbfm",
+        }
+        rtl_mode = _mode_map.get(mode_lower, "fm")
+        cmd = [
+            "rtl_fm",
+            "-f", str(int(frequency_mhz * 1e6)),
+            "-M", rtl_mode,
+            "-s", str(sample_rate),
+            "-r", str(audio_rate),
+            "-g", str(int(gain)),
+        ]
+        if squelch > 0:
+            cmd += ["-l", str(squelch)]
+        cmd.append("-")
+
+        proc = _subprocess.Popen(cmd, stdout=_subprocess.PIPE, stderr=_subprocess.DEVNULL)
+        wav_hdr = _make_wav_header(audio_rate, 1, 16)
+
+        async def _rtl_fm_stream():
+            yield wav_hdr
+            try:
+                loop = asyncio.get_event_loop()
+                while True:
+                    chunk = await loop.run_in_executor(None, proc.stdout.read, 4096)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                proc.terminate()
+
+        return StreamingResponse(
+            _rtl_fm_stream(),
+            media_type="audio/wav",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    # 2. pyrtlsdr + numpy FM demodulation
+    if _RTLSDR_LIB and _NUMPY_LIB:
+        # Choose SDR_RATE as the smallest multiple of audio_rate that is >= 192000
+        SDR_RATE  = audio_rate * max(1, 192000 // audio_rate)
+        N_SAMPLES = SDR_RATE * 2
+        dec       = max(1, SDR_RATE // audio_rate)
+        wav_hdr   = _make_wav_header(audio_rate, 1, 16)
+
+        async def _numpy_fm_stream():
+            yield wav_hdr
+            sdr = _RtlSdr()
+            try:
+                sdr.sample_rate = SDR_RATE
+                sdr.center_freq = frequency_mhz * 1e6
+                sdr.gain        = gain
+                loop = asyncio.get_event_loop()
+                while True:
+                    samples = await loop.run_in_executor(None, sdr.read_samples, N_SAMPLES)
+                    iq    = _np.array(samples)
+                    phase = _np.angle(iq[1:] * _np.conj(iq[:-1]))
+                    audio = phase[::dec]
+                    pcm   = _np.clip(audio * (32767.0 / _np.pi), -32768, 32767).astype(_np.int16)
+                    yield pcm.tobytes()
+            except Exception as exc:
+                logger.warning("pyrtlsdr audio stream error: %s", exc)
+            finally:
+                try:
+                    sdr.close()
+                except Exception:
+                    pass
+
+        return StreamingResponse(
+            _numpy_fm_stream(),
+            media_type="audio/wav",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    raise HTTPException(
+        status_code=503,
+        detail="No RTL-SDR hardware or rtl_fm tool available for audio streaming",
+    )
 
 
 # -------------------------

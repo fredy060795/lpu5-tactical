@@ -659,9 +659,11 @@
         </div>
         <div style="margin-top:10px; font-size:0.8rem; color:var(--text-dim);">
             <i class="fas fa-info-circle"></i>
-            Audio tone reflects demodulated signal. Pitch = frequency offset from center; volume = signal strength.
-            Audio activates when SDR is scanning and signal exceeds squelch threshold.
+            Streams demodulated audio from SDR hardware via <code>rtl_fm</code> or pyrtlsdr.
+            In simulation mode (no hardware), a synthetic tone is used as fallback indicator.
         </div>
+        <!-- Hidden audio element for hardware streaming -->
+        <audio id="sdrAudioEl" preload="none" style="display:none;"></audio>
     </div>
 </div>
 
@@ -686,7 +688,8 @@
     // =====================================================================
     let audioCtx         = null;
     let audioGain        = null;  // master gain node
-    let audioOsc         = null;  // oscillator node
+    let audioOsc         = null;  // oscillator node (simulation fallback)
+    let audioEl          = document.getElementById('sdrAudioEl');  // <audio> element for hardware streaming
     let audioEnabled     = false;
     let audioMuted       = false;
     let audioVolume      = 0.70;  // 0..1
@@ -709,6 +712,30 @@
         }
     }
 
+    /** Start real audio stream from /api/sdr/audio (hardware mode). */
+    function _startAudioStream() {
+        if (!audioEl) return;
+        var freq = parseFloat(document.getElementById('sdrFrequency').value) || 433.920;
+        var mode = (document.getElementById('sdrMode').value || 'fm').toLowerCase();
+        var gain = parseFloat(document.getElementById('sdrGain').value) || 20;
+        var sq   = parseInt(document.getElementById('sdrSquelch').value) || 0;
+        var url  = '/api/sdr/audio?frequency_mhz=' + freq +
+                   '&mode=' + encodeURIComponent(mode) +
+                   '&sample_rate=200000&audio_rate=48000' +
+                   '&gain=' + gain + '&squelch=' + sq;
+        audioEl.src    = url;
+        audioEl.volume = audioMuted ? 0 : audioVolume;
+        audioEl.play().catch(function(e) { console.error('[SDR] Audio stream error:', e); });
+    }
+
+    /** Stop real audio stream. */
+    function _stopAudioStream() {
+        if (!audioEl) return;
+        audioEl.pause();
+        audioEl.removeAttribute('src');
+        audioEl.load();
+    }
+
     window.toggleAudio = function() {
         audioEnabled = !audioEnabled;
         var btn       = document.getElementById('audioToggleBtn');
@@ -716,15 +743,25 @@
         var statusEl  = document.getElementById('audioStatus');
 
         if (audioEnabled) {
-            _initAudio();
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            if (sdrMode === 'hardware') {
+                // Real hardware: stream demodulated audio from the server
+                _startAudioStream();
+            } else {
+                // Simulation fallback: synthetic oscillator tone
+                _initAudio();
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            }
             btn.innerHTML  = '<i class="fas fa-stop"></i> Disable Audio';
             btn.className  = 'btn btn-danger';
             muteBtn.disabled = false;
             statusEl.textContent = audioMuted ? 'Muted' : 'Audio On';
             statusEl.className   = 'status-badge status-' + (audioMuted ? 'waiting' : 'online');
         } else {
-            if (audioGain) audioGain.gain.value = 0;
+            if (sdrMode === 'hardware') {
+                _stopAudioStream();
+            } else {
+                if (audioGain) audioGain.gain.value = 0;
+            }
             btn.innerHTML  = '<i class="fas fa-play"></i> Enable Audio';
             btn.className  = 'btn btn-primary';
             muteBtn.disabled = true;
@@ -740,11 +777,13 @@
 
         if (audioMuted) {
             if (audioGain) audioGain.gain.value = 0;
+            if (audioEl)   audioEl.volume = 0;
             btn.innerHTML = '<i class="fas fa-volume-mute"></i> Unmute';
             btn.className = 'btn btn-success';
             statusEl.textContent = 'Muted';
             statusEl.className   = 'status-badge status-waiting';
         } else {
+            if (audioEl) audioEl.volume = audioVolume;
             btn.innerHTML = '<i class="fas fa-volume-mute"></i> Mute';
             btn.className = 'btn btn-warning';
             statusEl.textContent = 'Audio On';
@@ -755,15 +794,17 @@
     window.setAudioVolume = function(val) {
         audioVolume = val / 100;
         document.getElementById('audioVolumeLabel').textContent = val + '%';
-        // Volume is applied on the next signal update via _updateAudioTone
+        if (audioEl && !audioMuted) audioEl.volume = audioVolume;
+        // Oscillator volume applied on next _updateAudioTone call
     };
 
     /**
-     * Update audio tone based on latest measurement.
-     * pitch  – frequency of tone (Hz)  — derived from FFT peak offset from center
-     * level  – gain (0..1) — derived from normalised signal strength
+     * Update synthetic audio tone (simulation fallback only).
+     * Only active when sdrMode is not 'hardware'.
      */
     function _updateAudioTone(peakDbm, freqMhz, blocked) {
+        // Hardware mode uses the real audio stream; skip oscillator
+        if (sdrMode === 'hardware') return;
         if (!audioEnabled || !audioCtx || !audioGain || !audioOsc) return;
         if (audioMuted || blocked) {
             audioGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
