@@ -60,6 +60,8 @@ logger = logging.getLogger("lpu5-api")
 
 # Global event loop reference for thread-safe broadcasts
 _MAIN_EVENT_LOOP = None
+# Set to True during application shutdown to suppress expected warnings
+_SHUTDOWN_IN_PROGRESS = threading.Event()
 
 # Database imports
 from database import Base, SessionLocal, engine, get_db
@@ -375,6 +377,7 @@ async def lifespan(application):
     yield
 
     # ---- Shutdown logic ----
+    _SHUTDOWN_IN_PROGRESS.set()
     # Stop TAK receiver thread
     try:
         _stop_tak_receiver_thread()
@@ -627,7 +630,10 @@ def broadcast_websocket_update(channel: str, event_type: str, data: Dict) -> Non
                 )
                 logger.debug(f"Scheduled thread-safe broadcast to {channel}")
             else:
-                logger.warning(f"Main event loop not available or not running for broadcast to {channel}")
+                if _SHUTDOWN_IN_PROGRESS.is_set():
+                    logger.debug(f"Main event loop not available or not running for broadcast to {channel}")
+                else:
+                    logger.warning(f"Main event loop not available or not running for broadcast to {channel}")
     except Exception as e:
         logger.warning(f"Failed to broadcast to {channel}: {e}")
 
