@@ -6,5 +6,8 @@
     "tak_server_host": "",
     "tak_server_port": 4242,
     "tak_username": "",
-    "tak_password": ""
+    "tak_password": "",
+    "sa_multicast_enabled": true,
+    "sa_multicast_group": "239.2.3.1",
+    "sa_multicast_port": 6969
 }

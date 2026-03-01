@@ -331,31 +331,33 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
 
     def test_node_type_in_lpu5_to_cot(self):
         # "node" is the internal LPU5 type for Meshtastic nodes stored in map_markers.
-        # It must map to a-f-G-U-C (friendly unit) so that LPU5 does NOT forward
-        # them to ATAK as unknown units (yellow flower / a-u-G-U-C).
+        # It must map to a-f-G-E-S-U-M (Meshtastic equipment) so that ATAK renders
+        # the Meshtastic node icon (blue round circle) instead of a blue rectangle.
         self.assertIn("node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-E-S-U-M")
 
-    def test_node_type_lpu5_to_cot_produces_friendly(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-U-C")
+    def test_node_type_lpu5_to_cot_produces_meshtastic_equipment(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-E-S-U-M")
 
     def test_meshtastic_node_in_lpu5_to_cot(self):
         self.assertIn("meshtastic_node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-E-S-U-M")
 
     def test_tak_unit_in_lpu5_to_cot(self):
         self.assertIn("tak_unit", CoTProtocolHandler.LPU5_TO_COT_TYPE)
         self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["tak_unit"], "a-f-G-U-C")
 
-    def test_node_marker_to_cot_produces_friendly_not_flower(self):
-        # Regression: "node" type must NOT fall back to the unknown/flower (a-u-G-U-C).
+    def test_node_marker_to_cot_produces_meshtastic_not_rectangle(self):
+        # Regression: "node" type must NOT fall back to the unknown/flower (a-u-G-U-C)
+        # or friendly rectangle (a-f-G-U-C). It must produce the Meshtastic equipment
+        # type (a-f-G-E-S-U-M) so ATAK renders the Meshtastic node icon.
         node_name = "Büroturm"
         marker = {"id": "mesh-123", "lat": 48.0, "lng": 11.0, "type": "node",
                   "name": node_name, "callsign": node_name}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-U-C",
-                         "Meshtastic node (type='node') must export as friendly (a-f-G-U-C), not flower (a-u-G-U-C)")
+        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M",
+                         "Meshtastic node (type='node') must export as a-f-G-E-S-U-M, not blue rectangle (a-f-G-U-C)")
 
     # --- CoTEvent.from_xml() detects <meshtastic> in <detail> ---
 
