@@ -7859,7 +7859,8 @@ def _detect_rtlsdr_devices() -> list:
 
 # rtl_tcp defaults — rtl_tcp ships with the rtl-sdr package.
 # Start with: rtl_tcp -a 0.0.0.0   (Linux/Raspberry Pi)
-#         or: rtl_tcp.exe           (Windows)(host: str = _RTL_TCP_DEFAULT_HOST, port: int = _RTL_TCP_DEFAULT_PORT) -> bool:
+#         or: rtl_tcp.exe           (Windows)
+def _check_rtl_tcp(host: str = _RTL_TCP_DEFAULT_HOST, port: int = _RTL_TCP_DEFAULT_PORT) -> bool:
     """Return True if an rtl_tcp server is reachable and responds with the expected magic header."""
     try:
         with _socket.create_connection((host, port), timeout=1) as sock:
@@ -8178,6 +8179,137 @@ def sdr_measure(data: dict = Body(...)):
         "sample_rate_mhz": sample_rate_mhz,
         "bw_per_bin_hz":   sample_rate_hz / nfft,
         "timestamp":       datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/api/dependencies/check", summary="Check hardware and software dependencies")
+def check_dependencies():
+    """
+    Check the availability of all required and optional dependencies.
+
+    Returns a structured report with:
+    - Python packages (required and optional)
+    - System tools (rtl_tcp, rtl_power, rtl_test, rtl_fm)
+    - Missing items with installation instructions
+    - Overall ready status
+    """
+    import importlib.util as _iutil
+    import platform as _platform
+
+    is_windows = _platform.system() == "Windows"
+
+    def _pkg_present(name: str) -> bool:
+        return _iutil.find_spec(name) is not None
+
+    # --- Python package checks ---
+    python_deps = [
+        {
+            "name": "fastapi",
+            "required": True,
+            "present": _pkg_present("fastapi"),
+            "install": "pip install fastapi",
+            "description": "Web framework (core)",
+        },
+        {
+            "name": "uvicorn",
+            "required": True,
+            "present": _pkg_present("uvicorn"),
+            "install": "pip install uvicorn[standard]",
+            "description": "ASGI server (core)",
+        },
+        {
+            "name": "meshtastic",
+            "required": False,
+            "present": _pkg_present("meshtastic"),
+            "install": "pip install meshtastic",
+            "description": "Meshtastic device communication",
+        },
+        {
+            "name": "serial",
+            "required": False,
+            "present": _pkg_present("serial.tools.list_ports"),
+            "install": "pip install pyserial",
+            "description": "Serial port access (Meshtastic/SDR)",
+        },
+        {
+            "name": "rtlsdr",
+            "required": False,
+            # Use the module-level flag set at import time (same as the rest of the SDR code)
+            "present": _RTLSDR_LIB,
+            "install": "pip install pyrtlsdr",
+            "description": "Direct RTL-SDR hardware access",
+        },
+        {
+            "name": "numpy",
+            "required": False,
+            # Use the module-level flag set at import time (same as the rest of the SDR code)
+            "present": _NUMPY_LIB,
+            "install": "pip install numpy",
+            "description": "Fast FFT for SDR spectrum analysis",
+        },
+    ]
+
+    # --- System tool checks ---
+    if is_windows:
+        rtl_tcp_install = (
+            "Download rtl-sdr tools from https://osmocom.org/projects/rtl-sdr/wiki "
+            "and add rtl_tcp.exe to your PATH"
+        )
+        rtl_sdr_install = (
+            "Download rtl-sdr tools from https://osmocom.org/projects/rtl-sdr/wiki "
+            "and add the executables to your PATH"
+        )
+    else:
+        rtl_tcp_install = "sudo apt install rtl-sdr  (Debian/Ubuntu/Raspberry Pi)"
+        rtl_sdr_install = "sudo apt install rtl-sdr  (Debian/Ubuntu/Raspberry Pi)"
+
+    system_deps = [
+        {
+            "name": "rtl_tcp",
+            "present": bool(_shutil.which("rtl_tcp") or _shutil.which("rtl_tcp.exe")),
+            "install": rtl_tcp_install,
+            "description": (
+                "RTL-SDR TCP server — required to stream SDR data over TCP. "
+                "Start with: rtl_tcp -a 0.0.0.0"
+            ),
+        },
+        {
+            "name": "rtl_power",
+            "present": bool(_shutil.which("rtl_power") or _shutil.which("rtl_power.exe")),
+            "install": rtl_sdr_install,
+            "description": "RTL-SDR power sweep tool (optional, used for spectrum scan)",
+        },
+        {
+            "name": "rtl_test",
+            "present": bool(_shutil.which("rtl_test") or _shutil.which("rtl_test.exe")),
+            "install": rtl_sdr_install,
+            "description": "RTL-SDR test/detection tool (optional)",
+        },
+        {
+            "name": "rtl_fm",
+            "present": bool(_shutil.which("rtl_fm") or _shutil.which("rtl_fm.exe")),
+            "install": rtl_sdr_install,
+            "description": "RTL-SDR FM demodulator (optional, used for audio streaming)",
+        },
+    ]
+
+    missing_required = [d for d in python_deps if d["required"] and not d["present"]]
+    missing_optional = (
+        [d for d in python_deps if not d["required"] and not d["present"]]
+        + [d for d in system_deps if not d["present"]]
+    )
+
+    return {
+        "ready": len(missing_required) == 0,
+        "platform": _platform.system(),
+        "python_packages": python_deps,
+        "system_tools": system_deps,
+        "missing_required": [d["name"] for d in missing_required],
+        "missing_optional": [d["name"] for d in missing_optional],
+        "install_hints": {
+            d["name"]: d["install"]
+            for d in missing_required + missing_optional
+        },
     }
 
 
