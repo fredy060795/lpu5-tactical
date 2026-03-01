@@ -1184,6 +1184,120 @@ def _forward_cot_multicast(cot_xml: str) -> bool:
     return svc.send_multicast(cot_xml)
 
 
+def _build_atak_geochat_xml(sender_uid: str, sender_callsign: str, text: str) -> str:
+    """
+    Build an ATAK-compatible GeoChat CoT XML string (type b-t-f).
+
+    This allows LPU5 chat messages to appear in the ATAK GeoChat window on all
+    connected TAK clients.  The event is sent to the "All Chat Rooms" chatroom
+    so every ATAK user sees it regardless of their active chatroom.
+    """
+    _ATAK_CHATROOM = "All Chat Rooms"
+    now = datetime.now(timezone.utc)
+    stale = now + timedelta(minutes=10)
+    fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    msg_id = str(uuid.uuid4())
+    # Sanitise sender_uid: strip characters that could break XML attributes
+    safe_sender_uid = re.sub(r'[<>&"\']', '_', sender_uid)
+    event_uid = f"GeoChat.{safe_sender_uid}.{_ATAK_CHATROOM}.{msg_id}"
+    time_str = fmt(now)
+    safe_text = _sax_utils.escape(text)
+    safe_callsign = _sax_utils.escape(sender_callsign)
+    safe_uid_attr = _sax_utils.escape(safe_sender_uid)
+    safe_event_uid = _sax_utils.escape(event_uid)
+    safe_msg_id = _sax_utils.escape(msg_id)
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<event version="2.0" uid="{safe_event_uid}" type="b-t-f" how="h-g-i-g-o"'
+        f' time="{time_str}" start="{time_str}" stale="{fmt(stale)}">'
+        '<point lat="0.0" lon="0.0" hae="0.0" ce="9999999.0" le="9999999.0"/>'
+        '<detail>'
+        f'<__chat parent="RootContactGroup" groupOwner="false" messageId="{safe_msg_id}"'
+        f' chatroom="{_ATAK_CHATROOM}" id="{_ATAK_CHATROOM}" senderCallsign="{safe_callsign}">'
+        f'<chatgrp uid0="{safe_uid_attr}" uid1="{_ATAK_CHATROOM}" id="{_ATAK_CHATROOM}"/>'
+        '</__chat>'
+        f'<remarks source="BAO.F.ATAK.{safe_uid_attr}" to="{_ATAK_CHATROOM}" time="{time_str}">{safe_text}</remarks>'
+        '</detail>'
+        '</event>'
+    )
+
+
+def _forward_chat_to_atak(sender: str, text: str) -> bool:
+    """
+    Forward a LPU5 chat message to ATAK/TAK clients as a GeoChat CoT event (type b-t-f).
+
+    Uses *sender* as the callsign so ATAK users see who sent the message.
+    Returns True if the CoT was successfully forwarded to the TAK server.
+    """
+    try:
+        cot_xml = _build_atak_geochat_xml(
+            sender_uid=f"LPU5-{sender}",
+            sender_callsign=sender,
+            text=text,
+        )
+        result = forward_cot_to_tak(cot_xml)
+        if result:
+            _forward_cot_multicast(cot_xml)
+            logger.info("Chat→ATAK bridge: %s: %s", sender, text[:80])
+        return result
+    except Exception as _chat_err:
+        logger.warning("Chat→ATAK bridge error: %s", _chat_err)
+        return False
+
+
+def _ingest_atak_geochat(root) -> None:
+    """
+    Parse an ATAK GeoChat CoT element (type b-t-f) and save it as a LPU5 chat message.
+
+    *root* must be the already-parsed ``<event>`` XML element.
+    Silently skips events without a recognisable message body.
+    """
+    try:
+        detail = root.find("detail")
+        if detail is None:
+            return
+        # Extract sender callsign from __chat element
+        chat_elem = detail.find("__chat")
+        sender_callsign = None
+        if chat_elem is not None:
+            sender_callsign = chat_elem.get("senderCallsign")
+        if not sender_callsign:
+            # Fall back to the event UID as sender identifier
+            sender_callsign = root.get("uid", "ATAK")
+        # Extract message text from <remarks>
+        remarks_elem = detail.find("remarks")
+        if remarks_elem is None or not (remarks_elem.text or "").strip():
+            return
+        text = remarks_elem.text.strip()
+        db = SessionLocal()
+        try:
+            _ensure_default_channels(db)
+            new_msg = ChatMessage(
+                channel=MESH_CHAT_CHANNEL,
+                sender=sender_callsign,
+                content=text,
+                timestamp=datetime.now(timezone.utc),
+                type="text",
+                delivered_to=[],
+                read_by=[],
+            )
+            db.add(new_msg)
+            db.commit()
+            db.refresh(new_msg)
+            msg_dict = _chat_message_to_dict(new_msg)
+            if websocket_manager and _MAIN_EVENT_LOOP:
+                asyncio.run_coroutine_threadsafe(
+                    websocket_manager.publish_to_channel(
+                        'chat', {"type": "new_message", "data": msg_dict}
+                    ),
+                    _MAIN_EVENT_LOOP,
+                )
+            logger.info("ATAK→Chat bridge: %s: %s", sender_callsign, text[:80])
+        finally:
+            db.close()
+    except Exception as _geo_err:
+        logger.warning("ATAK GeoChat ingest error: %s", _geo_err)
+
 
 _TAK_RECEIVER_THREAD: Optional[threading.Thread] = None
 _TAK_RECEIVER_STOP = threading.Event()
@@ -1214,9 +1328,17 @@ def _process_incoming_cot(cot_xml: str) -> None:
             return
         event_type = root.get("type", "")
 
-        # Only process unit/marker types; skip ping-acks and other system types
-        relevant_prefixes = ("a-f", "a-h", "a-n", "a-u", "b-m-p")
+        # Process unit/marker types, ATAK drawings, and GeoChat messages;
+        # skip ping-acks and other non-tactical system types.
+        relevant_prefixes = ("a-f", "a-h", "a-n", "a-u", "a-p", "b-m-p", "b-t-f", "u-d", "b-a")
         if not any(event_type.startswith(p) for p in relevant_prefixes):
+            return
+
+        # --- ATAK GeoChat (b-t-f) → LPU5 chat bridge ---
+        if event_type.startswith("b-t-f"):
+            _ingest_atak_geochat(root)
+            with _TAK_RECEIVER_STATS_LOCK:
+                _TAK_RECEIVER_STATS["packets_received"] += 1
             return
 
         point = root.find("point")
@@ -6086,10 +6208,23 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
     Parses the received CoT XML, upserts the corresponding map marker into
     the database, and broadcasts the change to all WebSocket clients.
     Mirrors the logic in POST /api/cot/ingest without the HTTP layer.
+    GeoChat events (type b-t-f) are saved as LPU5 chat messages instead of
+    map markers.
     """
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return
     try:
+        import xml.etree.ElementTree as _ET
+        # Handle ATAK GeoChat (b-t-f) events before full CoT validation so
+        # that chat messages without a valid point element are still ingested.
+        try:
+            _root = _ET.fromstring(xml_string)
+            if _root.get("type", "").startswith("b-t-f"):
+                _ingest_atak_geochat(_root)
+                return
+        except Exception:
+            pass
+
         if not CoTProtocolHandler.validate_cot_xml(xml_string):
             logger.debug("CoT listener: invalid CoT XML ignored")
             return
@@ -7275,6 +7410,10 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
                     logger.info(f"Chat→Mesh bridge: {mesh_text[:80]}{'...' if len(mesh_text) > 80 else ''}")
                 except Exception as mesh_err:
                     logger.warning(f"Chat→Mesh bridge error: {mesh_err}")
+
+        # Forward to ATAK/TAK clients as GeoChat CoT (b-t-f)
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            _forward_chat_to_atak(username, text)
 
         return {"status": "success", "message": msg_dict}
     except HTTPException:
