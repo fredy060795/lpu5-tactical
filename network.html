@@ -517,6 +517,16 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">Client Certificate Path (mTLS)</label>
+                    <input type="text" class="form-input" id="takClientCertPath" placeholder="/path/to/client.pem (required when server demands a certificate)" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Client Key Path (mTLS)</label>
+                    <input type="text" class="form-input" id="takClientKeyPath" placeholder="/path/to/client.key" disabled>
+                </div>
+
+                <div class="form-group">
                     <button class="btn" id="takTestBtn" onclick="testTakConnection()" disabled>
                         <i class="fas fa-plug"></i> Test TAK Connection
                     </button>
@@ -718,6 +728,8 @@ async function loadNetworkSettings() {
                     document.getElementById('takConnectionType').value = takCfg.tak_connection_type || networkConfig.takConnectionType || 'tcp';
                     document.getElementById('takServerPort').value = takCfg.tak_server_port || networkConfig.takServerPort || '8089';
                     document.getElementById('takUsername').value = takCfg.tak_username || '';
+                    document.getElementById('takClientCertPath').value = takCfg.tak_client_cert_path || '';
+                    document.getElementById('takClientKeyPath').value = takCfg.tak_client_key_path || '';
                 } else {
                     document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
                     document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
@@ -824,6 +836,8 @@ async function saveNetworkSettings() {
             tak_server_port: parseInt(document.getElementById('takServerPort').value, 10) || 8089,
             tak_connection_type: document.getElementById('takConnectionType').value,
             tak_username: document.getElementById('takUsername').value.trim(),
+            tak_client_cert_path: document.getElementById('takClientCertPath').value.trim(),
+            tak_client_key_path: document.getElementById('takClientKeyPath').value.trim(),
         };
         const takPassword = document.getElementById('takPassword').value;
         if (takPassword) { takBody.tak_password = takPassword; }
@@ -1004,6 +1018,8 @@ function updateTakIntegrationState() {
     document.getElementById('takAutoReconnect').disabled = !enabled;
     document.getElementById('takUsername').disabled = !enabled;
     document.getElementById('takPassword').disabled = !enabled;
+    document.getElementById('takClientCertPath').disabled = !enabled;
+    document.getElementById('takClientKeyPath').disabled = !enabled;
     document.getElementById('takTestBtn').disabled = !enabled;
 }
 

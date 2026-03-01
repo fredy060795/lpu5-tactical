@@ -916,6 +916,11 @@ def _get_tak_config() -> dict:
     tak_username = cfg.get("tak_username", "")
     tak_password = cfg.get("tak_password", "")
 
+    # tak_client_cert_path / tak_client_key_path — client certificate for mutual TLS (mTLS).
+    # Required when the TAK server issues TLSV13_ALERT_CERTIFICATE_REQUIRED.
+    tak_client_cert_path = cfg.get("tak_client_cert_path", "")
+    tak_client_key_path  = cfg.get("tak_client_key_path", "")
+
     raw_host = str(tak_host).strip() if tak_host else ""
     if raw_host:
         raw_host = re.sub(r'^https?://', '', raw_host).rstrip('/')
@@ -927,6 +932,8 @@ def _get_tak_config() -> dict:
         "tak_connection_type":      tak_type,
         "tak_username":             str(tak_username).strip() if tak_username else "",
         "tak_password":             str(tak_password) if tak_password else "",
+        "tak_client_cert_path":     str(tak_client_cert_path).strip() if tak_client_cert_path else "",
+        "tak_client_key_path":      str(tak_client_key_path).strip() if tak_client_key_path else "",
     }
 
 
@@ -939,6 +946,45 @@ def _build_tak_auth_xml(username: str, password: str) -> bytes:
         '<?xml version="1.0" encoding="UTF-8"?>'
         f'<auth><cot username="{u}" password="{p}"/></auth>'
     ).encode("utf-8")
+
+
+def _build_tak_ssl_context(tak_cfg: dict):
+    """
+    Build an SSL context for outbound TAK server connections.
+
+    TAK servers commonly use self-signed certificates; server certificate
+    verification is intentionally disabled to allow field-deployed connections.
+    When the TAK server requires mutual TLS (client certificate), the paths
+    configured via ``tak_client_cert_path`` and ``tak_client_key_path`` are
+    loaded into the context.  This resolves the
+    ``TLSV13_ALERT_CERTIFICATE_REQUIRED`` error raised by servers that enforce
+    mTLS (e.g. ascl-atak.duckdns.org:8089).
+    """
+    import ssl as _ssl
+    ctx = _ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = _ssl.CERT_NONE
+    ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
+
+    cert_path = tak_cfg.get("tak_client_cert_path", "")
+    key_path  = tak_cfg.get("tak_client_key_path", "")
+    if cert_path and key_path:
+        try:
+            ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+            logger.debug("TAK mTLS: loaded client cert %s", cert_path)
+        except Exception as _cert_err:
+            logger.warning(
+                "TAK mTLS: could not load client cert %s / key %s: %s",
+                cert_path, key_path, _cert_err,
+            )
+    elif cert_path or key_path:
+        missing = "tak_client_key_path" if cert_path else "tak_client_cert_path"
+        present = "tak_client_cert_path" if cert_path else "tak_client_key_path"
+        logger.warning(
+            "TAK mTLS: both paths required but only %s is set; %s is missing – skipping client cert.",
+            present, missing,
+        )
+    return ctx
 
 
 def _build_cot_ping_xml() -> str:
@@ -999,13 +1045,7 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
             finally:
                 sock.close()
         elif conn_type == "ssl":
-            import ssl as _ssl
-            # TAK servers commonly use self-signed certificates; verification is
-            # intentionally disabled to allow field-deployed TAK server connections.
-            ctx = _ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = _ssl.CERT_NONE
-            ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
+            ctx = _build_tak_ssl_context(tak_cfg)
             raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             raw.settimeout(_TAK_SOCKET_TIMEOUT)
             sock = ctx.wrap_socket(raw, server_hostname=host)
@@ -1173,7 +1213,6 @@ def _process_incoming_cot(cot_xml: str) -> None:
 
 def _tak_receiver_loop() -> None:
     """Background thread that maintains a persistent TAK server connection and receives CoT events."""
-    import ssl as _ssl_recv
     backoff_delays = [5, 10, 30, 60]
     attempt = 0
     while not _TAK_RECEIVER_STOP.is_set():
@@ -1201,13 +1240,7 @@ def _tak_receiver_loop() -> None:
             sock = None
             try:
                 if conn_type == "ssl":
-                    # TAK servers commonly use self-signed certificates; verification is
-                    # intentionally disabled to allow field-deployed TAK server connections
-                    # (consistent with the outbound forward_cot_to_tak behaviour).
-                    ctx = _ssl_recv.create_default_context()
-                    ctx.check_hostname = False
-                    ctx.verify_mode = _ssl_recv.CERT_NONE
-                    ctx.minimum_version = _ssl_recv.TLSVersion.TLSv1_2
+                    ctx = _build_tak_ssl_context(tak_cfg)
                     raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     raw.settimeout(_TAK_SOCKET_TIMEOUT)
                     sock = ctx.wrap_socket(raw, server_hostname=host)
@@ -6151,11 +6184,13 @@ def get_tak_config():
     """Return the current TAK server forwarding configuration."""
     cfg = load_json("config") or {}
     return {
-        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
-        "tak_server_host":     cfg.get("tak_server_host", ""),
-        "tak_server_port":     int(cfg.get("tak_server_port", 8089)),
-        "tak_connection_type": cfg.get("tak_connection_type", "udp"),
-        "tak_username":        cfg.get("tak_username", ""),
+        "tak_forward_enabled":  cfg.get("tak_forward_enabled", False),
+        "tak_server_host":      cfg.get("tak_server_host", ""),
+        "tak_server_port":      int(cfg.get("tak_server_port", 8089)),
+        "tak_connection_type":  cfg.get("tak_connection_type", "udp"),
+        "tak_username":         cfg.get("tak_username", ""),
+        "tak_client_cert_path": cfg.get("tak_client_cert_path", ""),
+        "tak_client_key_path":  cfg.get("tak_client_key_path", ""),
     }
 
 
@@ -6203,6 +6238,10 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         cfg["tak_username"] = str(data["tak_username"]).strip()
     if "tak_password" in data:
         cfg["tak_password"] = str(data["tak_password"])
+    if "tak_client_cert_path" in data:
+        cfg["tak_client_cert_path"] = str(data["tak_client_cert_path"]).strip()
+    if "tak_client_key_path" in data:
+        cfg["tak_client_key_path"] = str(data["tak_client_key_path"]).strip()
     # CoT listener settings (saved alongside TAK config for convenience)
     if "cot_listener_tcp_port" in data:
         try:
@@ -6228,11 +6267,13 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
 
     return {
         "status": "success",
-        "tak_forward_enabled": cfg.get("tak_forward_enabled", False),
-        "tak_server_host":     cfg.get("tak_server_host", ""),
-        "tak_server_port":     int(cfg.get("tak_server_port", 8089)),
-        "tak_connection_type": cfg.get("tak_connection_type", "udp"),
-        "tak_username":        cfg.get("tak_username", ""),
+        "tak_forward_enabled":  cfg.get("tak_forward_enabled", False),
+        "tak_server_host":      cfg.get("tak_server_host", ""),
+        "tak_server_port":      int(cfg.get("tak_server_port", 8089)),
+        "tak_connection_type":  cfg.get("tak_connection_type", "udp"),
+        "tak_username":         cfg.get("tak_username", ""),
+        "tak_client_cert_path": cfg.get("tak_client_cert_path", ""),
+        "tak_client_key_path":  cfg.get("tak_client_key_path", ""),
     }
 
 
@@ -6286,7 +6327,6 @@ def test_tak_connection():
             return {"reachable": False, "data_exchanged": False, "message": f"UDP send to {host}:{port} failed: {e}"}
     else:
         # TCP / SSL: connect, send a CoT ping, then attempt to read the server response.
-        import ssl as _ssl_test
         data_exchanged = False
         response_data = b""
         try:
@@ -6295,10 +6335,7 @@ def test_tak_connection():
                 if not addrs:
                     raise socket.gaierror(f"No address found for {host}")
                 af, _, _, _, addr = addrs[0]
-                ctx = _ssl_test.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = _ssl_test.CERT_NONE
-                ctx.minimum_version = _ssl_test.TLSVersion.TLSv1_2
+                ctx = _build_tak_ssl_context(tak_cfg)
                 raw = socket.socket(af, socket.SOCK_STREAM)
                 raw.settimeout(_TAK_SOCKET_TIMEOUT)
                 sock = ctx.wrap_socket(raw, server_hostname=host)
