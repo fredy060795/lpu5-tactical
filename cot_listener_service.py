@@ -31,7 +31,7 @@ import struct
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Dict, List, Optional
 
 logging.basicConfig(
@@ -46,7 +46,9 @@ _MAX_BUFFER = 65536  # 64 KB
 # Receive chunk size for TCP reads.
 _RECV_CHUNK = 4096
 # Seconds a TCP client may be idle before the connection is closed.
-_CONN_TIMEOUT = 30
+# WinTAK/ATAK send SA beacons roughly every 30–60 s; use a generous timeout
+# so connections stay alive during brief quiet periods.
+_CONN_TIMEOUT = 120
 # Maximum concurrent TCP handler threads.
 _MAX_TCP_THREADS = 32
 
@@ -73,6 +75,7 @@ class CoTListenerService:
         multicast_enabled: bool = False,
         multicast_group: str = SA_MULTICAST_GROUP,
         multicast_port: int = SA_MULTICAST_PORT,
+        on_client_connect: Optional[Callable[["socket.socket", tuple], None]] = None,
     ):
         self.tcp_port = tcp_port
         self.udp_port = udp_port
@@ -81,12 +84,20 @@ class CoTListenerService:
         self.multicast_enabled = multicast_enabled
         self.multicast_group = multicast_group
         self.multicast_port = multicast_port
+        # Called with (socket, addr) whenever a new TCP client connects.
+        # Callers can use this to send an SA greeting or initial state dump.
+        self.on_client_connect = on_client_connect
 
         self._stop = threading.Event()
         self._tcp_thread: Optional[threading.Thread] = None
         self._udp_thread: Optional[threading.Thread] = None
         self._multicast_thread: Optional[threading.Thread] = None
         self._handler_threads: List[threading.Thread] = []
+
+        # Active TCP client sockets — used by send_to_clients() to push data
+        # back to WinTAK/ATAK clients that are directly connected on port 8088.
+        self._clients: Dict[int, "socket.socket"] = {}
+        self._clients_lock = threading.Lock()
 
         self.stats: Dict = {
             "running": False,
@@ -99,6 +110,7 @@ class CoTListenerService:
             "events_received": 0,
             "events_ingested": 0,
             "tcp_connections": 0,
+            "tcp_clients_active": 0,
             "udp_datagrams": 0,
             "multicast_datagrams": 0,
             "errors": 0,
@@ -142,6 +154,24 @@ class CoTListenerService:
         return events
 
     # ------------------------------------------------------------------
+    # CoT ping-ack builder
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_pong_xml() -> str:
+        """Build a minimal CoT t-x-c-t-r ping-ack to reply to a WinTAK/ATAK ping."""
+        now = datetime.now(timezone.utc)
+        stale = now + timedelta(seconds=30)
+        fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<event version="2.0" uid="LPU5-GW" type="t-x-c-t-r" how="m-g"'
+            f' time="{fmt(now)}" start="{fmt(now)}" stale="{fmt(stale)}">'
+            '<point lat="0.0" lon="0.0" hae="0.0" ce="9999999.0" le="9999999.0"/>'
+            '<detail/></event>'
+        )
+
+    # ------------------------------------------------------------------
     # Ingest helper
     # ------------------------------------------------------------------
 
@@ -159,6 +189,34 @@ class CoTListenerService:
             self.stats["errors"] += 1
 
     # ------------------------------------------------------------------
+    # TCP client push (bidirectional data exchange)
+    # ------------------------------------------------------------------
+
+    def send_to_clients(self, cot_xml: str) -> int:
+        """
+        Push a CoT XML string to all currently connected TCP clients
+        (e.g. WinTAK/ATAK instances connected directly on port 8088).
+
+        Returns the number of clients successfully reached.
+        Dead connections are pruned automatically.
+        """
+        data = cot_xml.encode("utf-8")
+        sent = 0
+        with self._clients_lock:
+            dead: List[int] = []
+            for fd, sock in list(self._clients.items()):
+                try:
+                    sock.sendall(data)
+                    sent += 1
+                except OSError:
+                    dead.append(fd)
+            for fd in dead:
+                self._clients.pop(fd, None)
+        if sent:
+            logger.debug("CoT pushed to %d TCP client(s) (%d bytes)", sent, len(data))
+        return sent
+
+    # ------------------------------------------------------------------
     # TCP handler (runs in a per-connection thread)
     # ------------------------------------------------------------------
 
@@ -168,12 +226,24 @@ class CoTListenerService:
         logger.debug("CoT TCP connection from %s", addr)
         buf = b""
         conn.settimeout(_CONN_TIMEOUT)
+        fd = conn.fileno()
+        # Register so send_to_clients() can push data back to this client.
+        with self._clients_lock:
+            self._clients[fd] = conn
+            self.stats["tcp_clients_active"] = len(self._clients)
+        # Notify the caller (api.py) so it can send an SA greeting or initial
+        # state dump to the newly connected WinTAK/ATAK client.
+        if self.on_client_connect is not None:
+            try:
+                self.on_client_connect(conn, addr)
+            except Exception as _connect_exc:
+                logger.debug("CoT on_client_connect callback error for %s: %s", addr, _connect_exc)
         try:
             while not self._stop.is_set():
                 try:
                     chunk = conn.recv(_RECV_CHUNK)
                 except socket.timeout:
-                    break
+                    continue  # No data yet; check stop event and loop again
                 if not chunk:
                     break
                 buf += chunk
@@ -186,7 +256,16 @@ class CoTListenerService:
                 text = buf.decode("utf-8", errors="replace")
                 events = self._extract_cot_events(text)
                 for ev in events:
-                    self._ingest(ev)
+                    # Respond to TAK ping (t-x-c-t) with a ping-ack (t-x-c-t-r)
+                    # so that WinTAK/ATAK keeps the connection alive.
+                    if (' type="t-x-c-t"' in ev or " type='t-x-c-t'" in ev) and "t-x-c-t-r" not in ev:
+                        try:
+                            conn.sendall(self._build_pong_xml().encode("utf-8"))
+                            logger.debug("CoT TCP: sent ping-ack to %s", addr)
+                        except OSError:
+                            break
+                    else:
+                        self._ingest(ev)
                 if events:
                     # Trim the consumed prefix from the buffer so we keep any
                     # bytes that arrived after the last </event>.
@@ -195,6 +274,10 @@ class CoTListenerService:
         except OSError as exc:
             logger.debug("CoT TCP connection %s closed: %s", addr, exc)
         finally:
+            # Unregister the client so it is no longer included in broadcasts.
+            with self._clients_lock:
+                self._clients.pop(fd, None)
+                self.stats["tcp_clients_active"] = len(self._clients)
             try:
                 conn.close()
             except OSError:
