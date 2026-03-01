@@ -5572,6 +5572,45 @@ def api_cleanup_mesh_databases():
 def _gateway_broadcast_callback(event_type: str, data: Dict):
     """Callback function for gateway service to broadcast WebSocket events"""
     try:
+        # Bridge incoming Meshtastic messages into the general chat channel
+        if event_type == "gateway_message" and data.get("direction") == "incoming":
+            db = None
+            try:
+                db = SessionLocal()
+                _ensure_default_channels(db)
+                sender = data.get("sender_name") or data.get("from") or "unknown_mesh_node"
+                text = data.get("text", "")
+                if text:
+                    new_msg = ChatMessage(
+                        channel=MESH_CHAT_CHANNEL,
+                        sender=sender,
+                        content=text,
+                        timestamp=datetime.now(timezone.utc),
+                        type="text",
+                        delivered_to=[],
+                        read_by=[],
+                    )
+                    db.add(new_msg)
+                    db.commit()
+                    db.refresh(new_msg)
+                    msg_dict = _chat_message_to_dict(new_msg)
+                    if websocket_manager and _MAIN_EVENT_LOOP:
+                        asyncio.run_coroutine_threadsafe(
+                            websocket_manager.publish_to_channel(
+                                'chat', {"type": "new_message", "data": msg_dict}
+                            ),
+                            _MAIN_EVENT_LOOP
+                        )
+                    logger.info(f"Mesh→Chat bridge: {sender}: {text[:60]}{'...' if len(text) > 60 else ''}")
+            except Exception as bridge_err:
+                logger.error(f"Mesh→Chat bridge error: {bridge_err}")
+            finally:
+                if db is not None:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+
         # Add type field
         message = {
             "type": event_type,
@@ -6793,6 +6832,9 @@ DEFAULT_CHANNELS = [
     {"id": "all", "name": "All Units", "description": "Broadcast to all units", "color": "#ffffff", "is_default": True},
 ]
 
+# Channel ID that is bridged bidirectionally to the Meshtastic mesh (LPU5 – Mesh)
+MESH_CHAT_CHANNEL = "all"
+
 def _ensure_default_channels(db):
     """Seed default channels into DB if they don't exist yet."""
     for ch in DEFAULT_CHANNELS:
@@ -7077,6 +7119,21 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
         # Broadcast to WebSocket clients
         if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
             await websocket_manager.publish_to_channel('chat', {"type": "new_message", "data": msg_dict})
+
+        # Forward to Meshtastic mesh when the message is on the bridged channel
+        if channel_id == MESH_CHAT_CHANNEL:
+            with _gateway_service_lock:
+                gw = _gateway_service
+            if gw and gw.running and gw.interface:
+                try:
+                    # Strip ASCII control characters before transmitting
+                    safe_username = "".join(c for c in username if c >= " ")
+                    safe_text = "".join(c for c in text if c >= " ")
+                    mesh_text = f"[{safe_username}] {safe_text}"
+                    gw.interface.sendText(mesh_text)
+                    logger.info(f"Chat→Mesh bridge: {mesh_text[:80]}{'...' if len(mesh_text) > 80 else ''}")
+                except Exception as mesh_err:
+                    logger.warning(f"Chat→Mesh bridge error: {mesh_err}")
 
         return {"status": "success", "message": msg_dict}
     except HTTPException:
