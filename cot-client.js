@@ -233,10 +233,10 @@ class COTEvent {
     /** LPU5 type name → TAK CoT type code */
     static get LPU5_TO_COT_TYPE() {
         return {
-            raute:    'b-m-p-s-m',
-            quadrat:  'b-m-p-s-m',
-            blume:    'b-m-p-s-m',
-            rechteck: 'u-d-r',
+            raute:    'a-h-G-U-C',
+            quadrat:  'a-n-G-U-C',
+            blume:    'a-u-G-U-C',
+            rechteck: 'a-f-G-U-C',
             friendly: 'a-f-G-U-C',
             hostile:  'a-h-G-U-C',
             neutral:  'a-n-G-U-C',
@@ -256,11 +256,11 @@ class COTEvent {
             ['u-d-r',     'rechteck'], // TAK drawing rectangle
             ['u-d-f',     'raute'],    // TAK drawing freehand → diamond
             ['u-d-p',     'raute'],    // TAK drawing generic point → diamond
-            ['a-f',       'friendly'], // friendly (any sub-type)
-            ['a-h',       'hostile'],
-            ['a-n',       'neutral'],
-            ['a-u',       'unknown'],
-            ['a-p',       'pending'],
+            ['a-f',       'rechteck'], // friendly → blue rectangle
+            ['a-h',       'raute'],    // hostile → red diamond
+            ['a-n',       'quadrat'],  // neutral → green square
+            ['a-u',       'blume'],    // unknown → yellow flower
+            ['a-p',       'raute'],    // pending → red diamond
         ];
     }
 
