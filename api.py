@@ -2003,7 +2003,22 @@ async def update_user(user_id: str, data: dict = Body(...), authorization: Optio
             # Always ensure "all" is included
             if "all" not in channels:
                 channels = ["all"] + channels
+            old_channels = set(user.chat_channels or ["all"])
+            new_channels = set(channels)
             user.chat_channels = channels
+
+            # Sync channel.members for added/removed channels
+            added_channels = new_channels - old_channels - {"all"}
+            removed_channels = old_channels - new_channels - {"all"}
+            affected = added_channels | removed_channels
+            if affected:
+                for ch in db.query(ChatChannel).filter(ChatChannel.id.in_(affected)).all():
+                    members = set(ch.members or [])
+                    if ch.id in added_channels:
+                        members.add(user.username)
+                    else:
+                        members.discard(user.username)
+                    ch.members = list(members)
     
     # Check for legacy 'active' field
     if "active" in data:
@@ -6806,14 +6821,33 @@ async def delete_chat_channel(channel_id: str, authorization: str = Header(None)
 
 @app.put("/api/chat/channels/{channel_id}/members", summary="Update channel members")
 async def update_channel_members(channel_id: str, data: Dict = Body(...), authorization: str = Header(None)):
-    """Update the member list of a chat channel"""
+    """Update the member list of a chat channel and sync each affected user's chat_channels."""
     db = SessionLocal()
     try:
         _extract_username_from_auth(authorization)
         channel = db.query(ChatChannel).filter(ChatChannel.id == channel_id).first()
         if not channel:
             raise HTTPException(status_code=404, detail="Channel not found")
-        channel.members = data.get("members", [])
+
+        old_members = set(channel.members or [])
+        new_members = set(data.get("members", []))
+        channel.members = list(new_members)
+
+        # Sync user.chat_channels for added/removed members
+        added = new_members - old_members
+        removed = old_members - new_members
+        affected_usernames = added | removed
+        if affected_usernames:
+            for user in db.query(User).filter(User.username.in_(affected_usernames)).all():
+                user_channels = set(user.chat_channels or ["all"])
+                if user.username in added:
+                    user_channels.add(channel_id)
+                else:
+                    user_channels.discard(channel_id)
+                # Always keep "all"
+                user_channels.add("all")
+                user.chat_channels = list(user_channels)
+
         db.commit()
         return {"status": "success", "channel_id": channel_id, "members": channel.members}
     except HTTPException:
