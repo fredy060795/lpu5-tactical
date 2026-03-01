@@ -7764,6 +7764,7 @@ import subprocess as _subprocess
 import shutil as _shutil
 import math as _math
 import struct as _struct
+import random as _random
 
 # Optional: pyrtlsdr — install with `pip install pyrtlsdr` on the deployment host
 try:
@@ -7852,7 +7853,8 @@ def _get_spectrum_data(center_freq_hz: float, sample_rate_hz: float, gain: float
     Acquire spectrum data from real hardware only. Tries (in order):
     1. pyrtlsdr + numpy — direct IQ sampling + FFT
     2. rtl_power subprocess — CLI-based sweeping
-    Raises HTTP 503 if neither method succeeds.
+    3. Simulated fallback when device detected via COM port but no IQ driver installed
+    Raises HTTP 503 if no device is detected at all.
     """
     # 1. pyrtlsdr + numpy
     if _RTLSDR_LIB and _NUMPY_LIB:
@@ -7902,10 +7904,27 @@ def _get_spectrum_data(center_freq_hz: float, sample_rate_hz: float, gain: float
         except Exception as exc:
             logger.warning("rtl_power subprocess failed: %s", exc)
 
+    # 3. Simulated fallback — device found via COM port but no IQ driver available
+    devices = _detect_rtlsdr_devices()
+    if devices:
+        logger.warning("RTL-SDR detected via COM port but no IQ driver available; returning simulated spectrum")
+        return {"spectrum": _simulate_spectrum(nfft), "source": "simulated", "nfft": nfft}
+
     raise HTTPException(
         status_code=503,
         detail="No RTL-SDR hardware or rtl_power tool available for spectrum measurement",
     )
+
+
+def _simulate_spectrum(nfft: int) -> list:
+    """Generate a simulated noise-floor spectrum (dBm) when no hardware driver is available."""
+    noise_floor = -90.0
+    spectrum = []
+    for _ in range(nfft):
+        # Gaussian noise around the noise floor
+        val = noise_floor + _random.gauss(0, 3.0)
+        spectrum.append(round(val, 2))
+    return spectrum
 
 
 @app.get("/api/sdr/devices", summary="Detect RTL-SDR USB devices")
@@ -7961,20 +7980,24 @@ def sdr_connect_device(data: dict = Body(...)):
     hw_available = len(devices) > 0
     has_driver    = _RTLSDR_LIB or bool(_shutil.which("rtl_power")) or bool(_shutil.which("rtl_test"))
 
-    if not (hw_available and has_driver):
+    if not hw_available:
         raise HTTPException(
             status_code=503,
             detail="No RTL-SDR hardware detected. Please connect an RTL-SDR device.",
         )
 
+    # Determine connection mode: full IQ capture when driver present, COM-port fallback otherwise
+    mode = "hardware" if has_driver else "com_port"
+
     return {
         "status":           "connected",
-        "mode":             "hardware",
+        "mode":             mode,
         "device_count":     len(devices),
         "devices":          devices,
         "frequency_mhz":    freq_mhz,
         "sample_rate_mhz":  sample_rate_mhz,
         "gain":             gain,
+        "driver_available": has_driver,
         "capabilities": {
             "pyrtlsdr":  _RTLSDR_LIB,
             "numpy":     _NUMPY_LIB,
