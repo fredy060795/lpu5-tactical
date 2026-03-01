@@ -499,14 +499,19 @@
                 </div>
 
                 <div class="form-group" id="takCertGroup">
-                    <label class="form-label">Client Certificate (mTLS, .pem/.crt)</label>
-                    <input type="file" class="form-input" id="takClientCert" accept=".pem,.crt,.cer" disabled>
+                    <label class="form-label">Client Certificate (mTLS, .pem/.crt/.p12)</label>
+                    <input type="file" class="form-input" id="takClientCert" accept=".pem,.crt,.cer,.p12,.pfx" disabled onchange="updateTakCertFields()">
                     <small id="takClientCertStatus" style="color:#aaa;font-size:0.85em;"></small>
                 </div>
 
                 <div class="form-group" id="takKeyGroup">
-                    <label class="form-label">Client Private Key (mTLS, .pem/.key)</label>
+                    <label class="form-label">Client Private Key (mTLS, .pem/.key — not needed for .p12)</label>
                     <input type="file" class="form-input" id="takClientKey" accept=".pem,.key" disabled>
+                </div>
+
+                <div class="form-group" id="takCertPasswordGroup" style="display:none;">
+                    <label class="form-label">PKCS#12 Certificate Password</label>
+                    <input type="password" class="form-input" id="takCertPassword" placeholder="Password for .p12/.pfx file" autocomplete="current-password" disabled>
                 </div>
 
                 <div class="form-group">
@@ -846,10 +851,12 @@ async function saveNetworkSettings() {
             // Upload client certificate and key if selected (mTLS support)
             const certFile = document.getElementById('takClientCert').files[0];
             const keyFile = document.getElementById('takClientKey').files[0];
-            if (certFile || keyFile) {
+            const certPassword = document.getElementById('takCertPassword').value;
+            if (certFile || keyFile || certPassword) {
                 const formData = new FormData();
                 if (certFile) formData.append('cert_file', certFile);
                 if (keyFile) formData.append('key_file', keyFile);
+                if (certPassword) formData.append('cert_password', certPassword);
                 const certResp = await fetch('/api/tak/cert', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` },
@@ -1041,10 +1048,23 @@ function updateTakIntegrationState() {
     document.getElementById('takServerPort').disabled = !enabled;
     document.getElementById('takClientCert').disabled = !enabled;
     document.getElementById('takClientKey').disabled = !enabled;
+    document.getElementById('takCertPassword').disabled = !enabled;
     document.getElementById('takAutoReconnect').disabled = !enabled;
     document.getElementById('takUsername').disabled = !enabled;
     document.getElementById('takPassword').disabled = !enabled;
     document.getElementById('takTestBtn').disabled = !enabled;
+    if (enabled) updateTakCertFields();
+}
+
+// Show/hide the P12 password and separate key fields based on the selected cert type
+function updateTakCertFields() {
+    const certInput = document.getElementById('takClientCert');
+    const certPasswordGroup = document.getElementById('takCertPasswordGroup');
+    const takKeyGroup = document.getElementById('takKeyGroup');
+    const file = certInput.files && certInput.files[0];
+    const isP12 = file && /\.(p12|pfx)$/i.test(file.name);
+    certPasswordGroup.style.display = isP12 ? '' : 'none';
+    takKeyGroup.style.display = isP12 ? 'none' : '';
 }
 
 // Update CoT state
