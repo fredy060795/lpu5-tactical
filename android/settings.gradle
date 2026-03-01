@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AEGIS-Tactical-Android"
+rootProject.name = "LPU5-Tactical-Android"
 include ':app'

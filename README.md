@@ -1,27 +1,9 @@
-# ⚠️ Project Status: Work in Progress
-# AEGIS Tactical
+#⚠️ Project Status: Work in Progress
+# LPU-5-system
 
-> **AEGIS** = **A**utonomous **E**ncrypted **G**lobal **I**nformation **S**ystem
+## LPU5 Tactical Tracker
 
-## AEGIS Tactical — Overview
-
-AEGIS Tactical is a comprehensive tactical tracking system with integrated Meshtastic support for real-time mesh network communication, COT (Cursor on Target) protocol, and position tracking. **Split into multi-platform implementations**: iOS Progressive Web App (PWA) for HQ access and Android Native App for direct mesh communication.
-
-## Branding & Design
-
-| Attribute | Value |
-|-----------|-------|
-| **Product name** | AEGIS Tactical |
-| **Full name** | Autonomous Encrypted Global Information System |
-| **Sub-brand (mesh)** | AEGIS Mesh |
-| **Primary color** | `#1565C0` (Brand Blue) |
-| **Save / Success** | `#28a745` (Green) |
-| **Cancel / Danger** | `#dc3545` (Red) |
-| **Background** | `#0a0a0a` (Dark) |
-| **Panel** | `#1a1a1a` |
-| **Font** | `'Courier New', monospace` |
-
-All pages share the central stylesheet **`aegis.css`** which provides consistent button classes (`.aegis-btn-primary`, `.aegis-btn-save`, `.aegis-btn-cancel`), form styles, typography and colour tokens.
+A comprehensive tactical tracking system with integrated Meshtastic support for real-time mesh network communication, COT (Cursor on Target) protocol, and position tracking. **Now split into multi-platform implementations**: iOS Progressive Web App (PWA) for HQ access and Android Native App for direct mesh communication.
 
 ## 🚀 Multi-Platform Architecture
 
@@ -74,8 +56,8 @@ This system provides **two optimized implementations**:
 - **JavaScript Bridge**: Seamless web ↔ native communication
 - **See**: [android/README.md](android/README.md) for Android-specific guide
 
-### AEGIS Mesh Gateway Service (Backend)
-The integrated AEGIS Mesh Gateway Service enables real-time hardware connection to Meshtastic devices for automatic data import and live tracking.
+### Meshtastic Gateway Service (Backend)
+The integrated Meshtastic Gateway Service enables real-time hardware connection to Meshtastic devices for automatic data import and live tracking.
 
 #### Gateway Features:
 - **Hardware Connection**: Direct serial port connection to Meshtastic devices
@@ -157,7 +139,7 @@ pip install -r requirements.txt
 # Run the API server
 uvicorn api:app --host 0.0.0.0 --port 8101 --ssl-keyfile key.pem --ssl-certfile cert.pem
 
-# Optional: Start AEGIS Mesh Gateway (for iOS PWA mesh access)
+# Optional: Start Meshtastic Gateway (for iOS PWA mesh access)
 curl -X POST http://localhost:8101/api/gateway/start \
   -H "Content-Type: application/json" \
   -d '{"port": "COM7", "auto_sync": true, "sync_interval": 300}'
@@ -172,8 +154,8 @@ curl -X POST http://localhost:8101/api/gateway/start \
 - FastAPI
 - uvicorn
 - SQLAlchemy
-- pyserial (for AEGIS Mesh gateway)
-- meshtastic (for AEGIS Mesh gateway)
+- pyserial (for Meshtastic gateway)
+- meshtastic (for Meshtastic gateway)
 
 ### Setup
 ```bash
@@ -205,7 +187,7 @@ restart_lpu5.bat
 
 See [RESTART_GUIDE.md](RESTART_GUIDE.md) for detailed restart procedures and troubleshooting.
 
-### Optional: AEGIS Mesh Gateway Dependencies
+### Optional: Meshtastic Gateway Dependencies
 For gateway functionality, install additional packages:
 ```bash
 pip install meshtastic>=2.7.7 pyserial>=3.5
@@ -233,7 +215,7 @@ Gateway data is stored in:
 
 ### Components
 1. **API Server** (`api.py`): FastAPI-based REST API
-2. **AEGIS Mesh Gateway** (`meshtastic_gateway_service.py`): Standalone Meshtastic hardware interface
+2. **Gateway Service** (`meshtastic_gateway_service.py`): Standalone Meshtastic hardware interface
 3. **WebSocket Manager** (`websocket_manager.py`): Real-time communication
 4. **Database Layer** (`database.py`, `models.py`): SQLAlchemy ORM
 5. **Frontend**: HTML/JavaScript SPA with real-time updates
@@ -362,45 +344,43 @@ For detailed compatibility, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Project Structure
 ```
-aegis-tactical/
-├── aegis.css                            # Central AEGIS brand stylesheet
-├── aegis_logo.svg                       # AEGIS brand logo
-├── pwa/                                 # iOS Progressive Web App
-│   ├── overview.html                    # PWA main UI
-│   ├── manifest.json                    # iOS-optimized manifest
-│   ├── sw.js                            # Service Worker
-│   ├── *.js                             # Client libraries
-│   └── README.md                        # iOS PWA guide
+lpu5-tactical/
+├── pwa/                             # iOS Progressive Web App
+│   ├── overview.html                # PWA main UI
+│   ├── manifest.json                # iOS-optimized manifest
+│   ├── sw.js                        # Service Worker
+│   ├── *.js                         # Client libraries
+│   └── README.md                    # iOS PWA guide
 │
-├── android/                             # Android Native Application
-│   ├── app/                             # Android app module
-│   │   ├── build.gradle                 # App build config
+├── android/                         # Android Native Application
+│   ├── app/                         # Android app module
+│   │   ├── build.gradle             # App build config
 │   │   └── src/main/
-│   │       ├── AndroidManifest.xml      # Permissions & config
-│   │       ├── java/.../MainActivity.kt # Main activity
-│   │       ├── res/                     # Resources
-│   │       └── assets/www/              # Embedded web UI
-│   ├── build.gradle                     # Project build config
-│   └── README.md                        # Android app guide
+│   │       ├── AndroidManifest.xml  # Permissions & config
+│   │       ├── java/.../MainActivity.kt  # Main activity
+│   │       ├── res/                 # Resources
+│   │       └── assets/www/          # Embedded web UI
+│   ├── build.gradle                 # Project build config
+│   └── README.md                    # Android app guide
 │
-├── api.py                               # Main API server
-├── meshtastic_gateway_service.py        # AEGIS Mesh gateway service
-├── websocket_manager.py                 # WebSocket handler
-├── database.py                          # Database connection
-├── models.py                            # SQLAlchemy models
-├── meshtastic.html                      # Backend gateway UI
-├── overview.html                        # Original/legacy web UI
-├── meshtastic-web-client.js             # Web Bluetooth client
-├── cot-client.js                        # COT protocol implementation
-├── message-queue-manager.js             # Offline message queue
+├── api.py                           # Main API server
+├── meshtastic_gateway_service.py    # Backend gateway service
+├── websocket_manager.py             # WebSocket handler
+├── database.py                      # Database connection
+├── models.py                        # SQLAlchemy models
+├── meshtastic.html                  # Backend gateway UI
+├── overview.html                    # Original/legacy web UI
+├── meshtastic-web-client.js         # Web Bluetooth client
+├── cot-client.js                    # COT protocol implementation
+├── message-queue-manager.js         # Offline message queue
 │
-├── DEPLOYMENT.md                        # Multi-platform deployment guide
-├── MULTI_PLATFORM_ARCHITECTURE.md       # Architecture documentation
-├── MESHTASTIC_GUIDE.md                  # Meshtastic user guide
-├── MESHTASTIC_TECHNICAL.md              # Technical documentation
-├── index.html                           # Main map UI
-├── requirements.txt                     # Python dependencies
-└── README.md                            # This file
+├── DEPLOYMENT.md                    # Multi-platform deployment guide
+├── MULTI_PLATFORM_ARCHITECTURE.md   # Architecture documentation
+├── MESHTASTIC_GUIDE.md              # Meshtastic user guide
+├── MESHTASTIC_TECHNICAL.md          # Technical documentation
+├── index.html                       # Main map UI
+├── requirements.txt                 # Python dependencies
+└── README.md                        # This file
 ```
 
 ### Adding Features
@@ -447,7 +427,7 @@ For issues and questions, please open an issue on GitHub.
 
 ---
 
-**Note**: AEGIS Tactical is designed for tactical operations and mesh network communication. Ensure proper security measures when deploying in production environments.
+**Note**: This system is designed for tactical operations and mesh network communication. Ensure proper security measures when deploying in production environments.
 
 ## Platform Selection Guide
 
