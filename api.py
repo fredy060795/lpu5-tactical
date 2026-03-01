@@ -1155,9 +1155,21 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
         return False
 
 
-# -------------------------
-# TAK Receiver Thread (bidirectional persistent connection)
-# -------------------------
+def _forward_cot_multicast(cot_xml: str) -> bool:
+    """
+    Send a CoT XML string to the SA Multicast group via the active CoT listener service.
+
+    This is used to push LPU5 marker updates to WinTAK/ATAK on the same LAN or
+    the same Windows machine using the standard SA Multicast address 239.2.3.1:6969.
+    Returns True on success, False when multicast is disabled or not available.
+    """
+    with _cot_listener_lock:
+        svc = _cot_listener_service
+    if svc is None or not svc.multicast_enabled:
+        return False
+    return svc.send_multicast(cot_xml)
+
+
 
 _TAK_RECEIVER_THREAD: Optional[threading.Thread] = None
 _TAK_RECEIVER_STOP = threading.Event()
@@ -2938,11 +2950,15 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
             try:
                 cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
                 if cot_event:
-                    ok = forward_cot_to_tak(cot_event.to_xml())
+                    cot_xml = cot_event.to_xml()
+                    ok = forward_cot_to_tak(cot_xml)
                     if ok:
                         logger.info("CoT forward on marker_created succeeded: marker_id=%s", new_marker.id)
                     else:
                         logger.debug("CoT forward on marker_created skipped (TAK forwarding disabled or not configured): marker_id=%s", new_marker.id)
+                    mcast_ok = _forward_cot_multicast(cot_xml)
+                    if mcast_ok:
+                        logger.debug("CoT SA Multicast send on marker_created succeeded: marker_id=%s", new_marker.id)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_created failed: %s", _fwd_err)
 
@@ -3010,11 +3026,15 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
             try:
                 cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
                 if cot_event:
-                    ok = forward_cot_to_tak(cot_event.to_xml())
+                    cot_xml = cot_event.to_xml()
+                    ok = forward_cot_to_tak(cot_xml)
                     if ok:
                         logger.info("CoT forward on marker_updated succeeded: marker_id=%s", marker_id)
                     else:
                         logger.debug("CoT forward on marker_updated skipped (TAK forwarding disabled or not configured): marker_id=%s", marker_id)
+                    mcast_ok = _forward_cot_multicast(cot_xml)
+                    if mcast_ok:
+                        logger.debug("CoT SA Multicast send on marker_updated succeeded: marker_id=%s", marker_id)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_updated failed: %s", _fwd_err)
 
@@ -3071,11 +3091,15 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
             try:
                 tombstone = CoTProtocolHandler.marker_to_cot_tombstone(marker_snapshot)
                 if tombstone:
-                    ok = forward_cot_to_tak(tombstone.to_xml())
+                    tombstone_xml = tombstone.to_xml()
+                    ok = forward_cot_to_tak(tombstone_xml)
                     if ok:
                         logger.info("CoT tombstone forwarded on marker_deleted: marker_id=%s", marker_id)
                     else:
                         logger.debug("CoT tombstone skipped on marker_deleted (TAK forwarding disabled or not configured): marker_id=%s", marker_id)
+                    mcast_ok = _forward_cot_multicast(tombstone_xml)
+                    if mcast_ok:
+                        logger.debug("CoT SA Multicast tombstone sent on marker_deleted: marker_id=%s", marker_id)
             except Exception as _fwd_err:
                 logger.warning("CoT tombstone forward on marker_deleted failed: %s", _fwd_err)
 
@@ -6063,10 +6087,16 @@ def _start_cot_listener() -> bool:
         cfg = load_json("config") or {}
         tcp_port = int(cfg.get("cot_listener_tcp_port", 8088))
         udp_port = int(cfg.get("cot_listener_udp_port", 4242))
+        multicast_enabled = bool(cfg.get("sa_multicast_enabled", False))
+        multicast_group = str(cfg.get("sa_multicast_group", CoTListenerService.SA_MULTICAST_GROUP))
+        multicast_port = int(cfg.get("sa_multicast_port", CoTListenerService.SA_MULTICAST_PORT))
         _cot_listener_service = CoTListenerService(
             tcp_port=tcp_port,
             udp_port=udp_port,
             ingest_callback=_cot_listener_ingest_callback,
+            multicast_enabled=multicast_enabled,
+            multicast_group=multicast_group,
+            multicast_port=multicast_port,
         )
         return _cot_listener_service.start()
 
@@ -6318,6 +6348,9 @@ def get_tak_config():
         "tak_username":         cfg.get("tak_username", ""),
         "tak_client_cert_path": cfg.get("tak_client_cert_path", ""),
         "tak_client_key_path":  cfg.get("tak_client_key_path", ""),
+        "sa_multicast_enabled": cfg.get("sa_multicast_enabled", False),
+        "sa_multicast_group":   cfg.get("sa_multicast_group", "239.2.3.1"),
+        "sa_multicast_port":    int(cfg.get("sa_multicast_port", 6969)),
     }
 
 
@@ -6388,6 +6421,19 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         cfg["cot_listener_udp_port"] = port
     if "cot_listener_enabled" in data:
         cfg["cot_listener_enabled"] = bool(data["cot_listener_enabled"])
+    # SA Multicast settings
+    if "sa_multicast_enabled" in data:
+        cfg["sa_multicast_enabled"] = bool(data["sa_multicast_enabled"])
+    if "sa_multicast_group" in data:
+        cfg["sa_multicast_group"] = str(data["sa_multicast_group"]).strip()
+    if "sa_multicast_port" in data:
+        try:
+            mport = int(data["sa_multicast_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="sa_multicast_port must be a numeric value")
+        if not (1 <= mport <= 65535):
+            raise HTTPException(status_code=400, detail="sa_multicast_port must be 1–65535")
+        cfg["sa_multicast_port"] = mport
 
     save_json("config", cfg)
     logger.info("TAK config updated by %s: %s", payload.get("username"), {k: v for k, v in cfg.items() if k.startswith("tak_") and k != "tak_password"})
@@ -6401,6 +6447,9 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         "tak_username":         cfg.get("tak_username", ""),
         "tak_client_cert_path": cfg.get("tak_client_cert_path", ""),
         "tak_client_key_path":  cfg.get("tak_client_key_path", ""),
+        "sa_multicast_enabled": cfg.get("sa_multicast_enabled", False),
+        "sa_multicast_group":   cfg.get("sa_multicast_group", "239.2.3.1"),
+        "sa_multicast_port":    int(cfg.get("sa_multicast_port", 6969)),
     }
 
 
