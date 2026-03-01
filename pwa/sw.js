@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lpu5-pwa-v3-ios';
+const CACHE_NAME = 'aegis-pwa-v3-ios';
 const ASSETS = [
     '/pwa/',
     '/pwa/overview.html',

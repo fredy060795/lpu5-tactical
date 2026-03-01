@@ -25,7 +25,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.*
 
 /**
- * MainActivity for LPU5 Tactical Android Application
+ * MainActivity for AEGIS Tactical Android Application
  * 
  * This activity provides:
  * - WebView hosting overview.html

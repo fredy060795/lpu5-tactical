@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Shield background -->
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1565C0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d47a1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="shieldOutline" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#42a5f5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1565C0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Shield shape -->
+  <path d="M100 10 L180 40 L180 100 C180 145 145 175 100 190 C55 175 20 145 20 100 L20 40 Z"
+        fill="url(#shieldGrad)" stroke="url(#shieldOutline)" stroke-width="3"/>
+  <!-- Inner shield detail -->
+  <path d="M100 25 L165 50 L165 100 C165 138 135 163 100 175 C65 163 35 138 35 100 L35 50 Z"
+        fill="none" stroke="rgba(66,165,245,0.4)" stroke-width="1.5"/>
+  <!-- AEGIS text -->
+  <text x="100" y="118" font-family="'Courier New', Courier, monospace" font-size="28"
+        font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="3">AEGIS</text>
+  <!-- Horizontal line above text -->
+  <line x1="52" y1="88" x2="148" y2="88" stroke="rgba(66,165,245,0.7)" stroke-width="1.5"/>
+  <!-- Circuit/grid pattern overlay -->
+  <circle cx="100" cy="68" r="12" fill="none" stroke="rgba(66,165,245,0.6)" stroke-width="1.5"/>
+  <line x1="100" y1="56" x2="100" y2="40" stroke="rgba(66,165,245,0.5)" stroke-width="1"/>
+  <line x1="88" y1="68" x2="60" y2="68" stroke="rgba(66,165,245,0.5)" stroke-width="1"/>
+  <line x1="112" y1="68" x2="140" y2="68" stroke="rgba(66,165,245,0.5)" stroke-width="1"/>
+  <!-- Corner dots -->
+  <circle cx="60" cy="68" r="2.5" fill="#42a5f5"/>
+  <circle cx="140" cy="68" r="2.5" fill="#42a5f5"/>
+  <circle cx="100" cy="40" r="2.5" fill="#42a5f5"/>
+</svg>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-api.py - LPU5 Tactical Tracker API (full replacement)
+api.py - AEGIS Tactical API (full replacement)
 
 This is a complete, standalone API implementation intended to replace the existing api.py.
 It preserves all data in JSON DB files in the same directory (no automatic deletion).
@@ -55,7 +55,7 @@ if sys.platform == 'win32':
 # Logging setup - MUST come first before any code that uses logger
 # -------------------------
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("lpu5-api")
+logger = logging.getLogger("aegis-api")
 
 # Global event loop reference for thread-safe broadcasts
 _MAIN_EVENT_LOOP = None
@@ -341,7 +341,7 @@ async def lifespan(application):
                     logger.info("✅ TAK receiver thread started")
                 else:
                     logger.warning("⚠️  Failed to start TAK receiver thread")
-            # Forward all existing LPU5 data to TAK server in a background thread
+            # Forward all existing AEGIS data to TAK server in a background thread
             # (5-second delay lets the server finish initialization before sending)
             def _delayed_tak_forward():
                 time.sleep(5)
@@ -424,7 +424,7 @@ async def lifespan(application):
         except Exception as e:
             logger.error(f"Error stopping data server: {e}")
 
-app = FastAPI(title="LPU5 Tactical Tracker API", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="AEGIS Tactical API", version="2.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -435,7 +435,7 @@ app.add_middleware(
 
 # Base path - define BEFORE using it
 base_path = os.path.dirname(os.path.abspath(__file__))
-logger.info(f"LPU5 API initialized. Base path: {base_path}")
+logger.info(f"AEGIS API initialized. Base path: {base_path}")
 
 # Initialize autonomous systems (if available)
 websocket_manager = None
@@ -947,7 +947,7 @@ def _build_cot_ping_xml() -> str:
     now = datetime.now(timezone.utc)
     stale = now + timedelta(seconds=30)
     fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-    uid = f"LPU5-PING-{uuid.uuid4().hex[:8].upper()}"
+    uid = f"AEGIS-PING-{uuid.uuid4().hex[:8].upper()}"
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<event version="2.0" uid="{uid}" type="t-x-c-t" how="m-g"'
@@ -1104,7 +1104,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
             if contact is not None:
                 callsign = contact.get("callsign") or callsign
 
-        # Map CoT type to LPU5 internal type
+        # Map CoT type to AEGIS internal type
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
@@ -1349,7 +1349,7 @@ def _get_tak_connection_stats() -> dict:
 
 def _forward_all_lpu5_data_to_tak() -> dict:
     """
-    Forward all existing LPU5 map markers to the configured TAK server.
+    Forward all existing AEGIS map markers to the configured TAK server.
 
     Called on startup when TAK integration is enabled to ensure the TAK server
     receives the current state of all markers.  Skips markers that cannot be
@@ -1588,7 +1588,7 @@ _TAK_PERIODIC_SYNC_STOP_EVENT = threading.Event()
 
 def _tak_periodic_sync_worker(interval_seconds: int = 60):
     """
-    Periodic worker that forwards all LPU5 map markers to the TAK server every
+    Periodic worker that forwards all AEGIS map markers to the TAK server every
     *interval_seconds* seconds.  Runs as a background daemon thread while the
     application is alive.
     """
@@ -8235,7 +8235,7 @@ if __name__ == "__main__":
     protocol = "https" if use_ssl else "http"
     
     logger.info("="*60)
-    logger.info("  LPU5 TACTICAL TRACKER - Server Starting")
+    logger.info("  AEGIS TACTICAL - Server Starting")
     logger.info("="*60)
     logger.info(f"  Primary Network IP: {local_ip}")
     
