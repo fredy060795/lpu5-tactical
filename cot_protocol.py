@@ -151,7 +151,13 @@ class CoTEvent:
         if self.remarks:
             remarks_elem = ET.SubElement(detail, "remarks")
             remarks_elem.text = self.remarks
-        
+
+        # Spot-map and drawing markers need <archive/> so ATAK persists them on
+        # the map after they go stale.  Without this element ATAK removes the
+        # entity from its overlay once the stale timestamp is reached.
+        if self.cot_type.startswith("b-m") or self.cot_type.startswith("u-d"):
+            ET.SubElement(detail, "archive")
+
         # Track information (for movement history)
         track = ET.SubElement(detail, "track")
         track.set("speed", "0.0")
@@ -279,7 +285,12 @@ class CoTProtocolHandler:
         "raute":     "b-m-p-s-m",   # spot-map marker (diamond/rhombus shape)
         "quadrat":   "b-m-p-s-m",   # spot-map marker (square shape)
         "blume":     "b-m-p-s-m",   # spot-map marker (flower shape)
-        "rechteck":  "u-d-r",        # TAK drawing rectangle
+        # LPU5 stores "rechteck" as a lat/lon point without polygon geometry.
+        # TAK u-d-r (drawing rectangle) requires polygon vertices in the detail
+        # section which LPU5 does not store; ATAK will not display a u-d-r event
+        # that lacks geometry.  Use b-m-p-s-m (spot-map point) so the marker is
+        # at least visible as a point on the ATAK map.
+        "rechteck":  "b-m-p-s-m",   # spot-map point (rectangle icon in LPU5)
         "friendly":  "a-f-G-U-C",   # friendly ground unit
         "hostile":   "a-h-G-U-C",   # hostile ground unit
         "neutral":   "a-n-G-U-C",   # neutral ground unit
@@ -419,6 +430,15 @@ class CoTProtocolHandler:
         # Map the TAK CoT type back to the LPU5 internal symbol type so the
         # correct icon is rendered in admin_map / overview.
         lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(cot_event.cot_type)
+
+        # For spot-map markers (b-m-p-s-m) the CoT type is the same for all
+        # LPU5 shapes.  When the callsign matches a known LPU5 shape name use
+        # it directly so that ATAK-placed markers labelled "quadrat" or "blume"
+        # are rendered with the correct icon in the LPU5 web UI.
+        if cot_event.cot_type == "b-m-p-s-m" and cot_event.callsign:
+            callsign_lower = cot_event.callsign.lower()
+            if callsign_lower in CoTProtocolHandler.LPU5_TO_COT_TYPE:
+                lpu5_type = callsign_lower
 
         return {
             "id": cot_event.uid,

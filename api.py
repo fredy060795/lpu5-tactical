@@ -1386,8 +1386,21 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 lpu5_type = "hostile"
             elif event_type.startswith("a-n"):
                 lpu5_type = "neutral"
+            elif event_type == "b-m-p-s-m":
+                lpu5_type = "raute"
+            elif event_type == "u-d-r":
+                lpu5_type = "rechteck"
             else:
                 lpu5_type = "unknown"
+
+        # For spot-map markers the CoT type is the same for all LPU5 shapes.
+        # When the callsign matches a known LPU5 shape name use it directly so
+        # that ATAK-placed markers labelled "quadrat" or "blume" are rendered
+        # with the correct icon in the LPU5 web UI.
+        if AUTONOMOUS_MODULES_AVAILABLE and event_type == "b-m-p-s-m" and callsign:
+            callsign_lower = callsign.lower()
+            if callsign_lower in CoTProtocolHandler.LPU5_TO_COT_TYPE:
+                lpu5_type = callsign_lower
 
         # Upsert MapMarker
         db = SessionLocal()
