@@ -1005,6 +1005,38 @@ def _build_cot_ping_xml() -> str:
     )
 
 
+# Fixed UID used for LPU5's SA beacon so the TAK server recognises the gateway
+# as a persistent entity across reconnects.
+_LPU5_COT_UID = "LPU5-GW"
+
+
+def _build_lpu5_sa_xml() -> str:
+    """Build a CoT SA (Situational Awareness) beacon that identifies LPU5 to the TAK server.
+
+    Sending this event immediately after connecting (and optionally after auth)
+    announces LPU5 as a named entity on the TAK network.  Without this
+    announcement many TAK server implementations (including ATAK in server mode)
+    treat the sender as anonymous and route subsequent CoT events only to
+    specific users rather than broadcasting to all connected clients
+    (including WinTAK users).
+    """
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    stale = now + timedelta(minutes=5)
+    fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<event version="2.0" uid="{_LPU5_COT_UID}" type="a-f-G-U-C" how="m-g"'
+        f' time="{fmt(now)}" start="{fmt(now)}" stale="{fmt(stale)}">'
+        '<point lat="0.0" lon="0.0" hae="0.0" ce="9999999.0" le="9999999.0"/>'
+        '<detail>'
+        f'<contact callsign="{_LPU5_COT_UID}"/>'
+        '<__group name="Cyan" role="Team Member"/>'
+        '</detail>'
+        '</event>'
+    )
+
+
 def forward_cot_to_tak(cot_xml: str) -> bool:
     """
     Forward a CoT XML string to the configured ATAK/TAK server.
@@ -1029,6 +1061,30 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
         if bool(username) != bool(password):
             logger.warning("TAK server has only partial credentials configured (username=%s, password_set=%s); authentication will be skipped", bool(username), bool(password))
         auth_data = _build_tak_auth_xml(username, password) if (username and password) else None
+
+        # For TCP/SSL prefer the persistent receiver socket: it is already
+        # authenticated and announced via SA beacon, so the TAK server
+        # attributes the CoT to a known entity and broadcasts it to ALL
+        # connected clients (including WinTAK) rather than treating it as an
+        # anonymous one-shot packet that may only reach specific users.
+        if conn_type in ("tcp", "ssl"):
+            # Obtain the socket reference under its own lock, then release
+            # before acquiring _TAK_SEND_LOCK to avoid nested-lock deadlocks.
+            with _TAK_SOCKET_LOCK:
+                persistent_sock = _TAK_SOCKET
+            if persistent_sock is not None:
+                with _TAK_SEND_LOCK:
+                    try:
+                        persistent_sock.sendall(data)
+                        logger.info("Forwarded CoT to TAK server %s:%s (%s, %d bytes)", host, port, conn_type, len(data))
+                        with _TAK_RECEIVER_STATS_LOCK:
+                            _TAK_RECEIVER_STATS["packets_sent"] += 1
+                        return True
+                    except Exception as _send_err:
+                        logger.warning(
+                            "CoT send via persistent TAK socket failed: %s; opening new connection",
+                            _send_err,
+                        )
 
         if conn_type == "tcp":
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1107,6 +1163,7 @@ _TAK_RECEIVER_THREAD: Optional[threading.Thread] = None
 _TAK_RECEIVER_STOP = threading.Event()
 _TAK_SOCKET = None
 _TAK_SOCKET_LOCK = threading.Lock()
+_TAK_SEND_LOCK = threading.Lock()  # serialises concurrent writes to _TAK_SOCKET
 _TAK_RECEIVER_STATS: Dict[str, Any] = {
     "connected": False,
     "packets_sent": 0,
@@ -1264,10 +1321,6 @@ def _tak_receiver_loop() -> None:
                 sock.connect((host, port))
                 sock.settimeout(30.0)  # Blocking recv with timeout for clean shutdown
 
-                with _TAK_SOCKET_LOCK:
-                    global _TAK_SOCKET
-                    _TAK_SOCKET = sock
-
                 with _TAK_RECEIVER_STATS_LOCK:
                     _TAK_RECEIVER_STATS["connected"] = True
                     _TAK_RECEIVER_STATS["connected_since"] = datetime.now(timezone.utc).isoformat()
@@ -1282,6 +1335,18 @@ def _tak_receiver_loop() -> None:
                 if username and password:
                     auth_data = _build_tak_auth_xml(username, password)
                     sock.sendall(auth_data)
+
+                # Announce LPU5 as a named SA entity so the TAK server knows our
+                # identity and broadcasts subsequent CoT events to ALL connected
+                # clients (including WinTAK) rather than routing as anonymous.
+                sock.sendall(_build_lpu5_sa_xml().encode("utf-8"))
+                logger.info("TAK: sent SA beacon as %s", _LPU5_COT_UID)
+
+                # Expose the socket for forward_cot_to_tak only after auth and
+                # SA are sent, eliminating a race with concurrent sends.
+                with _TAK_SOCKET_LOCK:
+                    global _TAK_SOCKET
+                    _TAK_SOCKET = sock
 
                 # Receive loop
                 buf = b""
