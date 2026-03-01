@@ -1376,6 +1376,14 @@ def _process_incoming_cot(cot_xml: str) -> None:
             if contact is not None:
                 callsign = contact.get("callsign") or callsign
 
+        # Detect incoming CoT source type before the CoT-type→LPU5-type mapping
+        # so that ATAK Meshtastic nodes and ATAK SA/GPS positions receive the
+        # correct LPU5 icon instead of the generic blue rectangle ("rechteck").
+        how = root.get("how", "m-g")
+        # Presence of <meshtastic> in <detail> is the canonical indicator that
+        # the event was forwarded by an ATAK Meshtastic plugin.
+        _has_mesh_detail = CoTProtocolHandler.detail_has_meshtastic(detail)
+
         # Map CoT type to LPU5 internal type
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
@@ -1403,6 +1411,14 @@ def _process_incoming_cot(cot_xml: str) -> None:
             callsign_lower = callsign.lower()
             if callsign_lower in CoTProtocolHandler.LPU5_TO_COT_TYPE:
                 lpu5_type = callsign_lower
+
+        # Override with more specific types for ATAK-sourced events:
+        #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
+        #   • how starts with "h"     → ATAK SA / GPS position (human/GPS-derived)
+        if _has_mesh_detail:
+            lpu5_type = "meshtastic_node"
+        elif lpu5_type == "rechteck" and how.startswith("h"):
+            lpu5_type = "tak_unit"
 
         # Upsert MapMarker
         db = SessionLocal()

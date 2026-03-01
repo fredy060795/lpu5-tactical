@@ -223,6 +223,12 @@ class DataServerManager:
                     return
                 else:
                     logger.warning(f"Broadcast failed with status {response.status_code}")
+            except requests.exceptions.ConnectionError:
+                # Server is not reachable (connection refused / not started yet).
+                # This is expected when the data server subprocess is not running.
+                # No point retrying – fall through to the direct WebSocket path.
+                logger.debug("Data server not reachable for broadcast (connection refused)")
+                return
             except Exception as e:
                 if attempt < _retries:
                     backoff = min(2 ** attempt, 8)

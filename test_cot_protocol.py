@@ -324,5 +324,126 @@ class TestAtakSymbolTypeMappings(unittest.TestCase):
         self.assertEqual(evt.cot_type, "a-h-G-U-C")
 
 
+class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
+    """Tests for ATAK Meshtastic node and GPS/SA position type detection."""
+
+    # --- LPU5_TO_COT_TYPE contains new entries ---
+
+    def test_node_type_in_lpu5_to_cot(self):
+        # "node" is the internal LPU5 type for Meshtastic nodes stored in map_markers.
+        # It must map to a-f-G-U-C (friendly unit) so that LPU5 does NOT forward
+        # them to ATAK as unknown units (yellow flower / a-u-G-U-C).
+        self.assertIn("node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-U-C")
+
+    def test_node_type_lpu5_to_cot_produces_friendly(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-U-C")
+
+    def test_meshtastic_node_in_lpu5_to_cot(self):
+        self.assertIn("meshtastic_node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-U-C")
+
+    def test_tak_unit_in_lpu5_to_cot(self):
+        self.assertIn("tak_unit", CoTProtocolHandler.LPU5_TO_COT_TYPE)
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["tak_unit"], "a-f-G-U-C")
+
+    def test_node_marker_to_cot_produces_friendly_not_flower(self):
+        # Regression: "node" type must NOT fall back to the unknown/flower (a-u-G-U-C).
+        node_name = "Büroturm"
+        marker = {"id": "mesh-123", "lat": 48.0, "lng": 11.0, "type": "node",
+                  "name": node_name, "callsign": node_name}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-U-C",
+                         "Meshtastic node (type='node') must export as friendly (a-f-G-U-C), not flower (a-u-G-U-C)")
+
+    # --- CoTEvent.from_xml() detects <meshtastic> in <detail> ---
+
+    def _make_cot_xml(self, how="m-g", extra_detail=""):
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<event version="2.0" uid="TEST-1" type="a-f-G-U-C" '
+            f'how="{how}" time="2024-01-01T00:00:00.000Z" '
+            'start="2024-01-01T00:00:00.000Z" stale="2024-01-01T00:10:00.000Z">'
+            '<point lat="48.0" lon="11.0" hae="250.0" ce="10.0" le="10.0"/>'
+            f'<detail><contact callsign="Büroturm"/>{extra_detail}</detail>'
+            '</event>'
+        )
+
+    def test_from_xml_detects_meshtastic_detail(self):
+        xml = self._make_cot_xml(extra_detail='<meshtastic longName="Büroturm" shortName="BT"/>')
+        evt = CoTEvent.from_xml(xml)
+        self.assertIsNotNone(evt)
+        self.assertTrue(evt.has_meshtastic_detail)
+
+    def test_from_xml_no_meshtastic_detail(self):
+        xml = self._make_cot_xml(extra_detail='<track speed="0" course="355"/>')
+        evt = CoTEvent.from_xml(xml)
+        self.assertIsNotNone(evt)
+        self.assertFalse(evt.has_meshtastic_detail)
+
+    def test_has_meshtastic_detail_defaults_to_false(self):
+        evt = CoTEvent(uid="x", cot_type="a-f-G-U-C", lat=0.0, lon=0.0)
+        self.assertFalse(evt.has_meshtastic_detail)
+
+    # --- cot_to_marker() assigns meshtastic_node when <meshtastic> present ---
+
+    def test_cot_to_marker_meshtastic_node_type(self):
+        xml = self._make_cot_xml(
+            how="m-g",
+            extra_detail='<meshtastic longName="Büroturm" shortName="BT"/>'
+        )
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["type"], "meshtastic_node")
+
+    def test_cot_to_marker_tak_unit_type_human_how(self):
+        # "h-e" (human-entered) → ATAK SA / GPS position marker → tak_unit
+        xml = self._make_cot_xml(how="h-e")
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["type"], "tak_unit")
+
+    def test_cot_to_marker_tak_unit_type_gps_how(self):
+        # "h-g-i-g-o" (GPS-derived) → tak_unit
+        xml = self._make_cot_xml(how="h-g-i-g-o")
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["type"], "tak_unit")
+
+    def test_cot_to_marker_rechteck_for_machine_generated(self):
+        # "m-g" without <meshtastic> → original mapping (rechteck for a-f)
+        xml = self._make_cot_xml(how="m-g")
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["type"], "rechteck")
+
+    def test_meshtastic_takes_precedence_over_human_how(self):
+        # Even with how="h-e", <meshtastic> in detail takes precedence
+        xml = self._make_cot_xml(
+            how="h-e",
+            extra_detail='<meshtastic longName="Tower" shortName="TW"/>'
+        )
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["type"], "meshtastic_node")
+
+    def test_tak_unit_does_not_affect_hostile_type(self):
+        # how="h-e" with a-h type should NOT produce tak_unit (only overrides a-f→rechteck)
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<event version="2.0" uid="TEST-2" type="a-h-G-U-C" '
+            'how="h-e" time="2024-01-01T00:00:00.000Z" '
+            'start="2024-01-01T00:00:00.000Z" stale="2024-01-01T00:10:00.000Z">'
+            '<point lat="48.0" lon="11.0" hae="250.0" ce="10.0" le="10.0"/>'
+            '<detail><contact callsign="Enemy"/></detail>'
+            '</event>'
+        )
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        # a-h maps to raute — tak_unit override only applies to rechteck (a-f)
+        self.assertEqual(marker["type"], "raute")
+
+
 if __name__ == "__main__":
     unittest.main()
