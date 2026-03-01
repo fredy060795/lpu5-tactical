@@ -467,8 +467,8 @@
             Connect this server to a TAK Server for advanced tactical operations (similar to ATAK/WINTAK).
         </div>
 
-        <div class="info-box" style="background:#fff8e1;border-left:4px solid #f59e0b;">
-            <i class="fas fa-lightbulb" style="color:#f59e0b;"></i>
+        <div class="info-box" style="background:#fff8e1;border-left:4px solid #f59e0b;color:#1a1a1a;">
+            <i class="fas fa-lightbulb" style="color:#b8860b;"></i>
             <strong>WinTAK / ATAK on the same machine?</strong>
             Use <strong>Connection Type: TCP</strong>, Host: <code>127.0.0.1</code>, Port: <code>8087</code> — no certificate required.
             SSL (port 8089) requires a client certificate; use TCP for local connections to avoid this.
@@ -502,7 +502,7 @@
             <div>
                 <div class="form-group">
                     <label class="form-label">TAK Server Port</label>
-                    <input type="number" class="form-input" id="takServerPort" placeholder="8089" disabled>
+                    <input type="number" class="form-input" id="takServerPort" placeholder="8087" disabled>
                 </div>
 
                 
@@ -562,8 +562,8 @@
             — no dedicated TAK server required.
         </div>
 
-        <div class="info-box" style="background:#e8f5e9;border-left:4px solid #4caf50;">
-            <i class="fas fa-mobile-alt" style="color:#4caf50;"></i>
+        <div class="info-box" style="background:#e8f5e9;border-left:4px solid #4caf50;color:#1a1a1a;">
+            <i class="fas fa-mobile-alt" style="color:#2e7d32;"></i>
             <strong>WinTAK / ATAK on the same Windows machine — recommended setup:</strong>
             <ol style="margin:6px 0 0 18px;padding:0;">
                 <li>Enable <strong>SA Multicast</strong> below and set group <code>239.2.3.1</code>, port <code>6969</code>.</li>
@@ -588,7 +588,7 @@
 
         <div class="form-group">
             <div class="checkbox-group">
-                <input type="checkbox" id="saMulticastEnabled">
+                <input type="checkbox" id="saMulticastEnabled" checked>
                 <label for="saMulticastEnabled"><strong>Enable SA Multicast</strong> — bidirectional CoT exchange with WinTAK/ATAK (recommended when both run on the same machine)</label>
             </div>
         </div>
@@ -775,7 +775,7 @@ async function loadNetworkSettings() {
                     document.getElementById('enableTakIntegration').checked = takCfg.tak_forward_enabled !== undefined ? takCfg.tak_forward_enabled : (networkConfig.enableTakIntegration || false);
                     document.getElementById('takServerUrl').value = takCfg.tak_server_host || networkConfig.takServerUrl || '';
                     document.getElementById('takConnectionType').value = takCfg.tak_connection_type || networkConfig.takConnectionType || 'tcp';
-                    document.getElementById('takServerPort').value = takCfg.tak_server_port || networkConfig.takServerPort || '8089';
+                    document.getElementById('takServerPort').value = takCfg.tak_server_port || networkConfig.takServerPort || '8087';
                     document.getElementById('takUsername').value = takCfg.tak_username || '';
                     document.getElementById('takClientCertPath').value = takCfg.tak_client_cert_path || '';
                     document.getElementById('takClientKeyPath').value = takCfg.tak_client_key_path || '';
@@ -783,14 +783,14 @@ async function loadNetworkSettings() {
                     document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
                     document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
                     document.getElementById('takConnectionType').value = networkConfig.takConnectionType || 'tcp';
-                    document.getElementById('takServerPort').value = networkConfig.takServerPort || '8089';
+                    document.getElementById('takServerPort').value = networkConfig.takServerPort || '8087';
                 }
             } catch (_e) {
                 console.warn('Could not load TAK config:', _e);
                 document.getElementById('enableTakIntegration').checked = networkConfig.enableTakIntegration || false;
                 document.getElementById('takServerUrl').value = networkConfig.takServerUrl || '';
                 document.getElementById('takConnectionType').value = networkConfig.takConnectionType || 'tcp';
-                document.getElementById('takServerPort').value = networkConfig.takServerPort || '8089';
+                document.getElementById('takServerPort').value = networkConfig.takServerPort || '8087';
             }
             document.getElementById('takAutoReconnect').checked = networkConfig.takAutoReconnect !== false;
 
@@ -895,7 +895,7 @@ async function saveNetworkSettings() {
         const takBody = {
             tak_forward_enabled: takEnabled,
             tak_server_host: _cleanTakHost(document.getElementById('takServerUrl').value),
-            tak_server_port: parseInt(document.getElementById('takServerPort').value, 10) || 8089,
+            tak_server_port: parseInt(document.getElementById('takServerPort').value, 10) || 8087,
             tak_connection_type: document.getElementById('takConnectionType').value,
             tak_username: document.getElementById('takUsername').value.trim(),
             tak_client_cert_path: document.getElementById('takClientCertPath').value.trim(),
