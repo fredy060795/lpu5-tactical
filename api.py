@@ -1296,6 +1296,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
             # Broadcast to WebSocket clients
             broadcast_websocket_update("markers", "tak_unit_update", {
                 "id": uid,
+                "name": callsign,
                 "callsign": callsign,
                 "lat": lat,
                 "lng": lng,
@@ -2929,6 +2930,7 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
             "lat": new_marker.lat,
             "lng": new_marker.lng,
             "name": new_marker.name,
+            "callsign": new_marker.name,
             "description": new_marker.description,
             "type": new_marker.type,
             "color": new_marker.color,
@@ -3000,6 +3002,7 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
             "lat": marker.lat,
             "lng": marker.lng,
             "name": marker.name,
+            "callsign": marker.name,
             "description": marker.description,
             "type": marker.type,
             "color": marker.color,
