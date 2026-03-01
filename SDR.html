@@ -381,6 +381,35 @@
                 font-size: 0.75rem;
             }
         }
+
+        /* Driver-missing warning banner */
+        .driver-warning {
+            display: none;
+            background: rgba(231,76,60,0.12);
+            border: 1px solid rgba(231,76,60,0.5);
+            border-radius: 6px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+        .driver-warning i { color: var(--accent-red); margin-right: 6px; }
+        .driver-warning strong { color: var(--accent-red); }
+        .driver-warning code {
+            background: rgba(0,0,0,0.4);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-family: 'Courier New', monospace;
+            color: #f39c12;
+        }
+
+        /* rtl_tcp config row */
+        .rtltcp-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        .rtltcp-row .form-group { flex: 1; margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -409,6 +438,24 @@
         signal strength analysis. Through cross-bearing with multiple devices (via MQTT),
         the approximate position of a signal source can be triangulated.
         <br><em>Requirements: RTL-SDR Stick, Raspberry Pi, MQTT Broker (Mosquitto).</em>
+    </div>
+
+    <!-- Driver-missing warning (shown automatically when backend reports no driver) -->
+    <div class="driver-warning" id="driverWarning">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>RTL-SDR driver not installed — measurements not possible</strong><br>
+        The hardware was detected, but no driver is available for IQ sampling.<br>
+        Install <strong>one</strong> of the following options and restart the server:
+        <ol style="margin:8px 0 4px 18px; padding:0;">
+            <li><strong>Python library (recommended):</strong><br>
+                <code>pip install pyrtlsdr numpy</code></li>
+            <li><strong>rtl-sdr CLI tools (Linux/Raspberry Pi):</strong><br>
+                <code>sudo apt install rtl-sdr</code></li>
+            <li><strong>rtl_tcp (runs on the device, connects via network):</strong><br>
+                <code>rtl_tcp -a 0.0.0.0</code><br>
+                Then set the <em>rtl_tcp Host</em> field below to the device IP and click <strong>Connect</strong>.
+            </li>
+        </ol>
     </div>
 
     <!-- Top panels -->
@@ -485,6 +532,17 @@
             <div class="form-group">
                 <label>TX Power Reference (dBm)</label>
                 <input type="number" id="sdrTxPower" value="20" step="1">
+            </div>
+
+            <div class="rtltcp-row" style="margin-bottom:15px;">
+                <div class="form-group">
+                    <label>rtl_tcp Host <span style="font-size:0.7rem; color:#555;">(default: 127.0.0.1)</span></label>
+                    <input type="text" id="rtlTcpHost" value="127.0.0.1" placeholder="127.0.0.1 or device-IP">
+                </div>
+                <div class="form-group" style="max-width:90px;">
+                    <label>Port</label>
+                    <input type="number" id="rtlTcpPort" value="1234" min="1" max="65535">
+                </div>
             </div>
 
             <div class="btn-row">
@@ -680,6 +738,26 @@
     let scanTimer      = null;
     const measurementLog = [];
     const mqttPeers    = {};
+
+    // =====================================================================
+    // Helpers: rtl_tcp config + driver warning banner
+    // =====================================================================
+    function getRtlTcpHost() {
+        var el = document.getElementById('rtlTcpHost');
+        return (el && el.value.trim()) ? el.value.trim() : '127.0.0.1';
+    }
+    function getRtlTcpPort() {
+        var el = document.getElementById('rtlTcpPort');
+        return (el && parseInt(el.value)) ? parseInt(el.value) : 1234;
+    }
+    function showDriverWarning() {
+        var el = document.getElementById('driverWarning');
+        if (el) el.style.display = 'block';
+    }
+    function hideDriverWarning() {
+        var el = document.getElementById('driverWarning');
+        if (el) el.style.display = 'none';
+    }
     let ws             = null;
 
     // =====================================================================
@@ -976,7 +1054,12 @@
     function setModeBadge(mode) {
         var badge = document.getElementById('sdrModeBadge');
         if (!badge) return;
-        badge.textContent = 'LIVE';
+        var label = 'LIVE';
+        if (mode === 'rtlsdr_hardware')  label = 'HW';
+        else if (mode === 'rtl_tcp')     label = 'rtl_tcp';
+        else if (mode === 'rtl_power')   label = 'rtl_power';
+        else if (mode === 'com_port')    label = 'COM';
+        badge.textContent = label;
         badge.className   = 'sdr-mode-badge';
     }
 
@@ -1083,27 +1166,46 @@
                 device_index:    0,
                 frequency_mhz:   freq,
                 sample_rate_mhz: sr,
-                gain:            gain
+                gain:            gain,
+                rtl_tcp_host:    getRtlTcpHost(),
+                rtl_tcp_port:    getRtlTcpPort()
             })
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok) {
+                return r.json().then(function(err) {
+                    var msg = (err && err.detail) ? err.detail : 'HTTP ' + r.status;
+                    showDriverWarning();
+                    statusEl.textContent = 'Driver missing';
+                    statusEl.className   = 'status-badge status-offline';
+                    mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Offline';
+                    mainStatus.className = 'status-badge status-offline';
+                    throw new Error(msg);
+                });
+            }
+            return r.json();
+        })
         .then(function(data) {
             sdrConnected = true;
+            hideDriverWarning();
 
-            statusEl.textContent = 'Connected (HW)';
+            var mode = data.mode || 'hardware';
+            var modeLabel = mode === 'rtl_tcp' ? 'rtl_tcp' : 'HW';
+            statusEl.textContent = 'Connected (' + modeLabel + ')';
             statusEl.className   = 'status-badge status-online';
-            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (HW)';
+            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Active (' + modeLabel + ')';
             mainStatus.className = 'status-badge status-online';
 
-            setModeBadge('hardware');
-            console.log('[SDR] Connected — devices:', data.devices);
+            setModeBadge(mode);
+            console.log('[SDR] Connected mode=' + mode, data);
+
+            // Warn if hardware detected but no driver available (rtl_tcp also not connected)
+            if (!data.driver_available) {
+                showDriverWarning();
+            }
         })
         .catch(function(e) {
-            console.error('[SDR] connect failed:', e);
-            statusEl.textContent = 'Connection failed';
-            statusEl.className   = 'status-badge status-offline';
-            mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Offline';
-            mainStatus.className = 'status-badge status-offline';
+            console.error('[SDR] connect failed:', e.message || e);
         });
     };
 
@@ -1132,10 +1234,29 @@
                 frequency_mhz:   freq,
                 sample_rate_mhz: sr,
                 gain:            gain,
-                nfft:            1024
+                nfft:            1024,
+                rtl_tcp_host:    getRtlTcpHost(),
+                rtl_tcp_port:    getRtlTcpPort()
             })
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok) {
+                return r.json().then(function(err) {
+                    var msg = (err && err.detail) ? err.detail : 'HTTP ' + r.status;
+                    // Stop continuous scan and show the driver warning
+                    if (continuousScan) {
+                        continuousScan = false;
+                        if (scanTimer !== null) { clearInterval(scanTimer); scanTimer = null; }
+                        var btn = document.getElementById('btnScan');
+                        if (btn) { btn.innerHTML = '<i class="fas fa-play"></i> Scan'; btn.className = 'btn btn-warning'; }
+                    }
+                    showDriverWarning();
+                    console.error('[SDR] measure failed (503):', msg);
+                    throw new Error(msg);
+                });
+            }
+            return r.json();
+        })
         .then(function(data) {
             var spectrum   = data.spectrum  || [];
             var fStart     = data.freq_start_mhz;
@@ -1163,11 +1284,12 @@
             updateSignalDisplay(peak, distance, blocked);
 
             // Log entry
+            var srcLabel = source === 'rtl_power' ? 'CLI' : (source === 'rtl_tcp' ? 'TCP' : 'HW');
             var distStr = blocked ? 'squelch' : (distance !== null ? distance.toFixed(1) + ' m' : '--');
-            addLogEntry(freq, mode, peak, distStr, source === 'rtl_power' ? 'CLI' : 'HW');
+            addLogEntry(freq, mode, peak, distStr, srcLabel);
         })
         .catch(function(e) {
-            console.error('[SDR] measure failed:', e);
+            if (e && e.message) console.error('[SDR] measure error:', e.message);
         });
     }
 

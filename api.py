@@ -7764,7 +7764,7 @@ import subprocess as _subprocess
 import shutil as _shutil
 import math as _math
 import struct as _struct
-import random as _random
+import socket as _socket
 
 # Optional: pyrtlsdr — install with `pip install pyrtlsdr` on the deployment host
 try:
@@ -7786,6 +7786,15 @@ except ImportError:
 _RTL_SDR_VID = 0x0bda
 _RTL_SDR_PIDS = {0x2832, 0x2838, 0x2888}
 _SDR_DEFAULT_NFFT = 1024
+
+# -6.0 dB: empirical reference-level calibration offset (full-scale IQ → approx dBm into 50 Ω)
+_SDR_POWER_OFFSET_DB = -6.0
+
+# rtl_tcp defaults — rtl_tcp ships with the rtl-sdr package.
+# Start with: rtl_tcp -a 0.0.0.0   (Linux/Raspberry Pi)
+#         or: rtl_tcp.exe           (Windows)
+_RTL_TCP_DEFAULT_HOST = "127.0.0.1"
+_RTL_TCP_DEFAULT_PORT = 1234
 
 
 def _detect_rtlsdr_devices() -> list:
@@ -7848,13 +7857,111 @@ def _detect_rtlsdr_devices() -> list:
     return devices
 
 
-def _get_spectrum_data(center_freq_hz: float, sample_rate_hz: float, gain: float, nfft: int) -> dict:
+# rtl_tcp defaults — rtl_tcp ships with the rtl-sdr package.
+# Start with: rtl_tcp -a 0.0.0.0   (Linux/Raspberry Pi)
+#         or: rtl_tcp.exe           (Windows)(host: str = _RTL_TCP_DEFAULT_HOST, port: int = _RTL_TCP_DEFAULT_PORT) -> bool:
+    """Return True if an rtl_tcp server is reachable and responds with the expected magic header."""
+    try:
+        with _socket.create_connection((host, port), timeout=1) as sock:
+            header = sock.recv(12)
+            return len(header) == 12 and header.startswith(b"RTL0")
+    except Exception:
+        return False
+
+
+def _get_spectrum_rtl_tcp(
+    center_freq_hz: float,
+    sample_rate_hz: float,
+    gain: float,
+    nfft: int,
+    host: str = _RTL_TCP_DEFAULT_HOST,
+    port: int = _RTL_TCP_DEFAULT_PORT,
+) -> dict:
+    """
+    Acquire real IQ samples from a running rtl_tcp server and return an FFT spectrum.
+
+    rtl_tcp ships with the standard rtl-sdr package.  Start it with:
+        Linux / Raspberry Pi:  rtl_tcp -a 0.0.0.0
+        Windows:               rtl_tcp.exe
+    The default address is 127.0.0.1:1234.
+    """
+    CMD_SET_FREQ        = 0x01
+    CMD_SET_SAMPLE_RATE = 0x02
+    CMD_SET_GAIN_MODE   = 0x03  # 1 = manual
+    CMD_SET_GAIN        = 0x04  # value in tenths of dB (e.g. 200 = 20.0 dB)
+    DONGLE_INFO_SIZE    = 12
+
+    def _cmd(t: int, v: int) -> bytes:
+        return _struct.pack(">BI", t, v)
+
+    n_bytes = nfft * 2  # one I byte + one Q byte per sample
+    sock = _socket.create_connection((host, port), timeout=5)
+    try:
+        # Handshake: read dongle info header sent by rtl_tcp on connection
+        header = b""
+        while len(header) < DONGLE_INFO_SIZE:
+            chunk = sock.recv(DONGLE_INFO_SIZE - len(header))
+            if not chunk:
+                raise OSError("rtl_tcp disconnected during handshake")
+            header += chunk
+        if not header.startswith(b"RTL0"):
+            raise OSError("Not an rtl_tcp server (unexpected magic bytes)")
+
+        # Configure the dongle
+        sock.sendall(
+            _cmd(CMD_SET_FREQ,        int(center_freq_hz))
+            + _cmd(CMD_SET_SAMPLE_RATE, int(sample_rate_hz))
+            + _cmd(CMD_SET_GAIN_MODE, 1)
+            + _cmd(CMD_SET_GAIN,      int(gain * 10))
+        )
+
+        # Read raw IQ bytes: I=uint8, Q=uint8, both biased at 128
+        raw = b""
+        while len(raw) < n_bytes:
+            chunk = sock.recv(min(4096, n_bytes - len(raw)))
+            if not chunk:
+                break
+            raw += chunk
+    finally:
+        sock.close()
+
+    if len(raw) < n_bytes:
+        raise OSError(f"rtl_tcp: received only {len(raw)}/{n_bytes} IQ bytes")
+
+    if _NUMPY_LIB:
+        iq    = _np.frombuffer(raw[:n_bytes], dtype=_np.uint8)
+        i_f   = (iq[0::2].astype(_np.float32) - 128.0) / 128.0
+        q_f   = (iq[1::2].astype(_np.float32) - 128.0) / 128.0
+        samples = i_f[:nfft] + 1j * q_f[:nfft]
+        window  = _np.hanning(nfft)
+        fft_out = _np.fft.fftshift(_np.fft.fft(samples * window, nfft))
+        power   = (20.0 * _np.log10(_np.abs(fft_out) / nfft + 1e-10) + _SDR_POWER_OFFSET_DB).tolist()
+    else:
+        # Pure-Python fallback (no numpy): approximate magnitude via |I|+|Q|
+        power = []
+        for k in range(nfft):
+            i_val = (raw[k * 2]     - 128) / 128.0
+            q_val = (raw[k * 2 + 1] - 128) / 128.0
+            mag   = (abs(i_val) + abs(q_val)) / 2.0 + 1e-10
+            power.append(round(20.0 * _math.log10(mag) + _SDR_POWER_OFFSET_DB, 2))
+
+    return {"spectrum": power, "source": "rtl_tcp", "nfft": nfft}
+
+
+def _get_spectrum_data(
+    center_freq_hz: float,
+    sample_rate_hz: float,
+    gain: float,
+    nfft: int,
+    rtl_tcp_host: str = _RTL_TCP_DEFAULT_HOST,
+    rtl_tcp_port: int = _RTL_TCP_DEFAULT_PORT,
+) -> dict:
     """
     Acquire spectrum data from real hardware only. Tries (in order):
     1. pyrtlsdr + numpy — direct IQ sampling + FFT
     2. rtl_power subprocess — CLI-based sweeping
-    3. Simulated fallback when device detected via COM port but no IQ driver installed
-    Raises HTTP 503 if no device is detected at all.
+    3. rtl_tcp server — connect to a running rtl_tcp instance (real hardware via TCP)
+    Raises HTTP 503 if no acquisition path succeeds.
     """
     # 1. pyrtlsdr + numpy
     if _RTLSDR_LIB and _NUMPY_LIB:
@@ -7904,27 +8011,23 @@ def _get_spectrum_data(center_freq_hz: float, sample_rate_hz: float, gain: float
         except Exception as exc:
             logger.warning("rtl_power subprocess failed: %s", exc)
 
-    # 3. Simulated fallback — device found via COM port but no IQ driver available
-    devices = _detect_rtlsdr_devices()
-    if devices:
-        logger.warning("RTL-SDR detected via COM port but no IQ driver available; returning simulated spectrum")
-        return {"spectrum": _simulate_spectrum(nfft), "source": "simulated", "nfft": nfft}
+    # 3. rtl_tcp server — real hardware accessed via TCP (no local driver required)
+    try:
+        return _get_spectrum_rtl_tcp(
+            center_freq_hz, sample_rate_hz, gain, nfft, rtl_tcp_host, rtl_tcp_port
+        )
+    except Exception as exc:
+        logger.warning("rtl_tcp acquisition failed (%s:%s): %s", rtl_tcp_host, rtl_tcp_port, exc)
 
     raise HTTPException(
         status_code=503,
-        detail="No RTL-SDR hardware or rtl_power tool available for spectrum measurement",
+        detail=(
+            "RTL-SDR driver not available. Install one of:\n"
+            "  pip install pyrtlsdr numpy\n"
+            "  sudo apt install rtl-sdr\n"
+            "Then start rtl_tcp with: rtl_tcp -a 0.0.0.0"
+        ),
     )
-
-
-def _simulate_spectrum(nfft: int) -> list:
-    """Generate a simulated noise-floor spectrum (dBm) when no hardware driver is available."""
-    noise_floor = -90.0
-    spectrum = []
-    for _ in range(nfft):
-        # Gaussian noise around the noise floor
-        val = noise_floor + _random.gauss(0, 3.0)
-        spectrum.append(round(val, 2))
-    return spectrum
 
 
 @app.get("/api/sdr/devices", summary="Detect RTL-SDR USB devices")
@@ -7964,44 +8067,66 @@ def sdr_status():
 @app.post("/api/sdr/connect", summary="Connect to RTL-SDR device")
 def sdr_connect_device(data: dict = Body(...)):
     """
-    Connect to a real RTL-SDR device. Returns 503 if no hardware is detected.
+    Connect to a real RTL-SDR device.  Returns 503 if no hardware is detected
+    and rtl_tcp is not reachable.
 
     Body fields (all optional):
-    - device_index (int)     — 0-based device index (default 0)
-    - frequency_mhz (float)  — initial center frequency in MHz (default 433.92)
-    - sample_rate_mhz (float)— sample rate in MHz (default 2.4)
-    - gain (float)           — tuner gain in dB (default 20.0)
+    - device_index (int)       — 0-based device index (default 0)
+    - frequency_mhz (float)    — initial center frequency in MHz (default 433.92)
+    - sample_rate_mhz (float)  — sample rate in MHz (default 2.4)
+    - gain (float)             — tuner gain in dB (default 20.0)
+    - rtl_tcp_host (str)       — rtl_tcp server host (default 127.0.0.1)
+    - rtl_tcp_port (int)       — rtl_tcp server port (default 1234)
     """
     freq_mhz        = float(data.get("frequency_mhz",  433.920))
     sample_rate_mhz = float(data.get("sample_rate_mhz", 2.4))
     gain            = float(data.get("gain", 20.0))
+    tcp_host        = str(data.get("rtl_tcp_host", _RTL_TCP_DEFAULT_HOST))
+    tcp_port        = int(data.get("rtl_tcp_port", _RTL_TCP_DEFAULT_PORT))
 
-    devices = _detect_rtlsdr_devices()
-    hw_available = len(devices) > 0
-    has_driver    = _RTLSDR_LIB or bool(_shutil.which("rtl_power")) or bool(_shutil.which("rtl_test"))
+    devices         = _detect_rtlsdr_devices()
+    hw_available    = len(devices) > 0
+    has_local_driver = _RTLSDR_LIB or bool(_shutil.which("rtl_power")) or bool(_shutil.which("rtl_test"))
+    rtl_tcp_ok      = _check_rtl_tcp(tcp_host, tcp_port)
 
-    if not hw_available:
+    if not hw_available and not rtl_tcp_ok:
         raise HTTPException(
             status_code=503,
-            detail="No RTL-SDR hardware detected. Please connect an RTL-SDR device.",
+            detail=(
+                "No RTL-SDR hardware detected and rtl_tcp is not reachable.\n"
+                "Options:\n"
+                "  1. Install driver:  pip install pyrtlsdr numpy\n"
+                "  2. Install rtl-sdr: sudo apt install rtl-sdr\n"
+                "  3. Start rtl_tcp:   rtl_tcp -a 0.0.0.0  (then set host/port in the UI)"
+            ),
         )
 
-    # Determine connection mode: full IQ capture when driver present, COM-port fallback otherwise
-    mode = "hardware" if has_driver else "com_port"
+    if rtl_tcp_ok:
+        mode = "rtl_tcp"
+    elif has_local_driver:
+        mode = "hardware"
+    else:
+        # Hardware detected via COM/USB, but no local driver installed.
+        # driver_available=False signals the UI to show installation instructions.
+        mode = "com_port"
 
     return {
-        "status":           "connected",
-        "mode":             mode,
-        "device_count":     len(devices),
-        "devices":          devices,
-        "frequency_mhz":    freq_mhz,
-        "sample_rate_mhz":  sample_rate_mhz,
-        "gain":             gain,
-        "driver_available": has_driver,
+        "status":            "connected",
+        "mode":              mode,
+        "device_count":      len(devices),
+        "devices":           devices,
+        "frequency_mhz":     freq_mhz,
+        "sample_rate_mhz":   sample_rate_mhz,
+        "gain":              gain,
+        "driver_available":  has_local_driver or rtl_tcp_ok,
+        "rtl_tcp":           rtl_tcp_ok,
+        "rtl_tcp_host":      tcp_host,
+        "rtl_tcp_port":      tcp_port,
         "capabilities": {
             "pyrtlsdr":  _RTLSDR_LIB,
             "numpy":     _NUMPY_LIB,
             "rtl_power": bool(_shutil.which("rtl_power")),
+            "rtl_tcp":   rtl_tcp_ok,
         },
     }
 
@@ -8016,10 +8141,12 @@ def sdr_measure(data: dict = Body(...)):
     - sample_rate_mhz (float) — bandwidth in MHz (default 2.4)
     - gain (float)            — tuner gain in dB (default 20.0)
     - nfft (int)              — FFT size, power-of-2, 64–2048 (default 1024)
+    - rtl_tcp_host (str)      — rtl_tcp server host (default 127.0.0.1)
+    - rtl_tcp_port (int)      — rtl_tcp server port (default 1234)
 
     Response:
     - spectrum (list[float])  — nfft power values in dBm
-    - source (str)            — 'rtlsdr_hardware' or 'rtl_power'
+    - source (str)            — 'rtlsdr_hardware', 'rtl_power', or 'rtl_tcp'
     - freq_start_mhz / freq_end_mhz — display frequency range
     - bw_per_bin_hz           — bandwidth per bin
     """
@@ -8027,6 +8154,8 @@ def sdr_measure(data: dict = Body(...)):
     sample_rate_mhz = float(data.get("sample_rate_mhz", 2.4))
     gain            = float(data.get("gain", 20.0))
     nfft_req        = int(data.get("nfft", _SDR_DEFAULT_NFFT))
+    tcp_host        = str(data.get("rtl_tcp_host", _RTL_TCP_DEFAULT_HOST))
+    tcp_port        = int(data.get("rtl_tcp_port", _RTL_TCP_DEFAULT_PORT))
 
     # Clamp nfft to nearest power-of-2 in [64, 2048]
     # Use `nfft * 2 <= min(nfft_req, 2048)` so we can actually reach 2048.
@@ -8037,7 +8166,7 @@ def sdr_measure(data: dict = Body(...)):
     center_freq_hz  = freq_mhz * 1e6
     sample_rate_hz  = sample_rate_mhz * 1e6
 
-    result = _get_spectrum_data(center_freq_hz, sample_rate_hz, gain, nfft)
+    result = _get_spectrum_data(center_freq_hz, sample_rate_hz, gain, nfft, tcp_host, tcp_port)
 
     return {
         "spectrum":        result["spectrum"],
