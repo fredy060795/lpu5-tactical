@@ -4,9 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS Tactical — Autonomous Encrypted Global Information System</title>
+    <title>LPU5 - Tactical Network Management System</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/aegis.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
@@ -22,7 +21,7 @@
             --border-color: #333;
             --text-main: #d0d0d0;
             /* blue text -> white */
-            --accent-blue: #1565C0;
+            --accent-blue: #ffffff;
             --accent-green: #28a745;
             --tactical-gray: #2d2d2d;
         }
@@ -162,11 +161,11 @@
             box-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
         }
 
-        /* Buttons: AEGIS brand blue */
+        /* Buttons: blue -> panel background color (as requested) */
         .login-btn {
-            background: var(--accent-blue);
-            color: #ffffff;
-            border: 1px solid #1976D2;
+            background: var(--panel-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
             padding: 12px;
             border-radius: 4px;
             font-weight: bold;
@@ -181,9 +180,9 @@
         }
 
         .login-btn:hover {
-            background: #1976D2;
+            background: #252525;
             transform: translateY(-2px);
-            box-shadow: 0 0 12px rgba(21,101,192,0.5);
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
         }
 
         .error-message {
@@ -310,17 +309,17 @@
             /* default button uses panel background now */
         }
 
-        /* Primary buttons: AEGIS brand blue */
+        /* Primary buttons: blue -> panel background as requested */
         .btn-primary {
-            background: var(--accent-blue);
-            color: #ffffff;
-            border-color: #1976D2;
+            background: var(--panel-bg);
+            color: var(--text-main);
+            border-color: var(--border-color);
         }
 
         .btn-primary:hover {
-            background: #1976D2;
-            border-color: #42a5f5;
-            box-shadow: 0 0 12px rgba(21,101,192,0.4);
+            background: #252525;
+            border-color: #444;
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
             transform: translateY(-2px);
         }
 
@@ -478,18 +477,18 @@
 
             <!-- Centered logo image on start page -->
             <div class="logo-display" aria-hidden="true">
-                <img src="/aegis_logo.svg" alt="AEGIS Logo" onerror="this.style.display='none'">
+                <img src="/logo.png" alt="LPU5 Logo" onerror="this.style.display='none'">
             </div>
 
             <!-- Title -->
-            <h1>AEGIS TACTICAL</h1>
+            <h1>LPU5 TACTICAL</h1>
 
             <!-- Subtitle -->
-            <p class="subtitle">Autonomous Encrypted Global Information System</p>
+            <p class="subtitle">Network Management System</p>
 
             <!-- Description -->
             <p class="description">
-                Welcome to AEGIS Tactical — Autonomous Encrypted Global Information System.<br>
+                Welcome to LPU5 Tactical Network Management System.<br>
                 Real-time operation tracking, mission management and tactical coordination.<br>
                 <strong>Click "Start Dashboard" to continue</strong>
             </p>
@@ -519,8 +518,8 @@
     <div class="login-overlay" id="loginOverlay">
         <div class="login-box">
             <div class="login-logo" aria-hidden="true"></div>
-            <div class="login-title">AEGIS</div>
-            <div class="login-subtitle">Autonomous Encrypted Global Information System</div>
+            <div class="login-title">LPU5</div>
+            <div class="login-subtitle">Tactical Network Management</div>
 
             <div class="login-form">
                 <div class="error-message" id="errorMessage"></div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aegis-v2-meshtastic';
+const CACHE_NAME = 'lpu5-v2-meshtastic';
 const ASSETS = [
     '/',
     '/landing.html',
