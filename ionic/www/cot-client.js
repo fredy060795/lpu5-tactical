@@ -251,9 +251,11 @@ class COTEvent {
     static get COT_TO_LPU5_TYPE() {
         return [
             ['b-m-p-s-m', 'raute'],    // TAK spot-map marker (all shapes)
+            ['u-d-c-e',   'raute'],    // TAK drawing ellipse → diamond
             ['u-d-c-c',   'raute'],    // TAK drawing circle → diamond
             ['u-d-r',     'rechteck'], // TAK drawing rectangle
             ['u-d-f',     'raute'],    // TAK drawing freehand → diamond
+            ['u-d-p',     'raute'],    // TAK drawing generic point → diamond
             ['a-f',       'friendly'], // friendly (any sub-type)
             ['a-h',       'hostile'],
             ['a-n',       'neutral'],
@@ -328,6 +330,11 @@ class COTProtocolHandler {
                 type = COTEvent.lpu5TypeToCot(lpu5Type);
             }
 
+            // Preserve the original `how` attribute so that re-broadcast of
+            // TAK-originated markers retains correct provenance.  Fall back to
+            // "m-g" (machine-generated) which matches the previous behaviour.
+            const how = marker.how || marker.cot_how || 'm-g';
+
             return new COTEvent({
                 uid,
                 type,
@@ -336,7 +343,8 @@ class COTProtocolHandler {
                 callsign: marker.name || marker.callsign || uid,
                 remarks: marker.description || marker.remarks || '',
                 teamName: marker.team || '',
-                teamRole: marker.role || ''
+                teamRole: marker.role || '',
+                how
             });
         } catch (error) {
             console.error('Failed to convert marker to COT:', error);
@@ -367,6 +375,7 @@ class COTProtocolHandler {
             role: cotEvent.teamRole,
             timestamp: cotEvent._formatTime(cotEvent.time),
             cotType: cotEvent.type,
+            how: cotEvent.how,
             source: 'cot'
         };
     }
