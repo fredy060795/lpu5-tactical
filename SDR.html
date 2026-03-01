@@ -660,7 +660,7 @@
         <div style="margin-top:10px; font-size:0.8rem; color:var(--text-dim);">
             <i class="fas fa-info-circle"></i>
             Streams demodulated audio from SDR hardware via <code>rtl_fm</code> or pyrtlsdr.
-            In simulation mode (no hardware), a synthetic tone is used as fallback indicator.
+            Requires a connected RTL-SDR device; returns an error if no hardware is available.
         </div>
         <!-- Hidden audio element for hardware streaming -->
         <audio id="sdrAudioEl" preload="none" style="display:none;"></audio>
@@ -723,6 +723,14 @@
                    '&mode=' + encodeURIComponent(mode) +
                    '&sample_rate=200000&audio_rate=48000' +
                    '&gain=' + gain + '&squelch=' + sq;
+        audioEl.onerror = function() {
+            var statusEl = document.getElementById('audioStatus');
+            if (statusEl) {
+                statusEl.textContent = 'No Hardware';
+                statusEl.className   = 'status-badge status-offline';
+            }
+            console.warn('[SDR] Audio stream unavailable — no SDR hardware detected.');
+        };
         audioEl.src    = url;
         audioEl.volume = audioMuted ? 0 : audioVolume;
         audioEl.play().catch(function(e) { console.error('[SDR] Audio stream error:', e); });
@@ -731,6 +739,7 @@
     /** Stop real audio stream. */
     function _stopAudioStream() {
         if (!audioEl) return;
+        audioEl.onerror = null;
         audioEl.pause();
         audioEl.removeAttribute('src');
         audioEl.load();
@@ -743,25 +752,14 @@
         var statusEl  = document.getElementById('audioStatus');
 
         if (audioEnabled) {
-            if (sdrMode === 'hardware') {
-                // Real hardware: stream demodulated audio from the server
-                _startAudioStream();
-            } else {
-                // Simulation fallback: synthetic oscillator tone
-                _initAudio();
-                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            }
+            _startAudioStream();
             btn.innerHTML  = '<i class="fas fa-stop"></i> Disable Audio';
             btn.className  = 'btn btn-danger';
             muteBtn.disabled = false;
             statusEl.textContent = audioMuted ? 'Muted' : 'Audio On';
             statusEl.className   = 'status-badge status-' + (audioMuted ? 'waiting' : 'online');
         } else {
-            if (sdrMode === 'hardware') {
-                _stopAudioStream();
-            } else {
-                if (audioGain) audioGain.gain.value = 0;
-            }
+            _stopAudioStream();
             btn.innerHTML  = '<i class="fas fa-play"></i> Enable Audio';
             btn.className  = 'btn btn-primary';
             muteBtn.disabled = true;
