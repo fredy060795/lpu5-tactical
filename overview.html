@@ -475,6 +475,7 @@
       height: 100%;
       z-index: 1;
       display: block;
+      transform-origin: center center;
     }
 
     .tactical-overlay {
@@ -688,6 +689,31 @@
       background: rgba(255, 255, 255, 0.3);
     }
 
+    /* Compass button in header */
+    #tsb-compass-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+
+    #tsb-compass svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    #tsb-compass-bearing {
+      font-size: 8px;
+      font-family: 'Courier New', monospace;
+      color: rgba(255, 255, 255, 0.8);
+      line-height: 1;
+    }
+
+    #compass-needle-group {
+      transform-origin: 14px 14px;
+      transition: transform 0.25s ease;
+    }
+
     /* Measure tool active state */
     #tsb-measure.active {
       background: rgba(255, 215, 0, 0.25);
@@ -828,6 +854,25 @@
           <path d="M2 12c2.5-5 5.5-7 10-7s7.5 2 10 7c-2.5 5-5.5 7-10 7s-7.5-2-10-7z"/>
           <line x1="2" y1="2" x2="22" y2="22" stroke="#ff4400" stroke-width="1.8"/>
         </svg>
+      </button>
+      <button class="tsb-btn" id="tsb-compass" ontouchstart="handleToolInteraction(() => resetNorth(), event)" onclick="handleToolInteraction(() => resetNorth(), event)" title="Kompass – Tippen zum Norden zurücksetzen">
+        <div id="tsb-compass-inner">
+          <svg id="tsb-compass-svg" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="13" fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+            <!-- Cardinal tick marks (fixed – top = current map up direction) -->
+            <line x1="14" y1="2" x2="14" y2="5.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>
+            <line x1="26" y1="14" x2="22.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+            <line x1="14" y1="26" x2="14" y2="22.5" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+            <line x1="2" y1="14" x2="5.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+            <!-- Needle counter-rotates to always point geographic North -->
+            <g id="compass-needle-group">
+              <polygon points="14,3 12.6,14 15.4,14" fill="#ff3333"/>
+              <polygon points="14,25 12.6,14 15.4,14" fill="rgba(200,200,200,0.45)"/>
+              <circle cx="14" cy="14" r="1.8" fill="#fff" stroke="rgba(0,0,0,0.4)" stroke-width="0.5"/>
+            </g>
+          </svg>
+          <span id="tsb-compass-bearing">000°</span>
+        </div>
       </button>
       <button class="tsb-btn" id="s-hamburger" ontouchstart="handleToolInteraction(() => toggleHamburgerMenu(), event)" onclick="handleToolInteraction(() => toggleHamburgerMenu(), event)" title="Menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
@@ -1730,6 +1775,46 @@
     }
     function mapZoomIn() { if (map) map.zoomIn(); }
     function mapZoomOut() { if (map) map.zoomOut(); }
+
+    // ---- Compass / Map Rotation ----
+    let mapBearing = 0;
+
+    function setMapBearing(deg) {
+      mapBearing = ((deg % 360) + 360) % 360;
+      const mapEl = document.getElementById('map');
+      if (mapEl) mapEl.style.transform = 'rotate(' + mapBearing + 'deg)';
+      const needle = document.getElementById('compass-needle-group');
+      if (needle) needle.style.transform = 'rotate(' + (-mapBearing) + 'deg)';
+      const bearingEl = document.getElementById('tsb-compass-bearing');
+      if (bearingEl) bearingEl.textContent = String(Math.round(mapBearing) % 360).padStart(3, '0') + '°';
+    }
+
+    function resetNorth() { setMapBearing(0); }
+
+    // Two-finger rotation gesture on the map
+    (function () {
+      let rotStartBearing = 0;
+      let rotStartAngle = null;
+      function fingerAngle(touches) {
+        return Math.atan2(touches[1].clientY - touches[0].clientY,
+                          touches[1].clientX - touches[0].clientX) * 180 / Math.PI;
+      }
+      document.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 2) {
+          rotStartBearing = mapBearing;
+          rotStartAngle = fingerAngle(e.touches);
+        }
+      }, { passive: true });
+      document.addEventListener('touchmove', function (e) {
+        if (e.touches.length === 2 && rotStartAngle !== null) {
+          setMapBearing(rotStartBearing + fingerAngle(e.touches) - rotStartAngle);
+        }
+      }, { passive: true });
+      document.addEventListener('touchend', function (e) {
+        if (e.touches.length < 2) rotStartAngle = null;
+      }, { passive: true });
+    }());
+    // ---- End Compass / Map Rotation ----
 
     // ---- Distance Measurement Tool ----
     let measureActive = false;
