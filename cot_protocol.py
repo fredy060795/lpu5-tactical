@@ -48,7 +48,8 @@ class CoTEvent:
                  remarks: Optional[str] = None,
                  team_name: Optional[str] = None,
                  team_role: Optional[str] = None,
-                 stale_minutes: int = 5):
+                 stale_minutes: int = 5,
+                 how: str = "m-g"):
         """
         Initialize a CoT event
         
@@ -65,6 +66,8 @@ class CoTEvent:
             team_name: Team name
             team_role: Role within team
             stale_minutes: Minutes until event is stale
+            how: How the event was generated (e.g. "m-g" machine-generated,
+                 "h-g-i-g-o" human-placed, "h-e" human-entered coordinates)
         """
         self.uid = uid
         self.cot_type = cot_type
@@ -80,7 +83,7 @@ class CoTEvent:
         self.time = datetime.now(timezone.utc)
         self.start = self.time
         self.stale = self.time + timedelta(minutes=stale_minutes)
-        self.how = "m-g"  # machine-generated
+        self.how = how
         
     @staticmethod
     def build_cot_type(atom: str = "friendly",
@@ -173,6 +176,7 @@ class CoTEvent:
             # Extract required attributes
             uid = root.get("uid")
             cot_type = root.get("type")
+            how = root.get("how", "m-g")
             
             # Extract point coordinates
             point = root.find("point")
@@ -231,7 +235,8 @@ class CoTEvent:
                 remarks=remarks,
                 team_name=team_name,
                 team_role=team_role,
-                stale_minutes=stale_minutes
+                stale_minutes=stale_minutes,
+                how=how
             )
             
         except Exception as e:
@@ -288,9 +293,11 @@ class CoTProtocolHandler:
     # iterating with str.startswith().
     COT_TO_LPU5_TYPE: List[tuple] = [
         ("b-m-p-s-m", "raute"),     # TAK spot-map marker (all shapes)
+        ("u-d-c-e",   "raute"),     # TAK drawing ellipse → diamond
         ("u-d-c-c",   "raute"),     # TAK drawing circle → diamond
         ("u-d-r",     "rechteck"),  # TAK drawing rectangle
         ("u-d-f",     "raute"),     # TAK drawing freehand → diamond
+        ("u-d-p",     "raute"),     # TAK drawing generic point → diamond
         ("a-f",       "friendly"),  # friendly affiliation (any sub-type)
         ("a-h",       "hostile"),   # hostile affiliation
         ("a-n",       "neutral"),   # neutral affiliation
@@ -345,6 +352,13 @@ class CoTProtocolHandler:
                 lpu5_type = (marker.get("type") or marker.get("status") or "unknown").lower()
                 cot_type = CoTProtocolHandler.lpu5_type_to_cot(lpu5_type)
 
+            # Preserve the original `how` attribute when re-broadcasting a
+            # TAK-originated marker so that ATAK clients receive the correct
+            # provenance.  Fall back to "m-g" (machine-generated) so that
+            # meshtastic-node events and server-generated pings are still
+            # marked correctly.
+            how = marker.get("how") or marker.get("cot_how") or "m-g"
+
             return CoTEvent(
                 uid=uid,
                 cot_type=cot_type,
@@ -353,7 +367,8 @@ class CoTProtocolHandler:
                 callsign=marker.get("name") or marker.get("callsign"),
                 remarks=marker.get("description") or marker.get("remarks"),
                 team_name=marker.get("team"),
-                team_role=marker.get("role")
+                team_role=marker.get("role"),
+                how=how
             )
         except Exception as e:
             logger.error(f"Failed to convert marker to CoT: {e}")
@@ -419,7 +434,8 @@ class CoTProtocolHandler:
             "role": cot_event.team_role,
             "timestamp": cot_event._format_time(cot_event.time),
             "cot_type": cot_event.cot_type,
-            "source": "cot"
+            "source": "cot",
+            "how": cot_event.how
         }
     
     @staticmethod
