@@ -81,13 +81,15 @@ if "chat_messages" in _inspector.get_table_names():
         if "read_by" not in _existing_cols:
             _conn.execute(sa_text("ALTER TABLE chat_messages ADD COLUMN read_by JSON"))
 
-# Migrate users table: add unit_id column if missing (units table must exist first)
+# Migrate users table: add unit_id and chat_channels columns if missing
 if "units" in _inspector.get_table_names() and "users" in _inspector.get_table_names():
     _user_cols = {c["name"] for c in _inspector.get_columns("users")}
     with engine.begin() as _conn:
         if "unit_id" not in _user_cols:
             # SQLite does not enforce FK constraints by default; omit REFERENCES for compat
             _conn.execute(sa_text("ALTER TABLE users ADD COLUMN unit_id VARCHAR"))
+        if "chat_channels" not in _user_cols:
+            _conn.execute(sa_text("ALTER TABLE users ADD COLUMN chat_channels JSON"))
 
 # Import new autonomous modules
 try:
@@ -2023,6 +2025,7 @@ async def get_users(db: Session = Depends(get_db)):
             "fullname": u.fullname,
             "callsign": u.callsign,
             "is_active": u.is_active,
+            "chat_channels": u.chat_channels if u.chat_channels else ["all"],
             "data": u.data
         } for u in users
     ]
@@ -2120,6 +2123,9 @@ async def get_user(user_id: str, db: Session = Depends(get_db)):
         result["unit"] = unit_obj.name if unit_obj else user.unit
     else:
         result["unit"] = user.unit
+    # Ensure chat_channels defaults to ["all"]
+    if not result.get("chat_channels"):
+        result["chat_channels"] = ["all"]
     return result
 
 @app.put("/api/users/{user_id}")
@@ -2162,6 +2168,15 @@ async def update_user(user_id: str, data: dict = Body(...), authorization: Optio
                     user.unit = unit_name
             else:
                  setattr(user, field, data[field])
+
+    # Handle chat_channels update
+    if "chat_channels" in data:
+        channels = data["chat_channels"]
+        if isinstance(channels, list):
+            # Always ensure "all" is included
+            if "all" not in channels:
+                channels = ["all"] + channels
+            user.chat_channels = channels
     
     # Check for legacy 'active' field
     if "active" in data:
@@ -6937,12 +6952,31 @@ def _chat_message_to_dict(m):
     }
 
 @app.get("/api/chat/channels", summary="Get chat channels")
-def get_chat_channels():
-    """Get list of available chat channels (static defaults + DB custom channels)"""
+def get_chat_channels(authorization: Optional[str] = Header(None)):
+    """Get list of available chat channels filtered to channels the current user may access."""
     db = SessionLocal()
     try:
         _ensure_default_channels(db)
         channels = db.query(ChatChannel).all()
+
+        # Determine which channels this user is allowed to see
+        allowed_ids = None  # None = all channels visible
+        if authorization and authorization.startswith("Bearer "):
+            try:
+                user_payload = verify_token(authorization.split(" ", 1)[1].strip())
+                username = (user_payload or {}).get("username") or (user_payload or {}).get("sub")
+                if username:
+                    user = db.query(User).filter(User.username == username).first()
+                    if user:
+                        # Admin and operator roles see all channels
+                        if user.role not in ("admin", "operator"):
+                            user_chat_channels = user.chat_channels
+                            if user_chat_channels:
+                                # Always include "all" channel
+                                allowed_ids = set(user_chat_channels) | {"all"}
+            except Exception as _ch_err:
+                logger.debug("Channel filter auth check failed: %s", _ch_err)
+
         return {
             "status": "success",
             "channels": [
@@ -6956,6 +6990,7 @@ def get_chat_channels():
                     "created_by": ch.created_by or "",
                 }
                 for ch in channels
+                if allowed_ids is None or ch.id in allowed_ids
             ],
         }
     except Exception as e:
@@ -7057,10 +7092,27 @@ async def update_channel_members(channel_id: str, data: Dict = Body(...), author
         db.close()
 
 @app.get("/api/chat/messages/{channel_id}", summary="Get chat messages for a channel")
-def get_chat_messages(channel_id: str, limit: int = 100):
+def get_chat_messages(channel_id: str, limit: int = 100, authorization: Optional[str] = Header(None)):
     """Get recent chat messages from DB for a specific channel"""
     db = SessionLocal()
     try:
+        # Enforce channel access if auth is provided
+        if authorization and authorization.startswith("Bearer "):
+            try:
+                user_payload = verify_token(authorization.split(" ", 1)[1].strip())
+                username = (user_payload or {}).get("username") or (user_payload or {}).get("sub")
+                if username:
+                    user = db.query(User).filter(User.username == username).first()
+                    if user and user.role not in ("admin", "operator"):
+                        user_chat_channels = user.chat_channels or []
+                        allowed = set(user_chat_channels) | {"all"}
+                        if channel_id not in allowed:
+                            raise HTTPException(status_code=403, detail="Access to this channel is not permitted")
+            except HTTPException:
+                raise
+            except Exception as _access_err:
+                logger.debug("Channel access check failed: %s", _access_err)
+                pass
         messages = db.query(ChatMessage).filter(ChatMessage.channel == channel_id).order_by(ChatMessage.timestamp.desc()).limit(limit).all()
         # Reverse to get chronological order for UI
         messages.reverse()
@@ -7068,6 +7120,8 @@ def get_chat_messages(channel_id: str, limit: int = 100):
             "status": "success",
             "messages": [_chat_message_to_dict(m) for m in messages],
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("get_chat_messages failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -7092,6 +7146,14 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
         channel_exists = db.query(ChatChannel).filter(ChatChannel.id == channel_id).first()
         if not channel_exists:
             raise HTTPException(status_code=404, detail="Channel not found")
+
+        # Enforce that the sender is allowed to post to this channel
+        sender_user = db.query(User).filter(User.username == username).first()
+        if sender_user and sender_user.role not in ("admin", "operator"):
+            user_chat_channels = sender_user.chat_channels or []
+            allowed = set(user_chat_channels) | {"all"}
+            if channel_id not in allowed:
+                raise HTTPException(status_code=403, detail="You are not a member of this channel")
 
         # Create message in DB
         new_msg = ChatMessage(

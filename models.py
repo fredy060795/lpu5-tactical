@@ -30,6 +30,7 @@ class User(Base):
     callsign = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    chat_channels = Column(JSON, nullable=True, default=lambda: ["all"])  # allowed chat channel IDs
     data = Column(JSON, nullable=True) # Catch-all for extra legacy fields like history
 
 class MapMarker(Base):

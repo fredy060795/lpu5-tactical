@@ -59,9 +59,65 @@ async function hasPermission(permission) {
     return false;
 }
 
-// -------------------------
-// Unit management
-// -------------------------
+// Fetch all chat channels from API
+async function fetchChatChannels() {
+    try {
+        const token = getAuthToken();
+        const res = await fetch('/api/chat/channels', {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data && data.channels) ? data.channels : [];
+    } catch (e) {
+        console.error('fetchChatChannels error', e);
+        return [];
+    }
+}
+
+// Populate chat channel checkboxes in the edit modal
+async function populateChatChannelCheckboxes(container, selectedChannels) {
+    // Admin/operator roles bypass channel filtering on the server side, so all channels are returned
+    const token = getAuthToken();
+    let channels = [];
+    try {
+        const res = await fetch('/api/chat/channels', {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+            const data = await res.json();
+            channels = (data && data.channels) ? data.channels : [];
+        }
+    } catch (e) {
+        console.error('populateChatChannelCheckboxes error', e);
+    }
+
+    container.innerHTML = '';
+    if (channels.length === 0) {
+        container.innerHTML = '<span style="color:#666;font-size:0.85em;">No channels available</span>';
+        return;
+    }
+
+    channels.forEach(ch => {
+        const isChecked = ch.id === 'all' || (selectedChannels && selectedChannels.includes(ch.id));
+        const label = document.createElement('label');
+        label.style.cssText = 'display:inline-flex;align-items:center;gap:5px;background:#1a1a1a;border:1px solid #333;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:0.85em;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = ch.id;
+        cb.checked = isChecked;
+        if (ch.id === 'all') cb.disabled = true; // "all" is always required
+        cb.style.accentColor = ch.color || '#28a745';
+        label.appendChild(cb);
+        const span = document.createElement('span');
+        span.textContent = ch.name || ch.id;
+        if (ch.color) span.style.color = ch.color;
+        label.appendChild(span);
+        container.appendChild(label);
+    });
+}
+
+
 
 // Fetch all units from API
 async function fetchUnits() {
@@ -402,6 +458,12 @@ async function openEditModal(username) {
             await populateUnitDropdown(unitSelect, user.unit || 'General');
         }
         
+        // Populate chat channel checkboxes
+        const chatChannelsContainer = document.getElementById('editChatChannels');
+        if (chatChannelsContainer) {
+            await populateChatChannelCheckboxes(chatChannelsContainer, user.chat_channels || ['all']);
+        }
+        
         // Show modal
         const modal = document.getElementById('editModal');
         if (modal) modal.classList.add('active');
@@ -434,13 +496,22 @@ async function saveUserChanges() {
     const active = document.getElementById('editStatus').value === 'true';
     const role = document.getElementById('editRole').value;
     
+    // Collect selected chat channels
+    const chatChannelsContainer = document.getElementById('editChatChannels');
+    const selectedChatChannels = chatChannelsContainer
+        ? Array.from(chatChannelsContainer.querySelectorAll('input[type="checkbox"]'))
+              .filter(cb => cb.checked)
+              .map(cb => cb.value)
+        : ['all'];
+    
     try {
         const payload = {
             fullname: fullname || undefined,
             callsign: callsign || undefined,
             unit: unit || undefined,
             is_active: active,
-            role: role
+            role: role,
+            chat_channels: selectedChatChannels.length > 0 ? selectedChatChannels : ['all']
         };
         
         // Only include password if provided
