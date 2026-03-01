@@ -677,10 +677,39 @@
       display: block;
     }
 
+    /* Night Vision Mode */
+    #night-vision-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(180, 30, 0, 0.35);
+      pointer-events: none;
+      z-index: 99999;
+      mix-blend-mode: multiply;
+    }
+
+    body.night-mode #night-vision-overlay {
+      display: block;
+    }
+
+    body.night-mode #tsb-nightvision {
+      background: rgba(180, 30, 0, 0.5);
+    }
+
+    body.night-mode #tsb-nightvision svg {
+      filter: drop-shadow(0 0 4px #ff4400);
+    }
+
   </style>
 </head>
 
 <body>
+
+  <!-- Night Vision Overlay -->
+  <div id="night-vision-overlay"></div>
 
   <!-- Top Status Bar -->
   <div id="top-status-bar">
@@ -723,6 +752,13 @@
       <button class="tsb-btn" id="tsb-reload" ontouchstart="handleToolInteraction(() => refreshAllData(), event)" onclick="handleToolInteraction(() => refreshAllData(), event)" title="Synchronize">
         <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
           <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+        </svg>
+      </button>
+      <button class="tsb-btn" id="tsb-nightvision" aria-label="Night Vision" aria-pressed="false" ontouchstart="handleToolInteraction(() => toggleNightMode(), event)" onclick="handleToolInteraction(() => toggleNightMode(), event)" title="Night Vision">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ff6633" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M2 12c2.5-5 5.5-7 10-7s7.5 2 10 7c-2.5 5-5.5 7-10 7s-7.5-2-10-7z"/>
+          <line x1="2" y1="2" x2="22" y2="22" stroke="#ff4400" stroke-width="1.8"/>
         </svg>
       </button>
       <button class="tsb-btn" id="s-hamburger" ontouchstart="handleToolInteraction(() => toggleHamburgerMenu(), event)" onclick="handleToolInteraction(() => toggleHamburgerMenu(), event)" title="Menu">
@@ -2006,6 +2042,23 @@
       }
     }
 
+    function toggleNightMode() {
+      const active = document.body.classList.toggle('night-mode');
+      const btn = document.getElementById('tsb-nightvision');
+      if (btn) btn.setAttribute('aria-pressed', String(active));
+      try { localStorage.setItem('nightMode', active ? '1' : '0'); } catch (e) {}
+    }
+
+    // Restore night mode preference on load
+    (function () {
+      try {
+        if (localStorage.getItem('nightMode') === '1') {
+          document.body.classList.add('night-mode');
+          const btn = document.getElementById('tsb-nightvision');
+          if (btn) btn.setAttribute('aria-pressed', 'true');
+        }
+      } catch (e) {}
+    })();
     // Meshtastic node synchronization
     async function updateMeshtasticNodes() {
       if (!map || !isLoggedIn) return;
