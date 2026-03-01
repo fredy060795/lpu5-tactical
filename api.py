@@ -1782,7 +1782,7 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
             "callsign": name,
             "lat": lat,
             "lng": lng,
-            "type": "friendly",
+            "type": "meshtastic_node",
             "meshtastic_node": True,
             "node_id": node_id,
             "source": "meshtastic",
