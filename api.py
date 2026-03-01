@@ -41,6 +41,7 @@ import random
 import threading
 import time
 import socket
+import ssl
 import asyncio
 import sys
 import xml.sax.saxutils as _sax_utils
@@ -320,9 +321,11 @@ async def lifespan(application):
     # Start CoT listener service if enabled in config
     try:
         cfg = load_json("config") or {}
-        cot_listener_enabled = cfg.get("cot_listener_enabled", False)
+        # Default to True so WinTAK/ATAK can reach LPU5 on first run without manual configuration.
+        # Set cot_listener_enabled=false in config.json to disable.
+        cot_listener_enabled = cfg.get("cot_listener_enabled", True)
     except Exception:
-        cot_listener_enabled = False
+        cot_listener_enabled = True
     if cot_listener_enabled and COT_LISTENER_AVAILABLE:
         try:
             if _start_cot_listener():
@@ -960,11 +963,10 @@ def _build_tak_ssl_context(tak_cfg: dict):
     ``TLSV13_ALERT_CERTIFICATE_REQUIRED`` error raised by servers that enforce
     mTLS (e.g. ascl-atak.duckdns.org:8089).
     """
-    import ssl as _ssl
-    ctx = _ssl.create_default_context()
+    ctx = ssl.create_default_context()
     ctx.check_hostname = False
-    ctx.verify_mode = _ssl.CERT_NONE
-    ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
+    ctx.verify_mode = ssl.CERT_NONE
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
     cert_path = tak_cfg.get("tak_client_cert_path", "")
     key_path  = tak_cfg.get("tak_client_key_path", "")
@@ -1057,8 +1059,19 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
             except socket.timeout:
                 logger.warning("CoT SSL forward to TAK server %s:%s timed out", host, port)
                 return False
-            except (socket.gaierror, ConnectionRefusedError, OSError) as e:
-                logger.warning("CoT SSL forward to TAK server %s:%s failed: %s", host, port, e)
+            except (socket.gaierror, ConnectionRefusedError, ssl.SSLError, OSError) as e:
+                if isinstance(e, ssl.SSLError) and "CERTIFICATE_REQUIRED" in str(e).upper():
+                    logger.warning(
+                        "CoT SSL forward to %s:%s failed – the server requires a client certificate "
+                        "(TLSV13_ALERT_CERTIFICATE_REQUIRED). "
+                        "For WinTAK/ATAK running on the same machine use connection type 'tcp' with "
+                        "port 8087 (no certificate needed). "
+                        "For remote SSL servers configure tak_client_cert_path / tak_client_key_path "
+                        "in the TAK Server settings.",
+                        host, port,
+                    )
+                else:
+                    logger.warning("CoT SSL forward to TAK server %s:%s failed: %s", host, port, e)
                 return False
             finally:
                 sock.close()
@@ -1299,8 +1312,18 @@ def _tak_receiver_loop() -> None:
                             logger.error("TAK receiver read error: %s", recv_err)
                         break
 
-            except (socket.timeout, socket.gaierror, ConnectionRefusedError, OSError) as conn_err:
-                logger.warning("TAK receiver connection to %s:%s failed: %s", host, port, conn_err)
+            except (socket.timeout, socket.gaierror, ConnectionRefusedError, ssl.SSLError, OSError) as conn_err:
+                if isinstance(conn_err, ssl.SSLError) and "CERTIFICATE_REQUIRED" in str(conn_err).upper():
+                    logger.warning(
+                        "TAK receiver connection to %s:%s failed – the server requires a client "
+                        "certificate (TLSV13_ALERT_CERTIFICATE_REQUIRED). "
+                        "For WinTAK/ATAK on the same machine switch to connection type 'tcp' with "
+                        "port 8087 (no certificate needed). "
+                        "For remote SSL servers configure tak_client_cert_path / tak_client_key_path.",
+                        host, port,
+                    )
+                else:
+                    logger.warning("TAK receiver connection to %s:%s failed: %s", host, port, conn_err)
                 with _TAK_RECEIVER_STATS_LOCK:
                     _TAK_RECEIVER_STATS["last_error"] = str(conn_err)
 
@@ -6377,7 +6400,17 @@ def test_tak_connection():
             }
         except socket.timeout:
             return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} timed out"}
-        except (socket.gaierror, ConnectionRefusedError, OSError) as e:
+        except (socket.gaierror, ConnectionRefusedError, ssl.SSLError, OSError) as e:
+            if isinstance(e, ssl.SSLError) and "CERTIFICATE_REQUIRED" in str(e).upper():
+                msg = (
+                    f"Connection to {host}:{port} failed: {e} — "
+                    "The server requires a client certificate (mutual TLS / mTLS). "
+                    "If WinTAK or ATAK is running on the same machine, switch the connection type "
+                    "to 'TCP' and set the port to 8087 — no certificate is needed for local "
+                    "connections. For remote SSL servers, set the Client Certificate Path and "
+                    "Client Key Path fields in the TAK Server settings."
+                )
+                return {"reachable": False, "data_exchanged": False, "message": msg}
             return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} failed: {e}"}
 
 

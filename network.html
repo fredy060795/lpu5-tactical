@@ -467,6 +467,13 @@
             Connect this server to a TAK Server for advanced tactical operations (similar to ATAK/WINTAK).
         </div>
 
+        <div class="info-box" style="background:#fff8e1;border-left:4px solid #f59e0b;">
+            <i class="fas fa-lightbulb" style="color:#f59e0b;"></i>
+            <strong>WinTAK / ATAK on the same machine?</strong>
+            Use <strong>Connection Type: TCP</strong>, Host: <code>127.0.0.1</code>, Port: <code>8087</code> — no certificate required.
+            SSL (port 8089) requires a client certificate; use TCP for local connections to avoid this.
+        </div>
+
         <div class="grid-2">
             <div>
                 <div class="form-group">
@@ -484,7 +491,7 @@
 
                 <div class="form-group">
                     <label class="form-label">Connection Type</label>
-                    <select class="form-select" id="takConnectionType" disabled>
+                    <select class="form-select" id="takConnectionType" disabled onchange="_onTakConnectionTypeChange(this.value)">
                         <option value="tcp">TCP</option>
                         <option value="udp">UDP</option>
                         <option value="ssl">SSL/TLS</option>
@@ -547,6 +554,18 @@
             The CoT listener opens local TCP and UDP sockets so that ATAK clients can
             send CoT XML directly to this server. Received events are stored as map
             markers and broadcast to all connected clients in real time.
+            The listener starts automatically on server startup.
+        </div>
+
+        <div class="info-box" style="background:#e8f5e9;border-left:4px solid #4caf50;">
+            <i class="fas fa-mobile-alt" style="color:#4caf50;"></i>
+            <strong>WinTAK / ATAK on the same machine — how to connect:</strong>
+            <ol style="margin:6px 0 0 18px;padding:0;">
+                <li>In WinTAK/ATAK open <em>Settings → Network → Server Connections</em> and add a new server.</li>
+                <li>Set <strong>Address</strong> to <code id="cotListenerHostHint">127.0.0.1</code> and <strong>Port</strong> to <code>8088</code> (TCP, no SSL).</li>
+                <li>Make sure the CoT listener below shows <strong>Running</strong>. If not, click <em>Start Listener</em>.</li>
+            </ol>
+            For ATAK on a different device on the same network, replace <code>127.0.0.1</code> with this server's IP address shown at the top of this page.
         </div>
 
         <div class="form-grid">
@@ -562,7 +581,7 @@
 
         <div class="form-group">
             <div class="checkbox-group">
-                <input type="checkbox" id="cotListenerAutoStart">
+                <input type="checkbox" id="cotListenerAutoStart" checked>
                 <label for="cotListenerAutoStart">Start listener automatically on server startup</label>
             </div>
         </div>
@@ -682,6 +701,11 @@ async function loadServerInfo() {
             document.getElementById('localIpDisplay').textContent = data.local_ip || 'N/A';
             document.getElementById('portDisplay').textContent = data.port || '8101';
             document.getElementById('serverUrlDisplay').textContent = data.base_url || 'N/A';
+            // Update CoT listener hint with the server's actual local IP
+            const hint = document.getElementById('cotListenerHostHint');
+            if (hint && data.local_ip && data.local_ip !== 'N/A') {
+                hint.textContent = data.local_ip;
+            }
         }
     } catch (error) {
         console.error('Error loading server info:', error);
@@ -760,7 +784,8 @@ async function loadNetworkSettings() {
                     const rawCfg = await cfgRaw.json();
                     document.getElementById('cotListenerTcpPort').value = rawCfg.cot_listener_tcp_port || 8088;
                     document.getElementById('cotListenerUdpPort').value = rawCfg.cot_listener_udp_port || 4242;
-                    document.getElementById('cotListenerAutoStart').checked = rawCfg.cot_listener_enabled || false;
+                    // Default to true (matches server-side default) – listener auto-starts unless explicitly disabled
+                    document.getElementById('cotListenerAutoStart').checked = rawCfg.cot_listener_enabled !== false;
                 }
             } catch (_) { /* use defaults */ }
 
@@ -878,6 +903,20 @@ async function testConnection() {
     } catch (error) {
         console.error('Connection test failed:', error);
         showStatus('Connection failed: ' + error.message, 'error');
+    }
+}
+
+// Auto-update the port suggestion when the TAK connection type changes.
+// Default ports: TCP=8087 (no SSL), UDP=4242, SSL=8089.
+function _onTakConnectionTypeChange(type) {
+    const portInput = document.getElementById('takServerPort');
+    if (!portInput || portInput.disabled) return;
+    const currentPort = parseInt(portInput.value, 10);
+    const defaultPorts = { tcp: 8087, udp: 4242, ssl: 8089 };
+    // Only overwrite when the port is still set to a known TAK default (avoid clobbering custom values).
+    const knownDefaults = new Set(Object.values(defaultPorts));
+    if (!currentPort || knownDefaults.has(currentPort)) {
+        portInput.value = defaultPorts[type] || 8089;
     }
 }
 
