@@ -49,7 +49,8 @@ class CoTEvent:
                  team_name: Optional[str] = None,
                  team_role: Optional[str] = None,
                  stale_minutes: int = 5,
-                 how: str = "m-g"):
+                 how: str = "m-g",
+                 color: Optional[int] = None):
         """
         Initialize a CoT event
         
@@ -68,6 +69,7 @@ class CoTEvent:
             stale_minutes: Minutes until event is stale
             how: How the event was generated (e.g. "m-g" machine-generated,
                  "h-g-i-g-o" human-placed, "h-e" human-entered coordinates)
+            color: ATAK signed ARGB integer color value for spot-map markers
         """
         self.uid = uid
         self.cot_type = cot_type
@@ -84,6 +86,7 @@ class CoTEvent:
         self.start = self.time
         self.stale = self.time + timedelta(minutes=stale_minutes)
         self.how = how
+        self.color = color
         
     @staticmethod
     def build_cot_type(atom: str = "friendly",
@@ -157,6 +160,12 @@ class CoTEvent:
         # entity from its overlay once the stale timestamp is reached.
         if self.cot_type.startswith("b-m") or self.cot_type.startswith("u-d"):
             ET.SubElement(detail, "archive")
+
+        # Emit ATAK color element for spot-map markers so that the correct
+        # color is rendered in ATAK/WinTAK.  The value is a signed ARGB int.
+        if self.cot_type.startswith("b-m-p-s-m") and self.color is not None:
+            color_elem = ET.SubElement(detail, "color")
+            color_elem.set("argb", str(self.color))
 
         # Track information (for movement history)
         track = ET.SubElement(detail, "track")
@@ -282,20 +291,32 @@ class CoTProtocolHandler:
     # These must match the identifiers used by ATAK/ITAK/WinTAK/XTAK exactly
     # so that symbols sync correctly across all TAK server implementations.
     LPU5_TO_COT_TYPE: Dict[str, str] = {
-        "raute":     "b-m-p-s-m",   # spot-map marker (diamond/rhombus shape)
-        "quadrat":   "b-m-p-s-m",   # spot-map marker (square shape)
-        "blume":     "b-m-p-s-m",   # spot-map marker (flower shape)
+        "raute":        "b-m-p-s-m",   # spot-map marker (diamond/rhombus shape)
+        "quadrat":      "b-m-p-s-m",   # spot-map marker (square shape)
+        "blume":        "b-m-p-s-m",   # spot-map marker (flower shape)
         # LPU5 stores "rechteck" as a lat/lon point without polygon geometry.
         # TAK u-d-r (drawing rectangle) requires polygon vertices in the detail
         # section which LPU5 does not store; ATAK will not display a u-d-r event
         # that lacks geometry.  Use b-m-p-s-m (spot-map point) so the marker is
         # at least visible as a point on the ATAK map.
-        "rechteck":  "b-m-p-s-m",   # spot-map point (rectangle icon in LPU5)
-        "friendly":  "a-f-G-U-C",   # friendly ground unit
-        "hostile":   "a-h-G-U-C",   # hostile ground unit
-        "neutral":   "a-n-G-U-C",   # neutral ground unit
-        "unknown":   "a-u-G-U-C",   # unknown ground unit
-        "pending":   "a-p-G-U-C",   # pending ground unit
+        "rechteck":     "b-m-p-s-m",   # spot-map point (rectangle icon in LPU5)
+        "friendly":     "a-f-G-U-C",   # friendly ground unit
+        "hostile":      "a-h-G-U-C",   # hostile ground unit
+        "neutral":      "a-n-G-U-C",   # neutral ground unit
+        "unknown":      "a-u-G-U-C",   # unknown ground unit
+        "pending":      "a-p-G-U-C",   # pending ground unit
+        "gps_position": "a-f-G-U-C",   # live GPS position (friendly ground unit)
+    }
+
+    # Mapping from normalized lowercase hex color strings to ATAK team names.
+    # ATAK uses team colors to visually group units on the situational-awareness
+    # map.  Only the four most common LPU5 marker colors are mapped here;
+    # unknown colors fall through to None (no team override).
+    HEX_COLOR_TO_TEAM: Dict[str, str] = {
+        "#ffff00": "Yellow",
+        "#0000ff": "Blue",
+        "#00ff00": "Green",
+        "#ff0000": "Red",
     }
 
     # Reverse mapping: TAK CoT type prefix → LPU5 symbol type.
@@ -337,6 +358,53 @@ class CoTProtocolHandler:
         return "unknown"
 
     @staticmethod
+    def hex_to_argb_int(hex_color: str) -> Optional[int]:
+        """
+        Convert an HTML hex color string to an ATAK signed 32-bit ARGB integer.
+
+        ATAK encodes colors as signed 32-bit integers in ARGB byte order
+        (alpha in the most-significant byte).  Full opacity (alpha=0xFF) is
+        assumed when the input is a 6-digit ``#RRGGBB`` string.  8-digit
+        ``#AARRGGBB`` strings are also supported.
+
+        Args:
+            hex_color: Color string in ``#RRGGBB`` or ``#AARRGGBB`` format.
+
+        Returns:
+            Signed 32-bit ARGB integer, or None if the input cannot be parsed.
+        """
+        try:
+            h = hex_color.lstrip("#")
+            if len(h) == 6:
+                r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+                argb = (0xFF << 24) | (r << 16) | (g << 8) | b
+            elif len(h) == 8:
+                a, r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), int(h[6:8], 16)
+                argb = (a << 24) | (r << 16) | (g << 8) | b
+            else:
+                return None
+            # Reinterpret as signed 32-bit integer (ATAK expects a Java int)
+            if argb >= 0x80000000:
+                argb -= 0x100000000
+            return argb
+        except (ValueError, AttributeError):
+            return None
+
+    @classmethod
+    def hex_color_to_team(cls, hex_color: str) -> Optional[str]:
+        """
+        Map a hex color string to an ATAK team name.
+
+        Args:
+            hex_color: Color string in ``#RRGGBB`` format.
+
+        Returns:
+            ATAK team name string, or None if the color is not mapped.
+        """
+        if not hex_color:
+            return None
+        return cls.HEX_COLOR_TO_TEAM.get(hex_color.lower())
+    @staticmethod
     def marker_to_cot(marker: Dict[str, Any]) -> Optional[CoTEvent]:
         """
         Convert a map marker to CoT event
@@ -370,6 +438,18 @@ class CoTProtocolHandler:
             # marked correctly.
             how = marker.get("how") or marker.get("cot_how") or "m-g"
 
+            # Derive ATAK color value and team name from the marker's hex color.
+            # Team name takes precedence if explicitly set on the marker; the
+            # color field is used as a fallback so that spot-map markers
+            # created in LPU5 appear with the correct color in ATAK.
+            hex_color = marker.get("color")
+            argb_color: Optional[int] = None
+            team_name: Optional[str] = marker.get("team")
+            if hex_color:
+                argb_color = CoTProtocolHandler.hex_to_argb_int(hex_color)
+                if not team_name:
+                    team_name = CoTProtocolHandler.hex_color_to_team(hex_color)
+
             return CoTEvent(
                 uid=uid,
                 cot_type=cot_type,
@@ -377,9 +457,10 @@ class CoTProtocolHandler:
                 lon=lon,
                 callsign=marker.get("name") or marker.get("callsign"),
                 remarks=marker.get("description") or marker.get("remarks"),
-                team_name=marker.get("team"),
+                team_name=team_name,
                 team_role=marker.get("role"),
-                how=how
+                how=how,
+                color=argb_color
             )
         except Exception as e:
             logger.error(f"Failed to convert marker to CoT: {e}")
