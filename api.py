@@ -1005,6 +1005,20 @@ def _build_cot_ping_xml() -> str:
     )
 
 
+def _build_cot_pong_xml() -> str:
+    """Build a CoT t-x-c-t-r ping-ack XML string to reply to a server ping."""
+    now = datetime.now(timezone.utc)
+    stale = now + timedelta(seconds=30)
+    fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<event version="2.0" uid="{_LPU5_COT_UID}" type="t-x-c-t-r" how="m-g"'
+        f' time="{fmt(now)}" start="{fmt(now)}" stale="{fmt(stale)}">'
+        '<point lat="0.0" lon="0.0" hae="0.0" ce="9999999.0" le="9999999.0"/>'
+        '<detail/></event>'
+    )
+
+
 # Fixed UID used for LPU5's SA beacon so the TAK server recognises the gateway
 # as a persistent entity across reconnects.
 _LPU5_COT_UID = "LPU5-GW"
@@ -1331,7 +1345,6 @@ def _tak_receiver_loop() -> None:
                     sock.settimeout(_TAK_SOCKET_TIMEOUT)
 
                 sock.connect((host, port))
-                sock.settimeout(30.0)  # Blocking recv with timeout for clean shutdown
 
                 with _TAK_RECEIVER_STATS_LOCK:
                     _TAK_RECEIVER_STATS["connected"] = True
@@ -1360,9 +1373,31 @@ def _tak_receiver_loop() -> None:
                     global _TAK_SOCKET
                     _TAK_SOCKET = sock
 
+                # Use a short receive timeout so the SA beacon refresh timer
+                # and the stop-event check fire promptly even when the server
+                # sends no data.
+                sock.settimeout(5.0)
+
                 # Receive loop
                 buf = b""
+                sa_refresh_interval = 25  # seconds between SA beacon refreshes
+                last_sa_time = time.time()
                 while not _TAK_RECEIVER_STOP.is_set():
+                    # Periodically re-send the SA beacon so the LPU5 gateway
+                    # presence on the TAK server never goes stale (stale = 5 min
+                    # but we refresh every 25 s to stay well ahead of the deadline
+                    # and to keep the connection alive on servers that use the SA
+                    # interval to detect dead clients).
+                    now_ts = time.time()
+                    if now_ts - last_sa_time >= sa_refresh_interval:
+                        try:
+                            with _TAK_SEND_LOCK:
+                                sock.sendall(_build_lpu5_sa_xml().encode("utf-8"))
+                            last_sa_time = now_ts
+                            logger.debug("TAK: refreshed SA beacon as %s", _LPU5_COT_UID)
+                        except Exception as _sa_err:
+                            logger.warning("TAK SA beacon refresh failed: %s", _sa_err)
+                            break
                     try:
                         chunk = sock.recv(_TAK_RECV_BUFFER)
                         if not chunk:
@@ -1381,9 +1416,26 @@ def _tak_receiver_loop() -> None:
                                 continue
                             packet = buf[start:end + 8]
                             buf = buf[end + 8:]
-                            _process_incoming_cot(packet.decode("utf-8", errors="ignore"))
+                            pkt_str = packet.decode("utf-8", errors="ignore")
+                            # Respond to server pings (t-x-c-t) with a ping-ack
+                            # (t-x-c-t-r).  TAK servers close connections whose
+                            # clients never reply, which would silently break
+                            # bidirectional data exchange.
+                            # The space before 'type=' anchors the match to an XML
+                            # attribute, reducing false positives from inner text.
+                            if (' type="t-x-c-t"' in pkt_str or " type='t-x-c-t'" in pkt_str) and \
+                                    "t-x-c-t-r" not in pkt_str:
+                                try:
+                                    with _TAK_SEND_LOCK:
+                                        sock.sendall(_build_cot_pong_xml().encode("utf-8"))
+                                    logger.debug("TAK: sent ping-ack (t-x-c-t-r)")
+                                except Exception as _pong_err:
+                                    logger.warning("TAK ping-ack send failed: %s", _pong_err)
+                                    break
+                            else:
+                                _process_incoming_cot(pkt_str)
                     except socket.timeout:
-                        continue  # No data yet; check stop event and retry
+                        continue  # No data yet; check stop event and SA refresh timer
                     except (OSError, Exception) as recv_err:
                         if not _TAK_RECEIVER_STOP.is_set():
                             logger.error("TAK receiver read error: %s", recv_err)
