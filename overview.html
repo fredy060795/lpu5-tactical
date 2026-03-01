@@ -524,35 +524,85 @@
       border-radius: 8px !important;
     }
 
-    /* Hamburger Menu Styles */
+    /* Hamburger Sidebar Menu */
     #status-menu {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.9); z-index: 10001; display: none;
-      flex-direction: column; padding: 20px; color: #fff;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
-      overscroll-behavior: contain; /* prevent scroll leak to body */
-      touch-action: pan-y; /* allow vertical touch scroll */
-      scrollbar-width: none; /* Firefox */
-      -ms-overflow-style: none; /* IE and Edge */
+      z-index: 10001; display: none; pointer-events: none;
     }
-    #status-menu::-webkit-scrollbar {
-      display: none; /* Chrome, Safari, Opera */
+    #status-menu.open { display: block; }
+    #sidebar-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.5); pointer-events: all;
     }
-    .menu-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-blue); padding-bottom: 10px; margin-bottom: 20px; flex-shrink: 0; }
-    .menu-section { margin-bottom: 20px; background: #111; border: 1px solid #333; padding: 15px; border-radius: 8px; flex-shrink: 0; }
-    .menu-section h3 { font-size: 0.9em; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    #sidebar-panel {
+      position: absolute; top: 0; right: 0;
+      width: 280px; max-width: 85vw; height: 100%;
+      background: #111; border-left: 2px solid var(--accent-blue);
+      display: flex; flex-direction: column;
+      pointer-events: all; overflow-y: auto;
+      transform: translateX(100%); transition: transform 0.25s ease;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    #sidebar-panel::-webkit-scrollbar { display: none; }
+    #status-menu.open #sidebar-panel { transform: translateX(0); }
+    .sidebar-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 16px; border-bottom: 1px solid #2a2a2a;
+      background: #0a0a0a; flex-shrink: 0;
+      font-size: 0.85rem; font-weight: bold;
+      color: var(--accent-blue); letter-spacing: 1px;
+    }
+    .sidebar-close-btn {
+      background: none; border: none; color: #aaa;
+      font-size: 1.3rem; cursor: pointer; padding: 2px 8px; line-height: 1;
+    }
+    .sidebar-tile-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px;
+    }
+    .sidebar-tile {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      padding: 14px 6px; cursor: pointer; gap: 7px;
+      -webkit-tap-highlight-color: transparent; transition: background 0.15s;
+    }
+    .sidebar-tile:active { background: #2d2d2d; }
+    .sidebar-tile i { font-size: 1.3rem; color: #bbb; }
+    .sidebar-tile span { font-size: 0.62rem; color: #888; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
 
+    /* Menu popup modal */
+    #menu-popup {
+      position: fixed; inset: 0; z-index: 10002; display: none;
+      align-items: center; justify-content: center;
+    }
+    #menu-popup.open { display: flex; }
+    #menu-popup-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.7); }
+    #menu-popup-content {
+      position: relative; background: #1a1a1a;
+      border: 2px solid var(--accent-blue); border-radius: 10px;
+      width: 90%; max-width: 380px; max-height: 80vh; overflow-y: auto;
+      z-index: 1; font-family: 'Courier New', monospace; color: #fff;
+    }
+    #menu-popup-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-bottom: 1px solid #333;
+      font-weight: bold; color: var(--accent-blue);
+      font-size: 0.85rem; letter-spacing: 1px; text-transform: uppercase;
+      position: sticky; top: 0; background: #1a1a1a;
+    }
+    #menu-popup-header button {
+      background: none; border: none; color: #aaa;
+      font-size: 1.3rem; cursor: pointer; padding: 0 6px; line-height: 1;
+    }
+    #menu-popup-body { padding: 16px; }
+
+    /* Keep component classes used in popup content */
     .status-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .status-btn { padding: 10px; border: 1px solid #444; background: #222; color: #fff; text-align: center; border-radius: 4px; font-weight: bold; cursor: pointer; }
     .status-btn.active-status { background: var(--accent-green); border-color: #fff; }
     .status-btn.base-status { background: var(--accent-blue); border-color: #fff; }
     .status-btn.kia-status { background: var(--accent-red); border-color: #fff; }
-
     .gps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
     .interval-btn { padding: 8px; background: #222; border: 1px solid #444; color: #ccc; border-radius: 4px; font-size: 0.8em; cursor: pointer; }
     .interval-btn.active { background: var(--accent-blue); color: #fff; border-color: #fff; }
-
     .menu-btn { width: 100%; padding: 12px; margin: 5px 0; background: #222; border: 1px solid #444; color: white; border-radius: 4px; text-align: left; display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: 'Courier New', monospace; }
     .menu-btn i { width: 20px; text-align: center; }
     .logout-btn { color: var(--accent-red); border-color: var(--accent-red); margin-top: 10px; }
@@ -784,6 +834,38 @@
       filter: drop-shadow(0 0 4px #ff4400);
     }
 
+    /* Floating compass (top-left, below header) */
+    #tsb-compass {
+      position: fixed;
+      top: 60px;
+      left: 10px;
+      width: 52px;
+      height: 52px;
+      background: transparent;
+      border: none;
+      z-index: 6010;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #tsb-compass.rotation-unlocked {
+      filter: drop-shadow(0 0 6px rgba(0,123,255,0.9));
+    }
+
+    /* Toolbar toggle (pin) button active state */
+    #tsb-toolbar-toggle.active {
+      background: rgba(255, 215, 0, 0.2);
+      border: 1px solid rgba(255, 215, 0, 0.5) !important;
+    }
+    #tsb-toolbar-toggle.active svg {
+      filter: drop-shadow(0 0 4px #ffd700);
+    }
+
   </style>
 </head>
 
@@ -817,6 +899,12 @@
     </div>
     <div class="tsb-sep"></div>
     <div class="tsb-actions">
+      <button class="tsb-btn" id="tsb-toolbar-toggle" ontouchstart="handleToolInteraction(toggleToolbar, event)" onclick="handleToolInteraction(toggleToolbar, event)" title="Symbole anzeigen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2">
+          <line x1="12" y1="17" x2="12" y2="22"/>
+          <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/>
+        </svg>
+      </button>
       <button class="tsb-btn" id="s-chat" ontouchstart="handleToolInteraction(() => openChatWindow(), event)" onclick="handleToolInteraction(() => openChatWindow(), event)" title="Chat">
         <svg viewBox="0 0 24 24" fill="#2ecc71" stroke="white" stroke-width="1.5">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -828,53 +916,10 @@
           <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
         </svg>
       </button>
-      <button class="tsb-btn" id="tsb-trash" ontouchstart="handleToolInteraction(() => setTool('trash'), event)" onclick="handleToolInteraction(() => setTool('trash'), event)" title="Delete Mode">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#ff6666" stroke-width="2">
-          <polyline points="3 6 5 6 21 6"></polyline>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          <line x1="10" y1="11" x2="10" y2="17"></line>
-          <line x1="14" y1="11" x2="14" y2="17"></line>
-        </svg>
-      </button>
       <button class="tsb-btn" id="tsb-reload" ontouchstart="handleToolInteraction(() => refreshAllData(), event)" onclick="handleToolInteraction(() => refreshAllData(), event)" title="Synchronize">
         <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2">
           <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
         </svg>
-      </button>
-      <button class="tsb-btn" id="tsb-measure" ontouchstart="handleToolInteraction(toggleMeasure, event)" onclick="handleToolInteraction(toggleMeasure, event)" title="Entfernung messen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="1.8">
-          <path d="M3 17L17 3"/>
-          <path d="M3 17h3v-3"/>
-          <line x1="7" y1="13" x2="7" y2="11"/>
-          <line x1="11" y1="9" x2="11" y2="7"/>
-          <line x1="15" y1="5" x2="15" y2="3"/>
-        </svg>
-      </button>
-      <button class="tsb-btn" id="tsb-nightvision" aria-label="Night Vision" aria-pressed="false" ontouchstart="handleToolInteraction(() => toggleNightMode(), event)" onclick="handleToolInteraction(() => toggleNightMode(), event)" title="Night Vision">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#ff6633" stroke-width="1.8">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M2 12c2.5-5 5.5-7 10-7s7.5 2 10 7c-2.5 5-5.5 7-10 7s-7.5-2-10-7z"/>
-          <line x1="2" y1="2" x2="22" y2="22" stroke="#ff4400" stroke-width="1.8"/>
-        </svg>
-      </button>
-      <button class="tsb-btn" id="tsb-compass" ontouchstart="handleToolInteraction(() => resetNorth(), event)" onclick="handleToolInteraction(() => resetNorth(), event)" title="Kompass – Tippen zum Norden zurücksetzen">
-        <div id="tsb-compass-inner">
-          <svg id="tsb-compass-svg" viewBox="0 0 28 28" fill="none">
-            <circle cx="14" cy="14" r="13" fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
-            <!-- Cardinal tick marks (fixed – top = current map up direction) -->
-            <line x1="14" y1="2" x2="14" y2="5.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>
-            <line x1="26" y1="14" x2="22.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
-            <line x1="14" y1="26" x2="14" y2="22.5" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
-            <line x1="2" y1="14" x2="5.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
-            <!-- Needle counter-rotates to always point geographic North -->
-            <g id="compass-needle-group">
-              <polygon points="14,3 12.6,14 15.4,14" fill="#ff3333"/>
-              <polygon points="14,25 12.6,14 15.4,14" fill="rgba(200,200,200,0.45)"/>
-              <circle cx="14" cy="14" r="1.8" fill="#fff" stroke="rgba(0,0,0,0.4)" stroke-width="0.5"/>
-            </g>
-          </svg>
-          <span id="tsb-compass-bearing">000°</span>
-        </div>
       </button>
       <button class="tsb-btn" id="s-hamburger" ontouchstart="handleToolInteraction(() => toggleHamburgerMenu(), event)" onclick="handleToolInteraction(() => toggleHamburgerMenu(), event)" title="Menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
@@ -885,6 +930,27 @@
       </button>
     </div>
   </div>
+
+  <!-- Compass floating button (top-left, below header) -->
+  <button id="tsb-compass" ontouchstart="handleToolInteraction(toggleCompassLock, event)" onclick="handleToolInteraction(toggleCompassLock, event)" title="Kompass – Tippen zum Drehen sperren/entsperren">
+    <div id="tsb-compass-inner">
+      <svg id="tsb-compass-svg" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="13" fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+        <!-- Cardinal tick marks (fixed – top = current map up direction) -->
+        <line x1="14" y1="2" x2="14" y2="5.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>
+        <line x1="26" y1="14" x2="22.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        <line x1="14" y1="26" x2="14" y2="22.5" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        <line x1="2" y1="14" x2="5.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        <!-- Needle counter-rotates to always point geographic North -->
+        <g id="compass-needle-group">
+          <polygon points="14,3 12.6,14 15.4,14" fill="#ff3333"/>
+          <polygon points="14,25 12.6,14 15.4,14" fill="rgba(200,200,200,0.45)"/>
+          <circle cx="14" cy="14" r="1.8" fill="#fff" stroke="rgba(0,0,0,0.4)" stroke-width="0.5"/>
+        </g>
+      </svg>
+      <span id="tsb-compass-bearing">000°</span>
+    </div>
+  </button>
 
   <div id="measure-hint">📏 Karte antippen zum Messen · Erneut tippen zum Beenden</div>
 
@@ -936,7 +1002,7 @@
     </div>
   </div>
 
-  <div class="bottom-toolbar" id="ui-tools">
+  <div class="bottom-toolbar" id="ui-tools" style="display:none;">
     <!-- Symbol Tools -->
     <div class="tool-btn" id="s-raute" ontouchstart="handleToolInteraction(() => setTool('raute'), event)"
       onclick="handleToolInteraction(() => setTool('raute'), event)"><svg viewBox="0 0 100 100">
@@ -956,6 +1022,53 @@
           d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
           fill="#ffff00" stroke="white" stroke-width="4" />
       </svg></div>
+    <!-- Measure tool -->
+    <div class="tool-btn" id="tsb-measure" ontouchstart="handleToolInteraction(toggleMeasure, event)"
+      onclick="handleToolInteraction(toggleMeasure, event)" title="Entfernung messen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="1.8">
+        <path d="M3 17L17 3"/>
+        <path d="M3 17h3v-3"/>
+        <line x1="7" y1="13" x2="7" y2="11"/>
+        <line x1="11" y1="9" x2="11" y2="7"/>
+        <line x1="15" y1="5" x2="15" y2="3"/>
+      </svg>
+    </div>
+    <!-- Trash / Delete tool -->
+    <div class="tool-btn" id="s-trash" ontouchstart="handleToolInteraction(() => setTool('trash'), event)"
+      onclick="handleToolInteraction(() => setTool('trash'), event)" title="Delete Mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6666" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Hamburger sidebar menu -->
+  <div id="status-menu">
+    <div id="sidebar-overlay" onclick="closeHamburgerMenu()"></div>
+    <div id="sidebar-panel">
+      <div class="sidebar-header">
+        <span>COMMAND MENU</span>
+        <button class="sidebar-close-btn" onclick="closeHamburgerMenu()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="sidebar-tile-grid" id="sidebar-tile-grid">
+        <!-- tiles filled by updateSidebarTiles() -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic menu popup -->
+  <div id="menu-popup">
+    <div id="menu-popup-backdrop" onclick="closeMenuPopup()"></div>
+    <div id="menu-popup-content">
+      <div id="menu-popup-header">
+        <span id="menu-popup-title"></span>
+        <button onclick="closeMenuPopup()">×</button>
+      </div>
+      <div id="menu-popup-body"></div>
+    </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -1508,9 +1621,8 @@
         console.warn('Failed to save map layer preference', e);
       }
 
-      // Close menu
-      const menu = document.getElementById('status-menu');
-      if (menu) menu.style.display = 'none';
+      // Close popup
+      closeMenuPopup();
     }
 
     // UI & login
@@ -1532,9 +1644,9 @@
           sessionStorage.setItem('currentUser', currentUserName);
 
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
-          // Close hamburger menu after login
-          const menu = document.getElementById('status-menu');
-          if (menu) menu.style.display = 'none';
+          // Close popup and update sidebar tiles after login
+          closeMenuPopup();
+          updateSidebarTiles();
           isLoggedIn = true;
           startDataSync();
         } else {
@@ -1791,6 +1903,8 @@
 
     // ---- Compass / Map Rotation ----
     let mapBearing = 0;
+    let rotationLocked = true; // Default: map locked to North; click compass to unlock
+    try { rotationLocked = localStorage.getItem('lpu5_rotation_locked') !== 'false'; } catch(e) {}
 
     function setMapBearing(deg) {
       mapBearing = ((deg % 360) + 360) % 360;
@@ -1804,7 +1918,18 @@
 
     function resetNorth() { setMapBearing(0); }
 
-    // Two-finger rotation gesture on the map
+    function toggleCompassLock() {
+      rotationLocked = !rotationLocked;
+      try { localStorage.setItem('lpu5_rotation_locked', String(rotationLocked)); } catch(e) {}
+      const btn = document.getElementById('tsb-compass');
+      if (btn) btn.classList.toggle('rotation-unlocked', !rotationLocked);
+      if (rotationLocked) {
+        // Snap back to North when locking
+        setMapBearing(0);
+      }
+    }
+
+    // Two-finger rotation gesture on the map (only when unlocked)
     (function () {
       let rotStartBearing = 0;
       let rotStartAngle = null;
@@ -1819,7 +1944,7 @@
         }
       }, { passive: true });
       document.addEventListener('touchmove', function (e) {
-        if (e.touches.length === 2 && rotStartAngle !== null) {
+        if (e.touches.length === 2 && rotStartAngle !== null && !rotationLocked) {
           setMapBearing(rotStartBearing + fingerAngle(e.touches) - rotStartAngle);
         }
       }, { passive: true });
@@ -1828,6 +1953,33 @@
       }, { passive: true });
     }());
     // ---- End Compass / Map Rotation ----
+
+    // ---- Toolbar toggle ----
+    function toggleToolbar() {
+      const toolbar = document.getElementById('ui-tools');
+      const btn = document.getElementById('tsb-toolbar-toggle');
+      if (!toolbar) return;
+      const visible = toolbar.style.display !== 'none';
+      toolbar.style.display = visible ? 'none' : 'flex';
+      if (btn) btn.classList.toggle('active', !visible);
+      try { localStorage.setItem('lpu5_toolbar_visible', String(!visible)); } catch(e) {}
+    }
+
+    // Restore toolbar and compass-lock state on load
+    (function () {
+      try {
+        const toolbarVisible = localStorage.getItem('lpu5_toolbar_visible') === 'true';
+        if (toolbarVisible) {
+          const toolbar = document.getElementById('ui-tools');
+          const btn = document.getElementById('tsb-toolbar-toggle');
+          if (toolbar) toolbar.style.display = 'flex';
+          if (btn) btn.classList.add('active');
+        }
+        // Apply saved compass lock state
+        const compassBtn = document.getElementById('tsb-compass');
+        if (compassBtn && !rotationLocked) compassBtn.classList.add('rotation-unlocked');
+      } catch(e) {}
+    })();
 
     // ---- Distance Measurement Tool ----
     let measureActive = false;
@@ -4083,8 +4235,8 @@
         alert('Error updating status');
       }
       
-      // Close the menu after setting status
-      toggleHamburgerMenu();
+      // Close the popup after setting status
+      closeMenuPopup();
     };
 
     /* ----------------- HAMBURGER MENU FUNCTIONS -----------------
@@ -4092,123 +4244,154 @@
     */
     window.toggleHamburgerMenu = function() {
       let menu = document.getElementById('status-menu');
-      if (!menu) {
-        menu = document.createElement('div');
-        menu.id = 'status-menu';
-        document.body.appendChild(menu);
-      }
+      if (!menu) return;
 
-      if (menu.style.display === 'flex') {
-        menu.style.display = 'none';
+      if (menu.classList.contains('open')) {
+        closeHamburgerMenu();
         return;
       }
 
+      updateSidebarTiles();
+      menu.classList.add('open');
+      const hambBtn = document.getElementById('s-hamburger');
+      if (hambBtn) hambBtn.classList.add('active');
+    };
+
+    function closeHamburgerMenu() {
+      const menu = document.getElementById('status-menu');
+      if (menu) menu.classList.remove('open');
+      const hambBtn = document.getElementById('s-hamburger');
+      if (hambBtn) hambBtn.classList.remove('active');
+    }
+
+    function closeMenuPopup() {
+      const popup = document.getElementById('menu-popup');
+      if (popup) popup.classList.remove('open');
+    }
+
+    function sidebarTile(id, icon, label, action) {
+      return `<div class="sidebar-tile" id="${id}" onclick="event.stopPropagation();${action}"><i class="${icon}"></i><span>${label}</span></div>`;
+    }
+
+    function updateSidebarTiles() {
+      const grid = document.getElementById('sidebar-tile-grid');
+      if (!grid) return;
       const isLoggedIn = !!currentUserName;
-      const currentStatus = document.getElementById('out-status').innerText;
+      let html = '';
+      if (isLoggedIn) {
+        html += sidebarTile('tile-status', 'fas fa-user', 'Status',    "openMenuPopup('status')");
+        html += sidebarTile('tile-gps',    'fas fa-location-arrow', 'GPS', "openMenuPopup('gps')");
+        html += sidebarTile('tile-map',    'fas fa-layer-group', 'Karte', "openMenuPopup('map')");
+        html += sidebarTile('tile-video',  'fas fa-video',       'Video', "openMenuPopup('video')");
+        html += sidebarTile('tile-mesh',   'fab fa-bluetooth-b', 'Mesh',  "openMenuPopup('mesh')");
+        html += sidebarTile('tile-sync',   'fas fa-sync-alt',    'Sync',  'closeHamburgerMenu();refreshAllData()');
+      }
+      html += sidebarTile('tile-night', 'fas fa-moon', 'Nacht', 'closeHamburgerMenu();toggleNightMode()');
+      html += isLoggedIn
+        ? sidebarTile('tile-logout', 'fas fa-sign-out-alt', 'Logout', 'logoutOverview()')
+        : sidebarTile('tile-login',  'fas fa-sign-in-alt',  'Login',  "openMenuPopup('login')");
+      grid.innerHTML = html;
+    }
+
+    window.openMenuPopup = function(section) {
+      closeHamburgerMenu();
+      const popup = document.getElementById('menu-popup');
+      const titleEl = document.getElementById('menu-popup-title');
+      const bodyEl  = document.getElementById('menu-popup-body');
+      if (!popup || !titleEl || !bodyEl) return;
+
+      const isLoggedIn = !!currentUserName;
+      const currentStatus = document.getElementById('out-status')?.innerText || 'BASE';
       const currentInterval = (gpsUpdateInterval / 1000) || 5;
 
-      // Login section (shown only when not logged in)
-      const loginSection = !isLoggedIn ? `
-        <div class="menu-section">
-          <h3>Login</h3>
-          <input type="text" id="menu-user" placeholder="Callsign" autocomplete="off"
-            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
-          <input type="password" id="menu-pass" placeholder="Password"
-            style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
-          <button class="menu-btn" style="background:var(--accent-blue);border-color:var(--accent-blue);justify-content:center;font-weight:bold;" onclick="event.stopPropagation(); validateLogin()">
-            <i class="fas fa-sign-in-alt"></i> LOGIN
-          </button>
-        </div>
-      ` : '';
+      const sections = {
+        login: {
+          title: 'LOGIN',
+          html: `
+            <input type="text" id="menu-user" placeholder="Callsign" autocomplete="off"
+              style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+            <input type="password" id="menu-pass" placeholder="Password"
+              style="width:100%;padding:12px;margin-bottom:10px;background:#000;border:1px solid #333;color:#fff;border-radius:4px;font-size:16px;font-family:'Courier New',monospace;">
+            <button class="menu-btn" style="background:var(--accent-blue);border-color:var(--accent-blue);justify-content:center;font-weight:bold;"
+              onclick="event.stopPropagation();validateLogin()">
+              <i class="fas fa-sign-in-alt"></i> LOGIN
+            </button>`
+        },
+        status: {
+          title: 'LIFE STATUS',
+          html: `
+            <div class="status-grid">
+              <div class="status-btn ${currentStatus==='AKTIV'?'active-status':''}" onclick="setLifeStatus('AKTIV')">AKTIV</div>
+              <div class="status-btn ${currentStatus==='BASE'?'base-status':''}"  onclick="setLifeStatus('BASE')">BASE</div>
+              <div class="status-btn ${currentStatus==='KIA'?'kia-status':''}"    onclick="setLifeStatus('KIA')">KIA</div>
+            </div>`
+        },
+        gps: {
+          title: 'GPS EINSTELLUNGEN',
+          html: `
+            <button class="menu-btn" onclick="event.stopPropagation();toggleGpsAuto()">
+              <i class="fas fa-sync-alt"></i> GPS Auto Update
+            </button>
+            <div style="font-size:0.8em;color:#888;margin:10px 0 5px 0;">Update Interval:</div>
+            <div class="gps-grid">
+              <button class="interval-btn ${currentInterval==5?'active':''}"  onclick="setGpsInterval(5)">5 Sec</button>
+              <button class="interval-btn ${currentInterval==10?'active':''}" onclick="setGpsInterval(10)">10 Sec</button>
+              <button class="interval-btn ${currentInterval==30?'active':''}" onclick="setGpsInterval(30)">30 Sec</button>
+              <button class="interval-btn ${currentInterval==60?'active':''}" onclick="setGpsInterval(60)">60 Sec</button>
+            </div>
+            <button class="menu-btn" style="margin-top:15px;" onclick="event.stopPropagation();setManualGps()">
+              <i class="fas fa-crosshairs"></i> GPS manuell setzen
+            </button>`
+        },
+        map: {
+          title: 'KARTEN EINSTELLUNGEN',
+          html: `
+            <button class="menu-btn" onclick="event.stopPropagation();setMapLayer('satellite')"><i class="fas fa-globe"></i> Satellite</button>
+            <button class="menu-btn" onclick="event.stopPropagation();setMapLayer('street')"><i class="fas fa-road"></i> Street</button>
+            <button class="menu-btn" onclick="event.stopPropagation();setMapLayer('terrain')"><i class="fas fa-mountain"></i> Terrain</button>
+            <div style="font-size:0.7em;color:#555;margin-top:10px;text-align:center;">Maps are automatically cached</div>`
+        },
+        video: {
+          title: 'VIDEO STREAM',
+          html: `
+            <button class="menu-btn" onclick="event.stopPropagation();openVideoStreamFromMenu()"><i class="fas fa-video"></i> Start Camera Stream</button>
+            <button class="menu-btn" onclick="event.stopPropagation();stopOverviewCamera()"><i class="fas fa-stop"></i> Stop Camera Stream</button>
+            <div id="menu-preview-container" style="display:none;margin-top:10px;">
+              <video id="localPreviewVideo" autoplay muted playsinline style="width:100%;border-radius:6px;display:block;background:#000;"></video>
+              <p style="color:#888;font-size:0.8rem;margin:8px 0 0 0;text-align:center;">
+                <i class="fas fa-info-circle"></i> Visible only to you.
+              </p>
+            </div>`
+        },
+        mesh: {
+          title: 'MESHTASTIC',
+          html: `
+            <div id="menu-mesh-status" style="font-size:0.85em;color:#888;margin-bottom:10px;">
+              <i class="fab fa-bluetooth-b"></i> Status: <span id="menu-mesh-status-text">Not connected</span>
+            </div>
+            <button class="menu-btn" id="menu-mesh-connect-btn"
+              onclick="event.stopPropagation();connectMeshtastic();closeMenuPopup()">
+              <i class="fab fa-bluetooth-b"></i> Connect Mesh Device
+            </button>
+            <button class="menu-btn" id="menu-mesh-disconnect-btn"
+              onclick="event.stopPropagation();disconnectMeshtastic();closeMenuPopup()" style="display:none;">
+              <i class="fas fa-times"></i> Disconnect Mesh Device
+            </button>`
+        }
+      };
 
-      // Main menu sections (shown only when logged in)
-      const mainSections = isLoggedIn ? `
-        <div class="menu-section">
-          <h3>Life Status</h3>
-          <div class="status-grid">
-            <div class="status-btn ${currentStatus === 'AKTIV' ? 'active-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('AKTIV')">AKTIV</div>
-            <div class="status-btn ${currentStatus === 'BASE' ? 'base-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('BASE')">BASE</div>
-            <div class="status-btn ${currentStatus === 'KIA' ? 'kia-status' : ''}" onclick="event.stopPropagation(); setLifeStatus('KIA')">KIA</div>
-          </div>
-        </div>
+      const sec = sections[section];
+      if (!sec) return;
+      titleEl.textContent = sec.title;
+      bodyEl.innerHTML = sec.html;
+      popup.classList.add('open');
 
-        <div class="menu-section">
-          <h3>GPS Settings</h3>
-          <button class="menu-btn" onclick="event.stopPropagation(); toggleGpsAuto()">
-            <i class="fas fa-sync-alt"></i> GPS Auto Update
-          </button>
-          <div style="font-size: 0.8em; color: #888; margin: 10px 0 5px 0;">Update Interval:</div>
-          <div class="gps-grid">
-            <button class="interval-btn ${currentInterval == 5 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(5)">5 Sec</button>
-            <button class="interval-btn ${currentInterval == 10 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(10)">10 Sec</button>
-            <button class="interval-btn ${currentInterval == 30 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(30)">30 Sec</button>
-            <button class="interval-btn ${currentInterval == 60 ? 'active' : ''}" onclick="event.stopPropagation(); setGpsInterval(60)">60 Sec</button>
-          </div>
-          <button class="menu-btn" style="margin-top:15px;" onclick="event.stopPropagation(); setManualGps()">
-            <i class="fas fa-crosshairs"></i> Set GPS Manually
-          </button>
-        </div>
-
-        <div class="menu-section">
-          <h3>Map Settings</h3>
-          <button class="menu-btn" onclick="setMapLayer('satellite')"><i class="fas fa-globe"></i> Satellite</button>
-          <button class="menu-btn" onclick="setMapLayer('street')"><i class="fas fa-road"></i> Street</button>
-          <button class="menu-btn" onclick="setMapLayer('terrain')"><i class="fas fa-mountain"></i> Terrain</button>
-          <div style="font-size: 0.7em; color: #555; margin-top: 10px; text-align: center;">
-            Maps are automatically cached
-          </div>
-        </div>
-
-        <div class="menu-section">
-          <h3>Video Stream</h3>
-          <button class="menu-btn" onclick="event.stopPropagation(); openVideoStreamFromMenu()">
-            <i class="fas fa-video"></i> Start Camera Stream
-          </button>
-          <button class="menu-btn" onclick="event.stopPropagation(); stopOverviewCamera();">
-            <i class="fas fa-stop"></i> Stop Camera Stream
-          </button>
-          <div id="menu-preview-container" style="display:none; margin-top:10px;">
-            <video id="localPreviewVideo" autoplay muted playsinline style="width:100%;border-radius:6px;display:block;background:#000;"></video>
-            <p style="color:#888;font-size:0.8rem;margin:8px 0 0 0;text-align:center;">
-              <i class="fas fa-info-circle"></i> Visible only to you. Admin must broadcast via stream.html.
-            </p>
-          </div>
-        </div>
-
-        <div class="menu-section">
-          <h3>Meshtastic</h3>
-          <div id="menu-mesh-status" style="font-size: 0.85em; color: #888; margin-bottom: 10px;">
-            <i class="fab fa-bluetooth-b"></i> Status: <span id="menu-mesh-status-text">Not connected</span>
-          </div>
-          <button class="menu-btn" id="menu-mesh-connect-btn" onclick="event.stopPropagation(); connectMeshtastic(); toggleHamburgerMenu();">
-            <i class="fab fa-bluetooth-b"></i> Connect Mesh Device
-          </button>
-          <button class="menu-btn" id="menu-mesh-disconnect-btn" onclick="event.stopPropagation(); disconnectMeshtastic(); toggleHamburgerMenu();" style="display:none;">
-            <i class="fas fa-times"></i> Disconnect Mesh Device
-          </button>
-        </div>
-
-        <div class="menu-section">
-          <button class="menu-btn logout-btn" onclick="logoutOverview()"><i class="fas fa-sign-out-alt"></i> Logout</button>
-        </div>
-      ` : '';
-
-      menu.innerHTML = `
-        <div class="menu-header">
-          <h2 style="color:var(--accent-blue)">COMMAND MENU</h2>
-          <div onclick="toggleHamburgerMenu()" style="font-size:24px; padding:10px; cursor:pointer;">×</div>
-        </div>
-        ${loginSection}
-        ${mainSections}
-      `;
-      menu.style.display = 'flex';
-
-      // If camera is active, reconnect preview inside menu
-      if (window.overviewCameraActive && window.overviewMediaStream) {
-        const previewContainer = document.getElementById('menu-preview-container');
-        const previewVideo = document.getElementById('localPreviewVideo');
-        if (previewContainer) previewContainer.style.display = 'block';
-        if (previewVideo) previewVideo.srcObject = window.overviewMediaStream;
+      // If video popup opened and camera already active, show preview
+      if (section === 'video' && window.overviewCameraActive && window.overviewMediaStream) {
+        const pc = document.getElementById('menu-preview-container');
+        const pv = document.getElementById('localPreviewVideo');
+        if (pc) pc.style.display = 'block';
+        if (pv) pv.srcObject = window.overviewMediaStream;
       }
     };
 
@@ -4220,15 +4403,15 @@
       localStorage.removeItem('lpu5_cached_pass');
       currentUserName = '';
       document.getElementById('out-name').innerText = '---';
-      const menu = document.getElementById('status-menu');
-      if (menu) menu.style.display = 'none';
+      closeHamburgerMenu();
+      closeMenuPopup();
     };
 
     window.setGpsInterval = function(sec) {
       gpsUpdateInterval = sec * 1000;
       localStorage.setItem('lpu5_gps_update_interval', sec);
       alert('Update interval set to ' + sec + 's');
-      toggleHamburgerMenu();
+      closeMenuPopup();
     };
 
     window.toggleGpsAuto = function() {
@@ -4240,7 +4423,7 @@
         startGpsAutoTracking();
         alert('Auto-GPS: AN');
       }
-      toggleHamburgerMenu();
+      closeMenuPopup();
     };
 
     // Legacy alias - now connects Meshtastic directly
@@ -4255,7 +4438,8 @@
       const btn = document.getElementById('set-btn');
       if (btn) btn.innerText = 'SET GPS';
       togglePrecisionUI(true);
-      toggleHamburgerMenu();
+      closeHamburgerMenu();
+      closeMenuPopup();
     };
 
     /* ----------------- SERVICE WORKER FOR OFFLINE MAPS -----------------
@@ -4280,8 +4464,7 @@
           navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
           alert('Map cache will be cleared...');
           // Close menu
-          const menu = document.getElementById('status-menu');
-          if (menu) menu.style.display = 'none';
+          closeMenuPopup();
         } else {
           alert('Service Worker not available');
         }
@@ -4311,8 +4494,7 @@
           alert('Cache status not available.\nService Worker may not be active yet.');
         }
         // Close menu
-        const menu = document.getElementById('status-menu');
-        if (menu) menu.style.display = 'none';
+        closeMenuPopup();
       };
 
     })();
@@ -4834,11 +5016,8 @@
 
     // Function to open camera modal from menu
     window.openVideoStreamFromMenu = function() {
-      // Close the hamburger menu
-      const menu = document.getElementById('status-menu');
-      if (menu) {
-        menu.style.display = 'none';
-      }
+      // Close the popup first
+      closeMenuPopup();
       // Open the camera modal to start camera stream
       const modal = document.getElementById('cameraModal');
       if (modal) {
@@ -4929,10 +5108,9 @@
         // Show status and close modal — stream is local-only until admin broadcasts
         showCameraStatus('Camera active - local preview only', 'success');
         closeCameraModal();
-
-        // Open the hamburger menu so the preview is visible inside it
-        if (window.toggleHamburgerMenu) {
-          window.toggleHamburgerMenu();
+        // Open video popup so the preview is visible
+        if (window.openMenuPopup) {
+          window.openMenuPopup('video');
         }
 
         // Set global reference for potential sharing
