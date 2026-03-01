@@ -469,10 +469,12 @@
 
     #map {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 50%;
+      left: 50%;
+      width: 141.43vmax;
+      height: 141.43vmax;
+      margin-left: -70.715vmax;
+      margin-top: -70.715vmax;
       z-index: 1;
       display: block;
       transform-origin: center center;
@@ -730,8 +732,8 @@
       color: #ffd700;
       border: 1px solid #ffd700;
       border-radius: 4px;
-      padding: 2px 7px;
-      font-size: 0.75rem;
+      padding: 3px 9px;
+      font-size: 1rem;
       font-family: 'Courier New', monospace;
       font-weight: bold;
       white-space: nowrap;
@@ -1719,22 +1721,33 @@
     }
 
     function crosshairLatLng() {
-      // Use actual crosshair element position so the marker always matches
-      // the visible crosshair, even when viewport and map container differ
-      // (mobile browser chrome, notch safe-areas, etc.)
-      const ch = document.getElementById('crosshair');
-      if (!ch) {
-        // Fallback to map center if crosshair element is missing
-        const size = map.getSize();
+      // The crosshair is fixed at the viewport centre (top:50%;left:50%;translate(-50%,-50%)).
+      // The map container is also centred on the viewport, so the crosshair always
+      // corresponds to the Leaflet container centre regardless of CSS rotation.
+      // Using getBoundingClientRect() on the map element is incorrect when it is
+      // CSS-rotated (the AABB shifts), which caused marker displacement.
+      const size = map.getSize();
+      if (mapBearing) {
+        // With CSS rotation the only reliable anchor is the map centre, which
+        // always aligns with the viewport centre where the crosshair lives.
         return map.containerPointToLatLng(L.point(size.x / 2, size.y / 2));
       }
-      const chRect = ch.getBoundingClientRect();
-      const mapRect = map.getContainer().getBoundingClientRect();
-      const containerPoint = L.point(
-        chRect.left + chRect.width / 2 - mapRect.left,
-        chRect.top + chRect.height / 2 - mapRect.top
-      );
-      return map.containerPointToLatLng(containerPoint);
+      // No rotation: use the crosshair's actual screen position for accuracy
+      // (handles browser chrome, notch safe-areas, etc.)
+      const ch = document.getElementById('crosshair');
+      if (ch) {
+        const chRect = ch.getBoundingClientRect();
+        const screenX = chRect.left + chRect.width / 2;
+        const screenY = chRect.top + chRect.height / 2;
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        const dx = screenX - cx;
+        const dy = screenY - cy;
+        return map.containerPointToLatLng(
+          L.point(size.x / 2 + dx, size.y / 2 + dy)
+        );
+      }
+      return map.containerPointToLatLng(L.point(size.x / 2, size.y / 2));
     }
 
     // Helper to prevent double-firing of touch and click events
@@ -1760,7 +1773,7 @@
       gpsManualMode = false;
       const btn = document.getElementById('set-btn');
       if (btn) btn.innerText = 'SET POINT';
-      if (currentTool === t) {
+      if (!t || currentTool === t) {
         currentTool = '';
         togglePrecisionUI(false);
       } else {
