@@ -50,7 +50,8 @@ class CoTEvent:
                  team_role: Optional[str] = None,
                  stale_minutes: int = 5,
                  how: str = "m-g",
-                 color: Optional[int] = None):
+                 color: Optional[int] = None,
+                 has_meshtastic_detail: bool = False):
         """
         Initialize a CoT event
         
@@ -70,6 +71,9 @@ class CoTEvent:
             how: How the event was generated (e.g. "m-g" machine-generated,
                  "h-g-i-g-o" human-placed, "h-e" human-entered coordinates)
             color: ATAK signed ARGB integer color value for spot-map markers
+            has_meshtastic_detail: True when the raw CoT XML detail contained a
+                <meshtastic> child element (set by from_xml(); indicates the
+                event was forwarded by an ATAK Meshtastic plugin).
         """
         self.uid = uid
         self.cot_type = cot_type
@@ -87,6 +91,7 @@ class CoTEvent:
         self.stale = self.time + timedelta(minutes=stale_minutes)
         self.how = how
         self.color = color
+        self.has_meshtastic_detail = has_meshtastic_detail
         
     @staticmethod
     def build_cot_type(atom: str = "friendly",
@@ -228,6 +233,11 @@ class CoTEvent:
                 if remarks_elem is not None:
                     remarks = remarks_elem.text
             
+            # Detect whether the CoT detail contains a <meshtastic> element,
+            # which is added by ATAK Meshtastic plugins (e.g. atak-forwarder)
+            # to identify Meshtastic node position events.
+            has_meshtastic_detail = CoTProtocolHandler.detail_has_meshtastic(detail)
+
             # Calculate stale time (default 5 minutes from now)
             stale_str = root.get("stale")
             stale_minutes = 5
@@ -253,7 +263,8 @@ class CoTEvent:
                 team_name=team_name,
                 team_role=team_role,
                 stale_minutes=stale_minutes,
-                how=how
+                how=how,
+                has_meshtastic_detail=has_meshtastic_detail,
             )
             
         except Exception as e:
@@ -301,16 +312,19 @@ class CoTProtocolHandler:
     #   quadrat  (green square)    → Neutral   (a-n)  → green  in ATAK (N.1.…)
     #   raute    (red diamond)     → Hostile   (a-h)  → red    in ATAK (R.1.…)
     LPU5_TO_COT_TYPE: Dict[str, str] = {
-        "raute":        "a-h-G-U-C",   # hostile ground unit (red diamond)
-        "quadrat":      "a-n-G-U-C",   # neutral ground unit (green square)
-        "blume":        "a-u-G-U-C",   # unknown ground unit (yellow flower)
-        "rechteck":     "a-f-G-U-C",   # friendly ground unit (blue rectangle)
-        "friendly":     "a-f-G-U-C",   # friendly ground unit
-        "hostile":      "a-h-G-U-C",   # hostile ground unit
-        "neutral":      "a-n-G-U-C",   # neutral ground unit
-        "unknown":      "a-u-G-U-C",   # unknown ground unit
-        "pending":      "a-p-G-U-C",   # pending ground unit
-        "gps_position": "a-f-G-U-C",   # live GPS position (friendly ground unit)
+        "raute":            "a-h-G-U-C",   # hostile ground unit (red diamond)
+        "quadrat":          "a-n-G-U-C",   # neutral ground unit (green square)
+        "blume":            "a-u-G-U-C",   # unknown ground unit (yellow flower)
+        "rechteck":         "a-f-G-U-C",   # friendly ground unit (blue rectangle)
+        "friendly":         "a-f-G-U-C",   # friendly ground unit
+        "hostile":          "a-h-G-U-C",   # hostile ground unit
+        "neutral":          "a-n-G-U-C",   # neutral ground unit
+        "unknown":          "a-u-G-U-C",   # unknown ground unit
+        "pending":          "a-p-G-U-C",   # pending ground unit
+        "gps_position":     "a-f-G-U-C",   # live GPS position (friendly ground unit)
+        "node":             "a-f-G-U-C",   # Meshtastic node (LPU5 internal type) → friendly unit
+        "meshtastic_node":  "a-f-G-U-C",   # Meshtastic node forwarded by ATAK plugin
+        "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
     }
 
     # Mapping from normalized lowercase hex color strings to ATAK team names.
@@ -368,6 +382,25 @@ class CoTProtocolHandler:
             if cot_type.startswith(prefix):
                 return lpu5
         return "unknown"
+
+    @staticmethod
+    def detail_has_meshtastic(detail_elem: Optional[ET.Element]) -> bool:
+        """
+        Return True if the CoT ``<detail>`` element contains a ``<meshtastic>``
+        child element.
+
+        ATAK Meshtastic plugins (e.g. atak-forwarder) add this element to CoT
+        events that originate from a Meshtastic node, making it the canonical
+        way to distinguish Meshtastic-relayed positions from regular ATAK SA.
+
+        Args:
+            detail_elem: An ``xml.etree.ElementTree.Element`` for the
+                         ``<detail>`` node, or ``None``.
+
+        Returns:
+            True if a ``<meshtastic>`` child is present, False otherwise.
+        """
+        return detail_elem is not None and detail_elem.find("meshtastic") is not None
 
     @staticmethod
     def hex_to_argb_int(hex_color: str) -> Optional[int]:
@@ -532,6 +565,17 @@ class CoTProtocolHandler:
             callsign_lower = cot_event.callsign.lower()
             if callsign_lower in CoTProtocolHandler.LPU5_TO_COT_TYPE:
                 lpu5_type = callsign_lower
+
+        # Refine the type for ATAK-specific CoT sources so they render with
+        # the correct icon rather than the generic blue-rectangle ("rechteck"):
+        #   • Meshtastic nodes forwarded by an ATAK Meshtastic plugin carry a
+        #     <meshtastic> element in their <detail> block.
+        #   • ATAK SA / GPS position updates from devices with physical GPS
+        #     (or manually placed positions) use a "h-*" how code.
+        if cot_event.has_meshtastic_detail:
+            lpu5_type = "meshtastic_node"
+        elif lpu5_type == "rechteck" and cot_event.how.startswith("h"):
+            lpu5_type = "tak_unit"
 
         return {
             "id": cot_event.uid,
