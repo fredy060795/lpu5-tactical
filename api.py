@@ -1184,6 +1184,20 @@ def _forward_cot_multicast(cot_xml: str) -> bool:
     return svc.send_multicast(cot_xml)
 
 
+def _forward_cot_to_tcp_clients(cot_xml: str) -> int:
+    """
+    Push a CoT XML string to all WinTAK/ATAK clients that are directly connected
+    via the TCP CoT listener on port 8088 (bidirectional data exchange).
+
+    Returns the number of TCP clients successfully reached.
+    """
+    with _cot_listener_lock:
+        svc = _cot_listener_service
+    if svc is None:
+        return 0
+    return svc.send_to_clients(cot_xml)
+
+
 def _build_atak_geochat_xml(sender_uid: str, sender_callsign: str, text: str) -> str:
     """
     Build an ATAK-compatible GeoChat CoT XML string (type b-t-f).
@@ -1868,6 +1882,7 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
                 # clients on the same network always receive the full current state.
                 if AUTONOMOUS_MODULES_AVAILABLE:
                     mcast_sent = 0
+                    tcp_sent = 0
                     for m in markers:
                         if m.created_by not in ("cot_ingest", "tak_server"):
                             try:
@@ -1881,12 +1896,18 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
                                         if k not in mdict:
                                             mdict[k] = v
                                 cot_evt = CoTProtocolHandler.marker_to_cot(mdict)
-                                if cot_evt and _forward_cot_multicast(cot_evt.to_xml()):
-                                    mcast_sent += 1
+                                if cot_evt:
+                                    cot_xml = cot_evt.to_xml()
+                                    if _forward_cot_multicast(cot_xml):
+                                        mcast_sent += 1
+                                    if _forward_cot_to_tcp_clients(cot_xml):
+                                        tcp_sent += 1
                             except Exception as _mc_err:
                                 logger.debug("SA Multicast send for marker %s failed: %s", m.id, _mc_err)
                     if mcast_sent:
                         logger.debug("Sent %d markers via SA Multicast for periodic sync", mcast_sent)
+                    if tcp_sent:
+                        logger.debug("Sent %d markers to TCP clients for periodic sync", tcp_sent)
             
             # Broadcast all overlays for sync
             overlays = db.query(Overlay).all()
@@ -3158,6 +3179,9 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
                     mcast_ok = _forward_cot_multicast(cot_xml)
                     if mcast_ok:
                         logger.debug("CoT SA Multicast send on marker_created succeeded: marker_id=%s", new_marker.id)
+                    tcp_ok = _forward_cot_to_tcp_clients(cot_xml)
+                    if tcp_ok:
+                        logger.debug("CoT TCP push on marker_created reached %d client(s): marker_id=%s", tcp_ok, new_marker.id)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_created failed: %s", _fwd_err)
 
@@ -3234,6 +3258,9 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
                     mcast_ok = _forward_cot_multicast(cot_xml)
                     if mcast_ok:
                         logger.debug("CoT SA Multicast send on marker_updated succeeded: marker_id=%s", marker_id)
+                    tcp_ok = _forward_cot_to_tcp_clients(cot_xml)
+                    if tcp_ok:
+                        logger.debug("CoT TCP push on marker_updated reached %d client(s): marker_id=%s", tcp_ok, marker_id)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_updated failed: %s", _fwd_err)
 
@@ -3299,6 +3326,9 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
                     mcast_ok = _forward_cot_multicast(tombstone_xml)
                     if mcast_ok:
                         logger.debug("CoT SA Multicast tombstone sent on marker_deleted: marker_id=%s", marker_id)
+                    tcp_ok = _forward_cot_to_tcp_clients(tombstone_xml)
+                    if tcp_ok:
+                        logger.debug("CoT TCP tombstone pushed to %d client(s) on marker_deleted: marker_id=%s", tcp_ok, marker_id)
             except Exception as _fwd_err:
                 logger.warning("CoT tombstone forward on marker_deleted failed: %s", _fwd_err)
 
@@ -6201,6 +6231,53 @@ async def gateway_send_message(data: dict = Body(...)):
 # CoT Listener Service
 # ===========================
 
+def _cot_listener_on_client_connect(conn: "socket.socket", addr: tuple) -> None:
+    """
+    Called by CoTListenerService whenever a new TCP client (WinTAK/ATAK) connects.
+
+    Sends the LPU5 SA beacon so WinTAK immediately knows it is talking to a
+    valid gateway entity, and pushes the current state of all stored markers
+    so the connecting client has up-to-date SA from the moment it joins.
+    """
+    try:
+        # SA greeting: announce LPU5 as a named entity on the TAK network.
+        conn.sendall(_build_lpu5_sa_xml().encode("utf-8"))
+        logger.info("CoT TCP: sent SA greeting to new client %s", addr)
+    except OSError as exc:
+        logger.debug("CoT TCP: SA greeting to %s failed: %s", addr, exc)
+        return
+    # Push all existing markers so the client has immediate situational awareness.
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        return
+    try:
+        with SessionLocal() as db:
+            markers = db.query(MapMarker).all()
+        pushed = 0
+        for m in markers:
+            try:
+                mdict = {
+                    "id": m.id, "lat": m.lat, "lng": m.lng,
+                    "name": m.name, "type": m.type,
+                    "created_by": m.created_by,
+                }
+                if isinstance(m.data, dict):
+                    for k, v in m.data.items():
+                        if k not in mdict:
+                            mdict[k] = v
+                cot_evt = CoTProtocolHandler.marker_to_cot(mdict)
+                if cot_evt:
+                    conn.sendall(cot_evt.to_xml().encode("utf-8"))
+                    pushed += 1
+            except OSError:
+                break
+            except Exception:
+                continue
+        if pushed:
+            logger.info("CoT TCP: pushed %d existing markers to new client %s", pushed, addr)
+    except Exception as exc:
+        logger.debug("CoT TCP: initial marker push to %s failed: %s", addr, exc)
+
+
 def _cot_listener_ingest_callback(xml_string: str) -> None:
     """
     Ingest callback for the CoT listener service.
@@ -6284,6 +6361,11 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
         broadcast_websocket_update("markers", event_type, stored)
         # Echo back to TAK server if forwarding is enabled
         forward_cot_to_tak(xml_string)
+        # Relay to all other directly connected TCP clients (e.g. multiple WinTAK
+        # instances on port 8088) so SA data flows between them through LPU5.
+        _forward_cot_to_tcp_clients(xml_string)
+        # Also push via SA Multicast so ATAK/WinTAK on the LAN stays in sync.
+        _forward_cot_multicast(xml_string)
     except Exception as exc:
         logger.exception("_cot_listener_ingest_callback failed: %s", exc)
 
@@ -6309,6 +6391,7 @@ def _start_cot_listener() -> bool:
             multicast_enabled=multicast_enabled,
             multicast_group=multicast_group,
             multicast_port=multicast_port,
+            on_client_connect=_cot_listener_on_client_connect,
         )
         return _cot_listener_service.start()
 

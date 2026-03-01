@@ -570,9 +570,10 @@
                 <li>In WinTAK open <em>Settings → Network → Multicast</em> and ensure SA Multicast is active on <code>239.2.3.1:6969 UDP</code>.</li>
                 <li>LPU5 will automatically receive WinTAK position updates and push marker changes back via the same multicast group.</li>
             </ol>
-            <strong>Alternative — TCP direct connect:</strong> In WinTAK/ATAK open <em>Settings → Network → Server Connections</em>,
+            <strong>Alternative — TCP direct connect (bidirectional):</strong> In WinTAK/ATAK open <em>Settings → Network → Server Connections</em>,
             set <strong>Address</strong> to <code id="cotListenerHostHint">127.0.0.1</code> and <strong>Port</strong> to <code>8088</code> (TCP, no SSL).
-            For ATAK on a different device, replace <code>127.0.0.1</code> with this server's IP shown at the top of this page.
+            For ATAK on a different device, replace <code>127.0.0.1</code> with this server's IP shown at the top of this page.<br>
+            <em>When connected via TCP, WinTAK/ATAK receives all existing LPU5 markers immediately on connect and all subsequent changes in real time — no TAK server required.</em>
         </div>
 
         <div class="form-grid">
@@ -991,7 +992,10 @@ function _showCotListenerStatus(result) {
         const mcast = result.multicast_enabled
             ? ` | SA Multicast: ${result.multicast_group || '239.2.3.1'}:${result.multicast_port || 6969} (${result.multicast_datagrams || 0} dgrams)`
             : '';
-        div.innerHTML = `<i class="fas fa-check-circle"></i> Listener running — TCP:${result.tcp_port || '?'} UDP:${result.udp_port || '?'}${mcast} | events_received: ${result.events_received || 0} | events_ingested: ${result.events_ingested || 0} | uptime: ${result.uptime_seconds || 0}s`;
+        const clients = result.tcp_clients_active !== undefined
+            ? ` | WinTAK clients: ${result.tcp_clients_active}`
+            : '';
+        div.innerHTML = `<i class="fas fa-check-circle"></i> Listener running — TCP:${result.tcp_port || '?'} UDP:${result.udp_port || '?'}${mcast}${clients} | events_received: ${result.events_received || 0} | events_ingested: ${result.events_ingested || 0} | uptime: ${result.uptime_seconds || 0}s`;
     } else if (result.available === false) {
         div.className = 'warning-box';
         div.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${result.message || 'CoT listener not available'}`;
