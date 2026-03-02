@@ -233,7 +233,7 @@
       height: 500px;
       max-height: calc(100vh - 100px);
       background: #111;
-      border: 2px solid #28a745;
+      border: 2px solid #2a5c3a;
       border-radius: 8px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
       z-index: 9998;
@@ -248,6 +248,10 @@
 
     #chat-window.minimized {
       height: auto;
+      width: 220px;
+      bottom: 80px;
+      left: auto;
+      right: 10px;
     }
 
     #chat-window.minimized .chat-window-content,
@@ -255,8 +259,17 @@
       display: none;
     }
 
+    @media (orientation: landscape) {
+      #chat-window.minimized {
+        bottom: 10px;
+        right: 10px;
+        left: auto;
+        width: 220px;
+      }
+    }
+
     .chat-window-header {
-      background: #28a745;
+      background: #1e3d28;
       color: #fff;
       padding: 10px 15px;
       display: flex;
@@ -365,13 +378,13 @@
 
     .chat-input:focus {
       outline: none;
-      border-color: #28a745;
-      box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+      border-color: #2a5c3a;
+      box-shadow: 0 0 8px rgba(42, 92, 58, 0.3);
     }
 
     .chat-send-btn {
       padding: 8px 16px;
-      background: #28a745;
+      background: #2a5c3a;
       border: none;
       color: #fff;
       border-radius: 4px;
@@ -385,7 +398,7 @@
     }
 
     .chat-send-btn:hover {
-      background: #218838;
+      background: #1e3d28;
     }
 
     .chat-send-btn:disabled {
@@ -411,6 +424,7 @@
     }
     .chat-channel-btn:hover { background: rgba(255,255,255,0.25); }
     .chat-channel-btn.delete-btn:hover { background: rgba(255,50,50,0.4); }
+    .chat-channel-btn.hidden-btn { display: none; }
 
     .chat-message {
       padding: 10px 12px;
@@ -625,6 +639,16 @@
       font-family: 'Courier New', monospace;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       box-sizing: border-box;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    #top-status-bar::-webkit-scrollbar {
+      display: none;
     }
 
     #tsb-clock {
@@ -992,8 +1016,8 @@
           <option value="all">All Units</option>
           <option value="hq">HQ</option>
         </select>
-        <button class="chat-channel-btn" onclick="createChatChannel()" title="Create Channel"><i class="fas fa-plus"></i></button>
-        <button class="chat-channel-btn delete-btn" onclick="deleteChatChannel()" title="Delete Channel"><i class="fas fa-trash"></i></button>
+        <button class="chat-channel-btn hidden-btn" onclick="createChatChannel()" title="Create Channel"><i class="fas fa-plus"></i></button>
+        <button class="chat-channel-btn delete-btn hidden-btn" onclick="deleteChatChannel()" title="Delete Channel"><i class="fas fa-trash"></i></button>
         <input type="text" id="chat-input" class="chat-input" placeholder="Type message...">
         <button class="chat-send-btn" onclick="sendChatMessage()">
           <i class="fas fa-paper-plane"></i> Send
@@ -2691,7 +2715,8 @@
     let _lastGpsSendTime = 0; // Throttle GPS server sends
 
     function createGpsArrowIconHtml(color) {
-      return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`;
+      const safeColor = /^[#a-zA-Z0-9().,% ]+$/.test(color) ? color : '#007bff';
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${safeColor}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
     }
 
     // Send GPS position to server so admin_map.html can see it
@@ -3786,7 +3811,7 @@
           width: 400px;
           max-width: calc(100vw - 40px);
           background: #111;
-          border: 2px solid #28a745;
+          border: 2px solid #2a5c3a;
           border-radius: 8px;
           box-shadow: 0 8px 30px rgba(0,0,0,0.8);
           z-index: 11200;
@@ -3803,9 +3828,18 @@
         .overview-stream-viewer[data-minimized="true"] .overview-stream-content {
           display: none;
         }
+
+        .overview-stream-viewer.active[data-minimized="true"],
+        .overview-stream-viewer[data-minimized="true"] {
+          width: 220px;
+          height: auto;
+          bottom: 10px;
+          right: 10px;
+          left: auto;
+        }
         
         .overview-stream-header {
-          background: #28a745;
+          background: #1e3d28;
           color: #fff;
           padding: 10px 15px;
           display: flex;
@@ -3948,29 +3982,27 @@
         // Toggle minimize state
         if (viewer.dataset.minimized === 'true') {
           // Restore
-          viewer.style.width = viewer.dataset.originalWidth || '400px';
-          viewer.style.height = viewer.dataset.originalHeight || '300px';
-          viewer.style.bottom = viewer.dataset.originalBottom || '20px';
+          viewer.style.width = viewer.dataset.originalWidth || '';
+          viewer.style.height = viewer.dataset.originalHeight || '';
+          viewer.style.bottom = viewer.dataset.originalBottom || '';
+          viewer.style.right = viewer.dataset.originalRight || '';
+          viewer.style.left = viewer.dataset.originalLeft || '';
           viewer.dataset.minimized = 'false';
-
-          // Show content
-          const content = viewer.querySelector('.overview-stream-content');
-          if (content) content.style.display = 'block';
         } else {
-          // Store original size
-          viewer.dataset.originalWidth = viewer.style.width || '400px';
-          viewer.dataset.originalHeight = viewer.style.height || '300px';
-          viewer.dataset.originalBottom = viewer.style.bottom || '20px';
+          // Store original inline styles so we can restore them
+          viewer.dataset.originalWidth = viewer.style.width || '';
+          viewer.dataset.originalHeight = viewer.style.height || '';
+          viewer.dataset.originalBottom = viewer.style.bottom || '';
+          viewer.dataset.originalRight = viewer.style.right || '';
+          viewer.dataset.originalLeft = viewer.style.left || '';
 
-          // Minimize
-          viewer.style.width = '250px';
-          viewer.style.height = '40px';
-          viewer.style.bottom = '10px';
+          // Clear inline overrides so CSS data-minimized rule takes over
+          viewer.style.width = '';
+          viewer.style.height = '';
+          viewer.style.bottom = '';
+          viewer.style.right = '';
+          viewer.style.left = '';
           viewer.dataset.minimized = 'true';
-
-          // Hide content
-          const content = viewer.querySelector('.overview-stream-content');
-          if (content) content.style.display = 'none';
         }
       };
 
