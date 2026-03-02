@@ -18,6 +18,15 @@ from datetime import datetime, timezone
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 
+# websockets is an indirect dependency (via uvicorn[standard]).  Import the
+# close-related exceptions so we can detect normal disconnects without relying
+# on fragile substring matching.
+try:
+    from websockets.exceptions import ConnectionClosed as _WsConnectionClosed
+    _WS_NORMAL_CLOSE_EXCEPTIONS = (_WsConnectionClosed,)
+except ImportError:  # pragma: no cover
+    _WS_NORMAL_CLOSE_EXCEPTIONS = ()
+
 logger = logging.getLogger("lpu5-websocket")
 
 
@@ -302,7 +311,13 @@ class ConnectionManager:
             for (connection_id, _), result in zip(targets, results):
                 if isinstance(result, Exception):
                     error_msg = str(result) if str(result) else type(result).__name__
-                    logger.error(f"Failed to publish to {connection_id}: {error_msg}")
+                    # ConnectionClosed (and its subclasses) are raised when the remote
+                    # end closes the WebSocket – this is expected during restarts and
+                    # normal disconnects, so log at debug level to avoid noise.
+                    if _WS_NORMAL_CLOSE_EXCEPTIONS and isinstance(result, _WS_NORMAL_CLOSE_EXCEPTIONS):
+                        logger.debug(f"WebSocket {connection_id} closed: {error_msg}")
+                    else:
+                        logger.error(f"Failed to publish to {connection_id}: {error_msg}")
                     disconnected.append(connection_id)
                 else:
                     # Update metadata on successful send
