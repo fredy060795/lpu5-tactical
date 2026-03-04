@@ -334,8 +334,7 @@ class CoTProtocolHandler:
         "gps_position":     "a-f-G-U-C",     # live GPS position (friendly ground unit)
         "node":             "a-f-G-E-S-U-M", # Meshtastic node (LPU5 internal type) → Meshtastic equipment
         "meshtastic_node":  "a-f-G-E-S-U-M", # Meshtastic node forwarded by ATAK plugin
-        "gateway":          "a-f-G-U-C",     # Meshtastic gateway — forwarded as friendly Contact so
-                                             # ATAK operators can send CoT data to it directly
+        "gateway":          "a-f-G-E-S-U-M", # Meshtastic gateway/router node → Meshtastic equipment
         "tak_unit":         "a-f-G-U-C",     # ATAK SA / GPS position marker
     }
 
