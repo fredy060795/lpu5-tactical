@@ -628,6 +628,33 @@
         <div id="cotListenerStatus" class="info-box" style="margin-top:8px;display:none;"></div>
     </div>
 
+    <!-- WinTAK / ATAK Marker Sync -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-exchange-alt"></i>
+            WinTAK / ATAK Marker Sync
+        </div>
+
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Since ATAK/WinTAK does not offer global data sharing, LPU5 tracks which markers were
+            received from connected ATAK/WinTAK clients and which were created locally.
+            Use <strong>Check Diff</strong> to compare both sides and <strong>Push Missing to ATAK</strong>
+            to forward any LPU5 markers that ATAK clients have not yet received.
+        </div>
+
+        <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" onclick="checkMarkerDiff()">
+                <i class="fas fa-search"></i> Check Diff
+            </button>
+            <button class="btn btn-success" id="pushMissingBtn" onclick="pushMissingToAtak()" style="display:none;">
+                <i class="fas fa-upload"></i> Push Missing to ATAK
+            </button>
+        </div>
+
+        <div id="markerDiffStatus" style="margin-top:10px;display:none;"></div>
+    </div>
+
     <!-- CoT (Cursor on Target) Settings -->
     <div class="section">
         <div class="section-header">
@@ -1067,6 +1094,78 @@ async function stopCotListener() {
     } catch (e) {
         showStatus('Failed to stop CoT listener: ' + e.message, 'error');
     }
+}
+
+// ---- WinTAK / ATAK Marker Sync ----
+async function checkMarkerDiff() {
+    const div = document.getElementById('markerDiffStatus');
+    div.style.display = 'block';
+    div.className = 'info-box';
+    div.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching marker diff…';
+    try {
+        const resp = await fetch('/api/tak/marker-diff');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const lpu5Only = data.lpu5_only || [];
+        const takOnly = data.tak_only || [];
+        const synced = data.synced || [];
+        let html = `<strong>Summary:</strong> LPU5 total: ${data.total_lpu5} &nbsp;|&nbsp; ATAK/WinTAK received: ${data.total_tak} &nbsp;|&nbsp; Synced: ${synced.length}<br><br>`;
+        if (lpu5Only.length === 0) {
+            html += '<span style="color:#2ecc71;"><i class="fas fa-check-circle"></i> All LPU5 markers have been received by ATAK/WinTAK.</span>';
+            document.getElementById('pushMissingBtn').style.display = 'none';
+        } else {
+            html += `<strong style="color:#f39c12;"><i class="fas fa-exclamation-triangle"></i> ${lpu5Only.length} LPU5 marker(s) not yet received by ATAK/WinTAK:</strong><ul style="margin:6px 0 0 18px;padding:0;">`;
+            lpu5Only.forEach(m => {
+                html += `<li>${_escHtml(m.name || m.id)} &nbsp;<span style="color:#888;">(${m.type}, ${(m.lat ?? 0).toFixed(5)}, ${(m.lng ?? 0).toFixed(5)})</span></li>`;
+            });
+            html += '</ul>';
+            document.getElementById('pushMissingBtn').style.display = '';
+        }
+        if (takOnly.length > 0) {
+            html += `<br><strong style="color:#3498db;"><i class="fas fa-satellite-dish"></i> ${takOnly.length} marker(s) received only from ATAK/WinTAK (not in LPU5):</strong><ul style="margin:6px 0 0 18px;padding:0;">`;
+            takOnly.forEach(m => {
+                html += `<li>${_escHtml(m.name || m.id)} &nbsp;<span style="color:#888;">(${m.type})</span></li>`;
+            });
+            html += '</ul>';
+        }
+        div.className = lpu5Only.length ? 'warning-box' : 'success-box';
+        div.innerHTML = html;
+    } catch (e) {
+        div.className = 'warning-box';
+        div.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Failed to load marker diff: ' + _escHtml(e.message);
+    }
+}
+
+async function pushMissingToAtak() {
+    const token = _getAuthToken();
+    if (!token) { showStatus('Authentication required — please log in first.', 'error'); return; }
+    const div = document.getElementById('markerDiffStatus');
+    div.style.display = 'block';
+    div.className = 'info-box';
+    div.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pushing missing markers to ATAK/WinTAK…';
+    try {
+        const resp = await fetch('/api/tak/push-missing', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || 'HTTP ' + resp.status);
+        }
+        const data = await resp.json();
+        div.className = 'success-box';
+        div.innerHTML = `<i class="fas fa-check-circle"></i> Pushed ${data.pushed} marker(s) to ATAK/WinTAK. Failed: ${data.failed}. Total missing: ${data.total_missing}.`;
+        document.getElementById('pushMissingBtn').style.display = 'none';
+        showStatus('Missing markers pushed to ATAK/WinTAK.', 'success');
+    } catch (e) {
+        div.className = 'warning-box';
+        div.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Push failed: ' + _escHtml(e.message);
+        showStatus('Push failed: ' + e.message, 'error');
+    }
+}
+
+function _escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // Show status message
