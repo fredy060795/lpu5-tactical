@@ -951,25 +951,21 @@ async function saveNetworkSettings() {
         const takPassword = document.getElementById('takPassword').value;
         if (takPassword) { takBody.tak_password = takPassword; }
         const token = _getAuthToken();
-        if (token) {
-            const takResp = await fetch('/api/tak/config', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(takBody)
-            });
-            if (!takResp.ok) {
-                if (takResp.status === 401) {
-                    showStatus('Session expired. Please log in again to save TAK settings.', 'error');
-                    setTimeout(function() { window.location.href = '/'; }, 2500);
-                    return;
-                }
-                const err = await takResp.json().catch(() => ({}));
-                showStatus('Settings saved, but TAK config update failed: ' + (err.detail || takResp.status), 'error');
+        const takHeaders = { 'Content-Type': 'application/json' };
+        if (token) { takHeaders['Authorization'] = `Bearer ${token}`; }
+        const takResp = await fetch('/api/tak/config', {
+            method: 'PUT',
+            headers: takHeaders,
+            body: JSON.stringify(takBody)
+        });
+        if (!takResp.ok) {
+            if (takResp.status === 401) {
+                showStatus('Session expired. Please log in again to save TAK settings.', 'error');
+                setTimeout(function() { window.location.href = '/'; }, 2500);
                 return;
             }
-        } else {
-            showStatus('Network settings saved. TAK-specific settings (host/port/credentials) could not be saved - no valid authentication token found. Please log in and save again.', 'error');
-            setTimeout(function() { window.location.href = '/'; }, 2500);
+            const err = await takResp.json().catch(() => ({}));
+            showStatus('Settings saved, but TAK config update failed: ' + (err.detail || takResp.status), 'error');
             return;
         }
 
@@ -1070,9 +1066,11 @@ async function startCotListener() {
 
     // Persist port and multicast config to server config first
     try {
+        const configHeaders = { 'Content-Type': 'application/json' };
+        if (token) { configHeaders['Authorization'] = 'Bearer ' + token; }
         await fetch('/api/tak/config', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            headers: configHeaders,
             body: JSON.stringify({
                 cot_listener_tcp_port: tcpPort,
                 cot_listener_udp_port: udpPort,
@@ -1085,9 +1083,11 @@ async function startCotListener() {
     } catch (_) { /* ignore config save errors */ }
 
     try {
+        const startHeaders = {};
+        if (token) { startHeaders['Authorization'] = 'Bearer ' + token; }
         const resp = await fetch('/api/cot/listener/start', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token }
+            headers: startHeaders
         });
         const result = await resp.json();
         _showCotListenerStatus(result);
@@ -1100,9 +1100,11 @@ async function startCotListener() {
 async function stopCotListener() {
     const token = _getAuthToken();
     try {
+        const stopHeaders = {};
+        if (token) { stopHeaders['Authorization'] = 'Bearer ' + token; }
         const resp = await fetch('/api/cot/listener/stop', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token }
+            headers: stopHeaders
         });
         const result = await resp.json();
         _showCotListenerStatus({ running: false, available: true, message: 'Listener stopped.' });
@@ -1154,15 +1156,16 @@ async function checkMarkerDiff() {
 
 async function pushMissingToAtak() {
     const token = _getAuthToken();
-    if (!token) { showStatus('Authentication required — please log in first.', 'error'); return; }
     const div = document.getElementById('markerDiffStatus');
     div.style.display = 'block';
     div.className = 'info-box';
     div.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pushing missing markers to ATAK/WinTAK…';
     try {
+        const headers = {};
+        if (token) { headers['Authorization'] = 'Bearer ' + token; }
         const resp = await fetch('/api/tak/push-missing', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token }
+            headers
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));

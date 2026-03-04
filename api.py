@@ -6539,10 +6539,11 @@ def cot_listener_start(authorization: Optional[str] = Header(None)):
     """
     if not COT_LISTENER_AVAILABLE:
         raise HTTPException(status_code=501, detail="CoT listener service not available")
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
-    if verify_token(authorization.split(" ")[1]) is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if PERMISSIONS_AVAILABLE:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if verify_token(authorization.split(" ")[1]) is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
     if not _start_cot_listener():
         raise HTTPException(status_code=500, detail="Failed to start CoT listener service")
     with _cot_listener_lock:
@@ -6555,10 +6556,11 @@ def cot_listener_stop(authorization: Optional[str] = Header(None)):
     """Stop the local CoT socket listener."""
     if not COT_LISTENER_AVAILABLE:
         raise HTTPException(status_code=501, detail="CoT listener service not available")
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
-    if verify_token(authorization.split(" ")[1]) is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if PERMISSIONS_AVAILABLE:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if verify_token(authorization.split(" ")[1]) is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
     _stop_cot_listener()
     return {"status": "stopped"}
 
@@ -6776,11 +6778,13 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     - tak_username (str): TAK server login username
     - tak_password (str): TAK server login password
     """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
-    payload = verify_token(authorization.split(" ")[1])
+    payload = None
+    if authorization and authorization.startswith("Bearer "):
+        payload = verify_token(authorization.split(" ")[1])
     if payload is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        if PERMISSIONS_AVAILABLE:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        payload = {"username": "system"}
 
     cfg = load_json("config") or {}
 
@@ -7125,11 +7129,12 @@ def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session
     - failed: number of markers that could not be converted or sent.
     - total_missing: total LPU5-only markers considered for pushing.
     """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
-    payload = verify_token(authorization.split(" ")[1])
-    if payload is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if PERMISSIONS_AVAILABLE:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        payload = verify_token(authorization.split(" ")[1])
+        if payload is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     if not AUTONOMOUS_MODULES_AVAILABLE:
         raise HTTPException(status_code=501, detail="CoT protocol module not available")
@@ -7923,17 +7928,18 @@ def get_map_symbols():
 async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header(None)):
     """Place a new symbol on the map (DB-backed)"""
     try:
-        # Verify user authentication
-        if not authorization or not authorization.startswith("Bearer "):
+        # Verify user authentication; when permissions are disabled every
+        # request is allowed – callers without a token are treated as
+        # "anonymous" so that ATAK / TAK devices can post markers freely.
+        username = "anonymous"
+        if authorization and authorization.startswith("Bearer "):
+            user_payload = verify_token(authorization.split(" ")[1])
+            if user_payload is not None:
+                username = user_payload.get("username", "anonymous")
+            elif PERMISSIONS_AVAILABLE:
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+        elif PERMISSIONS_AVAILABLE:
             raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-        
-        token = authorization.split(" ")[1]
-        user_payload = verify_token(token)
-        
-        if user_payload is None:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-        
-        username = user_payload.get("username", "Unknown")
         
         lat = symbol.get("lat")
         lng = symbol.get("lng")
