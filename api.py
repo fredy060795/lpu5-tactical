@@ -323,11 +323,11 @@ async def lifespan(application):
     # Start CoT listener service if enabled in config
     try:
         cfg = load_json("config") or {}
-        # Default to True so WinTAK/ATAK can reach LPU5 on first run without manual configuration.
-        # Set cot_listener_enabled=false in config.json to disable.
-        cot_listener_enabled = cfg.get("cot_listener_enabled", True)
+        # Default to False – the CoT/ATAK listener only starts when
+        # explicitly enabled via "cot_listener_enabled": true in config.json.
+        cot_listener_enabled = cfg.get("cot_listener_enabled", False)
     except Exception:
-        cot_listener_enabled = True
+        cot_listener_enabled = False
     if cot_listener_enabled and COT_LISTENER_AVAILABLE:
         try:
             if _start_cot_listener():
