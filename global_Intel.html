@@ -374,6 +374,26 @@
         .flight-info     { flex: 1; color: var(--text-dim); }
         .flight-alt      { color: var(--text-main); min-width: 60px; text-align: right; }
 
+        /* ── Flight map icon (fixed pixel size, zoom-independent) ── */
+        .fl-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(52,152,219,0.18);
+            border: 1px solid rgba(52,152,219,0.55);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .fl-icon:hover { background: rgba(52,152,219,0.38); border-color: #3498db; }
+        .fl-icon.mil { background: rgba(231,76,60,0.18); border-color: rgba(231,76,60,0.55); }
+        .fl-icon.mil:hover { background: rgba(231,76,60,0.38); border-color: #e74c3c; }
+        .fl-icon i { font-size: 11px; color: #3498db; }
+        .fl-icon.mil i { color: #e74c3c; }
+        .fl-icon.active-route { background: rgba(52,152,219,0.5); border-color: #3498db; box-shadow: 0 0 6px rgba(52,152,219,0.7); }
+
         /* ── Responsive ── */
         @media (max-width: 1100px) {
             .main-grid { grid-template-columns: 1fr; }
@@ -579,9 +599,67 @@ const rainLayer = L.tileLayer(
 );
 
 // Layer groups
-const eqLayer       = L.layerGroup().addTo(map);
-const flightLayer   = L.layerGroup().addTo(map);
-const conflictLayer = L.layerGroup().addTo(map);
+const eqLayer         = L.layerGroup().addTo(map);
+const flightLayer     = L.layerGroup().addTo(map);
+const conflictLayer   = L.layerGroup().addTo(map);
+const routeLineLayer  = L.layerGroup().addTo(map); // dashed projected routes
+
+// ─── Active route tracking ────────────────────────────────────
+let activeRouteId = null; // icao24 of currently shown route
+
+// Project a position distKm ahead on a given heading (great-circle)
+function projectPosition(lat, lon, hdgDeg, distKm) {
+    const R   = 6371;
+    const d   = distKm / R;
+    const brg = hdgDeg * Math.PI / 180;
+    const φ1  = lat * Math.PI / 180;
+    const λ1  = lon * Math.PI / 180;
+    const φ2  = Math.asin(Math.sin(φ1) * Math.cos(d) +
+                          Math.cos(φ1) * Math.sin(d) * Math.cos(brg));
+    const λ2  = λ1 + Math.atan2(Math.sin(brg) * Math.sin(d) * Math.cos(φ1),
+                                 Math.cos(d) - Math.sin(φ1) * Math.sin(φ2));
+    return [φ2 * 180 / Math.PI, ((λ2 * 180 / Math.PI) + 540) % 360 - 180];
+}
+
+// Draw (or clear) the dashed projected route for a flight
+function toggleFlightRoute(icao, lat, lon, hdg, vel, cs, origin, altM) {
+    // Clear any existing route + reset icon highlight
+    routeLineLayer.clearLayers();
+    document.querySelectorAll('.fl-icon.active-route').forEach(el => el.classList.remove('active-route'));
+
+    if (activeRouteId === icao) {
+        // Second click on same flight → just dismiss
+        activeRouteId = null;
+        return;
+    }
+    activeRouteId = icao;
+
+    if (hdg == null) return; // no heading data
+
+    // Build waypoints every 150 km up to 900 km ahead
+    const pts = [[lat, lon]];
+    for (let d = 150; d <= 900; d += 150) pts.push(projectPosition(lat, lon, hdg, d));
+
+    L.polyline(pts, {
+        color: '#3498db',
+        weight: 1.5,
+        dashArray: '7 5',
+        opacity: 0.75,
+    }).addTo(routeLineLayer);
+
+    // Ghost marker at projected destination
+    const dest = pts[pts.length - 1];
+    const speedTxt = vel ? ` · ${Math.round(vel * 3.6)} km/h` : '';
+    L.circleMarker(dest, {
+        radius: 5, color: '#3498db', fillColor: '#3498db',
+        fillOpacity: 0.25, weight: 1, dashArray: '3 2'
+    }).bindTooltip(`${cs} — projected +900 km${speedTxt}`, { permanent: false, direction: 'top' })
+      .addTo(routeLineLayer);
+
+    // Highlight the clicked icon element
+    const iconEl = document.getElementById('fl-icon-' + icao);
+    if (iconEl) iconEl.classList.add('active-route');
+}
 
 // ─── Toggle helper ────────────────────────────────────────────
 const activeClasses = {
@@ -612,7 +690,15 @@ function toggleLayer(name) {
         if (layerState.earthquakes) eqLayer.addTo(map); else map.removeLayer(eqLayer);
     }
     if (name === 'flights') {
-        if (layerState.flights) flightLayer.addTo(map); else map.removeLayer(flightLayer);
+        if (layerState.flights) {
+            flightLayer.addTo(map);
+            routeLineLayer.addTo(map);
+        } else {
+            map.removeLayer(flightLayer);
+            routeLineLayer.clearLayers();
+            map.removeLayer(routeLineLayer);
+            activeRouteId = null;
+        }
     }
     if (name === 'weather') {
         if (layerState.weather) rainLayer.addTo(map); else { if (map.hasLayer(rainLayer)) map.removeLayer(rainLayer); }
@@ -725,24 +811,46 @@ function loadFlights() {
                 const alt      = s[7];
                 if (!lat || !lon) return;
 
-                const cs = (callsign || icao || '?').trim();
-                const altM = alt ? Math.round(alt) + ' m' : 'Boden';
+                const cs   = (callsign || icao || '?').trim();
+                const altM = alt ? Math.round(alt) + ' m' : 'Ground';
+                const hdg  = s[10]; // true track (degrees)
+                const vel  = s[9];  // velocity m/s
 
-                // Tiny plane icon
+                // Rotation: align the plane symbol with heading
+                const rot   = (hdg != null) ? `transform:rotate(${hdg}deg)` : '';
+                const isMil = /^(REACH|SENTRY|DARK|DUKE|NAVY|GAF|RRR|FAF|NATO|BOXER|COBRA|VIPER|GHOST|HAWK|EAGLE|TALON|REAPER|RANGER|SHADOW|IRON|STEEL|ATLAS)/i.test(cs);
+                const clsMil = isMil ? ' mil' : '';
+
+                // Fixed-size icon — always 24×24 px regardless of zoom
                 const icon = L.divIcon({
                     className: '',
-                    html: `<span style="color:#3498db;font-size:11px;opacity:0.85;">✈</span>`,
-                    iconSize: [12, 12],
-                    iconAnchor: [6, 6]
+                    html: `<div id="fl-icon-${icao}" class="fl-icon${clsMil}" style="${rot}"><i class="fas fa-plane"></i></div>`,
+                    iconSize:   [24, 24],
+                    iconAnchor: [12, 12]
                 });
 
+                const speedTxt = vel ? ` · ${Math.round(vel * 3.6)} km/h` : '';
                 const marker = L.marker([lat, lon], { icon })
-                    .bindPopup(`<b style="color:#3498db">${cs}</b><br>Herkunft: ${origin || '?'}<br>Höhe: ${altM}`);
+                    .bindPopup(
+                        `<b style="color:${isMil ? '#e74c3c' : '#3498db'}">${cs}</b>` +
+                        (isMil ? ' <span style="color:#e74c3c;font-size:0.75em">[MIL]</span>' : '') +
+                        `<br>Origin: ${origin || '?'}<br>Alt: ${altM}${speedTxt}` +
+                        `<br><small style="color:#888">Click icon to show/hide route</small>`
+                    );
+
+                // Click → toggle dashed projected route
+                marker.on('click', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    toggleFlightRoute(icao, lat, lon, hdg, vel, cs, origin, altM);
+                });
                 flightLayer.addLayer(marker);
 
                 if (shown < 20) {
-                    html += `<div class="flight-item" onclick='map.setView([${lat},${lon}],7)'>
-                        <div class="flight-callsign"><i class="fas fa-plane"></i> ${cs}</div>
+                    const milTag = isMil ? ' <span style="color:#e74c3c;font-size:0.7em;vertical-align:middle">[MIL]</span>' : '';
+                    html += `<div class="flight-item" style="cursor:pointer"
+                        onclick='map.setView([${lat},${lon}], Math.max(map.getZoom(),5));
+                                 toggleFlightRoute(${JSON.stringify(icao)},${lat},${lon},${hdg ?? 'null'},${vel ?? 'null'},${JSON.stringify(cs)},${JSON.stringify(origin||'')},${JSON.stringify(altM)})'>
+                        <div class="flight-callsign"><i class="fas fa-plane" style="color:${isMil ? '#e74c3c' : '#3498db'}"></i> ${cs}${milTag}</div>
                         <div class="flight-info">${origin || '–'}</div>
                         <div class="flight-alt">${altM}</div>
                     </div>`;
@@ -750,15 +858,15 @@ function loadFlights() {
                 }
             });
 
-            document.getElementById('fl-list').innerHTML = html || '<div class="loading-placeholder">Keine Daten</div>';
+            document.getElementById('fl-list').innerHTML = html || '<div class="loading-placeholder">No data</div>';
             document.getElementById('fl-count').textContent      = total;
-            document.getElementById('fl-badge-text').textContent = `Flüge: ${total}`;
+            document.getElementById('fl-badge-text').textContent = `Flights: ${total}`;
             document.getElementById('stat-fl').textContent       = total;
         })
         .catch(() => {
             document.getElementById('fl-list').innerHTML =
-                '<div class="loading-placeholder">OpenSky nicht erreichbar (Rate-Limit möglich) – <a href="https://opensky-network.org/network/explorer" target="_blank" style="color:var(--accent-blue)">Explorer öffnen ↗</a></div>';
-            document.getElementById('fl-badge-text').textContent = 'Flüge: offline';
+                '<div class="loading-placeholder">OpenSky unreachable (rate-limit possible) – <a href="https://opensky-network.org/network/explorer" target="_blank" style="color:var(--accent-blue)">Open Explorer ↗</a></div>';
+            document.getElementById('fl-badge-text').textContent = 'Flights: offline';
             document.getElementById('stat-fl').textContent = '–';
         });
 }
