@@ -331,11 +331,11 @@ class CoTProtocolHandler:
         "neutral":          "a-n-G-U-C",   # neutral ground unit
         "unknown":          "a-u-G-U-C",   # unknown ground unit
         "pending":          "a-p-G-U-C",   # pending ground unit
-        "gps_position":     "a-f-G-U-C",     # live GPS position (friendly ground unit)
-        "node":             "a-f-G-E-S-U-M", # Meshtastic node (LPU5 internal type) → Meshtastic equipment
-        "meshtastic_node":  "a-f-G-E-S-U-M", # Meshtastic node forwarded by ATAK plugin
-        "gateway":          "a-f-G-E-S-U-M", # Meshtastic gateway/router node → Meshtastic equipment
-        "tak_unit":         "a-f-G-U-C",     # ATAK SA / GPS position marker
+        "gps_position":     "a-f-G-U-C",   # live GPS position (friendly ground unit)
+        "node":             "a-f-G-U-C",   # Meshtastic node → friendly ground unit (Contact in ATAK)
+        "meshtastic_node":  "a-f-G-U-C",   # Meshtastic node forwarded by ATAK plugin → Contact
+        "gateway":          "a-f-G-U-C",   # Meshtastic gateway/router → friendly ground unit (Contact)
+        "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
     }
 
     # Mapping from normalized lowercase hex color strings to ATAK team names.
@@ -367,7 +367,7 @@ class CoTProtocolHandler:
         ("u-d-r",     "rechteck"),  # TAK drawing rectangle
         ("u-d-f",     "raute"),     # TAK drawing freehand → diamond
         ("u-d-p",     "raute"),     # TAK drawing generic point → diamond
-        ("a-f-G-E-S-U-M", "meshtastic_node"),  # Meshtastic equipment/node → meshtastic_node
+        ("a-f-G-E-S-U-M", "meshtastic_node"),  # legacy Meshtastic equipment type (backward compat)
         ("a-f",       "rechteck"),  # friendly affiliation → blue rectangle
         ("a-h",       "raute"),     # hostile affiliation → red diamond
         ("a-n",       "quadrat"),   # neutral affiliation → green square

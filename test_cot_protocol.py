@@ -331,33 +331,33 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
 
     def test_node_type_in_lpu5_to_cot(self):
         # "node" is the internal LPU5 type for Meshtastic nodes stored in map_markers.
-        # It must map to a-f-G-E-S-U-M (Meshtastic equipment) so that ATAK renders
-        # the Meshtastic node icon (blue round circle) instead of a blue rectangle.
+        # It must map to a-f-G-U-C (friendly ground unit / Contact) so that ATAK
+        # renders the node as a proper contact instead of an unrecognised flower marker.
         self.assertIn("node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-U-C")
 
-    def test_node_type_lpu5_to_cot_produces_meshtastic_equipment(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-E-S-U-M")
+    def test_node_type_lpu5_to_cot_produces_friendly_unit(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-U-C")
 
     def test_meshtastic_node_in_lpu5_to_cot(self):
         self.assertIn("meshtastic_node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-U-C")
 
     def test_tak_unit_in_lpu5_to_cot(self):
         self.assertIn("tak_unit", CoTProtocolHandler.LPU5_TO_COT_TYPE)
         self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["tak_unit"], "a-f-G-U-C")
 
-    def test_node_marker_to_cot_produces_meshtastic_not_rectangle(self):
-        # Regression: "node" type must NOT fall back to the unknown/flower (a-u-G-U-C)
-        # or friendly rectangle (a-f-G-U-C). It must produce the Meshtastic equipment
-        # type (a-f-G-E-S-U-M) so ATAK renders the Meshtastic node icon.
+    def test_node_marker_to_cot_produces_friendly_unit_not_flower(self):
+        # Regression: "node" type must NOT fall back to the unknown/flower (a-u-G-U-C).
+        # It must produce the friendly ground unit type (a-f-G-U-C) so ATAK renders
+        # it as a proper Contact instead of a flower (Maker Blume) marker.
         node_name = "Büroturm"
         marker = {"id": "mesh-123", "lat": 48.0, "lng": 11.0, "type": "node",
                   "name": node_name, "callsign": node_name}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M",
-                         "Meshtastic node (type='node') must export as a-f-G-E-S-U-M, not blue rectangle (a-f-G-U-C)")
+        self.assertEqual(evt.cot_type, "a-f-G-U-C",
+                         "Meshtastic node (type='node') must export as a-f-G-U-C (friendly unit), not flower/unknown")
 
     # --- CoTEvent.from_xml() detects <meshtastic> in <detail> ---
 
@@ -451,22 +451,22 @@ class TestGatewayContactDisplay(unittest.TestCase):
     """Tests for Meshtastic gateway node ATAK display.
 
     Verifies that:
-      - "gateway" LPU5 type maps to the Meshtastic equipment CoT type (a-f-G-E-S-U-M),
-        consistent with regular Meshtastic nodes so ATAK renders the correct icon
+      - "gateway" LPU5 type maps to the friendly ground unit CoT type (a-f-G-U-C)
+        so ATAK renders gateway nodes as proper Contacts instead of flower markers
       - CoTEvent.to_xml() includes the endpoint attribute in <contact> when set
       - marker_to_cot() passes contact_endpoint through to CoTEvent
       - Without an endpoint, the <contact> element is still emitted correctly
     """
 
     def test_gateway_type_in_lpu5_to_cot(self):
-        """'gateway' LPU5 type must map to Meshtastic equipment CoT type a-f-G-E-S-U-M."""
+        """'gateway' LPU5 type must map to friendly ground unit CoT type a-f-G-U-C."""
         self.assertEqual(
             CoTProtocolHandler.lpu5_type_to_cot("gateway"),
-            "a-f-G-E-S-U-M",
+            "a-f-G-U-C",
         )
 
-    def test_gateway_marker_to_cot_produces_meshtastic_equipment(self):
-        """A marker with type='gateway' must produce a CoT event of type a-f-G-E-S-U-M."""
+    def test_gateway_marker_to_cot_produces_friendly_unit(self):
+        """A marker with type='gateway' must produce a CoT event of type a-f-G-U-C."""
         marker = {
             "id": "mesh-gw1",
             "lat": 48.1,
@@ -477,7 +477,7 @@ class TestGatewayContactDisplay(unittest.TestCase):
         }
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M")
+        self.assertEqual(evt.cot_type, "a-f-G-U-C")
 
     def test_contact_endpoint_in_xml(self):
         """CoTEvent.to_xml() must include endpoint in <contact> when contact_endpoint is set."""
@@ -537,11 +537,11 @@ class TestGatewayContactDisplay(unittest.TestCase):
         evt = CoTEvent(uid="x", cot_type="a-f-G-U-C", lat=0.0, lon=0.0)
         self.assertIsNone(evt.contact_endpoint)
 
-    def test_meshtastic_node_type_unchanged(self):
-        """'meshtastic_node' type must still map to a-f-G-E-S-U-M (unchanged)."""
+    def test_meshtastic_node_type_maps_to_friendly_unit(self):
+        """'meshtastic_node' type must map to a-f-G-U-C (friendly unit / Contact in ATAK)."""
         self.assertEqual(
             CoTProtocolHandler.lpu5_type_to_cot("meshtastic_node"),
-            "a-f-G-E-S-U-M",
+            "a-f-G-U-C",
         )
 
 
