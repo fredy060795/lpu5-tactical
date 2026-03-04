@@ -8,6 +8,9 @@
 
 Der Agent **muss** diese Regeln vor jedem Pull Request lesen und sicherstellen, dass alle Änderungen den nachfolgenden Vorgaben entsprechen.
 
+Der Agent **muss** außerdem die Datei **`Funktzions.md`** vor jeder Agenten-Sitzung lesen.
+Diese Datei enthält eine Übersicht aller Funktionen des Systems. Funktionen, die mit `[#]` markiert sind, dürfen **nicht ohne ausdrückliche Anweisung** verändert werden, da sie perfekt funktionieren.
+
 ## 2. Verbot von Simulationen
 
 Es ist **verboten**, Simulationen in das System einzubauen.
