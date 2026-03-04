@@ -1341,6 +1341,19 @@ _deleted_marker_ids: Dict[str, float] = {}
 _deleted_marker_ids_lock = threading.Lock()
 _MARKER_DELETION_SUPPRESSION_SECS = 60
 
+# Deduplication cache for incoming CoT events.
+# Maps uid → (lat, lng, callsign, lpu5_type) of the last processed state.
+# Events whose state has not changed are silently dropped to avoid redundant
+# DB writes, WebSocket broadcasts, and log spam.
+_TAK_INCOMING_CACHE: Dict[str, tuple] = {}
+_TAK_INCOMING_CACHE_LOCK = threading.Lock()
+
+# Deduplication cache for the outgoing periodic TAK sync.
+# Maps marker_id → (lat, lng, name, type) of the state last forwarded to TAK.
+# Only changed markers are re-sent during each sync cycle.
+_TAK_FORWARD_CACHE: Dict[str, tuple] = {}
+_TAK_FORWARD_CACHE_LOCK = threading.Lock()
+
 
 def _record_deleted_marker(marker_id: str) -> None:
     """Record a marker ID as recently deleted to suppress ATAK echo-back recreation."""
@@ -1350,6 +1363,12 @@ def _record_deleted_marker(marker_id: str) -> None:
         for k in list(_deleted_marker_ids.keys()):
             if _deleted_marker_ids[k] < cutoff:
                 del _deleted_marker_ids[k]
+    # Evict from incoming dedup cache so the marker can be re-created if TAK
+    # sends it again after the deletion suppression window expires.
+    with _TAK_INCOMING_CACHE_LOCK:
+        _TAK_INCOMING_CACHE.pop(marker_id, None)
+    with _TAK_FORWARD_CACHE_LOCK:
+        _TAK_FORWARD_CACHE.pop(marker_id, None)
 
 
 def _is_recently_deleted_marker(marker_id: str) -> bool:
@@ -1451,6 +1470,18 @@ def _process_incoming_cot(cot_xml: str) -> None:
             lpu5_type = "meshtastic_node"
         elif lpu5_type == "rechteck" and how.startswith("h"):
             lpu5_type = "tak_unit"
+
+        # Deduplication: skip identical events to avoid redundant DB writes,
+        # WebSocket broadcasts, and log spam when the TAK server re-sends the
+        # same position in rapid succession.
+        _incoming_key = (lat, lng, callsign, lpu5_type)
+        with _TAK_INCOMING_CACHE_LOCK:
+            if _TAK_INCOMING_CACHE.get(uid) == _incoming_key:
+                # State unchanged – count the packet but skip all side-effects.
+                with _TAK_RECEIVER_STATS_LOCK:
+                    _TAK_RECEIVER_STATS["packets_received"] += 1
+                return
+            _TAK_INCOMING_CACHE[uid] = _incoming_key
 
         # Upsert MapMarker
         db = SessionLocal()
@@ -1762,6 +1793,14 @@ def _forward_all_lpu5_data_to_tak() -> dict:
         markers = db.query(MapMarker).filter(MapMarker.created_by != "tak_server").all()
         for marker in markers:
             try:
+                # Deduplication: only forward markers whose state has changed
+                # since the last successful sync to avoid redundant TAK traffic.
+                _fwd_key = (marker.lat, marker.lng, marker.name, marker.type)
+                with _TAK_FORWARD_CACHE_LOCK:
+                    if _TAK_FORWARD_CACHE.get(marker.id) == _fwd_key:
+                        skipped += 1
+                        continue
+
                 marker_dict = {
                     "id": marker.id,
                     "name": marker.name,
@@ -1778,6 +1817,8 @@ def _forward_all_lpu5_data_to_tak() -> dict:
                 if cot_event:
                     if forward_cot_to_tak(cot_event.to_xml()):
                         forwarded += 1
+                        with _TAK_FORWARD_CACHE_LOCK:
+                            _TAK_FORWARD_CACHE[marker.id] = _fwd_key
                     else:
                         failed += 1
                 else:
