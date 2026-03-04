@@ -195,6 +195,14 @@
         .fl-icon i { font-size: 11px; color: #3498db; }
         .fl-icon.mil i { color: #e74c3c; }
         .fl-icon.active-route { background: rgba(52,152,219,0.5); border-color: #3498db; box-shadow: 0 0 6px rgba(52,152,219,0.7); }
+        .ship-icon {
+            width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+            background: rgba(26,188,156,0.18); border: 1px solid rgba(26,188,156,0.55);
+            border-radius: 50%; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+        }
+        .ship-icon:hover { background: rgba(26,188,156,0.38); border-color: #1abc9c; }
+        .ship-icon i { font-size: 11px; color: #1abc9c; }
+        .ship-icon.active-route { background: rgba(26,188,156,0.5); border-color: #1abc9c; box-shadow: 0 0 6px rgba(26,188,156,0.7); }
         .base-item, .naval-item {
             display: flex; align-items: center; gap: 8px; padding: 5px 0;
             border-bottom: 1px solid var(--border); font-size: 0.78rem; cursor: pointer;
@@ -480,6 +488,8 @@ var basesLayer     = L.layerGroup().addTo(map);
 var navalLayer     = L.layerGroup().addTo(map);
 var routeLineLayer = L.layerGroup().addTo(map);
 var activeRouteId  = null;
+var shipRouteLayer = L.layerGroup().addTo(map);
+var activeShipId   = null;
 // ─── Helpers ──────────────────────────────────────────────────
 var EARTH_RADIUS_KM = 6371;
 function escapeHtml(s) {
@@ -492,7 +502,8 @@ function projectPosition(lat, lon, hdgDeg, distKm) {
     var lam2 = lam1 + Math.atan2(Math.sin(brg) * Math.sin(d) * Math.cos(phi1), Math.cos(d) - Math.sin(phi1) * Math.sin(phi2));
     return [phi2 * 180 / Math.PI, ((lam2 * 180 / Math.PI) + 540) % 360 - 180];
 }
-function toggleFlightRoute(icao, lat, lon, hdg, vel, cs, origin, altM) {
+function toggleFlightRoute(icao, lat, lon, hdg, vel, cs, origin, altM, routeColor) {
+    routeColor = routeColor || '#3498db';
     routeLineLayer.clearLayers();
     document.querySelectorAll('.fl-icon.active-route').forEach(function(el) { el.classList.remove('active-route'); });
     if (activeRouteId === icao) { activeRouteId = null; return; }
@@ -500,14 +511,30 @@ function toggleFlightRoute(icao, lat, lon, hdg, vel, cs, origin, altM) {
     if (hdg == null) return;
     var pts = [[lat, lon]];
     for (var d = 150; d <= 900; d += 150) { pts.push(projectPosition(lat, lon, hdg, d)); }
-    L.polyline(pts, { color: '#3498db', weight: 1.5, dashArray: '7 5', opacity: 0.75 }).addTo(routeLineLayer);
+    L.polyline(pts, { color: routeColor, weight: 1.5, dashArray: '7 5', opacity: 0.75 }).addTo(routeLineLayer);
     var dest = pts[pts.length - 1];
     var speedTxt = vel ? ' · ' + Math.round(vel * 3.6) + ' km/h' : '';
-    L.circleMarker(dest, { radius: 5, color: '#3498db', fillColor: '#3498db', fillOpacity: 0.25, weight: 1, dashArray: '3 2' })
+    L.circleMarker(dest, { radius: 5, color: routeColor, fillColor: routeColor, fillOpacity: 0.25, weight: 1, dashArray: '3 2' })
      .bindTooltip(cs + ' — projected +900 km' + speedTxt, { permanent: false, direction: 'top' })
      .addTo(routeLineLayer);
     var iconEl = document.getElementById('fl-icon-' + icao);
     if (iconEl) iconEl.classList.add('active-route');
+}
+function toggleShipRoute(id, lat, lon, hdg, spd, name) {
+    shipRouteLayer.clearLayers();
+    document.querySelectorAll('.ship-icon.active-route').forEach(function(el) { el.classList.remove('active-route'); });
+    if (activeShipId === id) { activeShipId = null; return; }
+    activeShipId = id;
+    if (hdg == null) { activeShipId = null; return; }
+    var pts = [[lat, lon]];
+    for (var d = 50; d <= 350; d += 50) { pts.push(projectPosition(lat, lon, hdg, d)); }
+    L.polyline(pts, { color: '#1abc9c', weight: 2, dashArray: '8 5', opacity: 0.8 }).addTo(shipRouteLayer);
+    var dest = pts[pts.length - 1];
+    var spdTxt = spd ? ' · ' + spd + ' kn' : '';
+    L.circleMarker(dest, { radius: 5, color: '#1abc9c', fillColor: '#1abc9c', fillOpacity: 0.25, weight: 1, dashArray: '3 2' })
+     .bindTooltip(name + ' — projected +350 km' + spdTxt, { permanent: false, direction: 'top' })
+     .addTo(shipRouteLayer);
+    document.querySelectorAll('#ship-icon-' + id + ', #ship-icon-map-' + id).forEach(function(el) { el.classList.add('active-route'); });
 }
 var activeClasses = { earthquakes: 'active', flights: 'active-blue', milflights: 'active-red', weather: 'active-yellow', conflicts: 'active-red', bases: 'active-orange', naval: 'active-cyan', radiation: 'active-orange' };
 var layerBtns     = { earthquakes: 'btn-eq', flights: 'btn-fl', milflights: 'btn-mil', weather: 'btn-wx', conflicts: 'btn-cr', bases: 'btn-bases', naval: 'btn-naval', radiation: 'btn-rad' };
@@ -524,7 +551,10 @@ function toggleLayer(name) {
     if (name === 'weather') { if (layerState.weather) rainLayer.addTo(map); else if (map.hasLayer(rainLayer)) map.removeLayer(rainLayer); }
     if (name === 'conflicts') { if (layerState.conflicts) conflictLayer.addTo(map); else map.removeLayer(conflictLayer); }
     if (name === 'bases')  { if (layerState.bases)  basesLayer.addTo(map);  else map.removeLayer(basesLayer); }
-    if (name === 'naval')  { if (layerState.naval)  navalLayer.addTo(map);  else map.removeLayer(navalLayer); }
+    if (name === 'naval') {
+        if (layerState.naval) { navalLayer.addTo(map); shipRouteLayer.addTo(map); }
+        else { map.removeLayer(navalLayer); shipRouteLayer.clearLayers(); map.removeLayer(shipRouteLayer); activeShipId = null; }
+    }
 }
 var EQ_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
 function magColor(mag) { if (mag >= 6) return '#e74c3c'; if (mag >= 4.5) return '#e67e22'; if (mag >= 2.5) return '#f39c12'; return '#2ecc71'; }
@@ -596,10 +626,11 @@ function loadFlights() {
             var speedTxt = vel ? ' · ' + Math.round(vel * 3.6) + ' km/h' : '';
             var marker = L.marker([lat, lon], { icon: icon })
                 .bindPopup('<b style="color:' + colorStr + '">' + cs + '</b>' + milTag + '<br>Origin: ' + (origin || '?') + '<br>Alt: ' + altM + speedTxt + '<br><small style="color:#888">Click icon to show/hide route</small>');
-            marker.on('click', (function(ic, la, lo, hd, ve, c, or2, am) {
-                return function(e) { L.DomEvent.stopPropagation(e); toggleFlightRoute(ic, la, lo, hd, ve, c, or2, am); };
-            })(icao, lat, lon, hdg, vel, cs, origin, altM));
-            var rowonclick = 'map.setView([' + lat + ',' + lon + '],Math.max(map.getZoom(),5));toggleFlightRoute(' + JSON.stringify(icao) + ',' + lat + ',' + lon + ',' + (hdg != null ? hdg : 'null') + ',' + (vel != null ? vel : 'null') + ',' + JSON.stringify(cs) + ',' + JSON.stringify(origin || '') + ',' + JSON.stringify(altM) + ')';
+            marker.on('click', (function(ic, la, lo, hd, ve, c, or2, am, col) {
+                return function(e) { L.DomEvent.stopPropagation(e); toggleFlightRoute(ic, la, lo, hd, ve, c, or2, am, col); };
+            })(icao, lat, lon, hdg, vel, cs, origin, altM, colorStr));
+            var routeArgs = JSON.stringify(icao) + ',' + lat + ',' + lon + ',' + (hdg != null ? hdg : 'null') + ',' + (vel != null ? vel : 'null') + ',' + JSON.stringify(cs) + ',' + JSON.stringify(origin || '') + ',' + JSON.stringify(altM) + ',' + JSON.stringify(colorStr);
+            var rowonclick = 'map.setView([' + lat + ',' + lon + '],Math.max(map.getZoom(),5));toggleFlightRoute(' + routeArgs + ')';
             if (isMil) {
                 milLayer.addLayer(marker); milCount++;
                 if (milShown < 20) {
@@ -748,38 +779,52 @@ function loadBases() {
     document.getElementById('stat-bases').textContent       = MIL_BASES.length;
 }
 var NAVAL_UNITS = [
-    { name: 'USS Gerald R. Ford (CVN-78)',      cls: 'Aircraft Carrier',   lat:  47.0, lon:  -30.0 },
-    { name: 'USS Dwight D. Eisenhower (CVN-69)',cls: 'Aircraft Carrier',   lat:  15.0, lon:   43.5 },
-    { name: 'USS Carl Vinson (CVN-70)',         cls: 'Aircraft Carrier',   lat:  20.0, lon:  150.0 },
-    { name: 'HMS Queen Elizabeth (R08)',        cls: 'Aircraft Carrier',   lat:  56.0, lon:    2.0 },
-    { name: 'Charles de Gaulle (R91)',          cls: 'Aircraft Carrier',   lat:  40.0, lon:   10.0 },
-    { name: 'Liaoning (CV-16)',                 cls: 'Aircraft Carrier',   lat:  18.0, lon:  115.0 },
-    { name: 'Shandong (CV-17)',                 cls: 'Aircraft Carrier',   lat:  32.0, lon:  123.0 },
-    { name: 'Fujian (CV-18)',                   cls: 'Aircraft Carrier',   lat:  27.0, lon:  122.0 },
-    { name: 'JS Izumo (DDH-183)',               cls: 'Helicopter Carrier', lat:  28.0, lon:  135.0 },
-    { name: 'INS Vikrant (R11)',                cls: 'Aircraft Carrier',   lat:  15.0, lon:   68.0 },
-    { name: 'HMAS Canberra (L02)',              cls: 'Amphibious',         lat: -22.0, lon:  155.0 },
-    { name: 'USS America (LHA-6)',              cls: 'Amphibious',         lat:  38.0, lon:   20.0 },
-    { name: 'USS Bataan (LHD-5)',               cls: 'Amphibious',         lat:  15.0, lon:  -70.0 },
-    { name: 'USS Ronald Reagan (CVN-76)',       cls: 'Aircraft Carrier',   lat:  36.0, lon:  132.0 },
-    { name: 'FS Tonnerre (L9014)',              cls: 'Amphibious',         lat:  45.0, lon:  -10.0 }
+    { id: 'cvn78',  name: 'USS Gerald R. Ford (CVN-78)',        cls: 'Aircraft Carrier',   lat:  47.0, lon:  -30.0, hdg: 245, spd: 12 },
+    { id: 'cvn69',  name: 'USS Dwight D. Eisenhower (CVN-69)', cls: 'Aircraft Carrier',   lat:  15.0, lon:   43.5, hdg: 140, spd: 10 },
+    { id: 'cvn70',  name: 'USS Carl Vinson (CVN-70)',           cls: 'Aircraft Carrier',   lat:  20.0, lon:  150.0, hdg: 310, spd: 14 },
+    { id: 'r08',    name: 'HMS Queen Elizabeth (R08)',           cls: 'Aircraft Carrier',   lat:  56.0, lon:    2.0, hdg: 180, spd:  9 },
+    { id: 'r91',    name: 'Charles de Gaulle (R91)',             cls: 'Aircraft Carrier',   lat:  40.0, lon:   10.0, hdg: 220, spd: 11 },
+    { id: 'cv16',   name: 'Liaoning (CV-16)',                   cls: 'Aircraft Carrier',   lat:  18.0, lon:  115.0, hdg:  90, spd: 13 },
+    { id: 'cv17',   name: 'Shandong (CV-17)',                   cls: 'Aircraft Carrier',   lat:  32.0, lon:  123.0, hdg: 160, spd: 12 },
+    { id: 'cv18',   name: 'Fujian (CV-18)',                     cls: 'Aircraft Carrier',   lat:  27.0, lon:  122.0, hdg: 200, spd: 10 },
+    { id: 'ddh183', name: 'JS Izumo (DDH-183)',                 cls: 'Helicopter Carrier', lat:  28.0, lon:  135.0, hdg: 270, spd:  8 },
+    { id: 'r11',    name: 'INS Vikrant (R11)',                  cls: 'Aircraft Carrier',   lat:  15.0, lon:   68.0, hdg:  45, spd: 11 },
+    { id: 'l02',    name: 'HMAS Canberra (L02)',                cls: 'Amphibious',         lat: -22.0, lon:  155.0, hdg: 350, spd:  9 },
+    { id: 'lha6',   name: 'USS America (LHA-6)',                cls: 'Amphibious',         lat:  38.0, lon:   20.0, hdg: 100, spd: 10 },
+    { id: 'lhd5',   name: 'USS Bataan (LHD-5)',                 cls: 'Amphibious',         lat:  15.0, lon:  -70.0, hdg: 260, spd:  8 },
+    { id: 'cvn76',  name: 'USS Ronald Reagan (CVN-76)',         cls: 'Aircraft Carrier',   lat:  36.0, lon:  132.0, hdg: 190, spd: 12 },
+    { id: 'l9014',  name: 'FS Tonnerre (L9014)',                cls: 'Amphibious',         lat:  45.0, lon:  -10.0, hdg: 270, spd:  8 }
 ];
 function loadNaval() {
     navalLayer.clearLayers();
     var html = '';
     NAVAL_UNITS.forEach(function(u) {
-        var anchorIcon = L.divIcon({
+        var sid = u.id;
+        var shipMapIcon = L.divIcon({
             className: '',
-            html: '<div style="font-size:18px;line-height:1;cursor:pointer" title="' + escapeHtml(u.name) + '">&#9875;</div>',
-            iconSize: [20, 20], iconAnchor: [10, 10]
+            html: '<div id="ship-icon-map-' + sid + '" class="ship-icon"><i class="fas fa-ship"></i></div>',
+            iconSize: [24, 24], iconAnchor: [12, 12]
         });
-        var marker = L.marker([u.lat, u.lon], { icon: anchorIcon })
-            .bindPopup('<b style="color:#1abc9c">&#9875; ' + u.name + '</b><br>' + u.cls + '<br><small>Approx. position: ' + u.lat.toFixed(1) + ', ' + u.lon.toFixed(1) + '</small>');
+        var hdgInfo = u.hdg != null ? 'Hdg: ' + u.hdg + '&#176;' : '';
+        var spdInfo = u.spd  != null ? ' &middot; ' + u.spd + ' kn' : '';
+        var marker = L.marker([u.lat, u.lon], { icon: shipMapIcon })
+            .bindPopup('<b style="color:#1abc9c">&#9875; ' + u.name + '</b><br>' + u.cls + '<br><small>' + hdgInfo + spdInfo + '<br>Approx. position: ' + u.lat.toFixed(1) + ', ' + u.lon.toFixed(1) + '</small><br><small style="color:#888">Click icon to show/hide route</small>');
+        marker.on('click', (function(s, la, lo, hd, sp, n) {
+            return function(e) { L.DomEvent.stopPropagation(e); toggleShipRoute(s, la, lo, hd, sp, n); };
+        })(sid, u.lat, u.lon, u.hdg != null ? u.hdg : null, u.spd != null ? u.spd : null, u.name));
         navalLayer.addLayer(marker);
+        var routeCall = 'toggleShipRoute(' + JSON.stringify(sid) + ',' + u.lat + ',' + u.lon + ',' +
+            (u.hdg != null ? u.hdg : 'null') + ',' + (u.spd != null ? u.spd : 'null') + ',' +
+            JSON.stringify(u.name).replace(/"/g, '&quot;') + ')';
         html += '<div class="naval-item" onclick="map.setView([' + u.lat + ',' + u.lon + '],5)">' +
             '<span style="font-size:1rem">&#9875;</span>' +
-            '<div style="flex:1"><div class="naval-name">' + u.name + '</div></div>' +
-            '<div class="naval-class">' + u.cls + '</div></div>';
+            '<div style="flex:1">' +
+                '<div class="naval-name">' + u.name + '</div>' +
+                (u.hdg != null ? '<div style="color:var(--text-dim);font-size:0.72rem">Hdg: ' + u.hdg + '&#176; &middot; ' + (u.spd || '?') + ' kn</div>' : '') +
+            '</div>' +
+            '<div class="naval-class">' + u.cls + '</div>' +
+            '<div id="ship-icon-' + sid + '" class="ship-icon" onclick="event.stopPropagation();' + routeCall + '" title="Route anzeigen"><i class="fas fa-route"></i></div>' +
+        '</div>';
     });
     document.getElementById('naval-list').innerHTML          = html;
     document.getElementById('naval-count').textContent       = NAVAL_UNITS.length;
