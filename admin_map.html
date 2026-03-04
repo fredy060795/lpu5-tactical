@@ -972,17 +972,17 @@
   <div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>Symbols</h4>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="fly-sym-btn" data-sym="raute" title="Diamond"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="raute" title="Enemy"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="rechteck" title="Rectangle"> <svg viewBox="0 0 100 100" width="18"
+      <button class="fly-sym-btn" data-sym="rechteck" title="Friendly"> <svg viewBox="0 0 100 100" width="18"
           height="18">
           <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="quadrat" title="Square"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="quadrat" title="Neutral"> <svg viewBox="0 0 100 100" width="18" height="18">
           <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="blume" title="Flower"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="blume" title="Unknown"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path
             d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
             fill="#ffff00" stroke="white" stroke-width="2" />
@@ -1184,6 +1184,34 @@
       setTimeout(ensureMapVisible, 800);
       map.whenReady(() => { ensureMapVisible(); setTimeout(ensureMapVisible, 200); });
       window.addEventListener('resize', () => setTimeout(ensureMapVisible, 120));
+
+      // Request GPS once at startup and silently pan the map to the real device location.
+      // On failure the error is surfaced in the GPS flyout info area; no dialogs are shown.
+      function centerMapOnOwnLocation() {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15));
+          },
+          function (err) {
+            const infoEl = document.getElementById('gpsFlyInfo');
+            if (!infoEl) return;
+            if (err && err.message) {
+              infoEl.textContent = 'GPS error: ' + err.message;
+            } else if (err && err.code === 1) {
+              infoEl.textContent = 'GPS error: User denied Geolocation';
+            } else if (err && err.code === 2) {
+              infoEl.textContent = 'GPS error: Position unavailable';
+            } else if (err && err.code === 3) {
+              infoEl.textContent = 'GPS error: Timeout';
+            } else {
+              infoEl.textContent = 'GPS error: Geolocation unavailable';
+            }
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+      centerMapOnOwnLocation();
 
       // basemap radio wiring
       document.querySelectorAll('input[name="basemap"]').forEach(r => {

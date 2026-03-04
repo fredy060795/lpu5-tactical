@@ -195,10 +195,10 @@
 <div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
   <h4>Symbols</h4>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="icon-btn" onclick="selectSymbol('raute', this);"> <i class="fas fa-gem"></i> </button>
-    <button class="icon-btn" onclick="selectSymbol('rechteck', this);"> <i class="fas fa-square"></i> </button>
-    <button class="icon-btn" onclick="selectSymbol('quadrat', this);"> <i class="fas fa-th"></i> </button>
-    <button class="icon-btn" onclick="selectSymbol('blume', this);"> <i class="fas fa-leaf"></i> </button>
+    <button class="icon-btn" title="Enemy" onclick="selectSymbol('raute', this);"> <i class="fas fa-gem"></i> </button>
+    <button class="icon-btn" title="Friendly" onclick="selectSymbol('rechteck', this);"> <i class="fas fa-square"></i> </button>
+    <button class="icon-btn" title="Neutral" onclick="selectSymbol('quadrat', this);"> <i class="fas fa-th"></i> </button>
+    <button class="icon-btn" title="Unknown" onclick="selectSymbol('blume', this);"> <i class="fas fa-leaf"></i> </button>
   </div>
   <div style="margin-top:8px;" class="row">
     <div class="col"><button class="btn primary" onclick="startSymbolPlace(); closeFlyout()">Place Symbol</button></div>
