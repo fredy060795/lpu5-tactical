@@ -297,6 +297,37 @@ class TestAtakSymbolTypeMappings(unittest.TestCase):
         detail = root.find("detail")
         self.assertIsNotNone(detail.find("archive"), "a-u type should include <archive/>")
 
+    def test_meshtastic_node_event_has_no_archive_element(self):
+        # Meshtastic nodes (a-f-G-E-S-U-M) must NOT carry <archive/> so that
+        # ATAK displays them as live refreshing contacts, not static map markers.
+        evt = CoTEvent(uid="mesh-arch-1", cot_type="a-f-G-E-S-U-M", lat=48.0, lon=11.0)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNone(detail.find("archive"),
+                          "Meshtastic node (a-f-G-E-S-U-M) must NOT include <archive/>")
+
+    def test_meshtastic_node_marker_to_cot_has_no_archive(self):
+        # End-to-end: a marker of type 'node' must produce CoT without <archive/>.
+        marker = {"id": "mesh-456", "lat": 48.0, "lng": 11.0, "type": "node", "name": "Node1"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M")
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNone(detail.find("archive"),
+                          "Meshtastic node marker must produce CoT without <archive/>")
+
+    def test_friendly_unit_still_has_archive_after_meshtastic_fix(self):
+        # Regression: a-f-G-U-C (standard friendly unit) must still include <archive/>.
+        evt = CoTEvent(uid="reg-1", cot_type="a-f-G-U-C", lat=0.0, lon=0.0)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNotNone(detail.find("archive"),
+                             "a-f-G-U-C (friendly unit) must still include <archive/>")
+
     # --- marker_to_cot() produces correct ATAK types for LPU5 shapes ---
 
     def test_marker_rechteck_produces_friendly_cot(self):

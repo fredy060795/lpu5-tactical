@@ -175,7 +175,13 @@ class CoTEvent:
         # entity from its overlay once the stale timestamp is reached.
         # Military-affiliation markers (a-f/h/n/u) placed by LPU5 users are
         # also archived so they persist on the ATAK map like spot-map markers.
-        if self.cot_type.startswith(("b-m", "u-d", "a-f", "a-h", "a-n", "a-u", "a-p")):
+        #
+        # Meshtastic nodes (a-f-G-E-S-U-M) are live SA contacts whose positions
+        # are refreshed by the gateway.  They must NOT receive <archive/> so that
+        # ATAK displays them as regular refreshing contacts/nodes rather than as
+        # static persistent map markers.
+        if (self.cot_type.startswith(("b-m", "u-d", "a-f", "a-h", "a-n", "a-u", "a-p"))
+                and not self.cot_type.startswith("a-f-G-E-S-U-M")):
             ET.SubElement(detail, "archive")
 
         # Emit ATAK color element for spot-map markers so that the correct
