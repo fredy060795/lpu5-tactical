@@ -447,5 +447,102 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "raute")
 
 
+class TestGatewayContactDisplay(unittest.TestCase):
+    """Tests for ATAK gateway-as-Contact feature.
+
+    Verifies that:
+      - "gateway" LPU5 type maps to the friendly-unit CoT type (a-f-G-U-C)
+      - CoTEvent.to_xml() includes the endpoint attribute in <contact> when set
+      - marker_to_cot() passes contact_endpoint through to CoTEvent
+      - Without an endpoint, the <contact> element is still emitted correctly
+    """
+
+    def test_gateway_type_in_lpu5_to_cot(self):
+        """'gateway' LPU5 type must map to the friendly-unit CoT type a-f-G-U-C."""
+        self.assertEqual(
+            CoTProtocolHandler.lpu5_type_to_cot("gateway"),
+            "a-f-G-U-C",
+        )
+
+    def test_gateway_marker_to_cot_produces_friendly_unit(self):
+        """A marker with type='gateway' must produce a CoT event of type a-f-G-U-C."""
+        marker = {
+            "id": "mesh-gw1",
+            "lat": 48.1,
+            "lng": 11.5,
+            "name": "LPU5-GW",
+            "callsign": "LPU5-GW",
+            "type": "gateway",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-U-C")
+
+    def test_contact_endpoint_in_xml(self):
+        """CoTEvent.to_xml() must include endpoint in <contact> when contact_endpoint is set."""
+        evt = CoTEvent(
+            uid="LPU5-GW",
+            cot_type="a-f-G-U-C",
+            lat=0.0,
+            lon=0.0,
+            callsign="LPU5-GW",
+            contact_endpoint="192.168.1.10:8088:tcp",
+        )
+        xml = evt.to_xml()
+        root = ET.fromstring(xml.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        contact = root.find("./detail/contact")
+        self.assertIsNotNone(contact)
+        self.assertEqual(contact.get("callsign"), "LPU5-GW")
+        self.assertEqual(contact.get("endpoint"), "192.168.1.10:8088:tcp")
+
+    def test_no_endpoint_when_contact_endpoint_is_none(self):
+        """Without contact_endpoint the <contact> element must NOT have an endpoint attribute."""
+        evt = CoTEvent(
+            uid="LPU5-GW",
+            cot_type="a-f-G-U-C",
+            lat=0.0,
+            lon=0.0,
+            callsign="LPU5-GW",
+        )
+        xml = evt.to_xml()
+        root = ET.fromstring(xml.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        contact = root.find("./detail/contact")
+        self.assertIsNotNone(contact)
+        self.assertIsNone(contact.get("endpoint"),
+                          "endpoint attribute must be absent when contact_endpoint is not set")
+
+    def test_contact_endpoint_passed_through_marker_to_cot(self):
+        """marker_to_cot() must forward contact_endpoint to CoTEvent."""
+        marker = {
+            "id": "mesh-gw1",
+            "lat": 48.1,
+            "lng": 11.5,
+            "name": "GW-Node",
+            "callsign": "GW-Node",
+            "type": "gateway",
+            "contact_endpoint": "10.0.0.5:8088:tcp",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.contact_endpoint, "10.0.0.5:8088:tcp")
+        xml = evt.to_xml()
+        root = ET.fromstring(xml.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        contact = root.find("./detail/contact")
+        self.assertIsNotNone(contact)
+        self.assertEqual(contact.get("endpoint"), "10.0.0.5:8088:tcp")
+
+    def test_contact_endpoint_default_is_none(self):
+        """CoTEvent contact_endpoint must default to None (backwards-compatible)."""
+        evt = CoTEvent(uid="x", cot_type="a-f-G-U-C", lat=0.0, lon=0.0)
+        self.assertIsNone(evt.contact_endpoint)
+
+    def test_meshtastic_node_type_unchanged(self):
+        """'meshtastic_node' type must still map to a-f-G-E-S-U-M (unchanged)."""
+        self.assertEqual(
+            CoTProtocolHandler.lpu5_type_to_cot("meshtastic_node"),
+            "a-f-G-E-S-U-M",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

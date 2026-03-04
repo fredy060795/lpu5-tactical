@@ -1030,6 +1030,28 @@ def _build_cot_pong_xml() -> str:
 _LPU5_COT_UID = "LPU5-GW"
 
 
+def _get_cot_listener_endpoint() -> str:
+    """Return the CoT TCP endpoint string for the LPU5 SA beacon's <contact> element.
+
+    Reads ``cot_listener_host`` and ``cot_listener_tcp_port`` from config.json.
+    When a host is configured the endpoint is formatted as ``<host>:<port>:tcp``
+    which tells ATAK/WinTAK where to connect in order to send CoT data directly
+    to LPU5 (making LPU5-GW appear as a proper Contact, not just a map marker).
+
+    Returns an empty string when no host is configured so the <contact> element
+    is emitted without an endpoint attribute (backwards-compatible behaviour).
+    """
+    try:
+        cfg = load_json("config") or {}
+        host = str(cfg.get("cot_listener_host", "")).strip()
+        if not host:
+            return ""
+        port = int(cfg.get("cot_listener_tcp_port", 8088))
+        return f"{host}:{port}:tcp"
+    except Exception:
+        return ""
+
+
 def _build_lpu5_sa_xml() -> str:
     """Build a CoT SA (Situational Awareness) beacon that identifies LPU5 to the TAK server.
 
@@ -1039,18 +1061,25 @@ def _build_lpu5_sa_xml() -> str:
     treat the sender as anonymous and route subsequent CoT events only to
     specific users rather than broadcasting to all connected clients
     (including WinTAK users).
+
+    When ``cot_listener_host`` is configured in config.json the <contact>
+    element will include an ``endpoint`` attribute so that ATAK/WinTAK displays
+    LPU5-GW as a reachable Contact (rather than just a passive map entity) and
+    allows operators to send CoT data from ATAK directly to LPU5.
     """
     from datetime import timedelta
     now = datetime.now(timezone.utc)
     stale = now + timedelta(minutes=5)
     fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    endpoint = _get_cot_listener_endpoint()
+    endpoint_attr = f' endpoint="{endpoint}"' if endpoint else ""
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<event version="2.0" uid="{_LPU5_COT_UID}" type="a-f-G-U-C" how="m-g"'
         f' time="{fmt(now)}" start="{fmt(now)}" stale="{fmt(stale)}">'
         '<point lat="0.0" lon="0.0" hae="0.0" ce="9999999.0" le="9999999.0"/>'
         '<detail>'
-        f'<contact callsign="{_LPU5_COT_UID}"/>'
+        f'<contact callsign="{_LPU5_COT_UID}"{endpoint_attr}/>'
         '<__group name="Cyan" role="Team Member"/>'
         '</detail>'
         '</event>'
@@ -1842,29 +1871,50 @@ _MESHTASTIC_SYNC_THREAD = None
 _MESHTASTIC_SYNC_STOP_EVENT = threading.Event()
 # created_by values used by meshtastic code paths — used to filter meshtastic markers from general endpoints
 _MESHTASTIC_CREATED_BY = {"import_meshtastic", "meshtastic_sync", "ingest_node"}
+# Meshtastic role values that indicate a node acts as a network gateway/router.
+_MESHTASTIC_GATEWAY_ROLES = {"ROUTER", "ROUTER_CLIENT"}
 
-def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: float) -> bool:
+def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: float,
+                                    is_gateway: bool = False) -> bool:
     """
-    Convert a single Meshtastic node position to a CoT friendly-unit event and
-    forward it to the configured TAK server.  Returns True on successful forward.
+    Convert a single Meshtastic node position to a CoT event and forward it to
+    the configured TAK server.  Returns True on successful forward.
     Nodes without GPS are forwarded at coordinates (0.0, 0.0) so TAK still
     receives them and can distribute the node identity globally.
     Silently skips only when TAK forwarding is disabled.
+
+    Args:
+        node_id:    Meshtastic node identifier.
+        name:       Human-readable node name / callsign.
+        lat:        Latitude (decimal degrees, 0.0 if unavailable).
+        lng:        Longitude (decimal degrees, 0.0 if unavailable).
+        is_gateway: When True the node is a Meshtastic gateway/router.  It will
+                    be forwarded as CoT type ``a-f-G-U-C`` (friendly unit) with
+                    a ``<contact endpoint>`` attribute so ATAK/WinTAK displays it
+                    as a reachable Contact rather than a plain Meshtastic equipment
+                    node.
     """
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return False
     try:
-        marker_dict = {
+        lpu5_type = "gateway" if is_gateway else "meshtastic_node"
+        marker_dict: Dict[str, Any] = {
             "id": f"mesh-{node_id}",
             "name": name,
             "callsign": name,
             "lat": lat,
             "lng": lng,
-            "type": "meshtastic_node",
+            "type": lpu5_type,
             "meshtastic_node": True,
             "node_id": node_id,
             "source": "meshtastic",
         }
+        if is_gateway:
+            # Include the CoT listener endpoint so ATAK can send data directly
+            # to this gateway (makes it appear as a Contact in ATAK).
+            endpoint = _get_cot_listener_endpoint()
+            if endpoint:
+                marker_dict["contact_endpoint"] = endpoint
         cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
         if cot_event:
             cot_xml = cot_event.to_xml()
@@ -1879,6 +1929,11 @@ def sync_meshtastic_nodes_to_map_markers_once():
     """
     One-shot sync: reads meshtastic_nodes from DB and upserts markers into map_markers table.
     Nodes without valid lat/lng will be assigned 0.0, 0.0 per requirement.
+
+    Nodes whose Meshtastic ``role`` is ``ROUTER`` or ``ROUTER_CLIENT`` are treated
+    as gateways: they are stored with type ``"gateway"`` and forwarded to ATAK as
+    a Contact (``a-f-G-U-C``) with a ``<contact endpoint>`` attribute so ATAK
+    operators can send CoT data directly to the gateway.
     """
     db = SessionLocal()
     try:
@@ -1891,11 +1946,22 @@ def sync_meshtastic_nodes_to_map_markers_once():
         created = 0
         updated = 0
 
+        # Collect per-node gateway status while iterating so we can reuse it
+        # in the TAK forwarding step without duplicating the detection logic.
+        node_gateway_flags: Dict[str, bool] = {}
+
         for n in nodes:
             mesh = n.id
             name = n.long_name or n.short_name or mesh or "node"
             lat = n.lat if n.lat is not None else 0.0
             lng = n.lng if n.lng is not None else 0.0
+
+            # Detect gateway nodes via the Meshtastic node role stored in raw_data.
+            raw = n.raw_data if isinstance(n.raw_data, dict) else {}
+            node_role = str(raw.get("user", {}).get("role", "") or "").upper()
+            node_is_gateway = node_role in _MESHTASTIC_GATEWAY_ROLES
+            node_gateway_flags[str(mesh)] = node_is_gateway
+            marker_type = "gateway" if node_is_gateway else "node"
 
             # find existing
             marker = by_unit.get(str(mesh))
@@ -1905,9 +1971,10 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 marker.lat = float(lat)
                 marker.lng = float(lng)
                 marker.name = f"{n.hardware_model or ''} = {name}"
-                marker.type = "node"  # Ensure type is "node" not "friendly"
+                marker.type = marker_type
                 marker_data = marker.data if isinstance(marker.data, dict) else {}
                 marker_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                marker_data["is_gateway"] = node_is_gateway
                 marker.data = marker_data
                 updated += 1
             else:
@@ -1916,10 +1983,10 @@ def sync_meshtastic_nodes_to_map_markers_once():
                     lat=float(lat),
                     lng=float(lng),
                     name=f"{n.hardware_model or ''} = {name}",
-                    type="node",
+                    type=marker_type,
                     created_by="import_meshtastic",
                     created_at=datetime.now(timezone.utc),
-                    data={"unit_id": mesh}
+                    data={"unit_id": mesh, "is_gateway": node_is_gateway}
                 )
                 db.add(new_marker)
                 created += 1
@@ -1927,7 +1994,9 @@ def sync_meshtastic_nodes_to_map_markers_once():
         db.commit()
         logger.info("sync_meshtastic_nodes_to_map_markers_once completed: created=%d updated=%d", created, updated)
 
-        # Forward nodes with valid GPS to the TAK server so TAK can distribute them globally.
+        # Forward nodes to the TAK server so TAK can distribute them globally.
+        # Gateway nodes are forwarded as friendly Contacts with an endpoint
+        # attribute so ATAK shows them as reachable contacts, not just nodes.
         forwarded = sum(
             1 for n in nodes
             if _forward_meshtastic_node_to_tak(
@@ -1935,6 +2004,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 n.long_name or n.short_name or str(n.id) or "node",
                 n.lat if n.lat is not None else 0.0,
                 n.lng if n.lng is not None else 0.0,
+                is_gateway=node_gateway_flags.get(str(n.id), False),
             )
         )
         if forwarded:
@@ -6762,6 +6832,8 @@ def get_tak_config():
         "sa_multicast_enabled": cfg.get("sa_multicast_enabled", False),
         "sa_multicast_group":   cfg.get("sa_multicast_group", "239.2.3.1"),
         "sa_multicast_port":    int(cfg.get("sa_multicast_port", 6969)),
+        "cot_listener_host":    cfg.get("cot_listener_host", ""),
+        "cot_listener_tcp_port": int(cfg.get("cot_listener_tcp_port", 8088)),
     }
 
 
@@ -6777,6 +6849,8 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     - tak_connection_type (str): Connection type — "udp", "tcp", or "ssl" (default "udp")
     - tak_username (str): TAK server login username
     - tak_password (str): TAK server login password
+    - cot_listener_host (str): External IP/hostname of this LPU5 server — used as the
+      ``endpoint`` in the LPU5-GW SA beacon so ATAK shows it as a reachable Contact
     """
     payload = None
     if authorization and authorization.startswith("Bearer "):
@@ -6816,6 +6890,8 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     if "tak_client_key_path" in data:
         cfg["tak_client_key_path"] = str(data["tak_client_key_path"]).strip()
     # CoT listener settings (saved alongside TAK config for convenience)
+    if "cot_listener_host" in data:
+        cfg["cot_listener_host"] = str(data["cot_listener_host"]).strip()
     if "cot_listener_tcp_port" in data:
         try:
             port = int(data["cot_listener_tcp_port"])
@@ -6878,6 +6954,8 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
         "sa_multicast_enabled": cfg.get("sa_multicast_enabled", False),
         "sa_multicast_group":   cfg.get("sa_multicast_group", "239.2.3.1"),
         "sa_multicast_port":    int(cfg.get("sa_multicast_port", 6969)),
+        "cot_listener_host":    cfg.get("cot_listener_host", ""),
+        "cot_listener_tcp_port": int(cfg.get("cot_listener_tcp_port", 8088)),
     }
 
 
