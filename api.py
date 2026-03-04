@@ -9472,8 +9472,7 @@ if __name__ == "__main__":
             ssl_keyfile=key_file,
             timeout_keep_alive=300,
             timeout_graceful_shutdown=60,
-            limit_concurrency=1000,
-            limit_max_requests=10000
+            limit_concurrency=1000
         )
     else:
         uvicorn.run(
