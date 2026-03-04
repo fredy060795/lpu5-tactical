@@ -572,7 +572,7 @@ function toggleShipRoute(id, lat, lon, hdg, spd, name) {
     activeShipId = id;
     if (hdg == null) { activeShipId = null; return; }
     var pts = [[lat, lon]];
-    # Project 7 waypoints at 50 km intervals (~350 km ≈ 15-hour cruise at 12 kn)
+    // Project 7 waypoints at 50 km intervals (~350 km ≈ 15-hour cruise at 12 kn)
     for (var d = 50; d <= 350; d += 50) { pts.push(projectPosition(lat, lon, hdg, d)); }
     L.polyline(pts, { color: '#1abc9c', weight: 2, dashArray: '8 5', opacity: 0.8 }).addTo(shipRouteLayer);
     var dest = pts[pts.length - 1];
