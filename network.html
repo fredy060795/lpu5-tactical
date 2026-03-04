@@ -1044,7 +1044,7 @@ async function refreshCotListenerStatus() {
 }
 
 async function startCotListener() {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const token = _getAuthToken();
     const tcpPort = parseInt(document.getElementById('cotListenerTcpPort').value) || 8088;
     const udpPort = parseInt(document.getElementById('cotListenerUdpPort').value) || 4242;
     const autoStart = document.getElementById('cotListenerAutoStart').checked;
@@ -1082,7 +1082,7 @@ async function startCotListener() {
 }
 
 async function stopCotListener() {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const token = _getAuthToken();
     try {
         const resp = await fetch('/api/cot/listener/stop', {
             method: 'POST',
