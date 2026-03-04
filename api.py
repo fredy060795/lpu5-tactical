@@ -4717,54 +4717,57 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
             
             # Delay to allow OS to release serial port after closing (Windows needs ~0.5s)
             time.sleep(0.5)
-        
-        # Try various constructor access patterns defensively
-        try:
-            if hasattr(meshtastic, "serial_interface") and hasattr(meshtastic.serial_interface, "SerialInterface"):
-                logger.info(f"[Port:{port}] Trying meshtastic.serial_interface.SerialInterface(port)")
-                iface = meshtastic.serial_interface.SerialInterface(port)  # type: ignore[attr-defined]
-                logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.serial_interface.SerialInterface")
-        except Exception as e1:
-            logger.warning(f"[Port:{port}] ✗ meshtastic.serial_interface.SerialInterface failed: {e1}")
-            connection_error = e1
+
+            # Try various constructor access patterns defensively
             try:
-                if hasattr(meshtastic, "SerialInterface"):
-                    logger.info(f"[Port:{port}] Trying meshtastic.SerialInterface(port)")
-                    iface = meshtastic.SerialInterface(port)  # type: ignore[attr-defined]
-                    logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.SerialInterface")
-                    connection_error = None
-            except Exception as e2:
-                logger.warning(f"[Port:{port}] ✗ meshtastic.SerialInterface failed: {e2}")
-                connection_error = e2
-                # try no-arg constructors
+                if hasattr(meshtastic, "serial_interface") and hasattr(meshtastic.serial_interface, "SerialInterface"):
+                    logger.info(f"[Port:{port}] Trying meshtastic.serial_interface.SerialInterface(port)")
+                    iface = meshtastic.serial_interface.SerialInterface(port)  # type: ignore[attr-defined]
+                    logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.serial_interface.SerialInterface")
+            except Exception as e1:
+                logger.warning(f"[Port:{port}] ✗ meshtastic.serial_interface.SerialInterface failed: {e1}")
+                connection_error = e1
                 try:
-                    if hasattr(meshtastic, "serial_interface") and hasattr(meshtastic.serial_interface, "SerialInterface"):
-                        logger.info(f"[Port:{port}] Trying meshtastic.serial_interface.SerialInterface() no-arg")
-                        iface = meshtastic.serial_interface.SerialInterface()
-                        logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.serial_interface.SerialInterface() no-arg")
+                    if hasattr(meshtastic, "SerialInterface"):
+                        logger.info(f"[Port:{port}] Trying meshtastic.SerialInterface(port)")
+                        iface = meshtastic.SerialInterface(port)  # type: ignore[attr-defined]
+                        logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.SerialInterface")
                         connection_error = None
-                except Exception as e3:
-                    logger.warning(f"[Port:{port}] ✗ meshtastic.serial_interface.SerialInterface() no-arg failed: {e3}")
-                    connection_error = e3
+                except Exception as e2:
+                    logger.warning(f"[Port:{port}] ✗ meshtastic.SerialInterface failed: {e2}")
+                    connection_error = e2
+                    # try no-arg constructors
                     try:
-                        logger.info(f"[Port:{port}] Trying meshtastic.SerialInterface() no-arg")
-                        iface = meshtastic.SerialInterface()
-                        logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.SerialInterface() no-arg")
-                        connection_error = None
-                    except Exception as e4:
-                        logger.warning(f"[Port:{port}] ✗ meshtastic.SerialInterface() no-arg failed: {e4}")
-                        connection_error = e4
-                        iface = None
+                        if hasattr(meshtastic, "serial_interface") and hasattr(meshtastic.serial_interface, "SerialInterface"):
+                            logger.info(f"[Port:{port}] Trying meshtastic.serial_interface.SerialInterface() no-arg")
+                            iface = meshtastic.serial_interface.SerialInterface()
+                            logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.serial_interface.SerialInterface() no-arg")
+                            connection_error = None
+                    except Exception as e3:
+                        logger.warning(f"[Port:{port}] ✗ meshtastic.serial_interface.SerialInterface() no-arg failed: {e3}")
+                        connection_error = e3
+                        try:
+                            logger.info(f"[Port:{port}] Trying meshtastic.SerialInterface() no-arg")
+                            iface = meshtastic.SerialInterface()
+                            logger.info(f"[Port:{port}] ✓ Successfully connected via meshtastic.SerialInterface() no-arg")
+                            connection_error = None
+                        except Exception as e4:
+                            logger.warning(f"[Port:{port}] ✗ meshtastic.SerialInterface() no-arg failed: {e4}")
+                            connection_error = e4
+                            iface = None
 
         if iface:
-            logger.info(f"[Port:{port}] Interface connected successfully, waiting for device initialization...")
-            # Give the device time to populate nodes (important for real devices)
-            time.sleep(2)
+            if reused_persistent:
+                logger.info(f"[Port:{port}] Using existing persistent connection (device already initialized)")
+            else:
+                logger.info(f"[Port:{port}] Interface connected successfully, waiting for device initialization...")
+                # Give the device time to populate nodes (important for real devices)
+                time.sleep(2)
             
             # Attempt to read nodes from different attributes / methods
             logger.info(f"[Port:{port}] Attempting to read nodes from device")
             nodes_obj = getattr(iface, "nodes", None) or {}
-            logger.info(f"[Port:{port}] Got nodes object, type: {type(nodes_obj)}, length: {len(nodes_obj) if hasattr(nodes_obj, '__len__') else 'N/A'}")
+            logger.info(f"[Port:{port}] Got nodes object, type: {type(nodes_obj).__name__}, length: {len(nodes_obj) if hasattr(nodes_obj, '__len__') else 'N/A'}")
             if not nodes_obj:
                 getNodes = getattr(iface, "getNodes", None) or getattr(iface, "get_nodes", None)
                 if callable(getNodes):
