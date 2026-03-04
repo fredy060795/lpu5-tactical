@@ -26,7 +26,7 @@ from typing import Dict, Set, Any, Optional
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -502,14 +502,25 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         connection_manager.disconnect(connection_id)
 
+async def _broadcast_channel_safe(channel: str, message: dict) -> None:
+    """Wrapper used by background tasks to log any broadcast errors."""
+    try:
+        await connection_manager.broadcast_to_channel(channel, message)
+    except Exception as e:
+        logger.error(f"Background broadcast to channel '{channel}' failed: {e}")
+
+
 # -------------------------
 # HTTP API for data distribution (called by main API server)
 # -------------------------
 @app.post("/api/broadcast")
-async def broadcast_data(data: dict):
+async def broadcast_data(data: dict, background_tasks: BackgroundTasks):
     """
     Broadcast data to clients via WebSocket.
     Called by the main API server to distribute data.
+
+    The broadcast is dispatched as a background task so the HTTP response is
+    returned immediately, preventing read timeouts in the caller.
     
     Request body:
     {
@@ -528,8 +539,8 @@ async def broadcast_data(data: dict):
         **message_data
     }
     
-    # Broadcast to channel
-    await connection_manager.broadcast_to_channel(channel, message)
+    # Dispatch broadcast as a background task so we return immediately
+    background_tasks.add_task(_broadcast_channel_safe, channel, message)
     
     return {
         "status": "success",
@@ -583,9 +594,12 @@ def get_group_members(group_name: str):
 
 
 @app.post("/api/groups/{group_name}/broadcast")
-async def broadcast_to_group(group_name: str, data: dict):
+async def broadcast_to_group(group_name: str, data: dict, background_tasks: BackgroundTasks):
     """
     Broadcast a message directly to all members of a unit group.
+
+    The broadcast is dispatched as a background task so the HTTP response is
+    returned immediately, preventing read timeouts in the caller.
 
     This endpoint is for server-to-group messaging (e.g. from other services).
     Clients can also target groups by including ``target_units`` in WebSocket
@@ -608,7 +622,7 @@ async def broadcast_to_group(group_name: str, data: dict):
         "type": message_type,
         **message_data
     }
-    await connection_manager.broadcast_to_channel(channel, message)
+    background_tasks.add_task(_broadcast_channel_safe, channel, message)
     return {
         "status": "success",
         "group": group_name,
