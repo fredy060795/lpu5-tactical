@@ -91,7 +91,7 @@
         .layer-btn.active-orange { border-color: var(--accent-orange); color: var(--accent-orange); }
         .layer-btn.active-cyan   { border-color: var(--accent-cyan);   color: var(--accent-cyan); }
         .layer-btn:hover { background: #222; }
-        .main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; }
+        .main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; position: relative; }
         .map-wrapper {
             position: relative; background: var(--panel-bg);
             border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;
@@ -110,31 +110,39 @@
             font-family: 'Courier New', monospace; font-size: 0.78rem; cursor: pointer;
         }
         .map-refresh-btn:hover { background: rgba(52,152,219,0.15); }
-        .side-panels {
-            display: flex; flex-direction: column; gap: 14px;
-            max-height: calc(68vh + 50px); overflow-y: auto;
-            scrollbar-width: thin; scrollbar-color: #333 transparent;
-        }
-        .side-panels::-webkit-scrollbar { width: 5px; }
-        .side-panels::-webkit-scrollbar-track { background: transparent; }
-        .side-panels::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-        .panel { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
+        .side-panels { display: flex; flex-direction: column; gap: 8px; overflow: visible; }
+        .panel { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; transition: border-color 0.2s; }
         .panel-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 14px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.25);
+            padding: 10px 14px; border-bottom: 1px solid transparent; background: rgba(0,0,0,0.25);
+            cursor: pointer; user-select: none;
         }
+        .panel-header:hover { background: rgba(255,255,255,0.04); }
+        .panel-chevron { color: var(--text-dim); font-size: 0.72rem; margin-left: 6px; flex-shrink: 0; transition: transform 0.25s; }
+        .panel.expanded > .panel-header { border-bottom: 1px solid var(--border); }
+        .panel.expanded .panel-chevron { transform: rotate(90deg); }
+        /* Expanded panel overlays the map (left column) */
+        .panel.expanded {
+            position: absolute; top: 0; left: 0; right: 396px;
+            max-height: 70vh; overflow: hidden;
+            border-color: var(--accent-blue);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.8);
+            z-index: 500;
+        }
+        .panel-body { display: none; }
+        .panel.expanded .panel-body {
+            display: block; padding: 10px 14px;
+            max-height: calc(70vh - 46px); overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: #333 transparent;
+        }
+        .panel.expanded .panel-body::-webkit-scrollbar { width: 4px; }
+        .panel.expanded .panel-body::-webkit-scrollbar-thumb { background: #333; }
         .panel-title { font-size: 0.88rem; font-weight: bold; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
         .panel-title i { font-size: 0.95rem; }
         .panel-count {
             background: rgba(0,0,0,0.4); border: 1px solid var(--border-color);
             padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; color: var(--text-dim);
         }
-        .panel-body {
-            padding: 10px 14px; max-height: 200px; overflow-y: auto;
-            scrollbar-width: thin; scrollbar-color: #333 transparent;
-        }
-        .panel-body::-webkit-scrollbar { width: 4px; }
-        .panel-body::-webkit-scrollbar-thumb { background: #333; }
         .event-item {
             display: flex; align-items: flex-start; gap: 10px; padding: 7px 0;
             border-bottom: 1px solid var(--border); font-size: 0.8rem; cursor: pointer; transition: background 0.15s;
@@ -272,8 +280,10 @@
         .wcm-search-links a:hover { opacity: 0.8; }
         @media (max-width: 1100px) {
             .main-grid { grid-template-columns: 1fr; }
-            .side-panels { max-height: none; flex-direction: row; flex-wrap: wrap; }
+            .side-panels { max-height: none; flex-direction: row; flex-wrap: wrap; overflow: visible; }
             .panel { flex: 1 1 300px; }
+            .panel.expanded { position: static; max-height: none; right: auto; left: auto; box-shadow: none; }
+            .panel.expanded .panel-body { max-height: 300px; }
             .stats-row { grid-template-columns: repeat(4, 1fr); }
             .wcm-cam-grid { grid-template-columns: repeat(2, 1fr); }
         }
@@ -329,59 +339,83 @@
             <button class="map-refresh-btn" onclick="refreshAll()"><i class="fas fa-sync-alt"></i> Refresh</button>
         </div>
         <div class="side-panels">
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-eq">
+                <div class="panel-header" onclick="togglePanel('eq')">
                     <div class="panel-title" style="color:var(--accent)"><i class="fas fa-circle-exclamation"></i> Earthquakes (USGS Live)</div>
-                    <span class="panel-count" id="eq-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="eq-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="eq-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading USGS data&#8230;</div></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-fl">
+                <div class="panel-header" onclick="togglePanel('fl')">
                     <div class="panel-title" style="color:var(--accent-blue)"><i class="fas fa-plane"></i> Civil Flights (OpenSky)</div>
-                    <span class="panel-count" id="fl-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="fl-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="fl-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading flight data&#8230;</div></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-mil">
+                <div class="panel-header" onclick="togglePanel('mil')">
                     <div class="panel-title" style="color:var(--accent-red)"><i class="fas fa-fighter-jet"></i> Mil Aircraft (OpenSky)</div>
-                    <span class="panel-count" id="mil-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="mil-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="mil-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading mil data&#8230;</div></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-wx">
+                <div class="panel-header" onclick="togglePanel('wx')">
                     <div class="panel-title" style="color:var(--accent-yellow)"><i class="fas fa-cloud-bolt"></i> Weather Alerts (NWS)</div>
-                    <span class="panel-count" id="wx-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="wx-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="wx-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading weather data&#8230;</div></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-cr">
+                <div class="panel-header" onclick="togglePanel('cr')">
                     <div class="panel-title" style="color:var(--accent-red)"><i class="fas fa-fire"></i> Geopolitics / Conflicts</div>
-                    <span class="panel-count" id="cr-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="cr-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="cr-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading conflict data&#8230;</div></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-base">
+                <div class="panel-header" onclick="togglePanel('base')">
                     <div class="panel-title" style="color:var(--accent-orange)"><i class="fas fa-shield-halved"></i> Military Bases</div>
-                    <span class="panel-count" id="base-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="base-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="base-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading base data&#8230;</div></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-naval">
+                <div class="panel-header" onclick="togglePanel('naval')">
                     <div class="panel-title" style="color:var(--accent-cyan)"><i class="fas fa-anchor"></i> Naval Fleet Movements</div>
-                    <span class="panel-count" id="naval-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="naval-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="naval-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading naval data&#8230;</div></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
+            <div class="panel" id="panel-rad">
+                <div class="panel-header" onclick="togglePanel('rad')">
                     <div class="panel-title" style="color:var(--accent-orange)"><i class="fas fa-radiation"></i> Radiation Monitoring</div>
-                    <span class="panel-count" id="rad-count">&#8230;</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span class="panel-count" id="rad-count">&#8230;</span>
+                        <i class="fas fa-chevron-right panel-chevron"></i>
+                    </div>
                 </div>
                 <div class="panel-body" id="rad-list"><div class="loading-placeholder"><i class="fas fa-circle-notch"></i>Loading radiation data&#8230;</div></div>
             </div>
@@ -451,6 +485,18 @@
     </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script><script>
+// ─── Collapsible side-panel accordion ─────────────────────────
+var _openPanel = null;
+function togglePanel(id) {
+    if (_openPanel && _openPanel !== id) {
+        var prev = document.getElementById('panel-' + _openPanel);
+        if (prev) prev.classList.remove('expanded');
+    }
+    var panel = document.getElementById('panel-' + id);
+    if (!panel) return;
+    var isOpen = panel.classList.toggle('expanded');
+    _openPanel = isOpen ? id : null;
+}
 var layerState = {
     earthquakes: true,
     flights:     true,
@@ -527,6 +573,7 @@ function toggleShipRoute(id, lat, lon, hdg, spd, name) {
     activeShipId = id;
     if (hdg == null) { activeShipId = null; return; }
     var pts = [[lat, lon]];
+    # Project 7 waypoints at 50 km intervals (~350 km ≈ 15-hour cruise at 12 kn)
     for (var d = 50; d <= 350; d += 50) { pts.push(projectPosition(lat, lon, hdg, d)); }
     L.polyline(pts, { color: '#1abc9c', weight: 2, dashArray: '8 5', opacity: 0.8 }).addTo(shipRouteLayer);
     var dest = pts[pts.length - 1];

@@ -246,7 +246,7 @@ class DataServerManager:
                 # The data server did not respond in time.  Retrying a timed-out
                 # server only makes congestion worse, so we bail out immediately.
                 logger.warning(
-                    f"Broadcast to channel '{payload.get('channel')}' timed out – "
+                    f"Broadcast to channel '{(payload or {}).get('channel', 'unknown')}' timed out – "
                     "data server may be busy; skipping retry"
                 )
                 return
