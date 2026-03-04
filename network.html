@@ -515,12 +515,12 @@
 
                 <div class="form-group">
                     <label class="form-label">TAK Server Username</label>
-                    <input type="text" class="form-input" id="takUsername" placeholder="Username" autocomplete="username" disabled>
+                    <input type="text" class="form-input" id="takUsername" placeholder="Username" autocomplete="off" disabled>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">TAK Server Password</label>
-                    <input type="password" class="form-input" id="takPassword" placeholder="Password" autocomplete="current-password" disabled>
+                    <input type="password" class="form-input" id="takPassword" placeholder="Password" autocomplete="off" disabled>
                 </div>
 
                 <div class="form-group">
@@ -869,16 +869,6 @@ async function loadNetworkSettings() {
 
 // Save network settings to server
 async function saveNetworkSettings() {
-    // Pre-flight auth check: verify a token is available before starting to save.
-    // The TAK config endpoint requires authentication; if the session is missing or
-    // expired the whole save would partially succeed, which is confusing to the user.
-    const tokenPreflight = _getAuthToken();
-    if (!tokenPreflight) {
-        showStatus('Not logged in. Please log in to save settings.', 'error');
-        setTimeout(function() { window.location.href = '/'; }, 2500);
-        return;
-    }
-
     try {
         const networkConfig = {
             network: {
@@ -960,8 +950,7 @@ async function saveNetworkSettings() {
         });
         if (!takResp.ok) {
             if (takResp.status === 401) {
-                showStatus('Session expired. Please log in again to save TAK settings.', 'error');
-                setTimeout(function() { window.location.href = '/'; }, 2500);
+                showStatus('Session expired — TAK settings could not be saved. Please <a href="/" style="color:inherit;text-decoration:underline;">log in again</a> and retry.', 'error');
                 return;
             }
             const err = await takResp.json().catch(() => ({}));
