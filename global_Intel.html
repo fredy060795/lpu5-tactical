@@ -932,7 +932,13 @@ function shareItem(btn, type, title, lat, lon, color, icon) {
     setTimeout(function() { btn.textContent = orig; }, 1800);
 }
 // ─── Group Share (Toggle Buttons in Header) ───────────────────────────────────
-var groupShareState = {};
+var GROUP_SHARE_STATE_KEY = 'lpu5_group_share_state';
+var groupShareState = (function() {
+    try {
+        var saved = localStorage.getItem(GROUP_SHARE_STATE_KEY);
+        return saved ? JSON.parse(saved) : {};
+    } catch(e) { return {}; }
+}());
 var GROUP_MARKER_SOURCES = {
     earthquakes: function() { return _eqMarkers; },
     flights:     function() { return _flMarkers; },
@@ -963,18 +969,21 @@ function publishGroupShare() {
     var payload = { timestamp: Date.now(), source: 'global_Intel', markers: allMarkers };
     localStorage.setItem('lpu5_intel_group_share', JSON.stringify(payload));
 }
+function _applyShareBtnState(groupName, active) {
+    var btn = document.getElementById('share-btn-' + groupName);
+    if (!btn) return;
+    if (active) {
+        btn.classList.add('active');
+        btn.title = 'Remove group from Admin Map';
+    } else {
+        btn.classList.remove('active');
+        btn.title = 'Share group to Admin Map';
+    }
+}
 function toggleGroupShare(groupName) {
     groupShareState[groupName] = !groupShareState[groupName];
-    var btn = document.getElementById('share-btn-' + groupName);
-    if (btn) {
-        if (groupShareState[groupName]) {
-            btn.classList.add('active');
-            btn.title = 'Remove group from Admin Map';
-        } else {
-            btn.classList.remove('active');
-            btn.title = 'Share group to Admin Map';
-        }
-    }
+    localStorage.setItem(GROUP_SHARE_STATE_KEY, JSON.stringify(groupShareState));
+    _applyShareBtnState(groupName, groupShareState[groupName]);
     publishGroupShare();
 }
 var currentWebcamZone = null;
@@ -1064,6 +1073,11 @@ function refreshAll() {
     loadEarthquakes(); loadFlights(); loadWeather(); loadConflicts(); loadRadiation(); loadBases(); loadNaval();
 }
 document.addEventListener('DOMContentLoaded', function() {
+    // Restore saved share button states and sync current state to admin_map
+    Object.keys(groupShareState).forEach(function(group) {
+        if (groupShareState[group]) _applyShareBtnState(group, true);
+    });
+    publishGroupShare();
     loadEarthquakes(); loadFlights(); loadWeather(); loadConflicts(); loadRadiation(); loadBases(); loadNaval();
     if (layerState.weather) rainLayer.addTo(map);
     setInterval(function() { loadEarthquakes(); loadFlights(); loadWeather(); }, 5 * 60 * 1000);
