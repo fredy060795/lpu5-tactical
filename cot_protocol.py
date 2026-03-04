@@ -51,7 +51,8 @@ class CoTEvent:
                  stale_minutes: int = 5,
                  how: str = "m-g",
                  color: Optional[int] = None,
-                 has_meshtastic_detail: bool = False):
+                 has_meshtastic_detail: bool = False,
+                 contact_endpoint: Optional[str] = None):
         """
         Initialize a CoT event
         
@@ -74,6 +75,9 @@ class CoTEvent:
             has_meshtastic_detail: True when the raw CoT XML detail contained a
                 <meshtastic> child element (set by from_xml(); indicates the
                 event was forwarded by an ATAK Meshtastic plugin).
+            contact_endpoint: Optional TAK endpoint string (``<host>:<port>:tcp``)
+                added to the ``<contact>`` element so ATAK displays the entity as a
+                reachable Contact and allows operators to send CoT data directly to it.
         """
         self.uid = uid
         self.cot_type = cot_type
@@ -92,6 +96,7 @@ class CoTEvent:
         self.how = how
         self.color = color
         self.has_meshtastic_detail = has_meshtastic_detail
+        self.contact_endpoint = contact_endpoint
         
     @staticmethod
     def build_cot_type(atom: str = "friendly",
@@ -146,6 +151,11 @@ class CoTEvent:
         if self.callsign:
             contact = ET.SubElement(detail, "contact")
             contact.set("callsign", self.callsign)
+            # Include the endpoint so ATAK displays this entity as a reachable
+            # Contact (not just a passive map marker) and allows operators to
+            # send CoT events directly to it.
+            if self.contact_endpoint:
+                contact.set("endpoint", self.contact_endpoint)
         
         # Group/team information
         if self.team_name or self.team_role:
@@ -324,6 +334,8 @@ class CoTProtocolHandler:
         "gps_position":     "a-f-G-U-C",     # live GPS position (friendly ground unit)
         "node":             "a-f-G-E-S-U-M", # Meshtastic node (LPU5 internal type) → Meshtastic equipment
         "meshtastic_node":  "a-f-G-E-S-U-M", # Meshtastic node forwarded by ATAK plugin
+        "gateway":          "a-f-G-U-C",     # Meshtastic gateway — forwarded as friendly Contact so
+                                             # ATAK operators can send CoT data to it directly
         "tak_unit":         "a-f-G-U-C",     # ATAK SA / GPS position marker
     }
 
@@ -506,7 +518,8 @@ class CoTProtocolHandler:
                 team_name=team_name,
                 team_role=marker.get("role"),
                 how=how,
-                color=argb_color
+                color=argb_color,
+                contact_endpoint=marker.get("contact_endpoint") or None,
             )
         except Exception as e:
             logger.error(f"Failed to convert marker to CoT: {e}")
