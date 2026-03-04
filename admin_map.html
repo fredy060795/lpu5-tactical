@@ -3466,6 +3466,93 @@
           .replace(/'/g, "&#039;");
       }
 
+      // ── Global Intel share receiver ──────────────────────────
+      (function () {
+        const ICON_MAP = {
+          'fa-mountain':     '🟢', 'fa-fire':    '🔴',
+          'fa-shield-halved':'🟠', 'fa-anchor':  '🔵',
+          'fa-plane':        '✈',  'fa-radiation':'☢',
+        };
+
+        function showIntelToast(data) {
+          const existing = document.getElementById('intelShareToast');
+          if (existing) existing.remove();
+          const toast = document.createElement('div');
+          toast.id = 'intelShareToast';
+          toast.style.cssText = [
+            'position:fixed','bottom:80px','right:20px','z-index:9999',
+            'background:#1a1a1a','border:1px solid #9b59b6','border-radius:6px',
+            'padding:10px 14px','font-family:Courier New,monospace','font-size:.8rem',
+            'color:#d0d0d0','max-width:280px','box-shadow:0 4px 12px rgba(155,89,182,.4)',
+            'animation:slideIn .3s ease'
+          ].join(';');
+          const sym = ICON_MAP[data.icon] || '📍';
+          toast.innerHTML = `<div style="color:#9b59b6;font-size:.7rem;letter-spacing:1px;margin-bottom:4px">⬆ INTEL RECEIVED FROM GLOBAL INTEL</div>
+            <div style="font-weight:bold">${sym} ${data.title || '–'}</div>
+            <div style="color:#888;font-size:.72rem;margin-top:3px">${(data.lat||0).toFixed(3)}°N ${(data.lon||0).toFixed(3)}°E · ${data.type||''}</div>`;
+          document.body.appendChild(toast);
+          setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
+        }
+
+        function placeIntelMarker(data) {
+          if (!window.map || !window.L) return;
+          const color = data.color || '#9b59b6';
+          const icon = L.divIcon({
+            className: '',
+            html: `<div style="width:28px;height:28px;border-radius:50%;background:${color}33;border:2px solid ${color};
+                        display:flex;align-items:center;justify-content:center;font-size:12px;
+                        box-shadow:0 0 8px ${color}88;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
+                     <i class="fas ${data.icon||'fa-map-marker-alt'}" style="color:${color}"></i></div>`,
+            iconSize:   [28, 28],
+            iconAnchor: [14, 14],
+          });
+          const marker = L.marker([data.lat, data.lon], { icon })
+            .bindPopup(
+              `<b style="color:${color}">${data.title||'Intel'}</b><br>` +
+              `<span style="color:#888;font-size:.8em">Source: Global Intel</span><br>` +
+              `Type: ${data.type||'–'}<br>` +
+              (data.detail ? `<span style="font-size:.8em">${data.detail}</span>` : '')
+            );
+          // Add to the symbols/pane layer if available, otherwise main map
+          if (window.map.getPane && window.map.getPane('paneSymbols')) {
+            marker.options.pane = 'paneSymbols';
+          }
+          marker.addTo(window.map);
+          window.map.setView([data.lat, data.lon], Math.max(window.map.getZoom(), 5));
+        }
+
+        function checkForIntelShare() {
+          try {
+            const raw = localStorage.getItem('lpu5_intel_share');
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (Date.now() - (data.timestamp || 0) < 15000) {
+              placeIntelMarker(data);
+              showIntelToast(data);
+              localStorage.removeItem('lpu5_intel_share');
+            }
+          } catch (e) {
+            console.error('Intel share error:', e);
+          }
+        }
+
+        window.addEventListener('load', function () {
+          checkForIntelShare();
+          setInterval(checkForIntelShare, 3000);
+        });
+
+        window.addEventListener('storage', function (e) {
+          if (e.key === 'lpu5_intel_share' && e.newValue) {
+            try {
+              const data = JSON.parse(e.newValue);
+              placeIntelMarker(data);
+              showIntelToast(data);
+              localStorage.removeItem('lpu5_intel_share');
+            } catch (err) { console.error('Intel storage event error:', err); }
+          }
+        });
+      }());
+
       // Check for incoming messages periodically
       window.addEventListener('load', function () {
         checkForIncomingMessages();
