@@ -1158,6 +1158,7 @@
       };
 
       const map = L.map('map', { center: defaultCenter, zoom: defaultZoom, layers: [] });
+      window.map = map;
 
       // ensure proper layer stacking
       // Order: paneOverlays (450) < paneDrawings (550) < paneMeshtastic (600) < paneSymbols (650)

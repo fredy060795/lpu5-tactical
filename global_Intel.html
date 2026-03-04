@@ -643,7 +643,7 @@ function loadEarthquakes() {
                         '<div class="event-title">M' + mag.toFixed(1) + '<span class="mag-badge ' + badge + '">M' + mag.toFixed(1) + '</span></div>' +
                         '<div class="event-meta">' + safePlace + ' &nbsp;&middot;&nbsp; ' + time + ' UTC</div>' +
                         '<div><button class="act-btn share" onclick="event.stopPropagation();shareItem(this,\'earthquake\',' +
-                            safeTitleAttr + ',' + coords[1] + ',' + coords[0] + ',\'' + color + '\',\'&#x1f534;\')">&#11014; Send to Map</button></div>' +
+                            safeTitleAttr + ',' + coords[1] + ',' + coords[0] + ',\'' + color + '\',\'fa-circle-exclamation\')">&#11014; Send to Map</button></div>' +
                     '</div></div>';
                 shown++;
             }
@@ -777,7 +777,7 @@ function loadConflicts() {
         var marker = L.circleMarker([z.lat, z.lon], { radius: 10, color: color, fillColor: color, fillOpacity: 0.35, weight: 2, dashArray: '4 3' })
             .bindPopup('<b style="color:' + color + '">' + z.region + '</b><br><i>' + z.type + '</i><br>' + z.detail);
         conflictLayer.addLayer(marker);
-        var shareCall = 'shareItem(this,\'conflict\',' + JSON.stringify(z.region) + ',' + z.lat + ',' + z.lon + ',\'' + color + '\',\'\u1f525\')';
+        var shareCall = 'shareItem(this,\'conflict\',' + JSON.stringify(z.region) + ',' + z.lat + ',' + z.lon + ',\'' + color + '\',\'fa-fire\')';
         html += '<div class="conflict-item">' +
             '<div class="conflict-header" onclick="map.setView([' + z.lat + ',' + z.lon + '],5)" style="cursor:pointer">' +
                 '<span class="conflict-region">' + z.region + '</span>' +
@@ -1046,7 +1046,7 @@ function loadWebcams() {
 function shareCurrentZone() {
     if (!currentWebcamZone) return;
     var z = currentWebcamZone;
-    shareToAdminMap({ type: 'conflict', title: z.region, lat: z.lat, lon: z.lon, color: intensityColor(z.intensity), icon: '&#x1f525;' });
+    shareToAdminMap({ type: 'conflict', title: z.region, lat: z.lat, lon: z.lon, color: intensityColor(z.intensity), icon: 'fa-fire' });
     var btn = document.getElementById('wcm-share-btn');
     var orig = btn.textContent;
     btn.textContent = '&#10003; Sent!';
