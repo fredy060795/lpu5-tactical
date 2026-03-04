@@ -1334,6 +1334,32 @@ _TAK_RECEIVER_STATS: Dict[str, Any] = {
 }
 _TAK_RECEIVER_STATS_LOCK = threading.Lock()
 
+# Thread-safe tracking of recently deleted marker IDs.
+# Prevents ATAK echo-back SA updates from recreating a marker that was just
+# deleted in LPU5.  Entries expire after _MARKER_DELETION_SUPPRESSION_SECS.
+_deleted_marker_ids: Dict[str, float] = {}
+_deleted_marker_ids_lock = threading.Lock()
+_MARKER_DELETION_SUPPRESSION_SECS = 60
+
+
+def _record_deleted_marker(marker_id: str) -> None:
+    """Record a marker ID as recently deleted to suppress ATAK echo-back recreation."""
+    with _deleted_marker_ids_lock:
+        _deleted_marker_ids[marker_id] = time.time()
+        cutoff = time.time() - _MARKER_DELETION_SUPPRESSION_SECS
+        for k in list(_deleted_marker_ids.keys()):
+            if _deleted_marker_ids[k] < cutoff:
+                del _deleted_marker_ids[k]
+
+
+def _is_recently_deleted_marker(marker_id: str) -> bool:
+    """Return True if the marker was deleted within the suppression window."""
+    with _deleted_marker_ids_lock:
+        ts = _deleted_marker_ids.get(marker_id)
+        if ts is None:
+            return False
+        return (time.time() - ts) < _MARKER_DELETION_SUPPRESSION_SECS
+
 
 def _process_incoming_cot(cot_xml: str) -> None:
     """Parse an incoming CoT XML event, upsert a MapMarker, and broadcast to WebSocket clients."""
@@ -1443,6 +1469,11 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 if uid.startswith("mesh-"):
                     # ATAK is echoing back a Meshtastic node we forwarded; skip
                     # creating a duplicate marker to avoid double rendering.
+                    return
+                if _is_recently_deleted_marker(uid):
+                    # ATAK is echoing back a marker that was just deleted in LPU5.
+                    # Suppress recreation so the deletion takes effect immediately.
+                    logger.debug("CoT: suppressing recreation of recently deleted marker: %s", uid)
                     return
                 marker = MapMarker(
                     id=uid,
@@ -3345,6 +3376,9 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
         db.delete(marker)
         db.commit()
         
+        # Record the deletion to suppress ATAK echo-back from recreating this marker
+        _record_deleted_marker(marker_id)
+
         log_audit("delete_marker", current_username, {"marker_id": marker_id})
         broadcast_websocket_update("markers", "marker_deleted", {"id": marker_id})
         broadcast_websocket_update("symbols", "symbol_deleted", {"id": marker_id})
@@ -3370,6 +3404,8 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
                 logger.warning("CoT tombstone forward on marker_deleted failed: %s", _fwd_err)
 
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting marker: {e}")
@@ -7856,6 +7892,9 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
 
             db.delete(marker)
             db.commit()
+
+        # Record the deletion to suppress ATAK echo-back from recreating this marker
+        _record_deleted_marker(symbol_id)
 
         # Broadcast to WebSocket clients using helper
         broadcast_websocket_update("symbols", "symbol_deleted", {"id": symbol_id})

@@ -1749,7 +1749,11 @@
             if (currentTool === 'trash') {
               if (!confirm('Delete marker?')) return;
               try {
-                const dres = await fetch(`/api/map_markers/${m.id}`, { method: 'DELETE' });
+                const delToken = localStorage.getItem('token');
+                const dres = await fetch(`/api/map_markers/${m.id}`, {
+                  method: 'DELETE',
+                  headers: delToken ? { 'Authorization': 'Bearer ' + delToken } : {}
+                });
                 if (dres.ok) {
                   map.removeLayer(layer);
                   serverMarkerLayers.delete(m.id);
