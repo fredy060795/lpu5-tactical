@@ -4634,6 +4634,62 @@ def api_scan_ports():
 # -------------------------
 # Meshtastic read helpers (robust) and friendly-name-aware builder
 # -------------------------
+
+def _sanitize_for_json(obj, _depth=0):
+    """Recursively convert an object to a JSON-serializable structure.
+
+    Handles protobuf Message objects (which appear as google._upb._message.*
+    instances and cannot be serialized directly by FastAPI / jsonable_encoder)
+    by converting them to plain dicts via MessageToDict when available, or
+    by falling back to iterating their fields.
+    """
+    _MAX_DEPTH = 20
+    if _depth > _MAX_DEPTH:
+        return None
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    if isinstance(obj, dict):
+        return {str(k): _sanitize_for_json(v, _depth + 1) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item, _depth + 1) for item in obj]
+    # Protobuf Message: has a DESCRIPTOR attribute and ListFields() method
+    if hasattr(obj, "DESCRIPTOR") and hasattr(obj, "ListFields"):
+        try:
+            from google.protobuf.json_format import MessageToDict
+            return _sanitize_for_json(
+                MessageToDict(
+                    obj,
+                    preserving_proto_field_name=True,
+                    including_default_value_fields=False,
+                ),
+                _depth + 1,
+            )
+        except Exception:
+            pass
+        # Fallback: iterate declared fields
+        try:
+            result = {}
+            for field, value in obj.ListFields():
+                result[field.name] = _sanitize_for_json(value, _depth + 1)
+            return result
+        except Exception:
+            pass
+    # Generic object with __dict__
+    if hasattr(obj, "__dict__"):
+        try:
+            return _sanitize_for_json(vars(obj), _depth + 1)
+        except Exception:
+            pass
+    # to_dict() method (e.g. some meshtastic wrappers)
+    if hasattr(obj, "to_dict") and callable(obj.to_dict):
+        try:
+            return _sanitize_for_json(obj.to_dict(), _depth + 1)
+        except Exception:
+            pass
+    # Last resort: stringify
+    return str(obj)
+
+
 def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pattern: Optional[str], use_real_if_available: bool):
     """
     Attempt to read nodes from meshtastic library (multiple constructor patterns) and apply friendly_map.
@@ -4894,7 +4950,7 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
                         "lng": lngf,
                         "callsign": raw.get("callsign") or None,
                         "imported_from": port,
-                        "raw": raw
+                        "raw": _sanitize_for_json(raw)
                     }
                     nodes_result.append(node_rec)
                 except Exception as e:
