@@ -69,6 +69,15 @@
         .badge .dot.orange { background: var(--accent-orange); }
         .badge .dot.cyan   { background: var(--accent-cyan); }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
+        .badge-share-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px; border-radius: 3px; border: 1px solid var(--border-color);
+            background: transparent; color: var(--text-dim); cursor: pointer;
+            font-size: 0.65rem; padding: 0; margin-left: 2px; transition: 0.2s;
+            font-family: 'Courier New', monospace;
+        }
+        .badge-share-btn:hover { border-color: var(--accent-purple); color: var(--accent-purple); background: rgba(155,89,182,0.1); }
+        .badge-share-btn.active { border-color: var(--accent-purple); color: var(--accent-purple); background: rgba(155,89,182,0.2); box-shadow: 0 0 6px rgba(155,89,182,0.4); }
         .tile-selector { display: flex; gap: 6px; margin-bottom: 10px; }
         .tile-btn {
             padding: 5px 12px; background: var(--panel-bg); border: 1px solid var(--border-color);
@@ -306,13 +315,13 @@
             <div class="page-subtitle">WorldView Live &nbsp;&middot;&nbsp; Geopolitics &nbsp;&middot;&nbsp; Earthquakes &nbsp;&middot;&nbsp; Flights &nbsp;&middot;&nbsp; Radiation &nbsp;&middot;&nbsp; Weather</div>
         </div>
         <div class="header-badges">
-            <div class="badge"><span class="dot"></span><span id="eq-badge-text">Earthquakes: &#8211;</span></div>
-            <div class="badge"><span class="dot blue"></span><span id="fl-badge-text">Flights: &#8211;</span></div>
-            <div class="badge"><span class="dot red"></span><span id="mil-badge-text">Mil AC: &#8211;</span></div>
+            <div class="badge"><span class="dot"></span><span id="eq-badge-text">Earthquakes: &#8211;</span><button class="badge-share-btn" id="share-btn-earthquakes" onclick="toggleGroupShare('earthquakes')" title="Share group to Admin Map"><i class="fas fa-share-alt"></i></button></div>
+            <div class="badge"><span class="dot blue"></span><span id="fl-badge-text">Flights: &#8211;</span><button class="badge-share-btn" id="share-btn-flights" onclick="toggleGroupShare('flights')" title="Share group to Admin Map"><i class="fas fa-share-alt"></i></button></div>
+            <div class="badge"><span class="dot red"></span><span id="mil-badge-text">Mil AC: &#8211;</span><button class="badge-share-btn" id="share-btn-milflights" onclick="toggleGroupShare('milflights')" title="Share group to Admin Map"><i class="fas fa-share-alt"></i></button></div>
+            <div class="badge"><span class="dot red"></span><span id="cr-badge-text">Crises: &#8211;</span><button class="badge-share-btn" id="share-btn-conflicts" onclick="toggleGroupShare('conflicts')" title="Share group to Admin Map"><i class="fas fa-share-alt"></i></button></div>
+            <div class="badge"><span class="dot orange"></span><span id="base-badge-text">Mil Bases: &#8211;</span><button class="badge-share-btn" id="share-btn-bases" onclick="toggleGroupShare('bases')" title="Share group to Admin Map"><i class="fas fa-share-alt"></i></button></div>
+            <div class="badge"><span class="dot cyan"></span><span id="naval-badge-text">Naval: &#8211;</span><button class="badge-share-btn" id="share-btn-naval" onclick="toggleGroupShare('naval')" title="Share group to Admin Map"><i class="fas fa-share-alt"></i></button></div>
             <div class="badge"><span class="dot yellow"></span><span id="wx-badge-text">Weather: &#8211;</span></div>
-            <div class="badge"><span class="dot red"></span><span id="cr-badge-text">Crises: &#8211;</span></div>
-            <div class="badge"><span class="dot orange"></span><span id="base-badge-text">Mil Bases: &#8211;</span></div>
-            <div class="badge"><span class="dot cyan"></span><span id="naval-badge-text">Naval: &#8211;</span></div>
         </div>
     </div>
     <div class="tile-selector">
@@ -605,10 +614,12 @@ function toggleLayer(name) {
 var EQ_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
 function magColor(mag) { if (mag >= 6) return '#e74c3c'; if (mag >= 4.5) return '#e67e22'; if (mag >= 2.5) return '#f39c12'; return '#2ecc71'; }
 function magClass(mag) { if (mag >= 6) return 'mag-high'; if (mag >= 4.5) return 'mag-mid'; return 'mag-low'; }
+var _eqMarkers = [];
 function loadEarthquakes() {
     fetch(EQ_URL).then(function(r) { return r.json(); }).then(function(data) {
         var features = data.features || [];
         eqLayer.clearLayers();
+        _eqMarkers = [];
         var html = '', shown = 0;
         features.forEach(function(f) {
             var p = f.properties, mag = p.mag, coords = f.geometry && f.geometry.coordinates;
@@ -618,6 +629,7 @@ function loadEarthquakes() {
                 .bindPopup('<b style="color:#f39c12">M' + mag.toFixed(1) + '</b><br>' + p.place + '<br>Depth: ' + coords[2] + ' km<br>' + new Date(p.time).toUTCString());
             circle.on('click', (function(c) { return function() { map.setView([c[1], c[0]], 6); }; })(coords));
             eqLayer.addLayer(circle);
+            _eqMarkers.push({ type: 'earthquake', title: 'M' + mag.toFixed(1) + ' – ' + (p.place || 'Unknown'), lat: coords[1], lon: coords[0], color: color, icon: 'fa-circle-exclamation' });
             if (shown < 20) {
                 var place = p.place || 'Unknown';
                 var time  = new Date(p.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -640,17 +652,20 @@ function loadEarthquakes() {
         document.getElementById('eq-count').textContent      = features.length;
         document.getElementById('eq-badge-text').textContent = 'Earthquakes: ' + features.length;
         document.getElementById('stat-eq').textContent       = features.length;
+        if (groupShareState.earthquakes) publishGroupShare();
     }).catch(function() {
         document.getElementById('eq-list').innerHTML = '<div class="loading-placeholder">USGS unreachable</div>';
     });
 }
 var MIL_REGEX = /^(REACH|SENTRY|DARK|DUKE|NAVY|GAF|RRR|FAF|NATO|BOXER|COBRA|VIPER|GHOST|HAWK|EAGLE|TALON|REAPER|RANGER|SHADOW|IRON|STEEL|ATLAS|TOPGUN|MAGIC|HAVOC|STORM|BLADE|NOBLE|ASCOT|TARTAN|RCH|CNV|VENUS|MULE)/i;
 var FL_URL = 'https://opensky-network.org/api/states/all';
+var _flMarkers = [], _milMarkers = [];
 function loadFlights() {
     flightLayer.clearLayers(); milLayer.clearLayers();
     fetch(FL_URL, { signal: AbortSignal.timeout(12000) }).then(function(r) { return r.json(); }).then(function(data) {
         var states = data.states || [];
         flightLayer.clearLayers(); milLayer.clearLayers();
+        _flMarkers = []; _milMarkers = [];
         var civHtml = '', milHtml = '', civShown = 0, milShown = 0, civCount = 0, milCount = 0;
         var sample = states.slice(0, 400);
         sample.forEach(function(s) {
@@ -679,6 +694,7 @@ function loadFlights() {
             var rowonclick = 'map.setView([' + lat + ',' + lon + '],Math.max(map.getZoom(),5));toggleFlightRoute(' + routeArgs + ')';
             if (isMil) {
                 milLayer.addLayer(marker); milCount++;
+                _milMarkers.push({ type: 'milaircraft', title: cs + (origin ? ' – ' + origin : ''), lat: lat, lon: lon, color: '#e74c3c', icon: 'fa-fighter-jet' });
                 if (milShown < 20) {
                     milHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + rowonclick.replace(/"/g, '&quot;') + '">' +
                         '<div class="flight-callsign"><i class="fas fa-fighter-jet" style="color:#e74c3c"></i> ' + cs + '</div>' +
@@ -688,6 +704,7 @@ function loadFlights() {
                 }
             } else {
                 flightLayer.addLayer(marker); civCount++;
+                _flMarkers.push({ type: 'flight', title: cs + (origin ? ' – ' + origin : ''), lat: lat, lon: lon, color: '#3498db', icon: 'fa-plane' });
                 if (civShown < 20) {
                     civHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + rowonclick.replace(/"/g, '&quot;') + '">' +
                         '<div class="flight-callsign"><i class="fas fa-plane" style="color:#3498db"></i> ' + cs + '</div>' +
@@ -705,6 +722,8 @@ function loadFlights() {
         document.getElementById('mil-badge-text').textContent = 'Mil AC: ' + milCount;
         document.getElementById('stat-fl').textContent        = civCount;
         document.getElementById('stat-mil').textContent       = milCount;
+        if (groupShareState.flights) publishGroupShare();
+        if (groupShareState.milflights) publishGroupShare();
     }).catch(function() {
         document.getElementById('fl-list').innerHTML  = '<div class="loading-placeholder">OpenSky unreachable &#8212; <a href="https://opensky-network.org/network/explorer" target="_blank" style="color:var(--accent-blue)">Open Explorer &#8599;</a></div>';
         document.getElementById('mil-list').innerHTML = '<div class="loading-placeholder">OpenSky unreachable</div>';
@@ -912,6 +931,52 @@ function shareItem(btn, type, title, lat, lon, color, icon) {
     var orig = btn.textContent;
     btn.textContent = 'Sent!';
     setTimeout(function() { btn.textContent = orig; }, 1800);
+}
+// ─── Group Share (Toggle Buttons in Header) ───────────────────────────────────
+var groupShareState = {};
+var GROUP_MARKER_SOURCES = {
+    earthquakes: function() { return _eqMarkers; },
+    flights:     function() { return _flMarkers; },
+    milflights:  function() { return _milMarkers; },
+    conflicts:   function() {
+        return CONFLICT_ZONES.map(function(z) {
+            return { type: 'conflict', title: z.region, lat: z.lat, lon: z.lon, color: intensityColor(z.intensity), icon: 'fa-fire', detail: z.type };
+        });
+    },
+    bases:       function() {
+        return MIL_BASES.map(function(b) {
+            return { type: 'milbase', title: b.name, lat: b.lat, lon: b.lon, color: '#e67e22', icon: 'fa-shield-halved', detail: b.country };
+        });
+    },
+    naval:       function() {
+        return NAVAL_UNITS.map(function(u) {
+            return { type: 'naval', title: u.name, lat: u.lat, lon: u.lon, color: '#1abc9c', icon: 'fa-anchor', detail: u.cls };
+        });
+    }
+};
+function publishGroupShare() {
+    var allMarkers = [];
+    Object.keys(groupShareState).forEach(function(group) {
+        if (groupShareState[group] && GROUP_MARKER_SOURCES[group]) {
+            allMarkers = allMarkers.concat(GROUP_MARKER_SOURCES[group]());
+        }
+    });
+    var payload = { timestamp: Date.now(), source: 'global_Intel', markers: allMarkers };
+    localStorage.setItem('lpu5_intel_group_share', JSON.stringify(payload));
+}
+function toggleGroupShare(groupName) {
+    groupShareState[groupName] = !groupShareState[groupName];
+    var btn = document.getElementById('share-btn-' + groupName);
+    if (btn) {
+        if (groupShareState[groupName]) {
+            btn.classList.add('active');
+            btn.title = 'Remove group from Admin Map';
+        } else {
+            btn.classList.remove('active');
+            btn.title = 'Share group to Admin Map';
+        }
+    }
+    publishGroupShare();
 }
 var currentWebcamZone = null;
 function openWebcamModal(zoneIdx) {
