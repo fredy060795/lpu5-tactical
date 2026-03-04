@@ -332,9 +332,9 @@ class CoTProtocolHandler:
         "unknown":          "a-u-G-U-C",   # unknown ground unit
         "pending":          "a-p-G-U-C",   # pending ground unit
         "gps_position":     "a-f-G-U-C",   # live GPS position (friendly ground unit)
-        "node":             "a-f-G-U-C",   # Meshtastic node → friendly ground unit (Contact in ATAK)
-        "meshtastic_node":  "a-f-G-U-C",   # Meshtastic node forwarded by ATAK plugin → Contact
-        "gateway":          "a-f-G-U-C",   # Meshtastic gateway/router → friendly ground unit (Contact)
+        "node":             "a-f-G-E-S-U-M",   # Meshtastic node → Meshtastic equipment type
+        "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic node forwarded by ATAK plugin → Meshtastic equipment
+        "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router → Meshtastic equipment type
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
     }
 
