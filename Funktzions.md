@@ -9,7 +9,7 @@ Dies ist eine übersicht aller Funktzionen, alle funktzionen die ein # vor dem N
 | Status | Funktion | Kurzbeschreibung |
 |--------|----------|-----------------|
 | [#] | GPS Position Laden bei Start | Eigene GPS-Position wird beim Seitenstart automatisch geladen und auf der Karte zentriert |
-| [] | Batterieanzeige im Header | Akkustand des Geräts wird im Kopfbereich angezeigt |
+| [#] | Batterieanzeige im Header | Akkustand des Geräts wird im Kopfbereich angezeigt |
 | [#] | Uhrzeit im Header | Aktuelle Uhrzeit wird live im Kopfbereich dargestellt |
 | [#] | Kompass Funktion / Karten drehen | Karte dreht sich automatisch anhand des Geräte-Kompass |
 | [#] | Karten Layout (Sat / Street / Geo) im Menü | Umschalten zwischen Satelliten-, Straßen- und Geländekarte |
@@ -32,7 +32,7 @@ Dies ist eine übersicht aller Funktzionen, alle funktzionen die ein # vor dem N
 | [#] | Geräteverwaltung & Zuweisung | Geräte anlegen und Nutzern zuweisen |
 | [#] | Missions-Lifecycle-Verwaltung | Missionen erstellen, bearbeiten und abschließen |
 | [#] | Login / Logout | Authentifizierung mit Token-Verwaltung |
-| [] | Benutzername im Header anzeigen | Angemeldeter Nutzername wird im Kopfbereich eingeblendet |
+| [#] | Benutzername im Header anzeigen | Angemeldeter Nutzername wird im Kopfbereich eingeblendet |
 
 ---
 
@@ -120,7 +120,7 @@ Dies ist eine übersicht aller Funktzionen, alle funktzionen die ein # vor dem N
 | [#] | Quellauswahl (RTMP / HTTP / HLS) | Stream-Quelltyp und URL konfigurieren |
 | [#] | Einheiten-Dropdown für Stream-Ziel | Einheit für Stream-Slot auswählen |
 | [#] | Stream-Freigabe Steuerung | Streams freigeben und teilen |
-| [] | Nächsten freien Slot berechnen | Automatisch den nächsten verfügbaren Stream-Slot ermitteln |
+| [#] | Nächsten freien Slot berechnen | Automatisch den nächsten verfügbaren Stream-Slot ermitteln |
 
 ---
 
@@ -128,10 +128,10 @@ Dies ist eine übersicht aller Funktzionen, alle funktzionen die ein # vor dem N
 
 | Status | Funktion | Kurzbeschreibung |
 |--------|----------|-----------------|
-| [] | SDR Radar-Visualisierung | Frequenzanalyse und Radar-Darstellung via RTL-SDR |
-| [] | RTL-TCP Konfiguration | Host/Port für RTL-TCP-Server einstellen |
-| [] | Audio-Stream Integration | Audiostrom vom SDR-Gerät empfangen und abspielen |
-| [] | Treiber-Warnungssystem | Warnung bei fehlenden SDR-Bibliotheken |
+| [#] | SDR Radar-Visualisierung | Frequenzanalyse und Radar-Darstellung via RTL-SDR |
+| [#] | RTL-TCP Konfiguration | Host/Port für RTL-TCP-Server einstellen |
+| [#] | Audio-Stream Integration | Audiostrom vom SDR-Gerät empfangen und abspielen |
+| [#] | Treiber-Warnungssystem | Warnung bei fehlenden SDR-Bibliotheken |
 
 ---
 
@@ -143,7 +143,7 @@ Dies ist eine übersicht aller Funktzionen, alle funktzionen die ein # vor dem N
 | [#] | Klassifizierungs-Banner | Taktische Geheimhaltungsstufe im Header anzeigen |
 | [#] | Flug-Routen-Projektion | Flugrouten mit Kurs und Geschwindigkeit einblenden |
 | [#] | Flugzeugdaten-Integration | ICAO, Herkunft, Flughöhe und Status anzeigen |
-| [] | Share-Buttons für Stream-Daten | Daten-Streams per Knopfdruck weitergeben |
+| [#] | Share-Buttons für Stream-Daten | Daten-Streams per Knopfdruck weitergeben |
 
 ---
 
@@ -199,10 +199,10 @@ Dies ist eine übersicht aller Funktzionen, alle funktzionen die ein # vor dem N
 | Status | Funktion | Kurzbeschreibung |
 |--------|----------|-----------------|
 | [] | Meshtastic-Node-Import | Gateway-Knoten importieren und konfigurieren |
-| [] | Port-Eingabe & Normalisierung | Serielle Ports erkennen und normalisieren |
-| [] | Toast-Benachrichtigungen | Nutzer-Feedback über Toast-Nachrichten |
-| [] | Node-JSON Import von Gateways | Knoten-Daten als JSON vom Gateway laden |
-| [] | Gerätekonnektivitäts-Test | Verbindung zu angeschlossenem Gerät prüfen |
+| [#] | Port-Eingabe & Normalisierung | Serielle Ports erkennen und normalisieren |
+| [#] | Toast-Benachrichtigungen | Nutzer-Feedback über Toast-Nachrichten |
+| [#] | Node-JSON Import von Gateways | Knoten-Daten als JSON vom Gateway laden |
+| [#] | Gerätekonnektivitäts-Test | Verbindung zu angeschlossenem Gerät prüfen |
 
 ---
 
