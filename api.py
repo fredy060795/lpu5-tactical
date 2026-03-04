@@ -295,10 +295,10 @@ async def lifespan(application):
     try:
         cfg = load_json("config") or {}
         enabled = cfg.get("meshtastic_auto_sync", True)
-        interval = int(cfg.get("meshtastic_sync_interval_seconds", 30))
+        interval = int(cfg.get("meshtastic_sync_interval_seconds", 60))
     except Exception:
         enabled = True
-        interval = 30
+        interval = 60
     global _MESHTASTIC_SYNC_THREAD
     if enabled and (_MESHTASTIC_SYNC_THREAD is None or not _MESHTASTIC_SYNC_THREAD.is_alive()):
         _MESHTASTIC_SYNC_STOP_EVENT.clear()
@@ -2018,7 +2018,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
     finally:
         db.close()
 
-def _meshtastic_sync_worker(interval_seconds: int = 30):
+def _meshtastic_sync_worker(interval_seconds: int = 60):
     logger.info("Meshtastic sync worker started (interval=%s s)", interval_seconds)
     while not _MESHTASTIC_SYNC_STOP_EVENT.is_set():
         try:
@@ -2035,77 +2035,146 @@ def _meshtastic_sync_worker(interval_seconds: int = 30):
 _MARKER_BROADCAST_THREAD = None
 _MARKER_BROADCAST_STOP_EVENT = threading.Event()
 
+# State hash caches for change-detection in the periodic broadcast worker.
+# Keyed by marker/overlay id → a tuple of the fields that trigger a re-broadcast.
+# Only records whose state changed since the last cycle are included in the payload,
+# which dramatically reduces WebSocket and SA-Multicast traffic when the map is
+# largely static.
+_BROADCAST_MARKER_HASH: Dict[str, tuple] = {}
+_BROADCAST_OVERLAY_HASH: Dict[str, tuple] = {}
+
 def _marker_broadcast_worker(interval_seconds: int = 60):
     """
     Periodic marker broadcast worker for real-time sync.
-    Broadcasts all map markers and overlays periodically to ensure all clients stay synchronized.
+
+    Only markers/overlays whose state has changed since the last broadcast cycle are
+    sent to WebSocket clients and the SA-Multicast / TCP-CoT channels.  A full-sync
+    payload (all current markers) is still sent once when the worker first starts so
+    that clients which connect while the server is idle receive the complete picture.
     """
     logger.info("Marker broadcast worker started (interval=%s s)", interval_seconds)
+    first_run = True
     while not _MARKER_BROADCAST_STOP_EVENT.is_set():
         db = SessionLocal()
         try:
-            # Broadcast all map markers
             markers = db.query(MapMarker).all()
-            marker_list = [
-                {
-                    "id": m.id, "lat": m.lat, "lng": m.lng, "name": m.name, 
-                    "type": m.type, "color": m.color, "icon": m.icon, 
-                    "created_by": m.created_by, "data": m.data,
-                    "timestamp": m.created_at.isoformat() if m.created_at else datetime.now(timezone.utc).isoformat()
-                } for m in markers
-            ]
-            if marker_list:
+
+            # Build per-marker state tuples for change detection.
+            changed_markers = []
+            current_marker_ids: set = set()
+            for m in markers:
+                mid = str(m.id)
+                current_marker_ids.add(mid)
+                state = (m.lat, m.lng, m.name, m.type, m.color, m.icon, hash(str(m.data)))
+                if first_run or _BROADCAST_MARKER_HASH.get(mid) != state:
+                    _BROADCAST_MARKER_HASH[mid] = state
+                    changed_markers.append(m)
+
+            # Evict deleted markers from the hash cache.
+            for stale_id in list(_BROADCAST_MARKER_HASH.keys()):
+                if stale_id not in current_marker_ids:
+                    del _BROADCAST_MARKER_HASH[stale_id]
+
+            if first_run:
+                # On first run broadcast the full state so new clients get everything.
+                marker_list = [
+                    {
+                        "id": m.id, "lat": m.lat, "lng": m.lng, "name": m.name,
+                        "type": m.type, "color": m.color, "icon": m.icon,
+                        "created_by": m.created_by, "data": m.data,
+                        "timestamp": m.created_at.isoformat() if m.created_at else datetime.now(timezone.utc).isoformat()
+                    } for m in markers
+                ]
+                if marker_list:
+                    broadcast_websocket_update("markers", "markers_sync", {"markers": marker_list, "sync_type": "initial"})
+                    logger.debug("Initial broadcast: %s markers", len(marker_list))
+            elif changed_markers:
+                marker_list = [
+                    {
+                        "id": m.id, "lat": m.lat, "lng": m.lng, "name": m.name,
+                        "type": m.type, "color": m.color, "icon": m.icon,
+                        "created_by": m.created_by, "data": m.data,
+                        "timestamp": m.created_at.isoformat() if m.created_at else datetime.now(timezone.utc).isoformat()
+                    } for m in changed_markers
+                ]
                 broadcast_websocket_update("markers", "markers_sync", {"markers": marker_list, "sync_type": "periodic"})
-                logger.debug("Broadcasted %s markers for periodic sync", len(marker_list))
-                # Also send LPU5-originated markers via SA Multicast so ATAK/WinTAK
-                # clients on the same network always receive the full current state.
-                if AUTONOMOUS_MODULES_AVAILABLE:
-                    mcast_sent = 0
-                    tcp_sent = 0
-                    for m in markers:
-                        if m.created_by not in ("cot_ingest", "tak_server"):
-                            try:
-                                mdict = {
-                                    "id": m.id, "lat": m.lat, "lng": m.lng,
-                                    "name": m.name, "type": m.type,
-                                    "created_by": m.created_by,
-                                }
-                                if isinstance(m.data, dict):
-                                    for k, v in m.data.items():
-                                        if k not in mdict:
-                                            mdict[k] = v
-                                cot_evt = CoTProtocolHandler.marker_to_cot(mdict)
-                                if cot_evt:
-                                    cot_xml = cot_evt.to_xml()
-                                    if _forward_cot_multicast(cot_xml):
-                                        mcast_sent += 1
-                                    if _forward_cot_to_tcp_clients(cot_xml):
-                                        tcp_sent += 1
-                            except Exception as _mc_err:
-                                logger.debug("SA Multicast send for marker %s failed: %s", m.id, _mc_err)
-                    if mcast_sent:
-                        logger.debug("Sent %d markers via SA Multicast for periodic sync", mcast_sent)
-                    if tcp_sent:
-                        logger.debug("Sent %d markers to TCP clients for periodic sync", tcp_sent)
-            
-            # Broadcast all overlays for sync
+                logger.debug("Periodic broadcast: %s/%s markers changed", len(changed_markers), len(markers))
+
+            # Forward changed LPU5-originated markers via SA Multicast / TCP CoT.
+            if AUTONOMOUS_MODULES_AVAILABLE and changed_markers:
+                mcast_sent = 0
+                tcp_sent = 0
+                for m in changed_markers:
+                    if m.created_by not in ("cot_ingest", "tak_server"):
+                        try:
+                            mdict = {
+                                "id": m.id, "lat": m.lat, "lng": m.lng,
+                                "name": m.name, "type": m.type,
+                                "created_by": m.created_by,
+                            }
+                            if isinstance(m.data, dict):
+                                for k, v in m.data.items():
+                                    if k not in mdict:
+                                        mdict[k] = v
+                            cot_evt = CoTProtocolHandler.marker_to_cot(mdict)
+                            if cot_evt:
+                                cot_xml = cot_evt.to_xml()
+                                if _forward_cot_multicast(cot_xml):
+                                    mcast_sent += 1
+                                if _forward_cot_to_tcp_clients(cot_xml):
+                                    tcp_sent += 1
+                        except Exception as _mc_err:
+                            logger.debug("SA Multicast send for marker %s failed: %s", m.id, _mc_err)
+                if mcast_sent:
+                    logger.debug("Sent %d markers via SA Multicast for periodic sync", mcast_sent)
+                if tcp_sent:
+                    logger.debug("Sent %d markers to TCP clients for periodic sync", tcp_sent)
+
+            # Broadcast overlays — only changed ones after the first run.
             overlays = db.query(Overlay).all()
-            overlay_list = [
-                {
-                    "id": o.id, "name": o.name, "data": o.data,
-                    "created_by": o.created_by,
-                    "timestamp": o.created_at.isoformat() if o.created_at else datetime.now(timezone.utc).isoformat()
-                } for o in overlays
-            ]
-            if overlay_list:
+            changed_overlays = []
+            current_overlay_ids: set = set()
+            for o in overlays:
+                oid = str(o.id)
+                current_overlay_ids.add(oid)
+                state = (o.name, hash(str(o.data)))
+                if first_run or _BROADCAST_OVERLAY_HASH.get(oid) != state:
+                    _BROADCAST_OVERLAY_HASH[oid] = state
+                    changed_overlays.append(o)
+
+            for stale_id in list(_BROADCAST_OVERLAY_HASH.keys()):
+                if stale_id not in current_overlay_ids:
+                    del _BROADCAST_OVERLAY_HASH[stale_id]
+
+            if first_run:
+                overlay_list = [
+                    {
+                        "id": o.id, "name": o.name, "data": o.data,
+                        "created_by": o.created_by,
+                        "timestamp": o.created_at.isoformat() if o.created_at else datetime.now(timezone.utc).isoformat()
+                    } for o in overlays
+                ]
+                if overlay_list:
+                    broadcast_websocket_update("overlays", "overlays_sync", {"overlays": overlay_list, "sync_type": "initial"})
+                    logger.debug("Initial broadcast: %s overlays", len(overlay_list))
+            elif changed_overlays:
+                overlay_list = [
+                    {
+                        "id": o.id, "name": o.name, "data": o.data,
+                        "created_by": o.created_by,
+                        "timestamp": o.created_at.isoformat() if o.created_at else datetime.now(timezone.utc).isoformat()
+                    } for o in changed_overlays
+                ]
                 broadcast_websocket_update("overlays", "overlays_sync", {"overlays": overlay_list, "sync_type": "periodic"})
-                logger.debug("Broadcasted %s overlays for periodic sync", len(overlay_list))
-                
+                logger.debug("Periodic broadcast: %s/%s overlays changed", len(changed_overlays), len(overlays))
+
+            first_run = False
+
         except Exception as e:
             logger.exception("Error in marker broadcast worker: %s", e)
         finally:
             db.close()
-        
+
         # Sleep in small intervals to allow for clean shutdown
         for _ in range(max(1, interval_seconds)):
             if _MARKER_BROADCAST_STOP_EVENT.is_set():

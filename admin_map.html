@@ -899,6 +899,7 @@
     <div class="icon-btn" data-flyout="fly-symbols" title="Symbols"><i class="fas fa-map-marker-alt"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
     <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
+    <div class="icon-btn" id="intelLayerToggleBtn" onclick="toggleIntelLayers()" title="Toggle Global Intel markers"><i class="fas fa-satellite-dish"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
   </div>
 
@@ -3495,8 +3496,18 @@
           setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
         }
 
+        function getIntelSingleLayer() {
+          if (!window.map || !window.L) return null;
+          if (!window._intelSingleLayer) {
+            window._intelSingleLayer = L.layerGroup().addTo(window.map);
+          }
+          return window._intelSingleLayer;
+        }
+
         function placeIntelMarker(data) {
           if (!window.map || !window.L) return;
+          const layer = getIntelSingleLayer();
+          if (!layer) return;
           const color = data.color || '#9b59b6';
           const icon = L.divIcon({
             className: '',
@@ -3514,11 +3525,7 @@
               `Type: ${data.type||'–'}<br>` +
               (data.detail ? `<span style="font-size:.8em">${data.detail}</span>` : '')
             );
-          // Add to the symbols/pane layer if available, otherwise main map
-          if (window.map.getPane && window.map.getPane('paneSymbols')) {
-            marker.options.pane = 'paneSymbols';
-          }
-          marker.addTo(window.map);
+          layer.addLayer(marker);
           window.map.setView([data.lat, data.lon], Math.max(window.map.getZoom(), 5));
         }
 
@@ -3570,6 +3577,7 @@
           if (!window.map || !window.L) return null;
           if (!intelGroupLayer) {
             intelGroupLayer = L.layerGroup().addTo(window.map);
+            window._intelGroupLayer = intelGroupLayer;
           }
           return intelGroupLayer;
         }
@@ -3659,6 +3667,36 @@
           }
         });
       }());
+
+      // ─── Toggle Global Intel Layers ─────────────────────────────────────────────
+      var _intelLayersVisible = (localStorage.getItem('lpu5_intel_layers_visible') !== 'false');
+
+      function _applyIntelLayerVisibility(visible) {
+        const layers = [window._intelSingleLayer, window._intelGroupLayer].filter(Boolean);
+        const btn = document.getElementById('intelLayerToggleBtn');
+        if (visible) {
+          layers.forEach(function(l) { if (!window.map.hasLayer(l)) l.addTo(window.map); });
+          if (btn) { btn.style.opacity = '1'; btn.title = 'Hide Global Intel markers'; }
+        } else {
+          layers.forEach(function(l) { l.remove(); });
+          if (btn) { btn.style.opacity = '0.4'; btn.title = 'Show Global Intel markers'; }
+        }
+        localStorage.setItem('lpu5_intel_layers_visible', visible ? 'true' : 'false');
+        _intelLayersVisible = visible;
+      }
+
+      function toggleIntelLayers() {
+        if (!window.map || !window.L) return;
+        _applyIntelLayerVisibility(!_intelLayersVisible);
+      }
+
+      // Restore saved visibility state once the map is ready.
+      window.addEventListener('load', function () {
+        if (!_intelLayersVisible) {
+          // Apply hidden state after a short delay to ensure layers are created.
+          setTimeout(function() { _applyIntelLayerVisibility(false); }, 1000);
+        }
+      });
 
       // Check for incoming messages periodically
       window.addEventListener('load', function () {
