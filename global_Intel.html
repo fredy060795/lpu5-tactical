@@ -203,15 +203,15 @@
         .flight-alt { color: var(--text-main); min-width: 60px; text-align: right; }
         .fl-icon {
             width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-            background: rgba(52,152,219,0.18); border: 1px solid rgba(52,152,219,0.55);
+            background: rgba(241,196,15,0.18); border: 1px solid rgba(241,196,15,0.55);
             border-radius: 50%; cursor: pointer; transition: background 0.15s, border-color 0.15s;
         }
-        .fl-icon:hover { background: rgba(52,152,219,0.38); border-color: #3498db; }
+        .fl-icon:hover { background: rgba(241,196,15,0.38); border-color: #f1c40f; }
         .fl-icon.mil { background: rgba(231,76,60,0.18); border-color: rgba(231,76,60,0.55); }
         .fl-icon.mil:hover { background: rgba(231,76,60,0.38); border-color: #e74c3c; }
-        .fl-icon i { font-size: 11px; color: #3498db; }
+        .fl-icon i { font-size: 11px; color: #f1c40f; }
         .fl-icon.mil i { color: #e74c3c; }
-        .fl-icon.active-route { background: rgba(52,152,219,0.5); border-color: #3498db; box-shadow: 0 0 6px rgba(52,152,219,0.7); }
+        .fl-icon.active-route { background: rgba(241,196,15,0.5); border-color: #f1c40f; box-shadow: 0 0 6px rgba(241,196,15,0.7); }
         .ship-icon {
             width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
             background: rgba(26,188,156,0.18); border: 1px solid rgba(26,188,156,0.55);
@@ -557,7 +557,7 @@ function projectPosition(lat, lon, hdgDeg, distKm) {
     return [phi2 * 180 / Math.PI, ((lam2 * 180 / Math.PI) + 540) % 360 - 180];
 }
 function toggleFlightRoute(icao, lat, lon, hdg, vel, cs, origin, altM, routeColor) {
-    routeColor = routeColor || '#3498db';
+    routeColor = routeColor || '#f1c40f';
     routeLineLayer.clearLayers();
     document.querySelectorAll('.fl-icon.active-route').forEach(function(el) { el.classList.remove('active-route'); });
     if (activeRouteId === icao) { activeRouteId = null; return; }
@@ -667,22 +667,21 @@ function loadFlights() {
         flightLayer.clearLayers(); milLayer.clearLayers();
         _flMarkers = []; _milMarkers = [];
         var civHtml = '', milHtml = '', civShown = 0, milShown = 0, civCount = 0, milCount = 0;
-        var sample = states.slice(0, 400);
-        sample.forEach(function(s) {
+        states.forEach(function(s) {
             var icao = s[0], cs = (s[1] || s[0] || '?').trim(), origin = s[2];
             var lon = s[5], lat = s[6], alt = s[7];
             if (!lat || !lon) return;
             var altM = alt ? Math.round(alt) + ' m' : 'Ground';
             var hdg = s[10], vel = s[9];
             var isMil = MIL_REGEX.test(cs);
-            var rot = (hdg != null) ? 'transform:rotate(' + hdg + 'deg)' : '';
+            var rot = (hdg != null) ? 'transform:rotate(' + (hdg - 45) + 'deg)' : '';
             var clsMil = isMil ? ' mil' : '';
             var icon = L.divIcon({
                 className: '',
-                html: '<div id="fl-icon-' + icao + '" class="fl-icon' + clsMil + '" style="' + rot + '"><i class="fas fa-plane"></i></div>',
+                html: '<div id="fl-icon-' + icao + '" class="fl-icon' + clsMil + '"><i class="fas fa-plane" style="' + rot + '"></i></div>',
                 iconSize: [24, 24], iconAnchor: [12, 12]
             });
-            var colorStr = isMil ? '#e74c3c' : '#3498db';
+            var colorStr = isMil ? '#e74c3c' : '#f1c40f';
             var milTag   = isMil ? ' <span style="color:#e74c3c;font-size:0.75em">[MIL]</span>' : '';
             var speedTxt = vel ? ' · ' + Math.round(vel * 3.6) + ' km/h' : '';
             var marker = L.marker([lat, lon], { icon: icon })
@@ -704,10 +703,10 @@ function loadFlights() {
                 }
             } else {
                 flightLayer.addLayer(marker); civCount++;
-                _flMarkers.push({ type: 'flight', title: cs + (origin ? ' – ' + origin : ''), lat: lat, lon: lon, color: '#3498db', icon: 'fa-plane' });
+                _flMarkers.push({ type: 'flight', title: cs + (origin ? ' – ' + origin : ''), lat: lat, lon: lon, color: '#f1c40f', icon: 'fa-plane' });
                 if (civShown < 20) {
                     civHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + rowonclick.replace(/"/g, '&quot;') + '">' +
-                        '<div class="flight-callsign"><i class="fas fa-plane" style="color:#3498db"></i> ' + cs + '</div>' +
+                        '<div class="flight-callsign"><i class="fas fa-plane" style="color:#f1c40f"></i> ' + cs + '</div>' +
                         '<div class="flight-info">' + (origin || '&#8211;') + '</div>' +
                         '<div class="flight-alt">' + altM + '</div></div>';
                     civShown++;
