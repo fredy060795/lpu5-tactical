@@ -242,6 +242,14 @@ class DataServerManager:
                 # No point retrying – fall through to the direct WebSocket path.
                 logger.debug("Data server not reachable for broadcast (connection refused)")
                 return
+            except requests.exceptions.Timeout:
+                # The data server did not respond in time.  Retrying a timed-out
+                # server only makes congestion worse, so we bail out immediately.
+                logger.warning(
+                    f"Broadcast to channel '{(payload or {}).get('channel', 'unknown')}' timed out – "
+                    "data server may be busy; skipping retry"
+                )
+                return
             except Exception as e:
                 if attempt < _retries:
                     backoff = min(2 ** attempt, 8)
