@@ -1028,19 +1028,19 @@
 
   <div class="bottom-toolbar" id="ui-tools" style="display:none;">
     <!-- Symbol Tools -->
-    <div class="tool-btn" id="s-raute" ontouchstart="handleToolInteraction(() => setTool('raute'), event)"
+    <div class="tool-btn" id="s-raute" title="Enemy" ontouchstart="handleToolInteraction(() => setTool('raute'), event)"
       onclick="handleToolInteraction(() => setTool('raute'), event)"><svg viewBox="0 0 100 100">
         <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="4" />
       </svg></div>
-    <div class="tool-btn" id="s-rechteck" ontouchstart="handleToolInteraction(() => setTool('rechteck'), event)"
+    <div class="tool-btn" id="s-rechteck" title="Friendly" ontouchstart="handleToolInteraction(() => setTool('rechteck'), event)"
       onclick="handleToolInteraction(() => setTool('rechteck'), event)"><svg viewBox="0 0 100 100">
         <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="4" />
       </svg></div>
-    <div class="tool-btn" id="s-quadrat" ontouchstart="handleToolInteraction(() => setTool('quadrat'), event)"
+    <div class="tool-btn" id="s-quadrat" title="Neutral" ontouchstart="handleToolInteraction(() => setTool('quadrat'), event)"
       onclick="handleToolInteraction(() => setTool('quadrat'), event)"><svg viewBox="0 0 100 100">
         <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="4" />
       </svg></div>
-    <div class="tool-btn" id="s-blume" ontouchstart="handleToolInteraction(() => setTool('blume'), event)"
+    <div class="tool-btn" id="s-blume" title="Unknown" ontouchstart="handleToolInteraction(() => setTool('blume'), event)"
       onclick="handleToolInteraction(() => setTool('blume'), event)"><svg viewBox="0 0 100 100">
         <path
           d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
