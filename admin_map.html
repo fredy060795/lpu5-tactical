@@ -3469,9 +3469,10 @@
       // ── Global Intel share receiver ──────────────────────────
       (function () {
         const ICON_MAP = {
-          'fa-mountain':     '🟢', 'fa-fire':    '🔴',
-          'fa-shield-halved':'🟠', 'fa-anchor':  '🔵',
-          'fa-plane':        '✈',  'fa-radiation':'☢',
+          'fa-mountain':     '🟢', 'fa-fire':              '🔴',
+          'fa-shield-halved':'🟠', 'fa-anchor':            '🔵',
+          'fa-plane':        '✈',  'fa-radiation':         '☢',
+          'fa-circle-exclamation': '🔴', 'fa-fighter-jet': '✈',
         };
 
         function showIntelToast(data) {
@@ -3549,6 +3550,112 @@
               showIntelToast(data);
               localStorage.removeItem('lpu5_intel_share');
             } catch (err) { console.error('Intel storage event error:', err); }
+          }
+        });
+      }());
+
+      // ─── Group Share from Global Intel ───────────────────────────────────────────
+      (function () {
+        const ICON_MAP_GROUP = {
+          'fa-circle-exclamation': '🔴', 'fa-plane':        '✈',
+          'fa-fighter-jet':        '✈',  'fa-fire':         '🔴',
+          'fa-shield-halved':      '🟠', 'fa-anchor':       '🔵',
+        };
+
+        // Layer group that holds all intel-group markers (replaced on each update)
+        let intelGroupLayer = null;
+        let intelGroupToastTimer = null;
+
+        function getIntelGroupLayer() {
+          if (!window.map || !window.L) return null;
+          if (!intelGroupLayer) {
+            intelGroupLayer = L.layerGroup().addTo(window.map);
+          }
+          return intelGroupLayer;
+        }
+
+        function showGroupToast(count) {
+          const existing = document.getElementById('intelGroupToast');
+          if (existing) existing.remove();
+          if (intelGroupToastTimer) { clearTimeout(intelGroupToastTimer); intelGroupToastTimer = null; }
+          if (count === 0) return;
+          const toast = document.createElement('div');
+          toast.id = 'intelGroupToast';
+          toast.style.cssText = [
+            'position:fixed','bottom:140px','right:20px','z-index:9999',
+            'background:#1a1a1a','border:1px solid #9b59b6','border-radius:6px',
+            'padding:10px 14px','font-family:Courier New,monospace','font-size:.8rem',
+            'color:#d0d0d0','max-width:300px','box-shadow:0 4px 12px rgba(155,89,182,.4)'
+          ].join(';');
+          toast.innerHTML = `<div style="color:#9b59b6;font-size:.7rem;letter-spacing:1px;margin-bottom:4px">📡 GROUP SHARED – GLOBAL INTEL</div>
+            <div style="font-weight:bold">${count} markers on map</div>`;
+          document.body.appendChild(toast);
+          intelGroupToastTimer = setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
+        }
+
+        function applyGroupShare(payload) {
+          const layer = getIntelGroupLayer();
+          if (!layer) return;
+          layer.clearLayers();
+          const markers = payload.markers || [];
+          markers.forEach(function(data) {
+            if (data.lat == null || data.lon == null) return;
+            const color = data.color || '#9b59b6';
+            const iconClass = data.icon || 'fa-map-marker-alt';
+            const icon = L.divIcon({
+              className: '',
+              html: `<div style="width:26px;height:26px;border-radius:50%;background:${color}33;border:2px solid ${color};
+                          display:flex;align-items:center;justify-content:center;font-size:11px;
+                          box-shadow:0 0 6px ${color}66;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
+                       <i class="fas ${iconClass}" style="color:${color}"></i></div>`,
+              iconSize:   [26, 26],
+              iconAnchor: [13, 13],
+            });
+            const marker = L.marker([data.lat, data.lon], { icon })
+              .bindPopup(
+                `<b style="color:${color}">${data.title||'Intel'}</b><br>` +
+                `<span style="color:#888;font-size:.8em">Source: Global Intel (Group)</span><br>` +
+                `Type: ${data.type||'–'}` +
+                (data.detail ? `<br><span style="font-size:.8em">${data.detail}</span>` : '')
+              );
+            layer.addLayer(marker);
+          });
+          showGroupToast(markers.length);
+        }
+
+        function checkForGroupShare() {
+          try {
+            const raw = localStorage.getItem('lpu5_intel_group_share');
+            if (!raw) {
+              // If key was removed, clear the layer
+              const layer = getIntelGroupLayer();
+              if (layer) { layer.clearLayers(); }
+              return;
+            }
+            const payload = JSON.parse(raw);
+            applyGroupShare(payload);
+          } catch (e) {
+            console.error('Intel group share error:', e);
+          }
+        }
+
+        window.addEventListener('load', function () {
+          checkForGroupShare();
+          setInterval(checkForGroupShare, 3000);
+        });
+
+        window.addEventListener('storage', function (e) {
+          if (e.key === 'lpu5_intel_group_share') {
+            try {
+              if (e.newValue) {
+                const payload = JSON.parse(e.newValue);
+                applyGroupShare(payload);
+              } else {
+                // Key was removed – clear group layer
+                const layer = getIntelGroupLayer();
+                if (layer) { layer.clearLayers(); showGroupToast(0); }
+              }
+            } catch (err) { console.error('Intel group storage event error:', err); }
           }
         });
       }());
