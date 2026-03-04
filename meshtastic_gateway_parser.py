@@ -87,6 +87,7 @@ def parse_meshtastic_node(node: Dict[str, Any]) -> Dict[str, Any]:
 def validate_node_for_import(parsed_node: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """
     Validate if a parsed node has sufficient data for import.
+    Nodes without GPS are accepted and will be imported with default 0.0/0.0 coordinates.
     
     Args:
         parsed_node: Output from parse_meshtastic_node()
@@ -96,22 +97,17 @@ def validate_node_for_import(parsed_node: Dict[str, Any]) -> Tuple[bool, Optiona
         - is_valid: True if node can be imported
         - error_reason: String describing why node is invalid, or None if valid
     """
-    if not parsed_node.get('has_gps'):
-        return False, 'No valid GPS coordinates'
-    
-    if parsed_node.get('latitude') is None or parsed_node.get('longitude') is None:
-        return False, 'Missing latitude or longitude'
-    
-    # Check for reasonable coordinate ranges
+    # GPS is optional - nodes without GPS are imported with default 0.0/0.0 position
     lat = parsed_node.get('latitude')
     lon = parsed_node.get('longitude')
-    
-    if not (-90 <= lat <= 90):
-        return False, f'Invalid latitude: {lat}'
-    
-    if not (-180 <= lon <= 180):
-        return False, f'Invalid longitude: {lon}'
-    
+
+    # Only validate coordinate ranges when coordinates are actually present
+    if lat is not None and lon is not None:
+        if not (-90 <= lat <= 90):
+            return False, f'Invalid latitude: {lat}'
+        if not (-180 <= lon <= 180):
+            return False, f'Invalid longitude: {lon}'
+
     return True, None
 
 
@@ -180,8 +176,32 @@ if __name__ == '__main__':
     is_valid, reason = validate_node_for_import(result_1)
     assert is_valid is True
     
+    # Node without GPS is now valid for import (uses default 0.0/0.0 coordinates)
     is_valid, reason = validate_node_for_import(result_3)
+    assert is_valid is True
+    assert reason is None
+    
+    # Test invalid coordinate ranges are still rejected
+    invalid_node_lat = {
+        'id': 'ID-badcoord',
+        'callsign': 'Bad Coord Lat',
+        'latitude': 200.0,  # Invalid: > 90
+        'longitude': 50.0,
+        'has_gps': True,
+    }
+    is_valid, reason = validate_node_for_import(invalid_node_lat)
     assert is_valid is False
-    assert 'GPS' in reason
+    assert 'latitude' in reason
+
+    invalid_node_lon = {
+        'id': 'ID-badcoord2',
+        'callsign': 'Bad Coord Lon',
+        'latitude': 45.0,
+        'longitude': 200.0,  # Invalid: > 180
+        'has_gps': True,
+    }
+    is_valid, reason = validate_node_for_import(invalid_node_lon)
+    assert is_valid is False
+    assert 'longitude' in reason
     
     print("\n✅ All tests passed!")
