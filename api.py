@@ -7055,6 +7055,129 @@ def tak_disconnect(authorization: Optional[str] = Header(None)):
     return {"status": "stopped"}
 
 
+# Source labels used by the TAK/CoT ingest paths
+_TAK_INGEST_SOURCES = {"tak_server", "cot_ingest"}
+
+
+@app.get("/api/tak/marker-diff", summary="Compare LPU5 markers with received ATAK/WinTAK markers")
+def get_tak_marker_diff(db: Session = Depends(get_db)):
+    """
+    Return a diff between markers created in LPU5 and markers received from
+    ATAK/WinTAK clients (identified by created_by == 'tak_server' or
+    'cot_ingest').
+
+    Response fields:
+    - lpu5_only: markers that exist in LPU5 but have never been received
+      back from any ATAK/WinTAK client (potentially missing on the TAK side).
+    - tak_only: markers received from ATAK/WinTAK that have no matching
+      LPU5-originated counterpart (TAK-sourced data).
+    - synced: LPU5 markers whose UID was also echoed back from an ATAK/WinTAK
+      client (confirmed present on both sides).
+    - total_lpu5: total LPU5-originated marker count (excludes meshtastic).
+    - total_tak: total markers received from ATAK/WinTAK.
+    """
+    all_markers = db.query(MapMarker).all()
+
+    tak_markers = [m for m in all_markers if m.created_by in _TAK_INGEST_SOURCES]
+    lpu5_markers = [
+        m for m in all_markers
+        if m.created_by not in _TAK_INGEST_SOURCES
+        and m.created_by not in _MESHTASTIC_CREATED_BY
+    ]
+
+    tak_uids = {m.id for m in tak_markers}
+    lpu5_uids = {m.id for m in lpu5_markers}
+
+    lpu5_only = [m for m in lpu5_markers if m.id not in tak_uids]
+    tak_only = [m for m in tak_markers if m.id not in lpu5_uids]
+    synced = [m for m in lpu5_markers if m.id in tak_uids]
+
+    def _m(m: MapMarker) -> dict:
+        return {
+            "id": m.id,
+            "name": m.name,
+            "lat": m.lat,
+            "lng": m.lng,
+            "type": m.type,
+            "created_by": m.created_by,
+        }
+
+    return {
+        "lpu5_only": [_m(m) for m in lpu5_only],
+        "tak_only": [_m(m) for m in tak_only],
+        "synced": [_m(m) for m in synced],
+        "total_lpu5": len(lpu5_markers),
+        "total_tak": len(tak_markers),
+    }
+
+
+@app.post("/api/tak/push-missing", summary="Push LPU5-only markers to connected ATAK/WinTAK clients")
+def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """
+    Push all LPU5 markers that have not been received back from any ATAK/WinTAK
+    client to every currently connected ATAK/WinTAK client (TCP + multicast +
+    configured TAK server).
+
+    Requires a valid Bearer token.
+
+    Response fields:
+    - pushed: number of markers successfully forwarded.
+    - failed: number of markers that could not be converted or sent.
+    - total_missing: total LPU5-only markers considered for pushing.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    if not AUTONOMOUS_MODULES_AVAILABLE:
+        raise HTTPException(status_code=501, detail="CoT protocol module not available")
+
+    tak_uids = {
+        m.id for m in db.query(MapMarker).filter(
+            MapMarker.created_by.in_(list(_TAK_INGEST_SOURCES))
+        ).all()
+    }
+
+    lpu5_only = db.query(MapMarker).filter(
+        ~MapMarker.created_by.in_(list(_TAK_INGEST_SOURCES)),
+        ~MapMarker.created_by.in_(list(_MESHTASTIC_CREATED_BY)),
+    ).all()
+    lpu5_only = [m for m in lpu5_only if m.id not in tak_uids]
+
+    pushed = 0
+    failed = 0
+    for m in lpu5_only:
+        try:
+            mdict = {
+                "id": m.id, "name": m.name, "lat": m.lat, "lng": m.lng,
+                "type": m.type, "created_by": m.created_by,
+            }
+            # Merge extra fields stored in m.data (e.g. cot_type, callsign) without
+            # overwriting the core keys already set above.
+            if isinstance(m.data, dict):
+                for k, v in m.data.items():
+                    if k not in mdict:
+                        mdict[k] = v
+            cot_evt = CoTProtocolHandler.marker_to_cot(mdict)
+            if cot_evt:
+                cot_xml = cot_evt.to_xml()
+                _forward_cot_to_tcp_clients(cot_xml)
+                _forward_cot_multicast(cot_xml)
+                forward_cot_to_tak(cot_xml)
+                pushed += 1
+            else:
+                failed += 1
+        except Exception as _push_err:
+            logger.debug("push-missing: marker %s failed: %s", m.id, _push_err)
+            failed += 1
+
+    logger.info("TAK push-missing: pushed=%d failed=%d total_missing=%d user=%s",
+                pushed, failed, len(lpu5_only), payload.get("username"))
+    return {"pushed": pushed, "failed": failed, "total_missing": len(lpu5_only)}
+
+
 @app.post("/api/geofence/create", summary="Create geofence")
 def create_geofence(data: Dict = Body(...)):
     """Create a new geofence zone"""
