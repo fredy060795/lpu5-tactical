@@ -515,12 +515,12 @@
 
                 <div class="form-group">
                     <label class="form-label">TAK Server Username</label>
-                    <input type="text" class="form-input" id="takUsername" placeholder="Username" autocomplete="username" disabled>
+                    <input type="text" class="form-input" id="takUsername" placeholder="Username" autocomplete="off" disabled>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">TAK Server Password</label>
-                    <input type="password" class="form-input" id="takPassword" placeholder="Password" autocomplete="current-password" disabled>
+                    <input type="password" class="form-input" id="takPassword" placeholder="Password" autocomplete="off" disabled>
                 </div>
 
                 <div class="form-group">
@@ -874,8 +874,7 @@ async function saveNetworkSettings() {
     // expired the whole save would partially succeed, which is confusing to the user.
     const tokenPreflight = _getAuthToken();
     if (!tokenPreflight) {
-        showStatus('Not logged in. Please log in to save settings.', 'error');
-        setTimeout(function() { window.location.href = '/'; }, 2500);
+        showStatus('Not logged in. Please <a href="/" style="color:inherit;text-decoration:underline;">log in</a> to save settings.', 'error');
         return;
     }
 
@@ -959,8 +958,7 @@ async function saveNetworkSettings() {
             });
             if (!takResp.ok) {
                 if (takResp.status === 401) {
-                    showStatus('Session expired. Please log in again to save TAK settings.', 'error');
-                    setTimeout(function() { window.location.href = '/'; }, 2500);
+                    showStatus('Session expired — TAK settings could not be saved. Please <a href="/" style="color:inherit;text-decoration:underline;">log in again</a> and retry.', 'error');
                     return;
                 }
                 const err = await takResp.json().catch(() => ({}));
@@ -968,8 +966,7 @@ async function saveNetworkSettings() {
                 return;
             }
         } else {
-            showStatus('Network settings saved. TAK-specific settings (host/port/credentials) could not be saved - no valid authentication token found. Please log in and save again.', 'error');
-            setTimeout(function() { window.location.href = '/'; }, 2500);
+            showStatus('Network settings saved. TAK-specific settings (host/port/credentials) could not be saved — no valid authentication token found. Please <a href="/" style="color:inherit;text-decoration:underline;">log in again</a> and save.', 'error');
             return;
         }
 
