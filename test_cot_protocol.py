@@ -600,8 +600,7 @@ class TestGatewayContactDisplay(unittest.TestCase):
 class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
     """marker_to_cot must always use a-f-G-E-S-U-M for Meshtastic node types,
     even when a stale or wrong cot_type is stored in the marker's data field
-    (e.g. after ATAK normalises an echo back to a-u-G-U-C / yellow flower, or
-    to a-f-G-U-C / blue rectangle)."""
+    (e.g. after ATAK normalises an echo back to a different type)."""
 
     def test_node_marker_ignores_wrong_cot_type_in_data(self):
         """marker with type='node' and a wrong data.cot_type must still produce
@@ -613,7 +612,7 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
             "name": "MeshNode Alpha",
             "type": "node",
             # Simulate what the CoT listener stores after ATAK echoes back with
-            # the wrong/normalised type (e.g. unknown = yellow flower).
+            # a normalised/wrong type.
             "cot_type": "a-u-G-U-C",
         }
         evt = CoTProtocolHandler.marker_to_cot(marker)
@@ -625,15 +624,15 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         )
 
     def test_meshtastic_node_marker_ignores_wrong_cot_type_in_data(self):
-        """marker with type='meshtastic_node' and data.cot_type='a-u-G-U-C' must
-        produce a-f-G-E-S-U-M — the 'blume' stored cot_type must be ignored."""
+        """marker with type='meshtastic_node' and a wrong data.cot_type must
+        produce a-f-G-E-S-U-M — the stored cot_type must be ignored."""
         marker = {
             "id": "uuid-mesh-2",
             "lat": 48.0,
             "lng": 11.0,
             "name": "MeshNode Beta",
             "type": "meshtastic_node",
-            "cot_type": "a-u-G-U-C",  # blume / unknown fallback
+            "cot_type": "a-u-G-U-C",  # wrong type stored from a previous echo
         }
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
@@ -652,7 +651,7 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
             "lng": 0.0,
             "name": "LPU5-Node",
             "type": "gateway",
-            "cot_type": "a-u-G-U-C",
+            "cot_type": "a-u-G-U-C",  # wrong type stored from a previous echo
         }
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
