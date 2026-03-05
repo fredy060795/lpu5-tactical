@@ -559,12 +559,22 @@ class CoTProtocolHandler:
                 if not team_name:
                     team_name = CoTProtocolHandler.hex_color_to_team(hex_color)
 
+            # For GPS position markers the user's TAK callsign (stored in
+            # marker["callsign"]) takes priority over the generic name/label so
+            # that WinTAK displays the tactical identifier of the person rather
+            # than their login username.  For all other marker types the
+            # display name (marker["name"]) retains priority as before.
+            if lpu5_type == "gps_position":
+                callsign_val = marker.get("callsign") or marker.get("name")
+            else:
+                callsign_val = marker.get("name") or marker.get("callsign")
+
             return CoTEvent(
                 uid=uid,
                 cot_type=cot_type,
                 lat=lat,
                 lon=lon,
-                callsign=marker.get("name") or marker.get("callsign"),
+                callsign=callsign_val,
                 remarks=marker.get("description") or marker.get("remarks"),
                 team_name=team_name,
                 team_role=marker.get("role"),
