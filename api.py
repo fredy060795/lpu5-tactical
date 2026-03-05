@@ -1896,10 +1896,10 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
         lat:        Latitude (decimal degrees, 0.0 if unavailable).
         lng:        Longitude (decimal degrees, 0.0 if unavailable).
         is_gateway: When True the node is a Meshtastic gateway/router.  It will
-                    be forwarded as CoT type ``a-f-G-U-C`` (Unit > Combat, friendly)
-                    with a ``<contact endpoint>`` attribute so ATAK/WinTAK displays it
-                    as a reachable Contact rather than a plain Meshtastic equipment
-                    node.
+                    be forwarded as CoT type ``a-f-G-E-S-U-M`` (Equipment/Sensor/
+                    Machine, friendly) with an optional ``<contact endpoint>``
+                    attribute so ATAK/WinTAK can send CoT data directly to the
+                    gateway.
     """
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return False
@@ -1939,8 +1939,9 @@ def sync_meshtastic_nodes_to_map_markers_once():
 
     Nodes whose Meshtastic ``role`` is ``ROUTER`` or ``ROUTER_CLIENT`` are treated
     as gateways: they are stored with type ``"gateway"`` and forwarded to ATAK as
-    a Contact (``a-f-G-U-C``) with a ``<contact endpoint>`` attribute so ATAK
-    operators can send CoT data directly to the gateway.
+    CoT type ``a-f-G-E-S-U-M`` (Equipment/Sensor/Machine) with an optional
+    ``<contact endpoint>`` attribute so ATAK operators can send CoT data directly
+    to the gateway.
     """
     db = SessionLocal()
     try:
