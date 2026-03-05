@@ -483,16 +483,31 @@ class CoTProtocolHandler:
             lat = float(marker.get("lat", 0.0))
             lon = float(marker.get("lng", 0.0))
 
-            # If the marker already carries a TAK-originated cot_type, reuse it
-            # so that the exact symbol (including sub-type detail) is preserved
-            # when re-broadcasting to other TAK clients.
-            cot_type = marker.get("cot_type") or marker.get("cotType")
-            if not cot_type:
-                # Derive a TAK CoT type from the LPU5 symbol type field,
-                # falling back to the status field for backwards compatibility
-                # (matches the JS COTProtocolHandler.markerToCOT() logic).
-                lpu5_type = (marker.get("type") or marker.get("status") or "unknown").lower()
+            # Determine the LPU5 internal type first so we can decide whether
+            # to trust any stored cot_type value.
+            lpu5_type = (marker.get("type") or marker.get("status") or "unknown").lower()
+
+            # Meshtastic node/gateway markers must always use the authoritative
+            # Meshtastic equipment CoT type (a-f-G-E-S-U-M) derived from the
+            # marker's type field.  Any cot_type stored in marker.data from a
+            # previous ATAK echo is ignored for these markers because ATAK
+            # sometimes normalises a-f-G-E-S-U-M to the simpler a-f-G-U-C
+            # (friendly ground unit) when echoing SA packets back, which would
+            # cause the node to reappear as a blue rectangle ("rechteck") on
+            # the next broadcast cycle.
+            _MESHTASTIC_LPU5_TYPES = ("node", "meshtastic_node", "gateway")
+            if lpu5_type in _MESHTASTIC_LPU5_TYPES:
                 cot_type = CoTProtocolHandler.lpu5_type_to_cot(lpu5_type)
+            else:
+                # For non-Meshtastic markers, reuse a TAK-originated cot_type
+                # so that the exact symbol (including sub-type detail) is
+                # preserved when re-broadcasting to other TAK clients.
+                cot_type = marker.get("cot_type") or marker.get("cotType")
+                if not cot_type:
+                    # Derive a TAK CoT type from the LPU5 symbol type field,
+                    # falling back to the status field for backwards
+                    # compatibility (matches the JS markerToCOT() logic).
+                    cot_type = CoTProtocolHandler.lpu5_type_to_cot(lpu5_type)
 
             # Preserve the original `how` attribute when re-broadcasting a
             # TAK-originated marker so that ATAK clients receive the correct
