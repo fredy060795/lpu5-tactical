@@ -1899,8 +1899,8 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
                     be forwarded as CoT type ``a-f-G-U-C`` (friendly ground unit)
                     with an optional ``<contact endpoint>`` attribute so
                     ATAK/WinTAK can send CoT data directly to the gateway.
-                    Regular nodes are forwarded as ``a-f-G-U-P`` (person) so
-                    that ATAK displays them with the person icon.
+                    Regular nodes are forwarded as ``a-f-G-U-C`` (friendly ground unit)
+                    so that WinTAK/ATAK recognises them as active PLI team members.
     """
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return False
@@ -1942,8 +1942,8 @@ def sync_meshtastic_nodes_to_map_markers_once():
     as gateways: they are stored with type ``"gateway"`` and forwarded to ATAK as
     CoT type ``a-f-G-U-C`` (friendly ground unit) with an optional
     ``<contact endpoint>`` attribute so ATAK operators can send CoT data directly
-    to the gateway.  All other nodes are forwarded as ``a-f-G-U-P`` (person) so
-    that ATAK displays them with the person icon.
+    to the gateway.  All other nodes are forwarded as ``a-f-G-U-C`` (friendly
+    ground unit) so that WinTAK/ATAK recognises them as active PLI team members.
     """
     db = SessionLocal()
     try:
