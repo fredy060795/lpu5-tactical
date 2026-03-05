@@ -301,6 +301,45 @@ test('markerToCOT with node type ignores wrong stored cot_type', () => {
   assert(cot.type !== null, 'COT type should be set');
 });
 
+test('COTEvent hasMeshtasticDetail defaults to false', () => {
+  const cot = new COTEvent({ uid: 'TEST', type: 'a-f-G-U-C', lat: 0, lon: 0 });
+  assert(cot.hasMeshtasticDetail === false, 'hasMeshtasticDetail should default to false');
+});
+
+test('COTEvent hasMeshtasticDetail can be set via constructor', () => {
+  const cot = new COTEvent({ uid: 'TEST', type: 'a-f-G-U-C', lat: 0, lon: 0, hasMeshtasticDetail: true });
+  assert(cot.hasMeshtasticDetail === true, 'hasMeshtasticDetail should be settable via options');
+});
+
+test('cotToMarker with hasMeshtasticDetail=true overrides type to meshtastic_node', () => {
+  // Simulates receiving a CoT with a-f-G-U-C type but <meshtastic> in detail
+  // (e.g. when ATAK normalises the CoT type but preserves the <meshtastic> element)
+  const cot = new COTEvent({
+    uid: 'ATAK-NODE-1',
+    type: 'a-f-G-U-C',  // normalised by ATAK from a-f-G-E-S-U-M
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'FieldNode',
+    hasMeshtasticDetail: true,  // preserved <meshtastic> element
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'meshtastic_node',
+    `hasMeshtasticDetail should force type=meshtastic_node, got ${marker.type}`);
+});
+
+test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives meshtastic_node', () => {
+  const cot = new COTEvent({
+    uid: 'MESH-3',
+    type: 'a-f-G-E-S-U-M',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'Node3',
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'meshtastic_node',
+    `a-f-G-E-S-U-M should map to meshtastic_node, got ${marker.type}`);
+});
+
 // Summary
 console.log('\n=== Test Summary ===');
 console.log(`Total Tests: ${testsPassed + testsFailed}`);

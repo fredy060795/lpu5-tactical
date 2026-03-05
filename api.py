@@ -1461,14 +1461,24 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # correct LPU5 icon instead of the generic blue rectangle ("rechteck").
         how = root.get("how", "m-g")
         # Presence of <meshtastic> in <detail> is the canonical indicator that
-        # the event was forwarded by an ATAK Meshtastic plugin.
-        _has_mesh_detail = CoTProtocolHandler.detail_has_meshtastic(detail)
+        # the event was forwarded by an ATAK Meshtastic plugin.  Guard with the
+        # module-availability flag so the fallback path doesn't raise NameError.
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            _has_mesh_detail = CoTProtocolHandler.detail_has_meshtastic(detail)
+        else:
+            # Inline fallback when cot_protocol is unavailable: check directly.
+            _has_mesh_detail = (detail is not None and detail.find("meshtastic") is not None)
 
         # Map CoT type to LPU5 internal type
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
-            if event_type.startswith("a-f"):
+            # Meshtastic equipment type must be checked before the generic "a-f"
+            # prefix so that nodes forwarded by ATAK with type a-f-G-E-S-U-M are
+            # correctly identified as meshtastic_node rather than rechteck.
+            if event_type == "a-f-G-E-S-U-M":
+                lpu5_type = "meshtastic_node"
+            elif event_type.startswith("a-f"):
                 lpu5_type = "rechteck"
             elif event_type.startswith("a-h"):
                 lpu5_type = "raute"

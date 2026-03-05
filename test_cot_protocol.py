@@ -1235,5 +1235,146 @@ class TestMeshtasticNodeGroupElement(unittest.TestCase):
                          "Each mesh node must have a unique CoT UID")
 
 
+class TestMeshtasticDetailInOutgoingCoT(unittest.TestCase):
+    """Tests that verify outgoing CoT for Meshtastic nodes includes a <meshtastic>
+    element in <detail>.
+
+    Adding <meshtastic longName="..." shortName="..."/> to outgoing CoT solves the
+    round-trip problem: when ATAK/WinTAK loads LPU5-generated Meshtastic nodes and
+    re-broadcasts them, the TAK client preserves the <meshtastic> element.  LPU5
+    can then identify the forwarded event as a Meshtastic node via
+    detail_has_meshtastic() even if the TAK client normalises the CoT type code
+    (e.g. strips "-E-S-U-M" → "a-f-G-U-C").
+    """
+
+    def _parse_xml(self, xml_str: str) -> ET.Element:
+        return ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', "")
+        )
+
+    def test_to_xml_includes_meshtastic_element_for_node(self):
+        """to_xml() must include <meshtastic> in <detail> when is_meshtastic_node=True."""
+        marker = {
+            "id": "mesh-!aabb",
+            "lat": 48.0,
+            "lng": 11.0,
+            "name": "FieldNode",
+            "type": "node",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        root = self._parse_xml(evt.to_xml())
+        mesh_elem = root.find("./detail/meshtastic")
+        self.assertIsNotNone(mesh_elem,
+                             "<meshtastic> must be present in <detail> for type='node' markers")
+
+    def test_to_xml_includes_meshtastic_element_for_meshtastic_node(self):
+        """to_xml() must include <meshtastic> for type='meshtastic_node'."""
+        marker = {
+            "id": "mesh-!ccdd",
+            "lat": 47.5,
+            "lng": 9.2,
+            "name": "MeshUnit",
+            "type": "meshtastic_node",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        root = self._parse_xml(evt.to_xml())
+        self.assertIsNotNone(root.find("./detail/meshtastic"),
+                             "<meshtastic> must be present for type='meshtastic_node'")
+
+    def test_to_xml_includes_meshtastic_element_for_gateway(self):
+        """to_xml() must include <meshtastic> for type='gateway'."""
+        marker = {
+            "id": "mesh-!0011",
+            "lat": 48.1,
+            "lng": 11.5,
+            "name": "GW-Node",
+            "type": "gateway",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        root = self._parse_xml(evt.to_xml())
+        self.assertIsNotNone(root.find("./detail/meshtastic"),
+                             "<meshtastic> must be present for type='gateway'")
+
+    def test_meshtastic_element_long_name_equals_callsign(self):
+        """<meshtastic longName> must equal the node's callsign."""
+        name = "TowerAlpha"
+        marker = {"id": "mesh-!ff00", "lat": 0.0, "lng": 0.0, "name": name, "type": "node"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        root = self._parse_xml(evt.to_xml())
+        mesh_elem = root.find("./detail/meshtastic")
+        self.assertIsNotNone(mesh_elem)
+        self.assertEqual(mesh_elem.get("longName"), name)
+
+    def test_meshtastic_element_short_name_is_first_two_chars(self):
+        """<meshtastic shortName> must be the first two characters of the callsign."""
+        name = "Bravo"
+        marker = {"id": "mesh-!aa11", "lat": 0.0, "lng": 0.0, "name": name, "type": "node"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        root = self._parse_xml(evt.to_xml())
+        mesh_elem = root.find("./detail/meshtastic")
+        self.assertIsNotNone(mesh_elem)
+        self.assertEqual(mesh_elem.get("shortName"), "Br")
+
+    def test_non_meshtastic_to_xml_has_no_meshtastic_element(self):
+        """to_xml() must NOT include <meshtastic> for non-Meshtastic events."""
+        evt = CoTEvent(uid="unit-1", cot_type="a-f-G-U-C", lat=0.0, lon=0.0,
+                       callsign="Alpha", is_meshtastic_node=False)
+        root = self._parse_xml(evt.to_xml())
+        self.assertIsNone(root.find("./detail/meshtastic"),
+                          "<meshtastic> must NOT appear in non-Meshtastic CoT")
+
+    def test_round_trip_cot_from_lpu5_echoed_by_atak_with_normalised_type(self):
+        """Full round-trip: LPU5 generates CoT → ATAK normalises type to a-f-G-U-C
+        and echoes back → LPU5 must still identify the marker as meshtastic_node
+        via the preserved <meshtastic> element.
+        """
+        # 1. LPU5 generates CoT for a Meshtastic node (with <meshtastic> in detail)
+        marker = {"id": "mesh-!deadbeef", "lat": 48.0, "lng": 11.0,
+                  "name": "Relay-1", "type": "node"}
+        lpu5_evt = CoTProtocolHandler.marker_to_cot(marker)
+        lpu5_xml = lpu5_evt.to_xml()
+
+        # Verify the outgoing XML contains <meshtastic>
+        root = self._parse_xml(lpu5_xml)
+        self.assertIsNotNone(root.find("./detail/meshtastic"),
+                             "LPU5 outgoing CoT must include <meshtastic>")
+
+        # 2. Simulate ATAK normalising the CoT type to a-f-G-U-C but preserving
+        #    the <detail> block (including <meshtastic>).
+        atak_echo_xml = lpu5_xml.replace('type="a-f-G-E-S-U-M"', 'type="a-f-G-U-C"')
+
+        # 3. LPU5 parses the echoed CoT
+        echo_evt = CoTEvent.from_xml(atak_echo_xml)
+        self.assertIsNotNone(echo_evt)
+        self.assertTrue(echo_evt.has_meshtastic_detail,
+                        "Parsed echo must have has_meshtastic_detail=True")
+
+        # 4. Convert to marker → must be meshtastic_node, not rechteck
+        echo_marker = CoTProtocolHandler.cot_to_marker(echo_evt)
+        self.assertEqual(echo_marker["type"], "meshtastic_node",
+                         "ATAK-echoed node must map to meshtastic_node via <meshtastic> detail")
+
+    def test_round_trip_preserves_meshtastic_type_when_cot_type_preserved(self):
+        """If ATAK preserves a-f-G-E-S-U-M type AND <meshtastic> detail, the result
+        must still be meshtastic_node (both mechanisms agree).
+        """
+        marker = {"id": "mesh-!11223344", "lat": 47.8, "lng": 10.1,
+                  "name": "Scout-2", "type": "node"}
+        lpu5_evt = CoTProtocolHandler.marker_to_cot(marker)
+        lpu5_xml = lpu5_evt.to_xml()
+
+        # ATAK keeps the type unchanged
+        echo_evt = CoTEvent.from_xml(lpu5_xml)
+        self.assertIsNotNone(echo_evt)
+        self.assertEqual(echo_evt.cot_type, "a-f-G-E-S-U-M")
+        self.assertTrue(echo_evt.has_meshtastic_detail)
+
+        echo_marker = CoTProtocolHandler.cot_to_marker(echo_evt)
+        self.assertEqual(echo_marker["type"], "meshtastic_node")
+
+
 if __name__ == "__main__":
     unittest.main()
