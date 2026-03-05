@@ -243,9 +243,11 @@ class COTEvent {
             unknown:        'a-u-G-U-C',
             pending:        'a-p-G-U-C',
             // Meshtastic node types — must match cot_protocol.py
-            node:            'a-f-G-E-S-U-M',
-            meshtastic_node: 'a-f-G-E-S-U-M',
-            gateway:         'a-f-G-E-S-U-M',
+            // Use a-f-G-U-C (Unit > Combat, friendly) so ATAK displays nodes
+            // as standard "Unit > Combat" contacts, not as unknown/yellow flower.
+            node:            'a-f-G-U-C',
+            meshtastic_node: 'a-f-G-U-C',
+            gateway:         'a-f-G-U-C',
             tak_unit:        'a-f-G-U-C',
         };
     }
@@ -325,15 +327,28 @@ class COTProtocolHandler {
             const lat = parseFloat(marker.lat || 0);
             const lon = parseFloat(marker.lng || marker.lon || 0);
 
-            // If the marker already carries a TAK-originated cotType/cot_type,
-            // reuse it exactly so that the symbol identity is preserved when
-            // re-broadcasting to other TAK clients.
-            let type = marker.cotType || marker.cot_type;
-            if (!type) {
-                // Derive the TAK CoT type from the LPU5 symbol type field.
-                // Normalise to lowercase for consistent lookup.
-                const lpu5Type = (marker.type || marker.status || 'unknown').toLowerCase();
+            // Normalise to lowercase for consistent lookup.
+            const lpu5Type = (marker.type || marker.status || 'unknown').toLowerCase();
+
+            // Meshtastic node/gateway markers must always derive their CoT type
+            // from the LPU5 type field — never from a stored cotType/cot_type.
+            // ATAK sometimes echoes these back with a normalised type (e.g.
+            // a-u-G-U-C = unknown/yellow flower) which, if stored and reused,
+            // would cause the node to appear with the wrong icon on the next
+            // broadcast cycle.  This mirrors the protection in marker_to_cot()
+            // on the Python server side.
+            const _MESHTASTIC_LPU5_TYPES = new Set(['node', 'meshtastic_node', 'gateway']);
+            let type;
+            if (_MESHTASTIC_LPU5_TYPES.has(lpu5Type)) {
                 type = COTEvent.lpu5TypeToCot(lpu5Type);
+            } else {
+                // If the marker already carries a TAK-originated cotType/cot_type,
+                // reuse it exactly so that the symbol identity is preserved when
+                // re-broadcasting to other TAK clients.
+                type = marker.cotType || marker.cot_type;
+                if (!type) {
+                    type = COTEvent.lpu5TypeToCot(lpu5Type);
+                }
             }
 
             // Preserve the original `how` attribute so that re-broadcast of
