@@ -1615,11 +1615,18 @@
       }
     }
 
+    // Tracks marker _cids that are currently being sent to the server.
+    // Prevents duplicate ATAK forwards caused by the WebSocket `symbol_created`
+    // event arriving before the in-flight HTTP fetch response returns.
+    const _sendingCids = new Set();
+
     // send pending
     async function sendPendingMarkers() {
       const pending = readPending();
       if (!pending || pending.length === 0) return;
       for (const p of pending.slice()) {
+        if (_sendingCids.has(p._cid)) continue; // Already in-flight; skip to avoid duplicate send
+        _sendingCids.add(p._cid);
         try {
           // Use map/symbols endpoint for proper symbol sharing
           const token = localStorage.getItem('token');
@@ -1652,6 +1659,8 @@
         } catch (e) {
           console.warn('Network error sending pending marker, will retry later', e);
           return;
+        } finally {
+          _sendingCids.delete(p._cid);
         }
       }
     }
