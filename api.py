@@ -1985,7 +1985,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 # update
                 marker.lat = float(lat)
                 marker.lng = float(lng)
-                marker.name = f"{n.hardware_model or ''} = {name}"
+                marker.name = name
                 marker.type = marker_type
                 marker_data = marker.data if isinstance(marker.data, dict) else {}
                 marker_data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -2003,7 +2003,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
                     id=stable_mesh_id,
                     lat=float(lat),
                     lng=float(lng),
-                    name=f"{n.hardware_model or ''} = {name}",
+                    name=name,
                     type=marker_type,
                     created_by="import_meshtastic",
                     created_at=datetime.now(timezone.utc),
@@ -5234,7 +5234,7 @@ def api_import_meshtastic(data: dict = Body(...)):
             if marker_matched:
                 marker_matched["lat"] = float(existing_node["lat"])
                 marker_matched["lng"] = float(existing_node["lng"])
-                marker_matched["name"] = f"{existing_node.get('device') or ''} = {existing_node.get('name')}"
+                marker_matched["name"] = existing_node.get("name") or ""
                 marker_matched["timestamp"] = datetime.now().isoformat()
                 marker_matched["created_by"] = marker_matched.get("created_by", "import_meshtastic")
                 marker_matched["unit_id"] = mesh
@@ -5243,7 +5243,7 @@ def api_import_meshtastic(data: dict = Body(...)):
                     "id": str(uuid.uuid4()),
                     "lat": float(existing_node["lat"]),
                     "lng": float(existing_node["lng"]),
-                    "name": f"{existing_node.get('device') or ''} = {existing_node.get('name')}",
+                    "name": existing_node.get("name") or "",
                     "unit_id": mesh,
                     "status": "BASE",
                     "timestamp": datetime.now().isoformat(),

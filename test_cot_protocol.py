@@ -972,5 +972,76 @@ class TestMeshtasticCotParity(unittest.TestCase):
             self.assertEqual(uid_d.get("Droid"), name)
 
 
+class TestMeshtasticNodeNameNotPrefixed(unittest.TestCase):
+    """Meshtastic node callsigns must use the plain node name (longName / shortName)
+    without any hardware-model or device-port prefix.
+
+    Regression tests for the bug where markers were created with names like
+    ``"Maker = Alice"`` causing ATAK/WinTAK to display units as "Maker UNK"
+    instead of their real callsign.
+    """
+
+    def _make_node_marker(self, name: str, marker_type: str = "meshtastic_node") -> dict:
+        """Build a minimal Meshtastic node marker as created by the sync worker."""
+        return {
+            "id": "mesh-abc123",
+            "lat": 48.1,
+            "lng": 11.6,
+            "type": marker_type,
+            "name": name,
+            "callsign": name,
+        }
+
+    def test_plain_name_preserved_as_callsign(self):
+        """marker_to_cot must forward the plain node name as the CoT callsign."""
+        marker = self._make_node_marker("Alice")
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.callsign, "Alice",
+                         "Callsign must be the plain node name, not a hardware-model prefixed string")
+
+    def test_name_without_hardware_model_prefix(self):
+        """Callsign must NOT contain 'Maker =' or any hardware-model prefix."""
+        marker = self._make_node_marker("Alice")
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertNotIn("=", evt.callsign,
+                         "Callsign must not contain '=' from a hardware-model prefix")
+        self.assertNotIn("Maker", evt.callsign,
+                         "Callsign must not contain hardware model name")
+
+    def test_uid_droid_uses_plain_name(self):
+        """<uid Droid> in the CoT XML must equal the plain node name."""
+        marker = self._make_node_marker("Bob")
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        uid_elem = root.find("./detail/uid")
+        self.assertIsNotNone(uid_elem)
+        self.assertEqual(uid_elem.get("Droid"), "Bob")
+
+    def test_contact_callsign_uses_plain_name(self):
+        """<contact callsign> in the CoT XML must equal the plain node name."""
+        marker = self._make_node_marker("Charlie")
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        contact = root.find("./detail/contact")
+        self.assertIsNotNone(contact)
+        self.assertEqual(contact.get("callsign"), "Charlie")
+
+    def test_gateway_plain_name_preserved(self):
+        """Gateway nodes must also use their plain name (no hardware-model prefix)."""
+        marker = self._make_node_marker("GW-Node-1", marker_type="gateway")
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.callsign, "GW-Node-1")
+        self.assertNotIn("=", evt.callsign)
+
+
 if __name__ == "__main__":
     unittest.main()
