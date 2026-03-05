@@ -1890,41 +1890,42 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
     receives them and can distribute the node identity globally.
     Silently skips only when TAK forwarding is disabled.
 
+    Every Meshtastic node — regardless of its role — is forwarded as CoT type
+    ``a-f-G-E-S-U-M`` (Meshtastic equipment) with a ``<contact endpoint>``
+    attribute pointing to the LPU5 CoT listener.  This causes ATAK/WinTAK to
+    display each node as an individually reachable Meshtastic contact rather
+    than clustering multiple person-PLI markers together.
+
     Args:
         node_id:    Meshtastic node identifier.
         name:       Human-readable node name / callsign.
         lat:        Latitude (decimal degrees, 0.0 if unavailable).
         lng:        Longitude (decimal degrees, 0.0 if unavailable).
-        is_gateway: When True the node is a Meshtastic gateway/router.  It will
-                    be forwarded as CoT type ``a-f-G-U-C`` (friendly ground unit
-                    combat/router) with an optional ``<contact endpoint>``
-                    attribute so ATAK/WinTAK can send CoT data directly to the
-                    gateway.
-                    Regular person nodes are forwarded as ``a-f-G-U-P`` (friendly
-                    ground unit personnel) so that WinTAK/ATAK displays them as
-                    individual PLI contacts rather than generic combat units.
+        is_gateway: Retained for backwards-compatibility; no longer changes
+                    the forwarded CoT type because all nodes now use the same
+                    Meshtastic equipment type (``a-f-G-E-S-U-M``).
     """
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return False
     try:
-        lpu5_type = "gateway" if is_gateway else "meshtastic_node"
+        # All Meshtastic nodes are forwarded as individual gateways so that
+        # ATAK shows each node as its own independently reachable contact.
         marker_dict: Dict[str, Any] = {
             "id": f"mesh-{node_id}",
             "name": name,
             "callsign": name,
             "lat": lat,
             "lng": lng,
-            "type": lpu5_type,
+            "type": "gateway",
             "meshtastic_node": True,
             "node_id": node_id,
             "source": "meshtastic",
         }
-        if is_gateway:
-            # Include the CoT listener endpoint so ATAK can send data directly
-            # to this gateway (makes it appear as a Contact in ATAK).
-            endpoint = _get_cot_listener_endpoint()
-            if endpoint:
-                marker_dict["contact_endpoint"] = endpoint
+        # Include the CoT listener endpoint for every node so ATAK displays
+        # each Meshtastic node as an individually reachable contact.
+        endpoint = _get_cot_listener_endpoint()
+        if endpoint:
+            marker_dict["contact_endpoint"] = endpoint
         cot_event = CoTProtocolHandler.marker_to_cot(marker_dict)
         if cot_event:
             cot_xml = cot_event.to_xml()
@@ -1940,13 +1941,12 @@ def sync_meshtastic_nodes_to_map_markers_once():
     One-shot sync: reads meshtastic_nodes from DB and upserts markers into map_markers table.
     Nodes without valid lat/lng will be assigned 0.0, 0.0 per requirement.
 
-    Nodes whose Meshtastic ``role`` is ``ROUTER`` or ``ROUTER_CLIENT`` are treated
-    as gateways: they are stored with type ``"gateway"`` and forwarded to ATAK as
-    CoT type ``a-f-G-U-C`` (friendly ground unit combat/router) with an optional
-    ``<contact endpoint>`` attribute so ATAK operators can send CoT data directly
-    to the gateway.  All other (person) nodes are forwarded as ``a-f-G-U-P``
-    (friendly ground unit personnel) so that WinTAK/ATAK displays them as
-    individual PLI contacts rather than generic combat units.
+    All Meshtastic nodes are stored and forwarded to ATAK as CoT type
+    ``a-f-G-E-S-U-M`` (Meshtastic equipment) with a ``<contact endpoint>``
+    attribute so ATAK shows every node as an individually reachable Meshtastic
+    contact rather than clustering multiple person-PLI markers together.
+    ROUTER/ROUTER_CLIENT nodes are additionally marked with type ``"gateway"``
+    in the LPU5 database for visual differentiation.
     """
     db = SessionLocal()
     try:
@@ -1960,6 +1960,10 @@ def sync_meshtastic_nodes_to_map_markers_once():
         
         created = 0
         updated = 0
+
+        # Resolve the CoT listener endpoint once so it can be embedded in
+        # every marker's data dict for the periodic broadcast worker.
+        cot_endpoint = _get_cot_listener_endpoint()
 
         # Collect per-node gateway status while iterating so we can reuse it
         # in the TAK forwarding step without duplicating the detection logic.
@@ -1990,6 +1994,10 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 marker_data = marker.data if isinstance(marker.data, dict) else {}
                 marker_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 marker_data["is_gateway"] = node_is_gateway
+                # Persist the endpoint so the periodic broadcast worker includes
+                # it when forwarding via SA Multicast / TCP CoT.
+                if cot_endpoint:
+                    marker_data["contact_endpoint"] = cot_endpoint
                 marker.data = marker_data
                 updated += 1
             else:
@@ -1999,6 +2007,9 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 # stable ID, every broadcast cycle would produce a different CoT
                 # UID which causes ATAK/WinTAK to accumulate duplicate contacts.
                 stable_mesh_id = f"mesh-{mesh}"
+                marker_data: Dict[str, Any] = {"unit_id": mesh, "is_gateway": node_is_gateway}
+                if cot_endpoint:
+                    marker_data["contact_endpoint"] = cot_endpoint
                 new_marker = MapMarker(
                     id=stable_mesh_id,
                     lat=float(lat),
@@ -2007,7 +2018,7 @@ def sync_meshtastic_nodes_to_map_markers_once():
                     type=marker_type,
                     created_by="import_meshtastic",
                     created_at=datetime.now(timezone.utc),
-                    data={"unit_id": mesh, "is_gateway": node_is_gateway}
+                    data=marker_data
                 )
                 db.add(new_marker)
                 created += 1
@@ -2015,9 +2026,9 @@ def sync_meshtastic_nodes_to_map_markers_once():
         db.commit()
         logger.info("sync_meshtastic_nodes_to_map_markers_once completed: created=%d updated=%d", created, updated)
 
-        # Forward nodes to the TAK server so TAK can distribute them globally.
-        # Gateway nodes are forwarded as friendly Contacts with an endpoint
-        # attribute so ATAK shows them as reachable contacts, not just nodes.
+        # Forward all nodes to the TAK server so TAK can distribute them globally.
+        # Every node is forwarded as an individual Meshtastic contact (a-f-G-E-S-U-M)
+        # with the LPU5 endpoint so ATAK shows each as a reachable contact.
         forwarded = sum(
             1 for n in nodes
             if _forward_meshtastic_node_to_tak(
@@ -2025,7 +2036,6 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 n.long_name or n.short_name or str(n.id) or "node",
                 n.lat if n.lat is not None else 0.0,
                 n.lng if n.lng is not None else 0.0,
-                is_gateway=node_gateway_flags.get(str(n.id), False),
             )
         )
         if forwarded:
@@ -6162,8 +6172,9 @@ def _gateway_broadcast_callback(event_type: str, data: Dict):
     When a ``gateway_node_update`` event is received the node's live position
     is forwarded to the configured TAK server as a CoT event using the same
     UID format, type mapping, and XML structure as the direct Meshimporter
-    (``_forward_meshtastic_node_to_tak``).  Regular person nodes use CoT type
-    ``a-f-G-U-P``; gateway/router nodes use ``a-f-G-U-C``.
+    (``_forward_meshtastic_node_to_tak``).  All nodes use CoT type
+    ``a-f-G-E-S-U-M`` (Meshtastic equipment) with a contact endpoint so each
+    node appears as an individual reachable Meshtastic contact in ATAK/WinTAK.
     """
     try:
         # Forward live Meshtastic node updates to the TAK server as CoT events.

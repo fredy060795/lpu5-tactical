@@ -246,11 +246,12 @@ class COTEvent {
             // ATAK/WinTAK renders them as blue "F" contacts, not as unknown yellow flowers.
             gps_position:    'a-f-G-U-C',
             // Meshtastic node types — must match cot_protocol.py
-            // Use a-f-G-U-C (Unit > Combat, friendly) so ATAK displays nodes
-            // as standard "Unit > Combat" contacts, not as unknown/yellow flower.
-            node:            'a-f-G-U-C',
-            meshtastic_node: 'a-f-G-U-C',
-            gateway:         'a-f-G-U-C',
+            // All Meshtastic node/gateway types use a-f-G-E-S-U-M (Meshtastic
+            // equipment) so ATAK displays each node with the Meshtastic icon
+            // as an individually identifiable device, not as a generic unit.
+            node:            'a-f-G-E-S-U-M',
+            meshtastic_node: 'a-f-G-E-S-U-M',
+            gateway:         'a-f-G-E-S-U-M',
             tak_unit:        'a-f-G-U-C',
         };
     }
@@ -267,10 +268,10 @@ class COTEvent {
             ['u-d-f',       'raute'],          // TAK drawing freehand → diamond
             ['u-d-p',       'raute'],          // TAK drawing generic point → diamond
             ['a-f-G-E-S-U-M', 'meshtastic_node'], // Meshtastic equipment node — before generic a-f
-            ['a-f',         'rechteck'],       // friendly → blue rectangle
-            ['a-h',         'raute'],          // hostile → red diamond
-            ['a-n',         'quadrat'],        // neutral → green square
-            ['a-u',         'blume'],          // unknown → yellow flower
+            ['a-f',         'friendly'],       // friendly → blue rectangle
+            ['a-h',         'hostile'],        // hostile → red diamond
+            ['a-n',         'neutral'],        // neutral → green square
+            ['a-u',         'unknown'],        // unknown → yellow flower
             ['a-p',         'raute'],          // pending → red diamond
         ];
     }

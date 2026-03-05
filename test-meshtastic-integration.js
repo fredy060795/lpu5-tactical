@@ -12,32 +12,41 @@ global.navigator = {
 };
 global.DOMParser = class {
   parseFromString(str) {
+    // Check whether the input looks like a valid COT XML document.
+    const hasEvent = typeof str === 'string' && str.includes('<event');
+    const hasPoint = typeof str === 'string' && str.includes('<point');
     // Very basic XML parsing for COT validation
     return {
       querySelector: (selector) => {
         if (selector === 'parsererror') return null;
-        if (selector === 'event') return {
-          getAttribute: (attr) => {
-            if (attr === 'uid') return 'TEST-001';
-            if (attr === 'type') return 'a-f-G-U-C';
-            if (attr === 'how') return 'm-g';
-            return '';
-          },
-          querySelector: (sub) => {
-            if (sub === 'point') return {
-              getAttribute: (a) => {
-                if (a === 'lat') return '47.1234';
-                if (a === 'lon') return '8.5678';
-                if (a === 'hae') return '500';
-                return '0';
+        if (selector === 'event') {
+          if (!hasEvent) return null;
+          return {
+            getAttribute: (attr) => {
+              if (attr === 'uid') return 'TEST-001';
+              if (attr === 'type') return 'a-f-G-U-C';
+              if (attr === 'how') return 'm-g';
+              return '';
+            },
+            querySelector: (sub) => {
+              if (sub === 'point') {
+                if (!hasPoint) return null;
+                return {
+                  getAttribute: (a) => {
+                    if (a === 'lat') return '47.1234';
+                    if (a === 'lon') return '8.5678';
+                    if (a === 'hae') return '500';
+                    return '0';
+                  }
+                };
               }
-            };
-            if (sub === 'detail') return {
-              querySelector: () => null
-            };
-            return null;
-          }
-        };
+              if (sub === 'detail') return {
+                querySelector: () => null
+              };
+              return null;
+            }
+          };
+        }
         return null;
       }
     };
