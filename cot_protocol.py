@@ -337,18 +337,12 @@ class CoTProtocolHandler:
     # so that symbols sync correctly across all TAK server implementations.
     #
     # LPU5 shapes are mapped to ATAK military-affiliation CoT types that share
-    # the same colour convention so that ATAK/WinTAK renders the correct icon
-    # colour for each shape:
-    #   rechteck (blue rectangle)  → Friendly  (a-f)  → blue   in ATAK (F.1.…)
-    #   blume    (yellow flower)   → Unknown   (a-u)  → yellow in ATAK (U.1.…)
-    #   quadrat  (green square)    → Neutral   (a-n)  → green  in ATAK (N.1.…)
-    #   raute    (red diamond)     → Hostile   (a-h)  → red    in ATAK (R.1.…)
-    #
-    # Meshtastic person nodes (type "node"/"meshtastic_node") use a-f-G-U-P
-    # (Friendly Ground Unit Personnel) so that WinTAK/ATAK displays them as
-    # individual persons (PLI contacts) rather than generic combat units.
-    # The LPU5 gateway itself uses a-f-G-U-C (Friendly Ground Unit Combat) so
-    # that ATAK/WinTAK can identify it as a network gateway/router unit/contact.
+    # Meshtastic node types all use the a-f-G-E-S-U-M CoT type (Meshtastic
+    # equipment) so that ATAK displays each node with the dedicated Meshtastic
+    # icon as an individually identifiable device.  Previously person nodes
+    # used a-f-G-U-P (PLI/Personnel) and gateway nodes used a-f-G-U-C
+    # (Combat), which caused ATAK to cluster them with standard unit markers
+    # instead of showing them as distinct Meshtastic contacts.
     LPU5_TO_COT_TYPE: Dict[str, str] = {
         "raute":            "a-h-G-U-C",   # hostile ground unit (red diamond)
         "quadrat":          "a-n-G-U-C",   # neutral ground unit (green square)
@@ -360,9 +354,9 @@ class CoTProtocolHandler:
         "unknown":          "a-u-G-U-C",   # unknown ground unit
         "pending":          "a-p-G-U-C",   # pending ground unit
         "gps_position":     "a-f-G-U-C",   # live GPS position (friendly ground unit)
-        "node":             "a-f-G-U-P",   # Meshtastic person node (PLI / personnel)
-        "meshtastic_node":  "a-f-G-U-P",   # Meshtastic person node forwarded by ATAK plugin (PLI)
-        "gateway":          "a-f-G-U-C",   # Meshtastic gateway/router (network unit)
+        "node":             "a-f-G-E-S-U-M",   # Meshtastic equipment node
+        "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic equipment node (ATAK plugin)
+        "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router (equipment)
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
     }
 
