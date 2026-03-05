@@ -1896,11 +1896,13 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
         lat:        Latitude (decimal degrees, 0.0 if unavailable).
         lng:        Longitude (decimal degrees, 0.0 if unavailable).
         is_gateway: When True the node is a Meshtastic gateway/router.  It will
-                    be forwarded as CoT type ``a-f-G-U-C`` (friendly ground unit)
-                    with an optional ``<contact endpoint>`` attribute so
-                    ATAK/WinTAK can send CoT data directly to the gateway.
-                    Regular nodes are forwarded as ``a-f-G-U-C`` (friendly ground unit)
-                    so that WinTAK/ATAK recognises them as active PLI team members.
+                    be forwarded as CoT type ``a-f-G-U-C`` (friendly ground unit
+                    combat/router) with an optional ``<contact endpoint>``
+                    attribute so ATAK/WinTAK can send CoT data directly to the
+                    gateway.
+                    Regular person nodes are forwarded as ``a-f-G-U-P`` (friendly
+                    ground unit personnel) so that WinTAK/ATAK displays them as
+                    individual PLI contacts rather than generic combat units.
     """
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return False
@@ -1940,10 +1942,11 @@ def sync_meshtastic_nodes_to_map_markers_once():
 
     Nodes whose Meshtastic ``role`` is ``ROUTER`` or ``ROUTER_CLIENT`` are treated
     as gateways: they are stored with type ``"gateway"`` and forwarded to ATAK as
-    CoT type ``a-f-G-U-C`` (friendly ground unit) with an optional
+    CoT type ``a-f-G-U-C`` (friendly ground unit combat/router) with an optional
     ``<contact endpoint>`` attribute so ATAK operators can send CoT data directly
-    to the gateway.  All other nodes are forwarded as ``a-f-G-U-C`` (friendly
-    ground unit) so that WinTAK/ATAK recognises them as active PLI team members.
+    to the gateway.  All other (person) nodes are forwarded as ``a-f-G-U-P``
+    (friendly ground unit personnel) so that WinTAK/ATAK displays them as
+    individual PLI contacts rather than generic combat units.
     """
     db = SessionLocal()
     try:
@@ -6148,8 +6151,35 @@ def api_cleanup_mesh_databases():
 # ===========================
 
 def _gateway_broadcast_callback(event_type: str, data: Dict):
-    """Callback function for gateway service to broadcast WebSocket events"""
+    """Callback function for gateway service to broadcast WebSocket events.
+
+    When a ``gateway_node_update`` event is received the node's live position
+    is forwarded to the configured TAK server as a CoT event using the same
+    UID format, type mapping, and XML structure as the direct Meshimporter
+    (``_forward_meshtastic_node_to_tak``).  Regular person nodes use CoT type
+    ``a-f-G-U-P``; gateway/router nodes use ``a-f-G-U-C``.
+    """
     try:
+        # Forward live Meshtastic node updates to the TAK server as CoT events.
+        # This mirrors the CoT generation done by _forward_meshtastic_node_to_tak
+        # (used by the direct import / sync path) so that both paths produce
+        # identical CoT packets: same UID format, type mapping, and XML structure.
+        if event_type == "gateway_node_update":
+            try:
+                mesh_id = data.get("mesh_id")  # raw mesh ID, e.g. "!12345678"
+                name = data.get("name") or mesh_id or "node"
+                lat = float(data.get("lat") or 0.0)
+                lng = float(data.get("lng") or 0.0)
+                is_gw = bool(data.get("is_gateway", False))
+                if mesh_id:
+                    if _forward_meshtastic_node_to_tak(mesh_id, name, lat, lng, is_gateway=is_gw):
+                        logger.debug(
+                            "Gateway live update forwarded to TAK: %s (%s) @ %.5f,%.5f",
+                            name, mesh_id, lat, lng,
+                        )
+            except Exception as _tak_err:
+                logger.debug("Gateway→TAK forward error for %s: %s", data.get("mesh_id"), _tak_err)
+
         # Bridge incoming Meshtastic messages into the general chat channel
         if event_type == "gateway_message" and data.get("direction") == "incoming":
             db = None

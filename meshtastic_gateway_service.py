@@ -185,6 +185,10 @@ class MeshtasticGatewayService:
             raw_uid = user.get('id') or f"!{node.get('num'):08x}"
             uid = raw_uid.replace('!', 'ID-')
             
+            # Detect whether this node acts as a Meshtastic gateway/router
+            node_role = str(user.get('role', '') or '').upper()
+            is_gateway = node_role in {'ROUTER', 'ROUTER_CLIENT'}
+
             # Extract name
             long_name = user.get('longName')
             short_name = user.get('shortName')
@@ -247,13 +251,16 @@ class MeshtasticGatewayService:
             if has_gps and force_update:
                 logger.info(f"LIVE UPDATE: {callsign} @ {final_lat:.5f}, {final_lon:.5f}")
                 
-                # Broadcast node update
+                # Broadcast node update — include mesh_id and is_gateway so the
+                # api.py callback can generate CoT XML identical to direct import.
                 self._broadcast("gateway_node_update", {
                     "id": uid,
+                    "mesh_id": raw_uid,
                     "name": callsign,
                     "lat": final_lat,
                     "lng": final_lon,
                     "has_gps": has_gps,
+                    "is_gateway": is_gateway,
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             

@@ -344,11 +344,11 @@ class CoTProtocolHandler:
     #   quadrat  (green square)    → Neutral   (a-n)  → green  in ATAK (N.1.…)
     #   raute    (red diamond)     → Hostile   (a-h)  → red    in ATAK (R.1.…)
     #
-    # Meshtastic nodes (type "node"/"meshtastic_node") use a-f-G-U-C (Friendly
-    # Ground Unit Combat) so that WinTAK/ATAK recognises them as active PLI
-    # (Position Location Information) team members rather than static map points.
-    # The LPU5 gateway itself also uses a-f-G-U-C so that ATAK/WinTAK can
-    # identify it as a network unit/contact.
+    # Meshtastic person nodes (type "node"/"meshtastic_node") use a-f-G-U-P
+    # (Friendly Ground Unit Personnel) so that WinTAK/ATAK displays them as
+    # individual persons (PLI contacts) rather than generic combat units.
+    # The LPU5 gateway itself uses a-f-G-U-C (Friendly Ground Unit Combat) so
+    # that ATAK/WinTAK can identify it as a network gateway/router unit/contact.
     LPU5_TO_COT_TYPE: Dict[str, str] = {
         "raute":            "a-h-G-U-C",   # hostile ground unit (red diamond)
         "quadrat":          "a-n-G-U-C",   # neutral ground unit (green square)
@@ -360,8 +360,8 @@ class CoTProtocolHandler:
         "unknown":          "a-u-G-U-C",   # unknown ground unit
         "pending":          "a-p-G-U-C",   # pending ground unit
         "gps_position":     "a-f-G-U-C",   # live GPS position (friendly ground unit)
-        "node":             "a-f-G-U-C",   # Meshtastic node (PLI / active team member)
-        "meshtastic_node":  "a-f-G-U-C",   # Meshtastic node forwarded by ATAK plugin (PLI)
+        "node":             "a-f-G-U-P",   # Meshtastic person node (PLI / personnel)
+        "meshtastic_node":  "a-f-G-U-P",   # Meshtastic person node forwarded by ATAK plugin (PLI)
         "gateway":          "a-f-G-U-C",   # Meshtastic gateway/router (network unit)
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
     }
