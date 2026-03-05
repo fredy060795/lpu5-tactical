@@ -73,7 +73,8 @@
 
         label { font-size:0.85rem; color:#aaa; display:block; margin-bottom:6px; }
         input[type="text"],
-        input[type="password"] {
+        input[type="password"],
+        select {
             width:100%;
             padding:10px 12px;
             background:#000;
@@ -84,6 +85,7 @@
             font-family: "Courier New", monospace;
             font-size:1rem;
         }
+        select { -webkit-appearance:none; -moz-appearance:none; appearance:none; }
 
         .row { display:flex; gap:12px; }
         .row .col { flex:1; }
@@ -176,6 +178,50 @@
                     <label for="unitSelect">Unit</label>
                     <select id="unitSelect" name="unit" required style="width:100%;padding:10px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:6px;">
                         <option value="" disabled selected>Loading units...</option>
+                    </select>
+                </div>
+
+                <!-- ── ATAK / TAK interoperability fields ── -->
+                <div class="row">
+                    <div class="col">
+                        <label for="takTeam">My Team (ATAK Color)</label>
+                        <select id="takTeam" name="tak_team">
+                            <option value="Cyan" selected>● Cyan (Default)</option>
+                            <option value="Blue">🔵 Blue</option>
+                            <option value="Red">🔴 Red</option>
+                            <option value="Yellow">🟡 Yellow</option>
+                            <option value="Green">🟢 Green</option>
+                            <option value="Purple">🟣 Purple</option>
+                            <option value="Maroon">🟤 Maroon</option>
+                            <option value="Teal">● Teal</option>
+                            <option value="Orange">🟠 Orange</option>
+                            <option value="White">⚪ White</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label for="takRole">My TAK Role</label>
+                        <select id="takRole" name="tak_role">
+                            <option value="Team Member" selected>👤 Team Member (Default)</option>
+                            <option value="Team Lead">⭐ Team Lead</option>
+                            <option value="HQ">🏛️ HQ</option>
+                            <option value="Sniper">🎯 Sniper</option>
+                            <option value="Medic">➕ Medic</option>
+                            <option value="Forward Observer">🔭 Forward Observer</option>
+                            <option value="RTO">📻 RTO</option>
+                            <option value="K9">🐕 K9</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="takDisplayType">My Display Type (ATAK Unit Icon)</label>
+                    <select id="takDisplayType" name="tak_display_type">
+                        <option value="General Ground Unit" selected>🪖 General Ground Unit (Default)</option>
+                        <option value="Ground Troop">🚶 Ground Troop (Infantry)</option>
+                        <option value="Armored Vehicle">🚒 Armored Vehicle</option>
+                        <option value="Civilian Vehicle">🚗 Civilian Vehicle</option>
+                        <option value="General Air Unit">✈️ General Air Unit</option>
+                        <option value="General Sea Surface Unit">⛵ General Sea Surface Unit</option>
                     </select>
                 </div>
 
@@ -370,7 +416,10 @@
                         password: password,
                         device: device,
                         unit: selectedUnit,
-                        callsign: callsign
+                        callsign: callsign,
+                        tak_team: document.getElementById('takTeam').value || 'Cyan',
+                        tak_role: document.getElementById('takRole').value || 'Team Member',
+                        tak_display_type: document.getElementById('takDisplayType').value || 'General Ground Unit',
                     };
                     if (proof) {
                         if (proof.type === 'd') payload.d = proof.value;
