@@ -298,24 +298,24 @@ class TestAtakSymbolTypeMappings(unittest.TestCase):
         self.assertIsNotNone(detail.find("archive"), "a-u type should include <archive/>")
 
     def test_meshtastic_node_event_has_no_archive_element(self):
-        # Legacy Meshtastic equipment type (a-f-G-E-S-U-M) still must NOT carry
-        # <archive/> for backward compatibility with existing stored data.
-        evt = CoTEvent(uid="mesh-arch-1", cot_type="a-f-G-E-S-U-M", lat=48.0, lon=11.0)
+        # Meshtastic nodes use a-f-G-U-C with is_meshtastic_node=True and must NOT
+        # carry <archive/> so ATAK treats them as live refreshing contacts.
+        evt = CoTEvent(uid="mesh-arch-1", cot_type="a-f-G-U-C", lat=48.0, lon=11.0,
+                       is_meshtastic_node=True)
         xml_str = evt.to_xml()
         root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
         detail = root.find("detail")
         self.assertIsNone(detail.find("archive"),
-                          "Meshtastic node (a-f-G-E-S-U-M) must NOT include <archive/>")
+                          "Meshtastic node (a-f-G-U-C, is_meshtastic_node=True) must NOT include <archive/>")
 
     def test_meshtastic_node_marker_to_cot_has_no_archive(self):
-        # End-to-end: a marker of type 'node' must produce CoT type a-f-G-E-S-U-M
-        # (Equipment/Sensor/Machine) without <archive/> so ATAK shows it as a
-        # live, visually distinct contact (not a static blue-rectangle marker).
+        # End-to-end: a marker of type 'node' must produce CoT type a-f-G-U-C
+        # (same as the gateway) without <archive/> so ATAK shows it as a live contact.
         marker = {"id": "mesh-456", "lat": 48.0, "lng": 11.0, "type": "node", "name": "Node1"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M",
-                         "Meshtastic node must use a-f-G-E-S-U-M (Equipment/Sensor/Machine)")
+        self.assertEqual(evt.cot_type, "a-f-G-U-C",
+                         "Meshtastic node must use a-f-G-U-C (same type as gateway)")
         self.assertTrue(evt.is_meshtastic_node,
                         "marker_to_cot() must set is_meshtastic_node=True for type='node'")
         xml_str = evt.to_xml()
@@ -379,34 +379,32 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
 
     def test_node_type_in_lpu5_to_cot(self):
         # "node" is the internal LPU5 type for Meshtastic nodes stored in map_markers.
-        # It must map to a-f-G-E-S-U-M (Equipment/Sensor/Machine, friendly) so that
-        # ATAK renders it as sensor equipment — visually distinct from the blue
-        # rectangle (a-f-G-U-C) used for regular user-placed markers.
+        # It must map to a-f-G-U-C (friendly ground unit), identical to the CoT type
+        # broadcast by the LPU5 gateway, so nodes are sent 1:1 as the gateway sends them.
         self.assertIn("node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-U-C")
 
     def test_node_type_lpu5_to_cot_produces_meshtastic_equipment(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-U-C")
 
     def test_meshtastic_node_in_lpu5_to_cot(self):
         self.assertIn("meshtastic_node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-U-C")
 
     def test_tak_unit_in_lpu5_to_cot(self):
         self.assertIn("tak_unit", CoTProtocolHandler.LPU5_TO_COT_TYPE)
         self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["tak_unit"], "a-f-G-U-C")
 
     def test_node_marker_to_cot_produces_meshtastic_equipment_type(self):
-        # "node" type must produce the a-f-G-E-S-U-M (Equipment/Sensor/Machine) CoT
-        # type so ATAK displays the node as sensor equipment, not as a plain blue
-        # rectangle (a-f-G-U-C) indistinguishable from a regular user-placed marker.
+        # "node" type must produce the a-f-G-U-C (friendly ground unit) CoT type,
+        # identical to the LPU5 gateway, so nodes are sent 1:1 as the gateway sends them.
         node_name = "Büroturm"
         marker = {"id": "mesh-123", "lat": 48.0, "lng": 11.0, "type": "node",
                   "name": node_name, "callsign": node_name}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M",
-                         "Meshtastic node (type='node') must export as a-f-G-E-S-U-M (Equipment/Sensor/Machine)")
+        self.assertEqual(evt.cot_type, "a-f-G-U-C",
+                         "Meshtastic node (type='node') must export as a-f-G-U-C (same as gateway)")
         self.assertTrue(evt.is_meshtastic_node,
                         "marker_to_cot() must set is_meshtastic_node=True for type='node'")
 
@@ -502,22 +500,21 @@ class TestGatewayContactDisplay(unittest.TestCase):
     """Tests for Meshtastic gateway node ATAK display.
 
     Verifies that:
-      - "gateway" LPU5 type maps to a-f-G-E-S-U-M (Equipment/Sensor/Machine) so ATAK
-        renders gateway nodes as sensor equipment — distinct from regular markers
+      - "gateway" LPU5 type maps to a-f-G-U-C (friendly ground unit, same as the gateway itself)
       - CoTEvent.to_xml() includes the endpoint attribute in <contact> when set
       - marker_to_cot() passes contact_endpoint through to CoTEvent
       - Without an endpoint, the <contact> element is still emitted correctly
     """
 
     def test_gateway_type_in_lpu5_to_cot(self):
-        """'gateway' LPU5 type must map to a-f-G-E-S-U-M (Equipment/Sensor/Machine)."""
+        """'gateway' LPU5 type must map to a-f-G-U-C (friendly ground unit, same as gateway)."""
         self.assertEqual(
             CoTProtocolHandler.lpu5_type_to_cot("gateway"),
-            "a-f-G-E-S-U-M",
+            "a-f-G-U-C",
         )
 
     def test_gateway_marker_to_cot_produces_meshtastic_equipment(self):
-        """A marker with type='gateway' must produce a CoT event of type a-f-G-E-S-U-M."""
+        """A marker with type='gateway' must produce a CoT event of type a-f-G-U-C."""
         marker = {
             "id": "mesh-gw1",
             "lat": 48.1,
@@ -528,14 +525,14 @@ class TestGatewayContactDisplay(unittest.TestCase):
         }
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M")
+        self.assertEqual(evt.cot_type, "a-f-G-U-C")
         self.assertTrue(evt.is_meshtastic_node)
 
     def test_contact_endpoint_in_xml(self):
         """CoTEvent.to_xml() must include endpoint in <contact> when contact_endpoint is set."""
         evt = CoTEvent(
             uid="LPU5-GW",
-            cot_type="a-f-G-E-S-U-M",
+            cot_type="a-f-G-U-C",
             lat=0.0,
             lon=0.0,
             callsign="LPU5-GW",
@@ -552,7 +549,7 @@ class TestGatewayContactDisplay(unittest.TestCase):
         """Without contact_endpoint the <contact> element must NOT have an endpoint attribute."""
         evt = CoTEvent(
             uid="LPU5-GW",
-            cot_type="a-f-G-E-S-U-M",
+            cot_type="a-f-G-U-C",
             lat=0.0,
             lon=0.0,
             callsign="LPU5-GW",
@@ -590,21 +587,20 @@ class TestGatewayContactDisplay(unittest.TestCase):
         self.assertIsNone(evt.contact_endpoint)
 
     def test_meshtastic_node_type_maps_to_equipment_type(self):
-        """'meshtastic_node' type must map to a-f-G-E-S-U-M (Equipment/Sensor/Machine)."""
+        """'meshtastic_node' type must map to a-f-G-U-C (friendly ground unit, same as gateway)."""
         self.assertEqual(
             CoTProtocolHandler.lpu5_type_to_cot("meshtastic_node"),
-            "a-f-G-E-S-U-M",
+            "a-f-G-U-C",
         )
 
 
 class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
-    """marker_to_cot must always use a-f-G-E-S-U-M for Meshtastic node types,
-    even when a stale or wrong cot_type is stored in the marker's data field
-    (e.g. after ATAK normalises an echo back to a different type)."""
+    """marker_to_cot must always use a-f-G-U-C for Meshtastic node types,
+    even when a stale or wrong cot_type is stored in the marker's data field."""
 
     def test_node_marker_ignores_wrong_cot_type_in_data(self):
         """marker with type='node' and a wrong data.cot_type must still produce
-        a-f-G-E-S-U-M — the stored cot_type must be ignored for Meshtastic types."""
+        a-f-G-U-C — the stored cot_type must be ignored for Meshtastic types."""
         marker = {
             "id": "uuid-mesh-1",
             "lat": 48.0,
@@ -619,13 +615,13 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         self.assertIsNotNone(evt)
         self.assertEqual(
             evt.cot_type,
-            "a-f-G-E-S-U-M",
-            "node marker must use a-f-G-E-S-U-M (Equipment/Sensor/Machine) regardless of stored cot_type",
+            "a-f-G-U-C",
+            "node marker must use a-f-G-U-C (same as gateway) regardless of stored cot_type",
         )
 
     def test_meshtastic_node_marker_ignores_wrong_cot_type_in_data(self):
         """marker with type='meshtastic_node' and a wrong data.cot_type must
-        produce a-f-G-E-S-U-M — the stored cot_type must be ignored."""
+        produce a-f-G-U-C — the stored cot_type must be ignored."""
         marker = {
             "id": "uuid-mesh-2",
             "lat": 48.0,
@@ -638,13 +634,13 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         self.assertIsNotNone(evt)
         self.assertEqual(
             evt.cot_type,
-            "a-f-G-E-S-U-M",
-            "meshtastic_node marker must use a-f-G-E-S-U-M (Equipment/Sensor/Machine) regardless of stored cot_type",
+            "a-f-G-U-C",
+            "meshtastic_node marker must use a-f-G-U-C (same as gateway) regardless of stored cot_type",
         )
 
     def test_gateway_marker_ignores_wrong_cot_type_in_data(self):
         """marker with type='gateway' and a wrong data.cot_type must
-        produce a-f-G-E-S-U-M."""
+        produce a-f-G-U-C."""
         marker = {
             "id": "uuid-gw-1",
             "lat": 0.0,
@@ -657,8 +653,8 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         self.assertIsNotNone(evt)
         self.assertEqual(
             evt.cot_type,
-            "a-f-G-E-S-U-M",
-            "gateway marker must use a-f-G-E-S-U-M (Equipment/Sensor/Machine) regardless of stored cot_type",
+            "a-f-G-U-C",
+            "gateway marker must use a-f-G-U-C (same as gateway) regardless of stored cot_type",
         )
 
     def test_non_meshtastic_marker_still_uses_stored_cot_type(self):
