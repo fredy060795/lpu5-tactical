@@ -15,6 +15,7 @@ global.DOMParser = class {
     // Check whether the input looks like a valid COT XML document.
     const hasEvent = typeof str === 'string' && str.includes('<event');
     const hasPoint = typeof str === 'string' && str.includes('<point');
+    const hasMeshtastic = typeof str === 'string' && str.includes('<meshtastic');
     // Very basic XML parsing for COT validation
     return {
       querySelector: (selector) => {
@@ -41,7 +42,10 @@ global.DOMParser = class {
                 };
               }
               if (sub === 'detail') return {
-                querySelector: () => null
+                querySelector: (dsub) => {
+                  if (dsub === 'meshtastic') return hasMeshtastic ? {} : null;
+                  return null;
+                }
               };
               return null;
             }
@@ -299,6 +303,103 @@ test('markerToCOT with node type ignores wrong stored cot_type', () => {
   assert(cot !== null, 'markerToCOT should return a COT event');
   // With stored cot_type, JS uses it directly (Python handles the fix server-side)
   assert(cot.type !== null, 'COT type should be set');
+});
+
+// Test hasMeshtasticDetail flag on COTEvent
+test('COTEvent hasMeshtasticDetail defaults to false', () => {
+  const evt = new COTEvent({ uid: 'X', type: 'a-f-G-U-C' });
+  assert(evt.hasMeshtasticDetail === false, 'hasMeshtasticDetail should default to false');
+});
+
+test('COTEvent hasMeshtasticDetail set via constructor', () => {
+  const evt = new COTEvent({ uid: 'X', type: 'a-f-G-U-C', hasMeshtasticDetail: true });
+  assert(evt.hasMeshtasticDetail === true, 'hasMeshtasticDetail should be true when set');
+});
+
+// Test cotToMarker() with hasMeshtasticDetail=true → type should be meshtastic_node
+test('cotToMarker with hasMeshtasticDetail=true returns meshtastic_node', () => {
+  const evt = new COTEvent({ type: 'a-f-G-U-C', hasMeshtasticDetail: true });
+  const marker = COTProtocolHandler.cotToMarker(evt);
+  assert(marker.type === 'meshtastic_node',
+    `Expected meshtastic_node, got ${marker.type}`);
+  assert(marker.status === 'meshtastic_node', 'status should match type');
+});
+
+test('cotToMarker with <meshtastic> in detail overrides even m-g how', () => {
+  // m-g how without <meshtastic> → friendly; WITH <meshtastic> → meshtastic_node
+  const evtNoMesh = new COTEvent({ type: 'a-f-G-U-C', how: 'm-g', hasMeshtasticDetail: false });
+  assert(COTProtocolHandler.cotToMarker(evtNoMesh).type === 'friendly',
+    'Without <meshtastic>, a-f type should remain friendly');
+
+  const evtWithMesh = new COTEvent({ type: 'a-f-G-U-C', how: 'm-g', hasMeshtasticDetail: true });
+  assert(COTProtocolHandler.cotToMarker(evtWithMesh).type === 'meshtastic_node',
+    'With <meshtastic>, type must be overridden to meshtastic_node');
+});
+
+// Test cotToMarker() tak_unit detection for human-placed positions
+test('cotToMarker with how=h-e and friendly type returns tak_unit', () => {
+  const evt = new COTEvent({ type: 'a-f-G-U-C', how: 'h-e', hasMeshtasticDetail: false });
+  const marker = COTProtocolHandler.cotToMarker(evt);
+  assert(marker.type === 'tak_unit',
+    `Expected tak_unit for h-e how, got ${marker.type}`);
+});
+
+test('cotToMarker with how=h-g-i-g-o (GPS) and friendly type returns tak_unit', () => {
+  const evt = new COTEvent({ type: 'a-f-G-U-C', how: 'h-g-i-g-o', hasMeshtasticDetail: false });
+  const marker = COTProtocolHandler.cotToMarker(evt);
+  assert(marker.type === 'tak_unit',
+    `Expected tak_unit for GPS how, got ${marker.type}`);
+});
+
+test('cotToMarker hasMeshtasticDetail takes precedence over h-* how', () => {
+  // Even with how="h-e", <meshtastic> in detail must win
+  const evt = new COTEvent({ type: 'a-f-G-U-C', how: 'h-e', hasMeshtasticDetail: true });
+  const marker = COTProtocolHandler.cotToMarker(evt);
+  assert(marker.type === 'meshtastic_node',
+    `Expected meshtastic_node (precedence over tak_unit), got ${marker.type}`);
+});
+
+test('cotToMarker tak_unit detection does not affect hostile type', () => {
+  // how="h-e" with a-h type should NOT produce tak_unit
+  const evt = new COTEvent({ type: 'a-h-G-U-C', how: 'h-e', hasMeshtasticDetail: false });
+  const marker = COTProtocolHandler.cotToMarker(evt);
+  assert(marker.type === 'hostile',
+    `Expected hostile, got ${marker.type}`);
+});
+
+// Test fromXML() <meshtastic> detection via the mock DOMParser
+test('fromXML detects <meshtastic> in detail and sets hasMeshtasticDetail', () => {
+  const xmlWithMesh = (
+    '<event version="2.0" uid="MESH-1" type="a-f-G-U-C" how="m-g" ' +
+    'time="2024-01-01T00:00:00Z" start="2024-01-01T00:00:00Z" ' +
+    'stale="2024-01-01T00:10:00Z">' +
+    '<point lat="48.0" lon="11.0" hae="0" ce="9999999" le="9999999"/>' +
+    '<detail><contact callsign="Node1"/>' +
+    '<meshtastic longName="Node1" shortName="N1"/></detail>' +
+    '</event>'
+  );
+  const evt = COTEvent.fromXML(xmlWithMesh);
+  assert(evt !== null, 'fromXML should parse successfully');
+  assert(evt.hasMeshtasticDetail === true,
+    `Expected hasMeshtasticDetail=true, got ${evt.hasMeshtasticDetail}`);
+  const marker = COTProtocolHandler.cotToMarker(evt);
+  assert(marker.type === 'meshtastic_node',
+    `Expected meshtastic_node from XML with <meshtastic>, got ${marker.type}`);
+});
+
+test('fromXML without <meshtastic> does not set hasMeshtasticDetail', () => {
+  const xmlNoMesh = (
+    '<event version="2.0" uid="UNIT-1" type="a-f-G-U-C" how="m-g" ' +
+    'time="2024-01-01T00:00:00Z" start="2024-01-01T00:00:00Z" ' +
+    'stale="2024-01-01T00:10:00Z">' +
+    '<point lat="48.0" lon="11.0" hae="0" ce="9999999" le="9999999"/>' +
+    '<detail><contact callsign="Alpha"/></detail>' +
+    '</event>'
+  );
+  const evt = COTEvent.fromXML(xmlNoMesh);
+  assert(evt !== null, 'fromXML should parse successfully');
+  assert(evt.hasMeshtasticDetail === false,
+    `Expected hasMeshtasticDetail=false, got ${evt.hasMeshtasticDetail}`);
 });
 
 // Summary

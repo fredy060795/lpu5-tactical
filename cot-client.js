@@ -18,6 +18,12 @@ class COTEvent {
         this.teamName = options.teamName || '';
         this.teamRole = options.teamRole || '';
         this.how = options.how || 'm-g'; // machine-generated
+
+        // True when the raw CoT XML detail contained a <meshtastic> child
+        // element (set by fromXML(); indicates the event was forwarded by an
+        // ATAK Meshtastic plugin such as atak-forwarder).  Mirrors the
+        // has_meshtastic_detail flag on the Python CoTEvent class.
+        this.hasMeshtasticDetail = options.hasMeshtasticDetail || false;
         
         const now = new Date();
         this.time = options.time || now;
@@ -172,6 +178,7 @@ class COTEvent {
             let remarks = '';
             let teamName = '';
             let teamRole = '';
+            let hasMeshtasticDetail = false;
             
             if (detail) {
                 const contact = detail.querySelector('contact');
@@ -188,6 +195,15 @@ class COTEvent {
                 const remarksElem = detail.querySelector('remarks');
                 if (remarksElem) {
                     remarks = remarksElem.textContent || '';
+                }
+
+                // Detect <meshtastic> element added by ATAK Meshtastic plugins
+                // (e.g. atak-forwarder) to identify Meshtastic node positions.
+                // This is the canonical way to distinguish Meshtastic-relayed
+                // positions from regular ATAK SA events, and mirrors the
+                // detail_has_meshtastic() check in cot_protocol.py.
+                if (detail.querySelector('meshtastic')) {
+                    hasMeshtasticDetail = true;
                 }
             }
             
@@ -209,6 +225,7 @@ class COTEvent {
                 teamName,
                 teamRole,
                 how,
+                hasMeshtasticDetail,
                 time: timeStr ? new Date(timeStr) : new Date(),
                 start: startStr ? new Date(startStr) : new Date(),
                 stale: staleStr ? new Date(staleStr) : new Date(Date.now() + 5 * 60 * 1000)
@@ -383,7 +400,23 @@ class COTProtocolHandler {
     static cotToMarker(cotEvent) {
         // Map the TAK CoT type back to the LPU5 internal symbol type so the
         // correct icon is rendered in admin_map / overview.
-        const lpu5Type = COTEvent.cotTypeToLpu5(cotEvent.type);
+        let lpu5Type = COTEvent.cotTypeToLpu5(cotEvent.type);
+
+        // Refine the type for ATAK-specific CoT sources so they render with
+        // the correct icon rather than the generic blue-rectangle ("friendly"):
+        //   • Meshtastic nodes forwarded by an ATAK Meshtastic plugin carry a
+        //     <meshtastic> element in their <detail> block.
+        //   • ATAK SA / GPS position updates from devices with physical GPS
+        //     (or manually placed positions) use a "h-*" how code.
+        // This mirrors the logic in cot_protocol.py CoTProtocolHandler.cot_to_marker().
+        // Note: in JS cotTypeToLpu5() maps a-f-* to 'friendly' (not 'rechteck'),
+        // so the tak_unit check uses 'friendly' to match the a-f affiliation.
+        if (cotEvent.hasMeshtasticDetail) {
+            lpu5Type = 'meshtastic_node';
+        } else if (lpu5Type === 'friendly' &&
+                   cotEvent.how && cotEvent.how.startsWith('h')) {
+            lpu5Type = 'tak_unit';
+        }
 
         return {
             id: cotEvent.uid,

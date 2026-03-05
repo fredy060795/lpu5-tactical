@@ -1468,7 +1468,12 @@ def _process_incoming_cot(cot_xml: str) -> None:
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
-            if event_type.startswith("a-f"):
+            # Longest-prefix-first: check the Meshtastic equipment type before
+            # the generic a-f prefix so that a-f-G-E-S-U-M (Meshtastic node)
+            # is never incorrectly mapped to "rechteck" in this fallback path.
+            if event_type == "a-f-G-E-S-U-M":
+                lpu5_type = "meshtastic_node"
+            elif event_type.startswith("a-f"):
                 lpu5_type = "rechteck"
             elif event_type.startswith("a-h"):
                 lpu5_type = "raute"

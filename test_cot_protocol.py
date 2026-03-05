@@ -496,6 +496,70 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "raute")
 
 
+class TestApiIngestFallbackTypeMappings(unittest.TestCase):
+    """Tests for the api.py fallback CoT type mapping logic used when
+    AUTONOMOUS_MODULES_AVAILABLE=False.
+
+    The fallback path in api.py uses manual prefix matching instead of
+    CoTProtocolHandler.cot_type_to_lpu5().  It must handle the Meshtastic
+    equipment type (a-f-G-E-S-U-M) correctly so that Meshtastic nodes
+    forwarded from WinTAK are never mapped to 'rechteck'.
+    """
+
+    def _fallback_map(self, event_type: str) -> str:
+        """Reimplements the api.py fallback mapping for isolated testing.
+
+        NOTE: This is an intentional duplication of the fallback branch in
+        api.py (_ingest_cot, AUTONOMOUS_MODULES_AVAILABLE=False path).
+        api.py imports many optional heavy dependencies that make direct
+        import unsuitable for unit tests; this helper lets us verify the
+        logic of that branch without those dependencies.  If the api.py
+        fallback branch is updated, this helper must be kept in sync.
+        """
+        if event_type == "a-f-G-E-S-U-M":
+            return "meshtastic_node"
+        if event_type.startswith("a-f"):
+            return "rechteck"
+        if event_type.startswith("a-h"):
+            return "raute"
+        if event_type.startswith("a-n"):
+            return "quadrat"
+        if event_type.startswith("a-u"):
+            return "blume"
+        if event_type == "b-m-p-s-m":
+            return "raute"
+        if event_type == "u-d-r":
+            return "rechteck"
+        return "raute"
+
+    def test_meshtastic_equipment_type_maps_to_meshtastic_node(self):
+        """a-f-G-E-S-U-M must map to meshtastic_node, not rechteck."""
+        result = self._fallback_map("a-f-G-E-S-U-M")
+        self.assertEqual(result, "meshtastic_node",
+                         "Meshtastic equipment CoT type must not fall through to rechteck")
+
+    def test_regular_friendly_type_maps_to_rechteck(self):
+        """a-f-G-U-C (friendly ground unit) still maps to rechteck."""
+        self.assertEqual(self._fallback_map("a-f-G-U-C"), "rechteck")
+
+    def test_hostile_type_maps_to_raute(self):
+        self.assertEqual(self._fallback_map("a-h-G-U-C"), "raute")
+
+    def test_neutral_type_maps_to_quadrat(self):
+        self.assertEqual(self._fallback_map("a-n-G-U-C"), "quadrat")
+
+    def test_unknown_type_maps_to_blume(self):
+        self.assertEqual(self._fallback_map("a-u-G-U-C"), "blume")
+
+    def test_fallback_consistent_with_cot_type_to_lpu5(self):
+        """The fallback path must produce the same result as cot_type_to_lpu5()
+        for the Meshtastic equipment type."""
+        self.assertEqual(
+            self._fallback_map("a-f-G-E-S-U-M"),
+            CoTProtocolHandler.cot_type_to_lpu5("a-f-G-E-S-U-M"),
+        )
+
+
 class TestGatewayContactDisplay(unittest.TestCase):
     """Tests for Meshtastic gateway node ATAK display.
 
