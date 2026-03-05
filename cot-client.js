@@ -242,6 +242,9 @@ class COTEvent {
             neutral:        'a-n-G-U-C',
             unknown:        'a-u-G-U-C',
             pending:        'a-p-G-U-C',
+            // GPS positions from overview.html — must be friendly ground unit so that
+            // ATAK/WinTAK renders them as blue "F" contacts, not as unknown yellow flowers.
+            gps_position:    'a-f-G-U-C',
             // Meshtastic node types — must match cot_protocol.py
             // Use a-f-G-U-C (Unit > Combat, friendly) so ATAK displays nodes
             // as standard "Unit > Combat" contacts, not as unknown/yellow flower.

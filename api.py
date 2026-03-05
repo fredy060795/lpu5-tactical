@@ -1993,8 +1993,14 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 marker.data = marker_data
                 updated += 1
             else:
+                # Use a stable, deterministic ID derived from the Meshtastic node
+                # ID so that the periodic broadcast worker sends CoT events with
+                # the same UID as _forward_meshtastic_node_to_tak().  Without a
+                # stable ID, every broadcast cycle would produce a different CoT
+                # UID which causes ATAK/WinTAK to accumulate duplicate contacts.
+                stable_mesh_id = f"mesh-{mesh}"
                 new_marker = MapMarker(
-                    id=str(uuid.uuid4()),
+                    id=stable_mesh_id,
                     lat=float(lat),
                     lng=float(lng),
                     name=f"{n.hardware_model or ''} = {name}",
@@ -8203,47 +8209,83 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
         timestamp = datetime.now(timezone.utc).isoformat()
         
         with SessionLocal() as db:
-            # Check for conflicts
-            threshold = 0.0001
-            conflicts = db.query(MapMarker).filter(
-                MapMarker.lat >= lat - threshold,
-                MapMarker.lat <= lat + threshold,
-                MapMarker.lng >= lng - threshold,
-                MapMarker.lng <= lng + threshold
-            ).all()
-            
-            # For gps_position type, remove all previous GPS markers from this user
-            # to ensure only the latest position is shown (no duplicates)
+            # For gps_position type, use a stable UID derived from the username
+            # so that every position update reuses the same CoT UID.  ATAK/WinTAK
+            # identifies contacts by UID: a changing UID creates a brand-new contact
+            # every update cycle, producing hundreds of stale ghost markers on the
+            # TAK map.  Using a fixed "GPS-<username>" UID ensures TAK moves the
+            # existing contact instead of creating a new one.
             if symbol_type == "gps_position":
-                old_gps = db.query(MapMarker).filter(
-                    MapMarker.type == "gps_position",
-                    MapMarker.created_by == username
-                ).all()
-                for old in old_gps:
-                    db.delete(old)
-                if old_gps:
-                    db.commit()
-            
-            # Create new marker
-            new_symbol = MapMarker(
-                id=str(uuid.uuid4()),
-                lat=lat,
-                lng=lng,
-                type=symbol_type,
-                name=symbol.get("label") or symbol_type,
-                color=symbol.get("color", "#3498db"),
-                icon=symbol.get("icon", "fa-map-marker"),
-                created_by=username,
-                created_at=datetime.now(timezone.utc),
-                data={
-                    "source_page": source_page,
-                    "timestamp": timestamp,
-                    "label": symbol.get("label", "")
-                }
-            )
-            db.add(new_symbol)
-            db.commit()
-            db.refresh(new_symbol)
+                safe_user = re.sub(r"[^a-zA-Z0-9_-]", "_", username)
+                stable_uid = f"GPS-{safe_user}"
+                # Update the existing GPS marker in-place if one already exists for
+                # this user; only create a new record when none is present yet.
+                existing_gps = db.query(MapMarker).filter(
+                    MapMarker.id == stable_uid
+                ).first()
+                if existing_gps is None:
+                    # Also clean up any legacy GPS markers that may have been
+                    # created with random UUIDs before this fix was applied.
+                    old_gps = db.query(MapMarker).filter(
+                        MapMarker.type == "gps_position",
+                        MapMarker.created_by == username
+                    ).all()
+                    for old in old_gps:
+                        db.delete(old)
+                    if old_gps:
+                        db.commit()
+                    new_symbol = MapMarker(
+                        id=stable_uid,
+                        lat=lat,
+                        lng=lng,
+                        type=symbol_type,
+                        name=symbol.get("label") or symbol_type,
+                        color=symbol.get("color", "#3498db"),
+                        icon=symbol.get("icon", "fa-location-arrow"),
+                        created_by=username,
+                        created_at=datetime.now(timezone.utc),
+                        data={
+                            "source_page": source_page,
+                            "timestamp": timestamp,
+                            "label": symbol.get("label", ""),
+                            "how": "h-g-i-g-o",
+                        }
+                    )
+                    db.add(new_symbol)
+                else:
+                    existing_gps.lat = lat
+                    existing_gps.lng = lng
+                    existing_gps.name = symbol.get("label") or symbol_type
+                    existing_gps.color = symbol.get("color", "#3498db")
+                    marker_data = existing_gps.data if isinstance(existing_gps.data, dict) else {}
+                    marker_data["timestamp"] = timestamp
+                    marker_data["source_page"] = source_page
+                    marker_data["how"] = "h-g-i-g-o"
+                    existing_gps.data = marker_data
+                    new_symbol = existing_gps
+                db.commit()
+                db.refresh(new_symbol)
+            else:
+                # Non-GPS markers: create new record
+                new_symbol = MapMarker(
+                    id=str(uuid.uuid4()),
+                    lat=lat,
+                    lng=lng,
+                    type=symbol_type,
+                    name=symbol.get("label") or symbol_type,
+                    color=symbol.get("color", "#3498db"),
+                    icon=symbol.get("icon", "fa-map-marker"),
+                    created_by=username,
+                    created_at=datetime.now(timezone.utc),
+                    data={
+                        "source_page": source_page,
+                        "timestamp": timestamp,
+                        "label": symbol.get("label", "")
+                    }
+                )
+                db.add(new_symbol)
+                db.commit()
+                db.refresh(new_symbol)
             
             # Prepare for broadcast
             symbol_data = {
