@@ -574,5 +574,89 @@ class TestGatewayContactDisplay(unittest.TestCase):
         )
 
 
+class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
+    """marker_to_cot must always use a-f-G-E-S-U-M for Meshtastic node types,
+    even when a stale or wrong cot_type is stored in the marker's data field
+    (e.g. after ATAK normalises an echo back to a-f-G-U-C)."""
+
+    def test_node_marker_ignores_wrong_cot_type_in_data(self):
+        """marker with type='node' and data.cot_type='a-f-G-U-C' must still
+        produce a-f-G-E-S-U-M — the stored cot_type must be ignored."""
+        marker = {
+            "id": "uuid-mesh-1",
+            "lat": 48.0,
+            "lng": 11.0,
+            "name": "MeshNode Alpha",
+            "type": "node",
+            # Simulate what the CoT listener stores after ATAK echoes back the
+            # marker with the normalised a-f-G-U-C (friendly ground unit) type.
+            "cot_type": "a-f-G-U-C",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(
+            evt.cot_type,
+            "a-f-G-E-S-U-M",
+            "node marker must use Meshtastic equipment type regardless of stored cot_type",
+        )
+
+    def test_meshtastic_node_marker_ignores_wrong_cot_type_in_data(self):
+        """marker with type='meshtastic_node' and data.cot_type='a-u-G-U-C' must
+        produce a-f-G-E-S-U-M — the 'blume' stored cot_type must be ignored."""
+        marker = {
+            "id": "uuid-mesh-2",
+            "lat": 48.0,
+            "lng": 11.0,
+            "name": "MeshNode Beta",
+            "type": "meshtastic_node",
+            "cot_type": "a-u-G-U-C",  # blume / unknown fallback
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(
+            evt.cot_type,
+            "a-f-G-E-S-U-M",
+            "meshtastic_node marker must use Meshtastic equipment type regardless of stored cot_type",
+        )
+
+    def test_gateway_marker_ignores_wrong_cot_type_in_data(self):
+        """marker with type='gateway' and data.cot_type='a-f-G-U-C' must
+        produce a-f-G-E-S-U-M."""
+        marker = {
+            "id": "uuid-gw-1",
+            "lat": 0.0,
+            "lng": 0.0,
+            "name": "LPU5-Node",
+            "type": "gateway",
+            "cot_type": "a-f-G-U-C",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(
+            evt.cot_type,
+            "a-f-G-E-S-U-M",
+            "gateway marker must use Meshtastic equipment type regardless of stored cot_type",
+        )
+
+    def test_non_meshtastic_marker_still_uses_stored_cot_type(self):
+        """Non-Meshtastic markers (e.g. 'rechteck') must still use the stored
+        cot_type from data so that symbol detail is preserved on re-broadcast."""
+        marker = {
+            "id": "uuid-rect-1",
+            "lat": 48.0,
+            "lng": 11.0,
+            "name": "Friendly Unit",
+            "type": "rechteck",
+            "cot_type": "a-f-G-U-C-I",  # specific sub-type from ATAK
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(
+            evt.cot_type,
+            "a-f-G-U-C-I",
+            "non-Meshtastic marker should preserve stored cot_type sub-type detail",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

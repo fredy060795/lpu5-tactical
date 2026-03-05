@@ -233,15 +233,20 @@ class COTEvent {
     /** LPU5 type name → TAK CoT type code */
     static get LPU5_TO_COT_TYPE() {
         return {
-            raute:    'a-h-G-U-C',
-            quadrat:  'a-n-G-U-C',
-            blume:    'a-u-G-U-C',
-            rechteck: 'a-f-G-U-C',
-            friendly: 'a-f-G-U-C',
-            hostile:  'a-h-G-U-C',
-            neutral:  'a-n-G-U-C',
-            unknown:  'a-u-G-U-C',
-            pending:  'a-p-G-U-C',
+            raute:          'a-h-G-U-C',
+            quadrat:        'a-n-G-U-C',
+            blume:          'a-u-G-U-C',
+            rechteck:       'a-f-G-U-C',
+            friendly:       'a-f-G-U-C',
+            hostile:        'a-h-G-U-C',
+            neutral:        'a-n-G-U-C',
+            unknown:        'a-u-G-U-C',
+            pending:        'a-p-G-U-C',
+            // Meshtastic node types — must match cot_protocol.py
+            node:            'a-f-G-E-S-U-M',
+            meshtastic_node: 'a-f-G-E-S-U-M',
+            gateway:         'a-f-G-E-S-U-M',
+            tak_unit:        'a-f-G-U-C',
         };
     }
 
@@ -250,17 +255,18 @@ class COTEvent {
      *  before shorter prefix alternatives when iterating. */
     static get COT_TO_LPU5_TYPE() {
         return [
-            ['b-m-p-s-m', 'raute'],    // TAK spot-map marker (all shapes)
-            ['u-d-c-e',   'raute'],    // TAK drawing ellipse → diamond
-            ['u-d-c-c',   'raute'],    // TAK drawing circle → diamond
-            ['u-d-r',     'rechteck'], // TAK drawing rectangle
-            ['u-d-f',     'raute'],    // TAK drawing freehand → diamond
-            ['u-d-p',     'raute'],    // TAK drawing generic point → diamond
-            ['a-f',       'rechteck'], // friendly → blue rectangle
-            ['a-h',       'raute'],    // hostile → red diamond
-            ['a-n',       'quadrat'],  // neutral → green square
-            ['a-u',       'blume'],    // unknown → yellow flower
-            ['a-p',       'raute'],    // pending → red diamond
+            ['b-m-p-s-m',   'raute'],          // TAK spot-map marker (all shapes)
+            ['u-d-c-e',     'raute'],          // TAK drawing ellipse → diamond
+            ['u-d-c-c',     'raute'],          // TAK drawing circle → diamond
+            ['u-d-r',       'rechteck'],       // TAK drawing rectangle
+            ['u-d-f',       'raute'],          // TAK drawing freehand → diamond
+            ['u-d-p',       'raute'],          // TAK drawing generic point → diamond
+            ['a-f-G-E-S-U-M', 'meshtastic_node'], // Meshtastic equipment node — before generic a-f
+            ['a-f',         'rechteck'],       // friendly → blue rectangle
+            ['a-h',         'raute'],          // hostile → red diamond
+            ['a-n',         'quadrat'],        // neutral → green square
+            ['a-u',         'blume'],          // unknown → yellow flower
+            ['a-p',         'raute'],          // pending → red diamond
         ];
     }
 

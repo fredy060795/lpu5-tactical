@@ -1889,8 +1889,8 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
         lat:        Latitude (decimal degrees, 0.0 if unavailable).
         lng:        Longitude (decimal degrees, 0.0 if unavailable).
         is_gateway: When True the node is a Meshtastic gateway/router.  It will
-                    be forwarded as CoT type ``a-f-G-U-C`` (friendly unit) with
-                    a ``<contact endpoint>`` attribute so ATAK/WinTAK displays it
+                    be forwarded as CoT type ``a-f-G-E-S-U-M`` (Meshtastic equipment)
+                    with a ``<contact endpoint>`` attribute so ATAK/WinTAK displays it
                     as a reachable Contact rather than a plain Meshtastic equipment
                     node.
     """
@@ -1938,8 +1938,10 @@ def sync_meshtastic_nodes_to_map_markers_once():
     db = SessionLocal()
     try:
         nodes = db.query(MeshtasticNode).all()
-        # Index existing markers created by meshtastic sync
-        existing_markers = db.query(MapMarker).filter(MapMarker.created_by.in_(["import_meshtastic", "meshtastic_sync"])).all()
+        # Index existing markers created by meshtastic sync (all three
+        # creation sources so we never create a duplicate for a node that
+        # was first seen via the ingest_node endpoint).
+        existing_markers = db.query(MapMarker).filter(MapMarker.created_by.in_(list(_MESHTASTIC_CREATED_BY))).all()
         
         by_unit = {str(m.data.get("unit_id") if isinstance(m.data, dict) else ""): m for m in existing_markers if m.data}
         
@@ -5608,8 +5610,8 @@ def api_ingest_node(data: dict = Body(...)):
         if marker:
              marker.lat = latf
              marker.lng = lngf
-             marker.timestamp = datetime.now(timezone.utc) # Note: MapMarker model uses created_at, update it? 
-             # MapMarker doesn't have updated_at default, let's assume we just update position
+             marker.type = "node"
+             marker.timestamp = datetime.now(timezone.utc)
         else:
             marker = MapMarker(
                 id=str(uuid.uuid4()),
@@ -6053,6 +6055,7 @@ def sync_meshtastic_nodes_to_map_markers_db():
                 # Update existing
                 marker.lat = node.lat or 0.0
                 marker.lng = node.lng or 0.0
+                marker.type = "node"
                 marker.data = {"unit_id": node.id, "hardware": node.hardware_model}
                 
             synced_count += 1

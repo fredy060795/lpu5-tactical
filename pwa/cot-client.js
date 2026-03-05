@@ -233,15 +233,20 @@ class COTEvent {
     /** LPU5 type name → TAK CoT type code */
     static get LPU5_TO_COT_TYPE() {
         return {
-            raute:    'b-m-p-s-m',
-            quadrat:  'b-m-p-s-m',
-            blume:    'b-m-p-s-m',
-            rechteck: 'u-d-r',
-            friendly: 'a-f-G-U-C',
-            hostile:  'a-h-G-U-C',
-            neutral:  'a-n-G-U-C',
-            unknown:  'a-u-G-U-C',
-            pending:  'a-p-G-U-C',
+            raute:          'b-m-p-s-m',
+            quadrat:        'b-m-p-s-m',
+            blume:          'b-m-p-s-m',
+            rechteck:       'u-d-r',
+            friendly:       'a-f-G-U-C',
+            hostile:        'a-h-G-U-C',
+            neutral:        'a-n-G-U-C',
+            unknown:        'a-u-G-U-C',
+            pending:        'a-p-G-U-C',
+            // Meshtastic node types — must match cot_protocol.py
+            node:            'a-f-G-E-S-U-M',
+            meshtastic_node: 'a-f-G-E-S-U-M',
+            gateway:         'a-f-G-E-S-U-M',
+            tak_unit:        'a-f-G-U-C',
         };
     }
 
@@ -250,17 +255,18 @@ class COTEvent {
      *  before shorter prefix alternatives when iterating. */
     static get COT_TO_LPU5_TYPE() {
         return [
-            ['b-m-p-s-m', 'raute'],    // TAK spot-map marker (all shapes)
-            ['u-d-c-e',   'raute'],    // TAK drawing ellipse → diamond
-            ['u-d-c-c',   'raute'],    // TAK drawing circle → diamond
-            ['u-d-r',     'rechteck'], // TAK drawing rectangle
-            ['u-d-f',     'raute'],    // TAK drawing freehand → diamond
-            ['u-d-p',     'raute'],    // TAK drawing generic point → diamond
-            ['a-f',       'friendly'], // friendly (any sub-type)
-            ['a-h',       'hostile'],
-            ['a-n',       'neutral'],
-            ['a-u',       'unknown'],
-            ['a-p',       'pending'],
+            ['b-m-p-s-m',     'raute'],          // TAK spot-map marker (all shapes)
+            ['u-d-c-e',       'raute'],          // TAK drawing ellipse → diamond
+            ['u-d-c-c',       'raute'],          // TAK drawing circle → diamond
+            ['u-d-r',         'rechteck'],       // TAK drawing rectangle
+            ['u-d-f',         'raute'],          // TAK drawing freehand → diamond
+            ['u-d-p',         'raute'],          // TAK drawing generic point → diamond
+            ['a-f-G-E-S-U-M', 'meshtastic_node'], // Meshtastic equipment node — before generic a-f
+            ['a-f',           'friendly'],       // friendly (any sub-type)
+            ['a-h',           'hostile'],
+            ['a-n',           'neutral'],
+            ['a-u',           'unknown'],
+            ['a-p',           'pending'],
         ];
     }
 
