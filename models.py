@@ -31,6 +31,10 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     chat_channels = Column(JSON, nullable=True, default=lambda: ["all"])  # allowed chat channel IDs
+    # ATAK / TAK interoperability fields — used when generating CoT SA beacons
+    tak_team = Column(String, nullable=True, default="Cyan")          # team colour (e.g. "Cyan", "Red")
+    tak_role = Column(String, nullable=True, default="Team Member")   # tactical role (e.g. "Team Member", "HQ")
+    tak_display_type = Column(String, nullable=True, default="General Ground Unit")  # display type / CoT symbol
     data = Column(JSON, nullable=True) # Catch-all for extra legacy fields like history
 
 class MapMarker(Base):

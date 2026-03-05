@@ -93,6 +93,12 @@ if "units" in _inspector.get_table_names() and "users" in _inspector.get_table_n
             _conn.execute(sa_text("ALTER TABLE users ADD COLUMN unit_id VARCHAR"))
         if "chat_channels" not in _user_cols:
             _conn.execute(sa_text("ALTER TABLE users ADD COLUMN chat_channels JSON"))
+        if "tak_team" not in _user_cols:
+            _conn.execute(sa_text("ALTER TABLE users ADD COLUMN tak_team VARCHAR DEFAULT 'Cyan'"))
+        if "tak_role" not in _user_cols:
+            _conn.execute(sa_text("ALTER TABLE users ADD COLUMN tak_role VARCHAR DEFAULT 'Team Member'"))
+        if "tak_display_type" not in _user_cols:
+            _conn.execute(sa_text("ALTER TABLE users ADD COLUMN tak_display_type VARCHAR DEFAULT 'General Ground Unit'"))
 
 # Import new autonomous modules
 try:
@@ -1461,14 +1467,24 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # correct LPU5 icon instead of the generic blue rectangle ("rechteck").
         how = root.get("how", "m-g")
         # Presence of <meshtastic> in <detail> is the canonical indicator that
-        # the event was forwarded by an ATAK Meshtastic plugin.
-        _has_mesh_detail = CoTProtocolHandler.detail_has_meshtastic(detail)
+        # the event was forwarded by an ATAK Meshtastic plugin.  Guard with the
+        # module-availability flag so the fallback path doesn't raise NameError.
+        if AUTONOMOUS_MODULES_AVAILABLE:
+            _has_mesh_detail = CoTProtocolHandler.detail_has_meshtastic(detail)
+        else:
+            # Inline fallback when cot_protocol is unavailable: check directly.
+            _has_mesh_detail = (detail is not None and detail.find("meshtastic") is not None)
 
         # Map CoT type to LPU5 internal type
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
-            if event_type.startswith("a-f"):
+            # Meshtastic equipment type must be checked before the generic "a-f"
+            # prefix so that nodes forwarded by ATAK with type a-f-G-E-S-U-M are
+            # correctly identified as meshtastic_node rather than rechteck.
+            if event_type == "a-f-G-E-S-U-M":
+                lpu5_type = "meshtastic_node"
+            elif event_type.startswith("a-f"):
                 lpu5_type = "rechteck"
             elif event_type.startswith("a-h"):
                 lpu5_type = "raute"
@@ -2354,6 +2370,9 @@ def api_me(authorization: Optional[str] = Header(None), db: Session = Depends(ge
         "fullname": user.fullname,
         "callsign": user.callsign,
         "is_active": user.is_active,
+        "tak_team": user.tak_team or "Cyan",
+        "tak_role": user.tak_role or "Team Member",
+        "tak_display_type": user.tak_display_type or "General Ground Unit",
         "data": user.data
     }
 
@@ -2485,6 +2504,9 @@ async def get_users(db: Session = Depends(get_db)):
             "callsign": u.callsign,
             "is_active": u.is_active,
             "chat_channels": u.chat_channels if u.chat_channels else ["all"],
+            "tak_team": u.tak_team or "Cyan",
+            "tak_role": u.tak_role or "Team Member",
+            "tak_display_type": u.tak_display_type or "General Ground Unit",
             "data": u.data
         } for u in users
     ]
@@ -2607,7 +2629,8 @@ async def update_user(user_id: str, data: dict = Body(...), authorization: Optio
         user.role = new_role
         log_audit("role_changed", current_user_id, {"user_id": user_id, "old_role": old_role, "new_role": new_role})
     
-    updatable_fields = ["email", "group_id", "is_active", "unit", "device", "rank", "fullname", "callsign"]
+    updatable_fields = ["email", "group_id", "is_active", "unit", "device", "rank", "fullname", "callsign",
+                        "tak_team", "tak_role", "tak_display_type"]
     for field in updatable_fields:
         if field in data:
             if field == "active": # Legacy field name
@@ -2770,7 +2793,10 @@ async def register_user(data: dict = Body(...), db: Session = Depends(get_db)):
             "device": data.get("device") or unit,
             "rank": data.get("rank", "Operator"),
             "qr_token": qr_token,
-            "status": "PENDING"
+            "status": "PENDING",
+            "tak_team": data.get("tak_team") or "Cyan",
+            "tak_role": data.get("tak_role") or "Team Member",
+            "tak_display_type": data.get("tak_display_type") or "General Ground Unit",
         }
     )
     db.add(registration)
@@ -2833,6 +2859,9 @@ async def approve_registration(data: dict = Body(...), db: Session = Depends(get
         role="user",
         is_active=True,
         created_at=datetime.now(timezone.utc),
+        tak_team=reg_data.get("tak_team") or "Cyan",
+        tak_role=reg_data.get("tak_role") or "Team Member",
+        tak_display_type=reg_data.get("tak_display_type") or "General Ground Unit",
         data={"legacy_id": reg.id}
     )
     db.add(new_user)

@@ -451,6 +451,14 @@ async function openEditModal(username) {
         document.getElementById('editPassword').value = '';
         document.getElementById('editStatus').value = user.is_active === false ? 'false' : 'true';
         document.getElementById('editRole').value = user.role || 'user';
+
+        // ATAK fields
+        const takTeamSel = document.getElementById('editTakTeam');
+        if (takTeamSel) takTeamSel.value = user.tak_team || 'Cyan';
+        const takRoleSel = document.getElementById('editTakRole');
+        if (takRoleSel) takRoleSel.value = user.tak_role || 'Team Member';
+        const takDisplayTypeSel = document.getElementById('editTakDisplayType');
+        if (takDisplayTypeSel) takDisplayTypeSel.value = user.tak_display_type || 'General Ground Unit';
         
         // Populate unit dropdown
         const unitSelect = document.getElementById('editGroup');
@@ -495,6 +503,14 @@ async function saveUserChanges() {
     const unit = unitSelect ? unitSelect.value : '';
     const active = document.getElementById('editStatus').value === 'true';
     const role = document.getElementById('editRole').value;
+
+    // ATAK fields
+    const takTeamSel = document.getElementById('editTakTeam');
+    const tak_team = takTeamSel ? takTeamSel.value : 'Cyan';
+    const takRoleSel = document.getElementById('editTakRole');
+    const tak_role = takRoleSel ? takRoleSel.value : 'Team Member';
+    const takDisplayTypeSel = document.getElementById('editTakDisplayType');
+    const tak_display_type = takDisplayTypeSel ? takDisplayTypeSel.value : 'General Ground Unit';
     
     // Collect selected chat channels
     const chatChannelsContainer = document.getElementById('editChatChannels');
@@ -511,6 +527,9 @@ async function saveUserChanges() {
             unit: unit || undefined,
             is_active: active,
             role: role,
+            tak_team,
+            tak_role,
+            tak_display_type,
             chat_channels: selectedChatChannels.length > 0 ? selectedChatChannels : ['all']
         };
         

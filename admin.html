@@ -535,6 +535,55 @@
                     <option value="guest">👁️ Guest (Read-Only)</option>
                 </select>
             </div>
+            <!-- ── ATAK / TAK interoperability fields ── -->
+            <div style="border-top:1px solid #333;margin:10px 0 6px;padding-top:10px;">
+                <div style="font-size:0.8rem;color:#888;letter-spacing:1px;margin-bottom:10px;">ATAK / TAK PROFILE</div>
+            </div>
+            <div class="form-group">
+                <label>My Team (ATAK Color)</label>
+                <div class="select-wrapper">
+                    <select id="editTakTeam">
+                        <option value="Cyan">● Cyan (Default)</option>
+                        <option value="Blue">🔵 Blue</option>
+                        <option value="Red">🔴 Red</option>
+                        <option value="Yellow">🟡 Yellow</option>
+                        <option value="Green">🟢 Green</option>
+                        <option value="Purple">🟣 Purple</option>
+                        <option value="Maroon">🟤 Maroon</option>
+                        <option value="Teal">● Teal</option>
+                        <option value="Orange">🟠 Orange</option>
+                        <option value="White">⚪ White</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>My TAK Role</label>
+                <div class="select-wrapper">
+                    <select id="editTakRole">
+                        <option value="Team Member">👤 Team Member</option>
+                        <option value="Team Lead">⭐ Team Lead</option>
+                        <option value="HQ">🏛️ HQ</option>
+                        <option value="Sniper">🎯 Sniper</option>
+                        <option value="Medic">➕ Medic</option>
+                        <option value="Forward Observer">🔭 Forward Observer</option>
+                        <option value="RTO">📻 RTO</option>
+                        <option value="K9">🐕 K9</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>My Display Type (ATAK Unit Icon)</label>
+                <div class="select-wrapper">
+                    <select id="editTakDisplayType">
+                        <option value="General Ground Unit">🪖 General Ground Unit</option>
+                        <option value="Ground Troop">🚶 Ground Troop (Infantry)</option>
+                        <option value="Armored Vehicle">🚒 Armored Vehicle</option>
+                        <option value="Civilian Vehicle">🚗 Civilian Vehicle</option>
+                        <option value="General Air Unit">✈️ General Air Unit</option>
+                        <option value="General Sea Surface Unit">⛵ General Sea Surface Unit</option>
+                    </select>
+                </div>
+            </div>
             <div class="modal-buttons" style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
                 <button type="button" class="btn btn-approve" onclick="saveUserChanges()" data-permission="users.update"><i class="fas fa-save"></i> SAVE</button>
                 <button type="button" class="btn btn-cancel" onclick="closeEditModal()"><i class="fas fa-ban"></i> CANCEL</button>
