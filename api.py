@@ -1517,6 +1517,13 @@ def _process_incoming_cot(cot_xml: str) -> None:
         try:
             marker = db.query(MapMarker).filter(MapMarker.id == uid).first()
             if marker:
+                if uid.startswith("mesh-"):
+                    # ATAK is echoing back a Meshtastic node we forwarded.
+                    # Ignore the echo entirely — updating with ATAK's normalised
+                    # type would corrupt the stored "node"/"gateway" type and
+                    # cause the node to appear as the wrong icon (e.g. yellow
+                    # flower) on the next broadcast cycle.
+                    return
                 marker.lat = lat
                 marker.lng = lng
                 marker.name = callsign
@@ -1889,7 +1896,7 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
         lat:        Latitude (decimal degrees, 0.0 if unavailable).
         lng:        Longitude (decimal degrees, 0.0 if unavailable).
         is_gateway: When True the node is a Meshtastic gateway/router.  It will
-                    be forwarded as CoT type ``a-f-G-E-S-U-M`` (Meshtastic equipment)
+                    be forwarded as CoT type ``a-f-G-U-C`` (Unit > Combat, friendly)
                     with a ``<contact endpoint>`` attribute so ATAK/WinTAK displays it
                     as a reachable Contact rather than a plain Meshtastic equipment
                     node.
