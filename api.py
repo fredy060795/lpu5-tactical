@@ -1905,11 +1905,6 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
             "lat": lat,
             "lng": lng,
             "type": lpu5_type,
-            # Force friendly-unit CoT type so ATAK/WinTAK displays Meshtastic
-            # nodes as blue "friendly" entities (blue circle in ATAK).  The
-            # explicit cot_type key takes precedence over the type-derived
-            # mapping inside marker_to_cot(), restoring the previous behavior.
-            "cot_type": "a-f-G-U-C",
             "meshtastic_node": True,
             "node_id": node_id,
             "source": "meshtastic",
