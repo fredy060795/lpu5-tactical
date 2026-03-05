@@ -173,13 +173,19 @@ class CoTEvent:
             uid_elem = ET.SubElement(detail, "uid")
             uid_elem.set("Droid", self.callsign)
         
-        # Group/team information
-        if self.team_name or self.team_role:
+        # Group/team information – every Meshtastic node needs a <__group>
+        # element so that WinTAK/ATAK displays it as an individual SA contact
+        # in the contacts list rather than as a static map marker.  Fall back
+        # to "Cyan" / "Team Member" when no explicit team is configured, which
+        # mirrors the values used by the LPU5-GW SA beacon.
+        _grp_name = self.team_name or ("Cyan" if self.is_meshtastic_node else None)
+        _grp_role = self.team_role or ("Team Member" if self.is_meshtastic_node else None)
+        if _grp_name or _grp_role:
             group = ET.SubElement(detail, "__group")
-            if self.team_name:
-                group.set("name", self.team_name)
-            if self.team_role:
-                group.set("role", self.team_role)
+            if _grp_name:
+                group.set("name", _grp_name)
+            if _grp_role:
+                group.set("role", _grp_role)
         
         # Remarks
         if self.remarks:
@@ -192,10 +198,10 @@ class CoTEvent:
         # Military-affiliation markers (a-f/h/n/u) placed by LPU5 users are
         # also archived so they persist on the ATAK map like spot-map markers.
         #
-        # Meshtastic nodes (type "node"/"meshtastic_node", CoT type a-f-G-U-C,
-        # or "gateway" with a-f-G-U-C) are live SA contacts whose positions are
-        # refreshed by the gateway.  They must NOT receive <archive/> so that
-        # ATAK displays them as refreshing contacts rather than static markers.
+        # Meshtastic nodes (type "node"/"meshtastic_node"/"gateway", CoT type
+        # a-f-G-E-S-U-M) are live SA contacts whose positions are refreshed by
+        # the gateway.  They must NOT receive <archive/> so that ATAK displays
+        # them as refreshing contacts rather than static markers.
         if (self.cot_type.startswith(("b-m", "u-d", "a-f", "a-h", "a-n", "a-u", "a-p"))
                 and not self.is_meshtastic_node):
             ET.SubElement(detail, "archive")

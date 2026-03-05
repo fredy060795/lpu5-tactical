@@ -1042,5 +1042,198 @@ class TestMeshtasticNodeNameNotPrefixed(unittest.TestCase):
         self.assertNotIn("=", evt.callsign)
 
 
+class TestMeshtasticNodeGroupElement(unittest.TestCase):
+    """Tests verifying that Meshtastic node CoT events include <__group> so
+    WinTAK/ATAK displays each mesh node as an individual SA contact rather
+    than a static map marker.
+
+    Requirement: every mesh node CoT event must contain
+        <__group name="Cyan" role="Team Member"/>
+    in its <detail> section (matching the LPU5-GW SA beacon format) unless
+    an explicit team / role is configured on the marker.
+    """
+
+    def _parse_xml(self, xml_str: str):
+        return ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', "")
+        )
+
+    # ------------------------------------------------------------------
+    # CoTEvent.to_xml() directly
+    # ------------------------------------------------------------------
+
+    def test_meshtastic_node_xml_has_group_element(self):
+        """CoTEvent with is_meshtastic_node=True must include <__group> in <detail>."""
+        evt = CoTEvent(
+            uid="mesh-!12345678",
+            cot_type="a-f-G-E-S-U-M",
+            lat=47.1,
+            lon=8.5,
+            callsign="Node-1",
+            is_meshtastic_node=True,
+        )
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group, "<__group> element must be present in <detail> for Meshtastic nodes")
+
+    def test_meshtastic_node_group_default_name_cyan(self):
+        """Default __group name for mesh nodes must be 'Cyan' (matches LPU5-GW beacon)."""
+        evt = CoTEvent(
+            uid="mesh-!12345678",
+            cot_type="a-f-G-E-S-U-M",
+            lat=47.1,
+            lon=8.5,
+            callsign="Node-1",
+            is_meshtastic_node=True,
+        )
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group)
+        self.assertEqual(group.get("name"), "Cyan",
+                         "__group name must default to 'Cyan' for Meshtastic nodes")
+
+    def test_meshtastic_node_group_default_role_team_member(self):
+        """Default __group role for mesh nodes must be 'Team Member'."""
+        evt = CoTEvent(
+            uid="mesh-!12345678",
+            cot_type="a-f-G-E-S-U-M",
+            lat=47.1,
+            lon=8.5,
+            callsign="Node-1",
+            is_meshtastic_node=True,
+        )
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group)
+        self.assertEqual(group.get("role"), "Team Member",
+                         "__group role must default to 'Team Member' for Meshtastic nodes")
+
+    def test_meshtastic_node_explicit_team_not_overridden(self):
+        """If team_name is already set on a Meshtastic node, it must not be replaced by 'Cyan'."""
+        evt = CoTEvent(
+            uid="mesh-!abc",
+            cot_type="a-f-G-E-S-U-M",
+            lat=0.0,
+            lon=0.0,
+            callsign="Node-2",
+            team_name="Magenta",
+            team_role="HQ",
+            is_meshtastic_node=True,
+        )
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group)
+        self.assertEqual(group.get("name"), "Magenta", "Explicit team_name must be preserved")
+        self.assertEqual(group.get("role"), "HQ", "Explicit team_role must be preserved")
+
+    def test_non_meshtastic_event_without_team_has_no_group(self):
+        """A non-Meshtastic event without a team must NOT have <__group>."""
+        evt = CoTEvent(
+            uid="unit-99",
+            cot_type="a-f-G-U-C",
+            lat=0.0,
+            lon=0.0,
+            callsign="Alpha",
+            is_meshtastic_node=False,
+        )
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNone(group, "<__group> must NOT be added to non-Meshtastic events without a team")
+
+    def test_non_meshtastic_event_with_team_still_gets_group(self):
+        """A non-Meshtastic event with an explicit team must still get <__group>."""
+        evt = CoTEvent(
+            uid="unit-77",
+            cot_type="a-f-G-U-C",
+            lat=0.0,
+            lon=0.0,
+            callsign="Bravo",
+            team_name="Green",
+            team_role="Team Leader",
+            is_meshtastic_node=False,
+        )
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group)
+        self.assertEqual(group.get("name"), "Green")
+        self.assertEqual(group.get("role"), "Team Leader")
+
+    # ------------------------------------------------------------------
+    # End-to-end via marker_to_cot()
+    # ------------------------------------------------------------------
+
+    def test_gateway_marker_to_cot_xml_has_group(self):
+        """End-to-end: type='gateway' marker must produce XML with <__group> in <detail>."""
+        marker = {
+            "id": "mesh-gw1",
+            "lat": 48.1,
+            "lng": 11.5,
+            "name": "GW-Node",
+            "callsign": "GW-Node",
+            "type": "gateway",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group, "<__group> must be present in CoT XML for gateway markers")
+        self.assertEqual(group.get("name"), "Cyan")
+        self.assertEqual(group.get("role"), "Team Member")
+
+    def test_node_marker_to_cot_xml_has_group(self):
+        """End-to-end: type='node' marker must produce XML with <__group> in <detail>."""
+        marker = {
+            "id": "mesh-node1",
+            "lat": 47.5,
+            "lng": 9.2,
+            "name": "Node-Alpha",
+            "type": "node",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group, "<__group> must be present in CoT XML for node markers")
+        self.assertEqual(group.get("name"), "Cyan")
+
+    def test_meshtastic_node_marker_to_cot_xml_has_group(self):
+        """End-to-end: type='meshtastic_node' marker must produce XML with <__group>."""
+        marker = {
+            "id": "mesh-pli1",
+            "lat": 47.0,
+            "lng": 8.0,
+            "name": "Mesh-PLI",
+            "type": "meshtastic_node",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        root = self._parse_xml(evt.to_xml())
+        group = root.find("./detail/__group")
+        self.assertIsNotNone(group, "<__group> must be present in CoT XML for meshtastic_node markers")
+        self.assertEqual(group.get("name"), "Cyan")
+
+    def test_each_node_has_unique_uid_and_individual_group(self):
+        """Multiple mesh nodes must each produce a distinct UID and their own <__group>."""
+        nodes = [
+            {"id": "mesh-!aaa111", "lat": 47.1, "lng": 8.1, "name": "Node-A", "type": "node"},
+            {"id": "mesh-!bbb222", "lat": 47.2, "lng": 8.2, "name": "Node-B", "type": "node"},
+            {"id": "mesh-!ccc333", "lat": 47.3, "lng": 8.3, "name": "Node-C", "type": "gateway"},
+        ]
+        uids = []
+        for marker in nodes:
+            evt = CoTProtocolHandler.marker_to_cot(marker)
+            self.assertIsNotNone(evt)
+            uids.append(evt.uid)
+            root = self._parse_xml(evt.to_xml())
+            group = root.find("./detail/__group")
+            self.assertIsNotNone(
+                group,
+                f"<__group> must be present for node {marker['name']}"
+            )
+        # All UIDs must be distinct
+        self.assertEqual(len(uids), len(set(uids)),
+                         "Each mesh node must have a unique CoT UID")
+
+
 if __name__ == "__main__":
     unittest.main()
