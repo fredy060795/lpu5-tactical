@@ -182,10 +182,10 @@ class CoTEvent:
         # Military-affiliation markers (a-f/h/n/u) placed by LPU5 users are
         # also archived so they persist on the ATAK map like spot-map markers.
         #
-        # Meshtastic nodes (type "node"/"meshtastic_node"/"gateway", CoT type
-        # a-f-G-U-C) are live SA contacts whose positions are refreshed by
-        # the gateway.  They must NOT receive <archive/> so that ATAK displays
-        # them as refreshing contacts rather than static persistent map markers.
+        # Meshtastic nodes (type "node"/"meshtastic_node", CoT type a-f-G-U-P,
+        # or "gateway" with a-f-G-U-C) are live SA contacts whose positions are
+        # refreshed by the gateway.  They must NOT receive <archive/> so that
+        # ATAK displays them as refreshing contacts rather than static markers.
         if (self.cot_type.startswith(("b-m", "u-d", "a-f", "a-h", "a-n", "a-u", "a-p"))
                 and not self.is_meshtastic_node):
             ET.SubElement(detail, "archive")
@@ -334,9 +334,10 @@ class CoTProtocolHandler:
     #   quadrat  (green square)    → Neutral   (a-n)  → green  in ATAK (N.1.…)
     #   raute    (red diamond)     → Hostile   (a-h)  → red    in ATAK (R.1.…)
     #
-    # Meshtastic nodes use a-f-G-U-C (Friendly Ground Unit) — identical to the
-    # CoT type broadcast by the LPU5 gateway itself.  Nodes are sent 1:1 as
-    # received from the gateway so that ATAK/WinTAK displays them consistently.
+    # Meshtastic nodes (type "node"/"meshtastic_node") use a-f-G-U-P (Friendly
+    # Ground Unit / Person) so that ATAK displays them with the person icon
+    # instead of a rectangle.  The LPU5 gateway itself keeps a-f-G-U-C so that
+    # ATAK/WinTAK can identify the gateway as a network unit/contact.
     LPU5_TO_COT_TYPE: Dict[str, str] = {
         "raute":            "a-h-G-U-C",   # hostile ground unit (red diamond)
         "quadrat":          "a-n-G-U-C",   # neutral ground unit (green square)
@@ -348,9 +349,9 @@ class CoTProtocolHandler:
         "unknown":          "a-u-G-U-C",   # unknown ground unit
         "pending":          "a-p-G-U-C",   # pending ground unit
         "gps_position":     "a-f-G-U-C",   # live GPS position (friendly ground unit)
-        "node":             "a-f-G-U-C",   # Meshtastic node (same type as gateway)
-        "meshtastic_node":  "a-f-G-U-C",   # Meshtastic node forwarded by ATAK plugin
-        "gateway":          "a-f-G-U-C",   # Meshtastic gateway/router
+        "node":             "a-f-G-U-P",   # Meshtastic node → person icon in ATAK
+        "meshtastic_node":  "a-f-G-U-P",   # Meshtastic node forwarded by ATAK plugin → person icon
+        "gateway":          "a-f-G-U-C",   # Meshtastic gateway/router (network unit)
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
     }
 
@@ -498,9 +499,9 @@ class CoTProtocolHandler:
             lpu5_type = (marker.get("type") or marker.get("status") or "unknown").lower()
 
             # Meshtastic node/gateway markers always use the CoT type derived
-            # from the marker's type field (a-f-G-U-C, same as the gateway).
-            # Any cot_type stored in marker.data from a previous ATAK echo is
-            # ignored so that the node is always sent with the correct type.
+            # from the marker's type field (a-f-G-U-P for nodes, a-f-G-U-C for
+            # gateway).  Any cot_type stored in marker.data from a previous ATAK
+            # echo is ignored so that the node is always sent with the correct type.
             _MESHTASTIC_LPU5_TYPES = ("node", "meshtastic_node", "gateway")
             if lpu5_type in _MESHTASTIC_LPU5_TYPES:
                 cot_type = CoTProtocolHandler.lpu5_type_to_cot(lpu5_type)
