@@ -298,31 +298,31 @@ class TestAtakSymbolTypeMappings(unittest.TestCase):
         self.assertIsNotNone(detail.find("archive"), "a-u type should include <archive/>")
 
     def test_meshtastic_node_event_has_no_archive_element(self):
-        # Meshtastic nodes use a-f-G-U-C with is_meshtastic_node=True and must NOT
+        # Meshtastic person nodes use a-f-G-U-P with is_meshtastic_node=True and must NOT
         # carry <archive/> so ATAK treats them as live refreshing contacts.
-        evt = CoTEvent(uid="mesh-arch-1", cot_type="a-f-G-U-C", lat=48.0, lon=11.0,
+        evt = CoTEvent(uid="mesh-arch-1", cot_type="a-f-G-U-P", lat=48.0, lon=11.0,
                        is_meshtastic_node=True)
         xml_str = evt.to_xml()
         root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
         detail = root.find("detail")
         self.assertIsNone(detail.find("archive"),
-                          "Meshtastic node (a-f-G-U-C, is_meshtastic_node=True) must NOT include <archive/>")
+                          "Meshtastic person node (a-f-G-U-P, is_meshtastic_node=True) must NOT include <archive/>")
 
     def test_meshtastic_node_marker_to_cot_has_no_archive(self):
-        # End-to-end: a marker of type 'node' must produce CoT type a-f-G-U-C
+        # End-to-end: a marker of type 'node' must produce CoT type a-f-G-U-P
         # without <archive/> so ATAK shows it as a live PLI contact.
         marker = {"id": "mesh-456", "lat": 48.0, "lng": 11.0, "type": "node", "name": "Node1"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-U-C",
-                         "Meshtastic node must use a-f-G-U-C (PLI / active team member)")
+        self.assertEqual(evt.cot_type, "a-f-G-U-P",
+                         "Meshtastic person node must use a-f-G-U-P (PLI / personnel)")
         self.assertTrue(evt.is_meshtastic_node,
                         "marker_to_cot() must set is_meshtastic_node=True for type='node'")
         xml_str = evt.to_xml()
         root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
         detail = root.find("detail")
         self.assertIsNone(detail.find("archive"),
-                          "Meshtastic node marker must produce CoT without <archive/>")
+                          "Meshtastic person node marker must produce CoT without <archive/>")
 
     def test_friendly_unit_still_has_archive_after_meshtastic_fix(self):
         # Regression: a-f-G-U-C (standard friendly unit, NOT a Meshtastic node)
@@ -378,33 +378,33 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
     # --- LPU5_TO_COT_TYPE contains new entries ---
 
     def test_node_type_in_lpu5_to_cot(self):
-        # "node" is the internal LPU5 type for Meshtastic nodes stored in map_markers.
-        # It must map to a-f-G-U-C so WinTAK/ATAK recognises it as an active PLI
-        # team member rather than a static map point.
+        # "node" is the internal LPU5 type for Meshtastic person nodes stored in map_markers.
+        # It must map to a-f-G-U-P so WinTAK/ATAK displays them as individual persons
+        # (PLI personnel contacts) rather than generic combat units.
         self.assertIn("node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["node"], "a-f-G-U-P")
 
     def test_node_type_lpu5_to_cot_produces_meshtastic_equipment(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("node"), "a-f-G-U-P")
 
     def test_meshtastic_node_in_lpu5_to_cot(self):
         self.assertIn("meshtastic_node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-U-P")
 
     def test_tak_unit_in_lpu5_to_cot(self):
         self.assertIn("tak_unit", CoTProtocolHandler.LPU5_TO_COT_TYPE)
         self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["tak_unit"], "a-f-G-U-C")
 
     def test_node_marker_to_cot_produces_meshtastic_equipment_type(self):
-        # "node" type must produce the a-f-G-U-C CoT type so WinTAK/ATAK
-        # displays Meshtastic nodes as active PLI team members.
+        # "node" type must produce the a-f-G-U-P CoT type so WinTAK/ATAK
+        # displays Meshtastic person nodes as individual PLI personnel contacts.
         node_name = "Büroturm"
         marker = {"id": "mesh-123", "lat": 48.0, "lng": 11.0, "type": "node",
                   "name": node_name, "callsign": node_name}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-U-C",
-                         "Meshtastic node (type='node') must export as a-f-G-U-C (PLI / active team member)")
+        self.assertEqual(evt.cot_type, "a-f-G-U-P",
+                         "Meshtastic person node (type='node') must export as a-f-G-U-P (PLI / personnel)")
         self.assertTrue(evt.is_meshtastic_node,
                         "marker_to_cot() must set is_meshtastic_node=True for type='node'")
 
@@ -587,10 +587,10 @@ class TestGatewayContactDisplay(unittest.TestCase):
         self.assertIsNone(evt.contact_endpoint)
 
     def test_meshtastic_node_type_maps_to_equipment_type(self):
-        """'meshtastic_node' type must map to a-f-G-U-C (PLI / active team member)."""
+        """'meshtastic_node' type must map to a-f-G-U-P (PLI / personnel)."""
         self.assertEqual(
             CoTProtocolHandler.lpu5_type_to_cot("meshtastic_node"),
-            "a-f-G-U-C",
+            "a-f-G-U-P",
         )
 
     def test_meshtastic_node_xml_contains_uid_droid(self):
@@ -632,13 +632,13 @@ class TestGatewayContactDisplay(unittest.TestCase):
 
 
 class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
-    """marker_to_cot must always use a-f-G-U-C for node/meshtastic_node types and
+    """marker_to_cot must always use a-f-G-U-P for node/meshtastic_node types and
     a-f-G-U-C for gateway, even when a stale or wrong cot_type is stored in the
     marker's data field."""
 
     def test_node_marker_ignores_wrong_cot_type_in_data(self):
         """marker with type='node' and a wrong data.cot_type must still produce
-        a-f-G-U-C — the stored cot_type must be ignored for Meshtastic types."""
+        a-f-G-U-P — the stored cot_type must be ignored for Meshtastic types."""
         marker = {
             "id": "uuid-mesh-1",
             "lat": 48.0,
@@ -653,13 +653,13 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         self.assertIsNotNone(evt)
         self.assertEqual(
             evt.cot_type,
-            "a-f-G-U-C",
-            "node marker must use a-f-G-U-C regardless of stored cot_type",
+            "a-f-G-U-P",
+            "node marker must use a-f-G-U-P regardless of stored cot_type",
         )
 
     def test_meshtastic_node_marker_ignores_wrong_cot_type_in_data(self):
         """marker with type='meshtastic_node' and a wrong data.cot_type must
-        produce a-f-G-U-C — the stored cot_type must be ignored."""
+        produce a-f-G-U-P — the stored cot_type must be ignored."""
         marker = {
             "id": "uuid-mesh-2",
             "lat": 48.0,
@@ -672,8 +672,8 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         self.assertIsNotNone(evt)
         self.assertEqual(
             evt.cot_type,
-            "a-f-G-U-C",
-            "meshtastic_node marker must use a-f-G-U-C regardless of stored cot_type",
+            "a-f-G-U-P",
+            "meshtastic_node marker must use a-f-G-U-P regardless of stored cot_type",
         )
 
     def test_gateway_marker_ignores_wrong_cot_type_in_data(self):
@@ -713,6 +713,263 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
             "a-f-G-U-C-I",
             "non-Meshtastic marker should preserve stored cot_type sub-type detail",
         )
+
+
+class TestMeshtasticCotParity(unittest.TestCase):
+    """Verify that the CoT packets generated for Meshtastic nodes via the
+    gateway path and the direct-import (Meshimporter) path are structurally
+    identical: same CoT type, UID prefix, callsign handling, archive-free
+    detail block, and <uid Droid> element.
+
+    The gateway path constructs a marker_dict with:
+        id        = f"mesh-{node_id}"   (node_id = raw Meshtastic ID, e.g. "!1234abcd")
+        type      = "meshtastic_node"   (person node) or "gateway"
+    and then calls CoTProtocolHandler.marker_to_cot().
+
+    The direct-import path (api.py  _forward_meshtastic_node_to_tak) builds
+    an identical marker_dict structure and calls the same function.
+    """
+
+    def _make_person_node_marker(self, node_id="!aabbccdd", name="Alpha-1",
+                                  lat=48.12, lng=11.57):
+        """Helper: build a marker_dict as _forward_meshtastic_node_to_tak does."""
+        return {
+            "id": f"mesh-{node_id}",
+            "name": name,
+            "callsign": name,
+            "lat": lat,
+            "lng": lng,
+            "type": "meshtastic_node",
+            "meshtastic_node": True,
+            "node_id": node_id,
+            "source": "meshtastic",
+        }
+
+    def _make_gateway_marker(self, node_id="!00112233", name="LPU5-GW",
+                              lat=48.0, lng=11.0, endpoint=None):
+        """Helper: build a gateway marker_dict as _forward_meshtastic_node_to_tak does."""
+        m = {
+            "id": f"mesh-{node_id}",
+            "name": name,
+            "callsign": name,
+            "lat": lat,
+            "lng": lng,
+            "type": "gateway",
+            "meshtastic_node": True,
+            "node_id": node_id,
+            "source": "meshtastic",
+        }
+        if endpoint:
+            m["contact_endpoint"] = endpoint
+        return m
+
+    # --- CoT type ---
+
+    def test_person_node_cot_type_is_personnel(self):
+        """Person node (type='meshtastic_node') must produce a-f-G-U-P."""
+        evt = CoTProtocolHandler.marker_to_cot(self._make_person_node_marker())
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-U-P",
+                         "Person node must use a-f-G-U-P (friendly ground unit personnel)")
+
+    def test_gateway_node_cot_type_is_combat_unit(self):
+        """Gateway node (type='gateway') must produce a-f-G-U-C."""
+        evt = CoTProtocolHandler.marker_to_cot(self._make_gateway_marker())
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-U-C",
+                         "Gateway must use a-f-G-U-C (friendly ground unit combat/router)")
+
+    def test_person_and_gateway_have_different_cot_types(self):
+        """Person node and gateway must NOT share the same CoT type."""
+        person_evt = CoTProtocolHandler.marker_to_cot(self._make_person_node_marker())
+        gateway_evt = CoTProtocolHandler.marker_to_cot(self._make_gateway_marker())
+        self.assertNotEqual(person_evt.cot_type, gateway_evt.cot_type,
+                            "Person node and gateway must have distinct CoT types")
+
+    # --- UID ---
+
+    def test_person_node_uid_uses_mesh_prefix(self):
+        """UID must start with 'mesh-' so gateway and direct-import paths match."""
+        node_id = "!aabbccdd"
+        evt = CoTProtocolHandler.marker_to_cot(self._make_person_node_marker(node_id=node_id))
+        self.assertEqual(evt.uid, f"mesh-{node_id}")
+
+    def test_gateway_node_uid_uses_mesh_prefix(self):
+        node_id = "!00112233"
+        evt = CoTProtocolHandler.marker_to_cot(self._make_gateway_marker(node_id=node_id))
+        self.assertEqual(evt.uid, f"mesh-{node_id}")
+
+    # --- Callsign ---
+
+    def test_person_node_callsign_preserved(self):
+        evt = CoTProtocolHandler.marker_to_cot(
+            self._make_person_node_marker(name="Bravo-2"))
+        self.assertEqual(evt.callsign, "Bravo-2")
+
+    def test_gateway_node_callsign_preserved(self):
+        evt = CoTProtocolHandler.marker_to_cot(
+            self._make_gateway_marker(name="GW-Node-1"))
+        self.assertEqual(evt.callsign, "GW-Node-1")
+
+    # --- is_meshtastic_node flag ---
+
+    def test_person_node_sets_is_meshtastic_node(self):
+        evt = CoTProtocolHandler.marker_to_cot(self._make_person_node_marker())
+        self.assertTrue(evt.is_meshtastic_node)
+
+    def test_gateway_sets_is_meshtastic_node(self):
+        evt = CoTProtocolHandler.marker_to_cot(self._make_gateway_marker())
+        self.assertTrue(evt.is_meshtastic_node)
+
+    # --- No <archive/> element ---
+
+    def test_person_node_xml_has_no_archive(self):
+        """Person node CoT must NOT contain <archive/> so ATAK treats it as live."""
+        evt = CoTProtocolHandler.marker_to_cot(self._make_person_node_marker())
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        detail = root.find("detail")
+        self.assertIsNone(detail.find("archive"),
+                          "Person node CoT must not include <archive/>")
+
+    def test_gateway_xml_has_no_archive(self):
+        """Gateway CoT must NOT contain <archive/> so ATAK treats it as live."""
+        evt = CoTProtocolHandler.marker_to_cot(self._make_gateway_marker())
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        detail = root.find("detail")
+        self.assertIsNone(detail.find("archive"),
+                          "Gateway CoT must not include <archive/>")
+
+    # --- <uid Droid> element ---
+
+    def test_person_node_xml_has_uid_droid(self):
+        """Person node CoT must include <uid Droid="callsign"> in <detail>."""
+        evt = CoTProtocolHandler.marker_to_cot(
+            self._make_person_node_marker(name="Charlie-3"))
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        uid_elem = root.find("./detail/uid")
+        self.assertIsNotNone(uid_elem, "<uid> must be in <detail> for person node")
+        self.assertEqual(uid_elem.get("Droid"), "Charlie-3")
+
+    def test_gateway_xml_has_uid_droid(self):
+        """Gateway CoT must include <uid Droid="callsign"> in <detail>."""
+        evt = CoTProtocolHandler.marker_to_cot(
+            self._make_gateway_marker(name="GW-Alpha"))
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        uid_elem = root.find("./detail/uid")
+        self.assertIsNotNone(uid_elem, "<uid> must be in <detail> for gateway")
+        self.assertEqual(uid_elem.get("Droid"), "GW-Alpha")
+
+    # --- Contact element ---
+
+    def test_person_node_contact_callsign(self):
+        """<contact callsign> must equal the node name."""
+        evt = CoTProtocolHandler.marker_to_cot(
+            self._make_person_node_marker(name="Delta-4"))
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        contact = root.find("./detail/contact")
+        self.assertIsNotNone(contact)
+        self.assertEqual(contact.get("callsign"), "Delta-4")
+
+    def test_gateway_contact_endpoint_present_when_set(self):
+        """Gateway with contact_endpoint must emit endpoint attribute in <contact>."""
+        evt = CoTProtocolHandler.marker_to_cot(
+            self._make_gateway_marker(name="GW-1", endpoint="10.0.0.1:8088:tcp"))
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        contact = root.find("./detail/contact")
+        self.assertIsNotNone(contact)
+        self.assertEqual(contact.get("endpoint"), "10.0.0.1:8088:tcp")
+
+    # --- XML structure parity: point element ---
+
+    def test_person_node_point_lat_lon(self):
+        """Point element must carry correct lat/lon."""
+        evt = CoTProtocolHandler.marker_to_cot(
+            self._make_person_node_marker(lat=47.5, lng=8.3))
+        xml_str = evt.to_xml()
+        root = ET.fromstring(
+            xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+        point = root.find("point")
+        self.assertIsNotNone(point)
+        self.assertAlmostEqual(float(point.get("lat")), 47.5)
+        self.assertAlmostEqual(float(point.get("lon")), 8.3)
+
+    # --- Gateway path vs direct-import path produce same structure ---
+
+    def test_gateway_path_same_structure_as_direct_import(self):
+        """Simulate both paths for the same node and verify XML structure matches."""
+        node_id = "!deadbeef"
+        name = "FieldAgent"
+        lat, lng = 48.5, 9.0
+
+        # Gateway path: marker from gateway_node_update broadcast
+        gateway_marker = {
+            "id": f"mesh-{node_id}",
+            "name": name,
+            "callsign": name,
+            "lat": lat,
+            "lng": lng,
+            "type": "meshtastic_node",
+            "meshtastic_node": True,
+            "node_id": node_id,
+            "source": "meshtastic",
+        }
+        # Direct-import path: marker from _forward_meshtastic_node_to_tak
+        direct_marker = {
+            "id": f"mesh-{node_id}",
+            "name": name,
+            "callsign": name,
+            "lat": lat,
+            "lng": lng,
+            "type": "meshtastic_node",
+            "meshtastic_node": True,
+            "node_id": node_id,
+            "source": "meshtastic",
+        }
+
+        gw_evt = CoTProtocolHandler.marker_to_cot(gateway_marker)
+        di_evt = CoTProtocolHandler.marker_to_cot(direct_marker)
+
+        # Both must produce identical CoT type, UID, callsign, is_meshtastic_node
+        self.assertEqual(gw_evt.cot_type, di_evt.cot_type,
+                         "CoT type must match between gateway and direct-import paths")
+        self.assertEqual(gw_evt.uid, di_evt.uid,
+                         "UID must match between gateway and direct-import paths")
+        self.assertEqual(gw_evt.callsign, di_evt.callsign,
+                         "Callsign must match between gateway and direct-import paths")
+        self.assertEqual(gw_evt.is_meshtastic_node, di_evt.is_meshtastic_node)
+        self.assertEqual(gw_evt.lat, di_evt.lat)
+        self.assertEqual(gw_evt.lon, di_evt.lon)
+
+        # Verify both produce the same XML structural elements
+        def _parse(evt):
+            xml_str = evt.to_xml()
+            return ET.fromstring(
+                xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ""))
+
+        gw_root = _parse(gw_evt)
+        di_root = _parse(di_evt)
+
+        for root_elem in (gw_root, di_root):
+            self.assertEqual(root_elem.get("type"), "a-f-G-U-P")
+            self.assertEqual(root_elem.get("uid"), f"mesh-{node_id}")
+            detail = root_elem.find("detail")
+            self.assertIsNone(detail.find("archive"),
+                              "Neither path should produce <archive/>")
+            uid_d = detail.find("uid")
+            self.assertIsNotNone(uid_d)
+            self.assertEqual(uid_d.get("Droid"), name)
 
 
 if __name__ == "__main__":
