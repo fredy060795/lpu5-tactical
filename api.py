@@ -8327,6 +8327,21 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
                 db.commit()
                 db.refresh(new_symbol)
             
+            # For GPS position markers, look up the owner's profile to enrich
+            # the CoT event with the user's callsign and TAK team/role so that
+            # WinTAK displays a properly identified person marker instead of a
+            # generic GPS pin.  Username and callsign are separate fields:
+            # username is the login name, callsign is the tactical identifier.
+            user_callsign = None
+            user_tak_team = None
+            user_tak_role = None
+            if symbol_type == "gps_position" and username != "anonymous":
+                user_record = db.query(User).filter(User.username == username).first()
+                if user_record:
+                    user_callsign = user_record.callsign or None
+                    user_tak_team = user_record.tak_team or None
+                    user_tak_role = user_record.tak_role or None
+
             # Prepare for broadcast
             symbol_data = {
                 "id": new_symbol.id,
@@ -8342,6 +8357,12 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
                 "icon": new_symbol.icon,
                 "how": "h-g-i-g-o",
             }
+            if user_callsign:
+                symbol_data["callsign"] = user_callsign
+            if user_tak_team:
+                symbol_data["team"] = user_tak_team
+            if user_tak_role:
+                symbol_data["role"] = user_tak_role
         
         # Broadcast to WebSocket clients using helper
         broadcast_websocket_update("symbols", "symbol_created", symbol_data)

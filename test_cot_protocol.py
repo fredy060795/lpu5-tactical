@@ -108,6 +108,47 @@ class TestGpsPositionType(unittest.TestCase):
     def test_lpu5_type_to_cot_gps_position_case_insensitive(self):
         self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("GPS_POSITION"), "a-f-G-U-C")
 
+    def test_gps_position_callsign_takes_priority_over_name(self):
+        """callsign from user profile should take priority over name for GPS positions."""
+        marker = {
+            "id": "gps-cs1",
+            "lat": 48.0,
+            "lng": 11.0,
+            "type": "gps_position",
+            "name": "login_username",
+            "callsign": "ALPHA-1",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.callsign, "ALPHA-1")
+
+    def test_gps_position_falls_back_to_name_when_no_callsign(self):
+        """When no callsign is set, name is used as fallback for GPS positions."""
+        marker = {
+            "id": "gps-cs2",
+            "lat": 48.0,
+            "lng": 11.0,
+            "type": "gps_position",
+            "name": "login_username",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.callsign, "login_username")
+
+    def test_non_gps_marker_name_takes_priority_over_callsign(self):
+        """For non-GPS markers, name still takes priority over callsign (existing behaviour)."""
+        marker = {
+            "id": "m-cs1",
+            "lat": 48.0,
+            "lng": 11.0,
+            "type": "rechteck",
+            "name": "Marker Alpha",
+            "callsign": "ALPHA-1",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.callsign, "Marker Alpha")
+
 
 class TestCoTEventColorParameter(unittest.TestCase):
     """Tests for the new color parameter in CoTEvent"""
