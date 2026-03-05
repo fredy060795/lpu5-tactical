@@ -100,13 +100,13 @@ class TestGpsPositionType(unittest.TestCase):
 
     def test_gps_position_in_lpu5_to_cot(self):
         self.assertIn("gps_position", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["gps_position"], "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["gps_position"], "a-f-G-E-S-U-M")
 
     def test_lpu5_type_to_cot_gps_position(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("gps_position"), "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("gps_position"), "a-f-G-E-S-U-M")
 
     def test_lpu5_type_to_cot_gps_position_case_insensitive(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("GPS_POSITION"), "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("GPS_POSITION"), "a-f-G-E-S-U-M")
 
     def test_gps_position_callsign_takes_priority_over_name(self):
         """callsign from user profile should take priority over name for GPS positions."""
@@ -243,11 +243,13 @@ class TestMarkerToCotColorAndTeam(unittest.TestCase):
         self.assertIsNone(evt.color)
         self.assertIsNone(evt.team_name)
 
-    def test_gps_position_marker_maps_to_friendly_unit(self):
+    def test_gps_position_marker_maps_to_meshtastic_node(self):
         marker = {"id": "gps-1", "lat": 48.0, "lng": 11.0, "type": "gps_position"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-U-C")
+        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M")
+        self.assertTrue(evt.is_meshtastic_node,
+                        "GPS position marker must be treated as a Meshtastic node")
 
 
 class TestAtakSymbolTypeMappings(unittest.TestCase):
