@@ -2191,8 +2191,6 @@
       if (needle) needle.style.transform = 'rotate(' + (-mapBearing) + 'deg)';
       const bearingEl = document.getElementById('tsb-compass-bearing');
       if (bearingEl) bearingEl.textContent = String(Math.round(mapBearing) % 360).padStart(3, '0') + '°';
-      // Keep GPS arrow aligned with real-world compass heading when map rotates
-      updateGpsMarkerHeading();
     }
 
     function resetNorth() { setMapBearing(0); }
@@ -3003,24 +3001,10 @@
     let gpsUpdateInterval = 5000; // Default 5 seconds
     let gpsAutoEnabled = false; // Auto GPS tracking state
     let _lastGpsSendTime = 0; // Throttle GPS server sends
-    let lastGpsHeading = null; // Last known GPS heading (degrees from North)
 
-    function createGpsArrowIconHtml(color, heading) {
+    function createGpsArrowIconHtml(color) {
       const safeColor = /^[#a-zA-Z0-9().,% ]+$/.test(color) ? color : '#007bff';
-      // Heading is degrees from North (clockwise). The SVG arrow points up (North) by default.
-      // Subtract mapBearing so the arrow stays aligned with compass North when map is rotated.
-      // When heading is unknown, default to 0 (North) adjusted for map rotation (arrow visually points up).
-      const deg = (heading != null && Number.isFinite(heading)) ? heading - mapBearing : -mapBearing;
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" style="transform:rotate(${deg}deg);transform-origin:center;display:block;"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${safeColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
-    }
-
-    function updateGpsMarkerHeading() {
-      if (!gpsMarker) return;
-      const el = gpsMarker.getElement();
-      if (!el) return;
-      const svg = el.querySelector('svg');
-      // When heading is unknown, use 0 (North) minus mapBearing so arrow visually points up on screen.
-      if (svg) svg.style.transform = `rotate(${(lastGpsHeading != null ? lastGpsHeading : 0) - mapBearing}deg)`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${safeColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
     }
 
     // Send GPS position to server so admin_map.html can see it
@@ -3070,18 +3054,15 @@
         (position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
-          const rawHeading = position.coords.heading;
-          if (rawHeading != null && Number.isFinite(rawHeading)) lastGpsHeading = rawHeading;
 
           // Update or create GPS marker
           if (gpsMarker) {
             gpsMarker.setLatLng([lat, lng]);
-            updateGpsMarkerHeading();
           } else {
             gpsMarker = L.marker([lat, lng], {
               icon: L.divIcon({
                 className: 'gps-marker-arrow',
-                html: createGpsArrowIconHtml('#007bff', lastGpsHeading),
+                html: createGpsArrowIconHtml('#007bff'),
                 iconSize: [40, 40],
                 iconAnchor: [20, 20]
               }),
@@ -3177,8 +3158,6 @@
       }
       navigator.geolocation.getCurrentPosition(async (p) => {
         const lat = p.coords.latitude, lng = p.coords.longitude;
-        const rawHeading = p.coords.heading;
-        if (rawHeading != null && Number.isFinite(rawHeading)) lastGpsHeading = rawHeading;
         // Remove old GPS marker if exists
         if (gpsMarker) {
           try { map.removeLayer(gpsMarker); } catch (e) { }
@@ -3187,7 +3166,7 @@
         gpsMarker = L.marker([lat, lng], {
           icon: L.divIcon({
             className: 'gps-marker-arrow',
-            html: createGpsArrowIconHtml('#007bff', lastGpsHeading),
+            html: createGpsArrowIconHtml('#007bff'),
             iconSize: [40, 40],
             iconAnchor: [20, 20]
           }),
