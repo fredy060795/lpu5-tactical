@@ -371,13 +371,13 @@ class CoTProtocolHandler:
         "pending":          "a-p-G-U-C",   # pending ground unit
         "gps_position":     "a-f-G-E-S-U-M",   # live GPS position sent as Meshtastic node
         "node":             "a-f-G-E-S-U-M",   # Meshtastic equipment node
-        "meshtastic_node":  "a-f-G-U-C",        # Meshtastic SA position (shows as SA in ATAK)
+        "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic node (blue M-circle in ATAK)
         "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router (equipment)
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
         # CBT variants: ATAK-sourced markers rendered with "CBT" label to
         # distinguish them from natively created LPU5 markers.
         "cbt_raute":        "a-h-G-U-C",   # ATAK hostile (red diamond + CBT)
-        "cbt_rechteck":     "a-f-G-E-S-U-M",   # ATAK friendly (blue rectangle + CBT, Meshtastic equipment icon)
+        "cbt_rechteck":     "a-f-G-U-C",        # ATAK friendly (blue rectangle + CBT)
         "cbt_quadrat":      "a-n-G-U-C",   # ATAK neutral (green square + CBT)
         "cbt_blume":        "a-u-G-U-C",   # ATAK unknown (yellow flower + CBT)
     }
@@ -421,7 +421,7 @@ class CoTProtocolHandler:
         ("u-d-r",     "rechteck"),  # TAK drawing rectangle
         ("u-d-f",     "raute"),     # TAK drawing freehand → diamond
         ("u-d-p",     "raute"),     # TAK drawing generic point → diamond
-        ("a-f-G-E-S-U-M", "cbt_rechteck"),  # ATAK Meshtastic equipment type → CBT rectangle
+        ("a-f-G-E-S-U-M", "meshtastic_node"),  # Meshtastic equipment → meshtastic_node
         ("a-f",       "rechteck"),  # friendly affiliation → blue rectangle
         ("a-h",       "raute"),     # hostile affiliation → red diamond
         ("a-n",       "quadrat"),   # neutral affiliation → green square
@@ -536,7 +536,7 @@ class CoTProtocolHandler:
             lpu5_type = (marker.get("type") or marker.get("status") or "unknown").lower()
 
             # Meshtastic node/gateway markers always use the CoT type derived
-            # from the marker's type field (a-f-G-U-C for nodes and gateway).
+            # from the marker's type field (a-f-G-E-S-U-M for nodes and gateway).
             # Any cot_type stored in marker.data from a previous ATAK echo is
             # ignored so that the node is always sent with the correct type.
             _MESHTASTIC_LPU5_TYPES = ("node", "meshtastic_node", "gateway", "gps_position")
