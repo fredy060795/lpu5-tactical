@@ -249,6 +249,39 @@ test('Affiliation parsing from COT type', () => {
   assert(unknown.status === 'unknown', 'Should parse unknown');
 });
 
+test('cotToMarker: how=h-e SA beacon with meshtastic detail produces tak_unit not meshtastic_node', () => {
+  // SA beacons (how='h-*') must not be overridden to meshtastic_node even when
+  // a <meshtastic> element is present (some ATAK plugins add it spuriously).
+  const cot = new COTEvent({
+    uid: 'SA-UNIT-1',
+    type: 'a-f-G-U-C',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'Alpha',
+    how: 'h-e',
+    hasMeshtasticDetail: true,
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'tak_unit',
+    `how='h-e' SA beacon must produce tak_unit even with hasMeshtasticDetail=true, got ${marker.type}`);
+});
+
+test('cotToMarker: how=m-g with meshtastic detail produces meshtastic_node', () => {
+  // Machine-generated (how='m-g') CoT with <meshtastic> detail = Meshtastic node.
+  const cot = new COTEvent({
+    uid: 'MESH-NODE-1',
+    type: 'a-f-G-U-C',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'MeshNode',
+    how: 'm-g',
+    hasMeshtasticDetail: true,
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'meshtastic_node',
+    `how='m-g' + hasMeshtasticDetail must produce meshtastic_node, got ${marker.type}`);
+});
+
 // Summary
 console.log('\n=== Test Summary ===');
 console.log(`Total Tests: ${testsPassed + testsFailed}`);

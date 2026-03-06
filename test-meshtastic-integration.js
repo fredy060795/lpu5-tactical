@@ -313,18 +313,37 @@ test('COTEvent hasMeshtasticDetail can be set via constructor', () => {
 
 test('cotToMarker with hasMeshtasticDetail=true overrides type to meshtastic_node', () => {
   // Simulates receiving a CoT with a-f-G-U-C type but <meshtastic> in detail
-  // (e.g. when ATAK normalises the CoT type but preserves the <meshtastic> element)
+  // and how='m-g' (machine-generated, typical for Meshtastic forwarding plugins).
   const cot = new COTEvent({
     uid: 'ATAK-NODE-1',
     type: 'a-f-G-U-C',  // normalised by ATAK from a-f-G-E-S-U-M
     lat: 48.0,
     lon: 11.0,
     callsign: 'FieldNode',
+    how: 'm-g',
     hasMeshtasticDetail: true,  // preserved <meshtastic> element
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
   assert(marker.type === 'meshtastic_node',
-    `hasMeshtasticDetail should force type=meshtastic_node, got ${marker.type}`);
+    `hasMeshtasticDetail with how=m-g should force type=meshtastic_node, got ${marker.type}`);
+});
+
+test('cotToMarker human SA beacon with spurious meshtastic detail produces tak_unit', () => {
+  // Simulates an ATAK SA beacon (how='h-e', human-entered) that has a
+  // <meshtastic> element in detail due to a plugin bug.  The how code is the
+  // more reliable signal — the SA beacon must become tak_unit, not meshtastic_node.
+  const cot = new COTEvent({
+    uid: 'SA-UNIT-1',
+    type: 'a-f-G-U-C',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'Alpha',
+    how: 'h-e',  // human-entered SA beacon
+    hasMeshtasticDetail: true,  // spurious <meshtastic> from a plugin
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'tak_unit',
+    `how='h-e' SA beacon must produce tak_unit even with hasMeshtasticDetail=true, got ${marker.type}`);
 });
 
 test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives meshtastic_node', () => {
