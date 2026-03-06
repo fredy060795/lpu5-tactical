@@ -1203,8 +1203,12 @@
       if (!layer) return;
       if (!_ovVis.intel) return; // master intel toggle is off
       layer.clearLayers();
+      var currentZoom = (map && typeof map.getZoom === 'function') ? map.getZoom() : 99;
+      var flMinZoom = (window.LPU5Intel && window.LPU5Intel.FL_MIN_ZOOM) || 4;
       Object.keys(_ovSrcCache).forEach(function (k) {
         if (!_ovIntelSrcVis[k]) return; // source hidden by user
+        // Civil flights require minimum zoom — military aircraft are always shown
+        if (k === 'flight' && currentZoom < flMinZoom) return;
         (_ovSrcCache[k] || []).forEach(function (data) {
           if (data.lat == null || data.lon == null) return;
           var color = data.color || '#9b59b6';
@@ -1360,6 +1364,9 @@
             if (_ovIntelSrcVis[s.key]) _ovStartPoll(s.key);
           });
         }
+        // Re-apply intel filter on zoom change so that civil flights are hidden
+        // below FL_MIN_ZOOM but military aircraft remain visible at all zoom levels.
+        if (map) { map.off('zoomend', _ovMergeAndApply); map.on('zoomend', _ovMergeAndApply); }
       }, 1500); // 1500ms: allow Leaflet pane creation + initial data load to complete
     });
     const chatUnreadByChannel = {}; // Unread counts per channel id
