@@ -1100,6 +1100,7 @@
   <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
   <script src="assets/api-client.js"></script>
   <script src="assets/ws-client.js"></script>
+  <script src="intel-data.js"></script>
   
   <!-- Meshtastic PWA Integration -->
   <script src="meshtastic-web-client.js"></script>
@@ -1158,6 +1159,138 @@
       try { localStorage.setItem('lpu5_overview_overlay_vis', JSON.stringify(_ovVis)); } catch(e) {}
     }
 
+    // ── Per-source Intel visibility (persisted per user) ─────────────────────────
+    var _OV_INTEL_SRC_KEY = 'lpu5_ov_intel_src_vis';
+    var _OV_INTEL_SOURCES = [
+      { key: 'earthquake',  label: 'Erdbeben',           icon: 'fa-circle-exclamation', color: '#e74c3c' },
+      { key: 'flight',      label: 'Zivilflüge',         icon: 'fa-plane',              color: '#f1c40f' },
+      { key: 'milaircraft', label: 'Mil. Luftfahrzeuge', icon: 'fa-fighter-jet',        color: '#e74c3c' },
+      { key: 'conflict',    label: 'Konflikte',          icon: 'fa-fire',               color: '#e74c3c' },
+      { key: 'milbase',     label: 'Mil. Stützpunkte',   icon: 'fa-shield-halved',      color: '#e67e22' },
+      { key: 'naval',       label: 'Marine',             icon: 'fa-anchor',             color: '#1abc9c' }
+    ];
+    var _ovIntelSrcVis = (function () {
+      var def = {};
+      _OV_INTEL_SOURCES.forEach(function (s) { def[s.key] = true; });
+      try {
+        var saved = JSON.parse(localStorage.getItem(_OV_INTEL_SRC_KEY) || '{}');
+        return Object.assign({}, def, saved);
+      } catch (e) { return def; }
+    }());
+    function _saveOvIntelSrcVis() {
+      try { localStorage.setItem(_OV_INTEL_SRC_KEY, JSON.stringify(_ovIntelSrcVis)); } catch (e) {}
+    }
+
+    // Direct Intel fetch state (no dependency on global_Intel.html)
+    var _ovSrcCache  = {};
+    var _ovSrcTimers = {};
+    var _ovFlFetching = false;
+    var _OV_POLL_MS = {
+      earthquake: 300000, flight: 120000, milaircraft: 120000,
+      conflict:   600000, milbase: 600000, naval:        600000
+    };
+
+    function _ovGetGroupLayer() {
+      if (!map || !window.L) return null;
+      if (!window._intelGroupLayer) {
+        window._intelGroupLayer = window.L.layerGroup().addTo(map);
+      }
+      return window._intelGroupLayer;
+    }
+
+    function _ovMergeAndApply() {
+      var layer = _ovGetGroupLayer();
+      if (!layer) return;
+      if (!_ovVis.intel) return; // master intel toggle is off
+      layer.clearLayers();
+      Object.keys(_ovSrcCache).forEach(function (k) {
+        if (!_ovIntelSrcVis[k]) return; // source hidden by user
+        (_ovSrcCache[k] || []).forEach(function (data) {
+          if (data.lat == null || data.lon == null) return;
+          var color = data.color || '#9b59b6';
+          var iconClass = data.icon || 'fa-map-marker-alt';
+          var icon = window.L.divIcon({
+            className: '',
+            html: '<div style="width:26px;height:26px;border-radius:50%;background:' + color + '33;border:2px solid ' + color + ';' +
+                  'display:flex;align-items:center;justify-content:center;font-size:11px;' +
+                  'box-shadow:0 0 6px ' + color + '66;cursor:pointer" title="' + (data.title||'').replace(/"/g,'&quot;') + '">' +
+                  '<i class="fas ' + iconClass + '" style="color:' + color + '"></i></div>',
+            iconSize: [26, 26], iconAnchor: [13, 13]
+          });
+          window.L.marker([data.lat, data.lon], { icon: icon })
+            .bindPopup('<b style="color:' + color + '">' + (data.title||'Intel') + '</b><br>' +
+                       '<span style="color:#888;font-size:.8em">Source: Live Intel Feed</span><br>' +
+                       'Type: ' + (data.type||'\u2013') +
+                       (data.detail ? '<br><span style="font-size:.8em">' + data.detail + '</span>' : ''))
+            .addTo(layer);
+        });
+      });
+    }
+
+    function _ovRefreshFlights() {
+      if (_ovFlFetching || !window.LPU5Intel) return;
+      _ovFlFetching = true;
+      window.LPU5Intel.fetchFlights(function (fl, mil) {
+        _ovFlFetching = false;
+        _ovSrcCache.flight      = fl;
+        _ovSrcCache.milaircraft = mil;
+        _ovMergeAndApply();
+      }, function () { _ovFlFetching = false; });
+    }
+
+    function _ovRefreshSource(key) {
+      if (!window.LPU5Intel) return;
+      switch (key) {
+        case 'earthquake':
+          window.LPU5Intel.fetchEarthquakes(function (m) { _ovSrcCache.earthquake = m; _ovMergeAndApply(); });
+          break;
+        case 'flight': case 'milaircraft': _ovRefreshFlights(); break;
+        case 'conflict':  _ovSrcCache.conflict  = window.LPU5Intel.getConflictMarkers(); _ovMergeAndApply(); break;
+        case 'milbase':   _ovSrcCache.milbase   = window.LPU5Intel.getMilBaseMarkers();  _ovMergeAndApply(); break;
+        case 'naval':     _ovSrcCache.naval     = window.LPU5Intel.getNavalMarkers();    _ovMergeAndApply(); break;
+      }
+    }
+
+    function _ovStartPoll(key) {
+      if (key === 'flight' || key === 'milaircraft') {
+        if (!_ovSrcTimers['_flights']) {
+          _ovRefreshFlights();
+          _ovSrcTimers['_flights'] = setInterval(_ovRefreshFlights, _OV_POLL_MS.flight);
+        }
+        return;
+      }
+      if (_ovSrcTimers[key]) return;
+      _ovRefreshSource(key);
+      _ovSrcTimers[key] = setInterval(function () { _ovRefreshSource(key); }, _OV_POLL_MS[key] || 300000);
+    }
+
+    function _ovStopPoll(key) {
+      if (key === 'flight' || key === 'milaircraft') {
+        _ovSrcCache[key] = [];
+        if (!_ovIntelSrcVis.flight && !_ovIntelSrcVis.milaircraft) {
+          clearInterval(_ovSrcTimers['_flights']); delete _ovSrcTimers['_flights'];
+        }
+        _ovMergeAndApply(); return;
+      }
+      clearInterval(_ovSrcTimers[key]); delete _ovSrcTimers[key];
+      _ovSrcCache[key] = []; _ovMergeAndApply();
+    }
+
+    // Toggle a single intel source in overview (called from overlay menu buttons)
+    window.toggleOvIntelSrc = function (key) {
+      _ovIntelSrcVis[key] = !_ovIntelSrcVis[key];
+      _saveOvIntelSrcVis();
+      if (_ovIntelSrcVis[key] && _ovVis.intel) {
+        _ovStartPoll(key);
+      } else {
+        _ovStopPoll(key);
+      }
+      var lbl = document.getElementById('ov-ilbl-' + key);
+      if (lbl) { lbl.textContent = _ovIntelSrcVis[key] ? 'AN' : 'AUS'; lbl.style.color = _ovIntelSrcVis[key] ? '#2ecc71' : '#e74c3c'; }
+      var subDiv = document.getElementById('intel-sub-src');
+      if (subDiv) subDiv.style.display = _ovVis.intel ? '' : 'none';
+    };
+
     function _applyOvVis(type, visible) {
       if (!map) return;
       _ovVis[type] = visible;
@@ -1181,8 +1314,17 @@
           var layers = [window._intelSingleLayer, window._intelGroupLayer].filter(Boolean);
           if (visible) {
             layers.forEach(function(l) { if (!map.hasLayer(l)) l.addTo(map); });
+            // Start polling for all user-enabled group sources
+            _OV_INTEL_SOURCES.forEach(function (s) {
+              if (_ovIntelSrcVis[s.key]) _ovStartPoll(s.key);
+            });
           } else {
             layers.forEach(function(l) { try { l.remove(); } catch(e) {} });
+            // Stop all polling when master intel is turned off
+            _OV_INTEL_SOURCES.forEach(function (s) {
+              clearInterval(_ovSrcTimers[s.key]); delete _ovSrcTimers[s.key];
+            });
+            clearInterval(_ovSrcTimers['_flights']); delete _ovSrcTimers['_flights'];
           }
           break;
         }
@@ -1198,6 +1340,11 @@
         statusEl.textContent = _ovVis[type] ? 'AN' : 'AUS';
         statusEl.style.color = _ovVis[type] ? '#2ecc71' : '#e74c3c';
       }
+      // Show/hide per-source intel sub-toggles
+      if (type === 'intel') {
+        var subDiv = document.getElementById('intel-sub-src');
+        if (subDiv) subDiv.style.display = _ovVis.intel ? '' : 'none';
+      }
     };
 
     // Restore saved visibility states once the map panes are ready.
@@ -1207,6 +1354,12 @@
         Object.keys(_ovVis).forEach(function(type) {
           if (!_ovVis[type]) _applyOvVis(type, false);
         });
+        // Start direct intel polling for all enabled sources if master intel is on
+        if (_ovVis.intel) {
+          _OV_INTEL_SOURCES.forEach(function (s) {
+            if (_ovIntelSrcVis[s.key]) _ovStartPoll(s.key);
+          });
+        }
       }, 1500); // 1500ms: allow Leaflet pane creation + initial data load to complete
     });
     const chatUnreadByChannel = {}; // Unread counts per channel id
@@ -4537,7 +4690,16 @@
             <button class="menu-btn" onclick="event.stopPropagation();toggleOverlayLayer('intel')">
               <i class="fas fa-satellite-dish"></i> Global Intel
               <span id="ov-lbl-intel" style="margin-left:auto;font-size:0.85em;color:${_ovVis.intel?'#2ecc71':'#e74c3c'}">${_ovVis.intel?'AN':'AUS'}</span>
-            </button>`
+            </button>
+            <div id="intel-sub-src" style="padding-left:14px;border-left:2px solid #9b59b630;margin:2px 0 0 0;${_ovVis.intel?'':'display:none'}">
+              ${_OV_INTEL_SOURCES.map(function(s){
+                var on = _ovIntelSrcVis[s.key];
+                return '<button class="menu-btn" onclick="event.stopPropagation();toggleOvIntelSrc(\'' + s.key + '\')">' +
+                  '<i class="fas ' + s.icon + '" style="font-size:0.8em;color:' + s.color + '"></i> ' + s.label +
+                  '<span id="ov-ilbl-' + s.key + '" style="margin-left:auto;font-size:0.78em;font-weight:bold;color:' + (on?'#2ecc71':'#e74c3c') + '">' + (on?'AN':'AUS') + '</span>' +
+                  '</button>';
+              }).join('')}
+            </div>`
         }
       };
 
@@ -4697,102 +4859,12 @@
       });
     }());
 
-    // ─── Group Share from Global Intel ──────────────────────────────────────────
+    // ─── Intel Group Layer – direct per-source fetching ──────────────────────────
+    // The _ovMergeAndApply / _ov*Poll functions defined above handle all group intel.
+    // This block is intentionally empty; the group layer is created lazily by
+    // _ovGetGroupLayer() on first render.
     (function () {
-      let intelGroupLayer = null;
-      let intelGroupToastTimer = null;
-
-      function getIntelGroupLayer() {
-        if (!map || !window.L) return null;
-        if (!intelGroupLayer) {
-          intelGroupLayer = L.layerGroup().addTo(map);
-          window._intelGroupLayer = intelGroupLayer;
-        }
-        return intelGroupLayer;
-      }
-
-      function showGroupToast(count) {
-        const existing = document.getElementById('intelGroupToast');
-        if (existing) existing.remove();
-        if (intelGroupToastTimer) { clearTimeout(intelGroupToastTimer); intelGroupToastTimer = null; }
-        if (count === 0) return;
-        const toast = document.createElement('div');
-        toast.id = 'intelGroupToast';
-        toast.style.cssText = [
-          'position:fixed','bottom:140px','right:20px','z-index:9999',
-          'background:#1a1a1a','border:1px solid #9b59b6','border-radius:6px',
-          'padding:10px 14px','font-family:Courier New,monospace','font-size:.8rem',
-          'color:#d0d0d0','max-width:300px','box-shadow:0 4px 12px rgba(155,89,182,.4)'
-        ].join(';');
-        toast.innerHTML = `<div style="color:#9b59b6;font-size:.7rem;letter-spacing:1px;margin-bottom:4px">📡 GROUP SHARED – GLOBAL INTEL</div>
-          <div style="font-weight:bold">${count} markers on map</div>`;
-        document.body.appendChild(toast);
-        intelGroupToastTimer = setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
-      }
-
-      function applyGroupShare(payload) {
-        const layer = getIntelGroupLayer();
-        if (!layer) return;
-        layer.clearLayers();
-        const markers = payload.markers || [];
-        markers.forEach(function(data) {
-          if (data.lat == null || data.lon == null) return;
-          const color = data.color || '#9b59b6';
-          const iconClass = data.icon || 'fa-map-marker-alt';
-          const icon = L.divIcon({
-            className: '',
-            html: `<div style="width:26px;height:26px;border-radius:50%;background:${color}33;border:2px solid ${color};
-                        display:flex;align-items:center;justify-content:center;font-size:11px;
-                        box-shadow:0 0 6px ${color}66;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
-                     <i class="fas ${iconClass}" style="color:${color}"></i></div>`,
-            iconSize:   [26, 26],
-            iconAnchor: [13, 13],
-          });
-          const marker = L.marker([data.lat, data.lon], { icon })
-            .bindPopup(
-              `<b style="color:${color}">${data.title||'Intel'}</b><br>` +
-              `<span style="color:#888;font-size:.8em">Source: Global Intel (Group)</span><br>` +
-              `Type: ${data.type||'–'}` +
-              (data.detail ? `<br><span style="font-size:.8em">${data.detail}</span>` : '')
-            );
-          layer.addLayer(marker);
-        });
-        showGroupToast(markers.length);
-      }
-
-      function checkForGroupShare() {
-        try {
-          const raw = localStorage.getItem('lpu5_intel_group_share');
-          if (!raw) {
-            const layer = getIntelGroupLayer();
-            if (layer) { layer.clearLayers(); }
-            return;
-          }
-          const payload = JSON.parse(raw);
-          applyGroupShare(payload);
-        } catch (e) {
-          console.error('Intel group share error:', e);
-        }
-      }
-
-      window.addEventListener('load', function () {
-        checkForGroupShare();
-        setInterval(checkForGroupShare, 3000);
-      });
-
-      window.addEventListener('storage', function (e) {
-        if (e.key === 'lpu5_intel_group_share') {
-          try {
-            if (e.newValue) {
-              const payload = JSON.parse(e.newValue);
-              applyGroupShare(payload);
-            } else {
-              const layer = getIntelGroupLayer();
-              if (layer) { layer.clearLayers(); showGroupToast(0); }
-            }
-          } catch (err) { console.error('Intel group storage event error:', err); }
-        }
-      });
+      // no-op placeholder – kept for structural clarity
     }());
 
     /* ----------------- SERVICE WORKER FOR OFFLINE MAPS -----------------
