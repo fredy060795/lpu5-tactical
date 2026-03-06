@@ -264,9 +264,9 @@ test('node type maps to a-f-G-E-S-U-M (Meshtastic equipment)', () => {
   assert(cotType === 'a-f-G-E-S-U-M', `node should map to a-f-G-E-S-U-M, got ${cotType}`);
 });
 
-test('meshtastic_node type maps to a-f-G-U-C (SA type, shows as SA in ATAK)', () => {
+test('meshtastic_node type maps to a-f-G-E-S-U-M (Meshtastic equipment)', () => {
   const cotType = COTEvent.lpu5TypeToCot('meshtastic_node');
-  assert(cotType === 'a-f-G-U-C', `meshtastic_node should map to a-f-G-U-C, got ${cotType}`);
+  assert(cotType === 'a-f-G-E-S-U-M', `meshtastic_node should map to a-f-G-E-S-U-M, got ${cotType}`);
 });
 
 test('gateway type maps to a-f-G-E-S-U-M', () => {
@@ -274,9 +274,9 @@ test('gateway type maps to a-f-G-E-S-U-M', () => {
   assert(cotType === 'a-f-G-E-S-U-M', `gateway should map to a-f-G-E-S-U-M, got ${cotType}`);
 });
 
-test('a-f-G-E-S-U-M maps back to cbt_rechteck (not meshtastic_node)', () => {
+test('a-f-G-E-S-U-M maps back to meshtastic_node', () => {
   const lpu5 = COTEvent.cotTypeToLpu5('a-f-G-E-S-U-M');
-  assert(lpu5 === 'cbt_rechteck', `a-f-G-E-S-U-M should map to cbt_rechteck, got ${lpu5}`);
+  assert(lpu5 === 'meshtastic_node', `a-f-G-E-S-U-M should map to meshtastic_node, got ${lpu5}`);
 });
 
 test('markerToCOT with node type produces a-f-G-E-S-U-M', () => {
@@ -346,7 +346,7 @@ test('cotToMarker Meshtastic SA beacon with meshtastic detail produces meshtasti
     `how='h-e' + hasMeshtasticDetail must produce meshtastic_node, got ${marker.type}`);
 });
 
-test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives cbt_rechteck', () => {
+test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives meshtastic_node', () => {
   const cot = new COTEvent({
     uid: 'MESH-3',
     type: 'a-f-G-E-S-U-M',
@@ -355,8 +355,8 @@ test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives cbt_r
     callsign: 'Node3',
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'cbt_rechteck',
-    `a-f-G-E-S-U-M without <meshtastic> detail should map to cbt_rechteck, got ${marker.type}`);
+  assert(marker.type === 'meshtastic_node',
+    `a-f-G-E-S-U-M without <meshtastic> detail should map to meshtastic_node, got ${marker.type}`);
 });
 
 // Summary
