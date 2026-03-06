@@ -249,9 +249,12 @@ test('Affiliation parsing from COT type', () => {
   assert(unknown.status === 'unknown', 'Should parse unknown');
 });
 
-test('cotToMarker: how=h-e SA beacon with meshtastic detail produces tak_unit not meshtastic_node', () => {
-  // SA beacons (how='h-*') must not be overridden to meshtastic_node even when
-  // a <meshtastic> element is present (some ATAK plugins add it spuriously).
+test('cotToMarker: how=h-e SA beacon with meshtastic detail produces meshtastic_node', () => {
+  // The <meshtastic> detail element is the authoritative signal that a CoT event
+  // originates from a Meshtastic node, even when how="h-*".  ATAK Meshtastic
+  // plugins forward node SA beacons with how="h-e" or how="h-g-*" — the same
+  // how codes used by regular human ATAK users — so the <meshtastic> element
+  // must take priority over the how-code check.
   const cot = new COTEvent({
     uid: 'SA-UNIT-1',
     type: 'a-f-G-U-C',
@@ -262,8 +265,8 @@ test('cotToMarker: how=h-e SA beacon with meshtastic detail produces tak_unit no
     hasMeshtasticDetail: true,
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'tak_unit',
-    `how='h-e' SA beacon must produce tak_unit even with hasMeshtasticDetail=true, got ${marker.type}`);
+  assert(marker.type === 'meshtastic_node',
+    `how='h-e' + hasMeshtasticDetail must produce meshtastic_node, got ${marker.type}`);
 });
 
 test('cotToMarker: how=m-g with meshtastic detail produces meshtastic_node', () => {
