@@ -461,7 +461,28 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
 
     def test_meshtastic_node_in_lpu5_to_cot(self):
         self.assertIn("meshtastic_node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-U-C")
+
+    def test_cbt_rechteck_in_lpu5_to_cot(self):
+        self.assertIn("cbt_rechteck", CoTProtocolHandler.LPU5_TO_COT_TYPE)
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["cbt_rechteck"], "a-f-G-E-S-U-M")
+
+    def test_meshtastic_node_marker_produces_sa_cot_with_meshtastic_detail(self):
+        # meshtastic_node now uses a-f-G-U-C (SA type) so ATAK shows it as
+        # an SA contact, distinguished from regular SA by the <meshtastic> element.
+        marker = {"id": "mesh-sa-1", "lat": 48.0, "lng": 11.0, "type": "meshtastic_node",
+                  "name": "SaMesh", "callsign": "SaMesh"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-U-C",
+                         "meshtastic_node must export as a-f-G-U-C (SA type)")
+        self.assertTrue(evt.is_meshtastic_node,
+                        "marker_to_cot() must set is_meshtastic_node=True for type='meshtastic_node'")
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNotNone(detail.find("meshtastic"),
+                             "meshtastic_node CoT must contain <meshtastic> element even with a-f-G-U-C type")
 
     def test_tak_unit_in_lpu5_to_cot(self):
         self.assertIn("tak_unit", CoTProtocolHandler.LPU5_TO_COT_TYPE)
@@ -585,9 +606,8 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
 
     def test_cot_to_marker_meshtastic_equipment_type_no_detail(self):
         # CoT type a-f-G-E-S-U-M from ATAK without <meshtastic> element must
-        # still produce meshtastic_node — the CoT type alone is authoritative.
-        # This covers ATAK Meshtastic plugins that omit the <meshtastic> tag
-        # and ATAK echo-backs that strip custom detail elements.
+        # produce cbt_rechteck — the Meshtastic equipment CoT type is now used
+        # for CBT rectangle markers (ATAK-sourced friendly markers).
         xml = (
             '<?xml version="1.0" encoding="UTF-8"?>'
             '<event version="2.0" uid="ATAKNODE-1" type="a-f-G-E-S-U-M" '
@@ -600,14 +620,13 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         evt = CoTEvent.from_xml(xml)
         self.assertFalse(evt.has_meshtastic_detail)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "meshtastic_node",
-                         "a-f-G-E-S-U-M CoT type must map to meshtastic_node even without "
-                         "<meshtastic> detail element")
+        self.assertEqual(marker["type"], "cbt_rechteck",
+                         "a-f-G-E-S-U-M without <meshtastic> detail must produce cbt_rechteck")
 
     def test_cot_to_marker_meshtastic_equipment_type_with_how_h(self):
-        # a-f-G-E-S-U-M with how="h-g-i-g-o" (GPS-derived) must still produce
-        # meshtastic_node — the Meshtastic CoT type takes precedence over the
-        # tak_unit heuristic which only applies to plain a-f-G-U-C (rechteck).
+        # a-f-G-E-S-U-M with how="h-g-i-g-o" (GPS-derived) and no <meshtastic>
+        # detail must produce cbt_rechteck — the Meshtastic equipment CoT type
+        # is now used for CBT rectangle markers, not meshtastic_node.
         xml = (
             '<?xml version="1.0" encoding="UTF-8"?>'
             '<event version="2.0" uid="ATAKNODE-2" type="a-f-G-E-S-U-M" '
@@ -619,8 +638,8 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         )
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "meshtastic_node",
-                         "a-f-G-E-S-U-M with GPS how must still produce meshtastic_node")
+        self.assertEqual(marker["type"], "cbt_rechteck",
+                         "a-f-G-E-S-U-M without <meshtastic> detail must produce cbt_rechteck")
 
 
 class TestGatewayContactDisplay(unittest.TestCase):
@@ -714,10 +733,10 @@ class TestGatewayContactDisplay(unittest.TestCase):
         self.assertIsNone(evt.contact_endpoint)
 
     def test_meshtastic_node_type_maps_to_equipment_type(self):
-        """'meshtastic_node' type must map to a-f-G-E-S-U-M (Meshtastic equipment)."""
+        """'meshtastic_node' type must map to a-f-G-U-C (SA type, shows as SA in ATAK)."""
         self.assertEqual(
             CoTProtocolHandler.lpu5_type_to_cot("meshtastic_node"),
-            "a-f-G-E-S-U-M",
+            "a-f-G-U-C",
         )
 
     def test_meshtastic_node_xml_contains_uid_droid(self):
@@ -798,8 +817,8 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         self.assertIsNotNone(evt)
         self.assertEqual(
             evt.cot_type,
-            "a-f-G-E-S-U-M",
-            "meshtastic_node marker must use a-f-G-E-S-U-M regardless of stored cot_type",
+            "a-f-G-U-C",
+            "meshtastic_node marker must use a-f-G-U-C regardless of stored cot_type",
         )
 
     def test_gateway_marker_ignores_wrong_cot_type_in_data(self):
