@@ -1529,6 +1529,19 @@ def _process_incoming_cot(cot_xml: str) -> None:
             lpu5_type = "meshtastic_node"
         elif lpu5_type == "rechteck" and how.startswith("h"):
             lpu5_type = "tak_unit"
+        else:
+            # All CoT events originate from ATAK/WinTAK. Remap the four basic
+            # shape types to their CBT variants so ATAK-sourced markers are
+            # visually distinguished from natively created LPU5 markers.
+            if AUTONOMOUS_MODULES_AVAILABLE:
+                lpu5_type = CoTProtocolHandler.ATAK_TO_CBT_TYPE.get(lpu5_type, lpu5_type)
+            else:
+                lpu5_type = {
+                    "raute":    "cbt_raute",
+                    "rechteck": "cbt_rechteck",
+                    "quadrat":  "cbt_quadrat",
+                    "blume":    "cbt_blume",
+                }.get(lpu5_type, lpu5_type)
 
         # Deduplication: skip identical events to avoid redundant DB writes,
         # WebSocket broadcasts, and log spam when the TAK server re-sends the

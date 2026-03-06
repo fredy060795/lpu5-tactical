@@ -377,6 +377,22 @@ class CoTProtocolHandler:
         "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic equipment node (ATAK plugin)
         "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router (equipment)
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
+        # CBT variants: ATAK-sourced markers rendered with "CBT" label to
+        # distinguish them from natively created LPU5 markers.
+        "cbt_raute":        "a-h-G-U-C",   # ATAK hostile (red diamond + CBT)
+        "cbt_rechteck":     "a-f-G-U-C",   # ATAK friendly (blue rectangle + CBT)
+        "cbt_quadrat":      "a-n-G-U-C",   # ATAK neutral (green square + CBT)
+        "cbt_blume":        "a-u-G-U-C",   # ATAK unknown (yellow flower + CBT)
+    }
+
+    # Remaps the four basic LPU5 shape types to their ATAK-sourced CBT variants.
+    # Applied to every marker that arrives via CoT so that ATAK-originated data
+    # is immediately distinguishable from natively created LPU5 markers.
+    ATAK_TO_CBT_TYPE: Dict[str, str] = {
+        "raute":    "cbt_raute",
+        "rechteck": "cbt_rechteck",
+        "quadrat":  "cbt_quadrat",
+        "blume":    "cbt_blume",
     }
 
     # Mapping from normalized lowercase hex color strings to ATAK team names.
@@ -652,6 +668,11 @@ class CoTProtocolHandler:
             lpu5_type = "meshtastic_node"
         elif lpu5_type == "rechteck" and cot_event.how.startswith("h"):
             lpu5_type = "tak_unit"
+        else:
+            # All CoT events originate from ATAK/WinTAK. Remap the four basic
+            # shape types to their CBT variants so ATAK-sourced markers are
+            # visually distinguished from natively created LPU5 markers.
+            lpu5_type = CoTProtocolHandler.ATAK_TO_CBT_TYPE.get(lpu5_type, lpu5_type)
 
         return {
             "id": cot_event.uid,

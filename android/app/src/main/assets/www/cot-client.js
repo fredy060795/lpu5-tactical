@@ -261,6 +261,11 @@ class COTEvent {
             meshtastic_node: 'a-f-G-U-C',
             gateway:         'a-f-G-U-C',
             tak_unit:        'a-f-G-U-C',
+            // CBT variants — ATAK-sourced markers; map back to same CoT types.
+            cbt_raute:       'a-h-G-U-C',
+            cbt_rechteck:    'a-f-G-U-C',
+            cbt_quadrat:     'a-n-G-U-C',
+            cbt_blume:       'a-u-G-U-C',
         };
     }
 

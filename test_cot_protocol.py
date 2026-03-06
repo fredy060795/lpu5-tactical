@@ -506,11 +506,11 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "tak_unit")
 
     def test_cot_to_marker_rechteck_for_machine_generated(self):
-        # "m-g" without <meshtastic> → original mapping (rechteck for a-f)
+        # "m-g" without <meshtastic> → CBT variant of rechteck for a-f (ATAK-sourced)
         xml = self._make_cot_xml(how="m-g")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "rechteck")
+        self.assertEqual(marker["type"], "cbt_rechteck")
 
     def test_meshtastic_takes_precedence_over_human_how(self):
         # Even with how="h-e", <meshtastic> in detail takes precedence
@@ -535,8 +535,8 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         )
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        # a-h maps to raute — tak_unit override only applies to rechteck (a-f)
-        self.assertEqual(marker["type"], "raute")
+        # a-h maps to raute → CBT variant (ATAK-sourced); tak_unit only applies to rechteck (a-f)
+        self.assertEqual(marker["type"], "cbt_raute")
 
 
 class TestGatewayContactDisplay(unittest.TestCase):
