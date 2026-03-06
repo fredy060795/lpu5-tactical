@@ -1321,6 +1321,7 @@
       map.createPane('drawPane').style.zIndex = 600;
       map.createPane('meshtasticPane').style.zIndex = 650; // Above draw so blue circles always visible
       map.createPane('pendingPane').style.zIndex = 700;
+      map.createPane('gpsPane').style.zIndex = 750; // Own GPS marker always on top of all other layers
       map.getContainer().style.touchAction = 'manipulation';
       renderPendingLayers();
 
@@ -2091,7 +2092,7 @@
                 iconSize: [40, 40],
                 iconAnchor: [20, 20]
               }),
-              pane: 'drawPane'
+              pane: 'gpsPane'
             }).addTo(map).bindPopup('GPS Position (Auto-tracking)', {
               closeButton: true
             });
@@ -2157,7 +2158,7 @@
             iconSize: [40, 40],
             iconAnchor: [20, 20]
           }),
-          pane: 'drawPane'
+          pane: 'gpsPane'
         }).addTo(map).bindPopup('GPS Position (Manual)', {
           closeButton: true
         });
@@ -2195,7 +2196,7 @@
             iconSize: [40, 40],
             iconAnchor: [20, 20]
           }),
-          pane: 'drawPane'
+          pane: 'gpsPane'
         }).addTo(map).bindPopup('GPS Position', {
           closeButton: true
         }).openPopup();
@@ -2250,7 +2251,7 @@
               iconSize: [40, 40],
               iconAnchor: [20, 20]
             }),
-            pane: 'drawPane'
+            pane: 'gpsPane'
           }).addTo(map).bindPopup('IP-based position (approximate)', {
             closeButton: true
           }).openPopup();
@@ -2297,7 +2298,7 @@
             iconSize: [40, 40],
             iconAnchor: [20, 20]
           }),
-          pane: 'drawPane'
+          pane: 'gpsPane'
         }).addTo(map).bindPopup('Manually entered position', {
           closeButton: true
         }).openPopup();
