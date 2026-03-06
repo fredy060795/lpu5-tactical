@@ -541,24 +541,23 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "cbt_rechteck")
 
-    def test_human_how_takes_precedence_over_meshtastic_detail(self):
-        # how="h-e" (human-entered SA beacon) must produce tak_unit even when
-        # <meshtastic> is present in detail.  Some ATAK Meshtastic plugins add
-        # a spurious <meshtastic> element to ALL SA beacons; the how code is
-        # the authoritative signal for human/GPS-derived SA positions.
+    def test_meshtastic_detail_takes_precedence_over_human_how(self):
+        # how="h-e" (human-entered) + <meshtastic> in detail must produce
+        # meshtastic_node.  ATAK Meshtastic SA beacons use how="h-*" just like
+        # regular ATAK user SA beacons, so the <meshtastic> element is the
+        # authoritative signal that this is a Meshtastic node, not a human user.
         xml = self._make_cot_xml(
             how="h-e",
             extra_detail='<meshtastic longName="Tower" shortName="TW"/>'
         )
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_unit",
-                         "how='h-e' SA beacon must produce tak_unit, not meshtastic_node")
+        self.assertEqual(marker["type"], "meshtastic_node",
+                         "how='h-e' + <meshtastic> must produce meshtastic_node, not tak_unit")
 
-    def test_meshtastic_detail_still_overrides_machine_generated(self):
-        # how="m-g" (machine-generated) + <meshtastic> in detail must still
-        # produce meshtastic_node.  The fix only affects human-derived (h-*)
-        # SA beacons, not machine-generated Meshtastic forwarding traffic.
+    def test_meshtastic_detail_overrides_machine_generated(self):
+        # how="m-g" (machine-generated) + <meshtastic> in detail must also
+        # produce meshtastic_node.
         xml = self._make_cot_xml(
             how="m-g",
             extra_detail='<meshtastic longName="MeshNode" shortName="MN"/>'
@@ -566,7 +565,7 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "meshtastic_node",
-                         "how='m-g' + <meshtastic> must still produce meshtastic_node")
+                         "how='m-g' + <meshtastic> must produce meshtastic_node")
 
     def test_tak_unit_does_not_affect_hostile_type(self):
         # how="h-e" with a-h type should NOT produce tak_unit (only overrides a-f→rechteck)

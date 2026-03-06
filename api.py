@@ -1577,16 +1577,17 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 lpu5_type = callsign_lower
 
         # Override with more specific types for ATAK-sourced events.
-        # The how-based SA-beacon check runs first because some ATAK
-        # Meshtastic plugins may add a spurious <meshtastic> element to SA
-        # beacons; the how code ("h-*") is the more reliable signal for
-        # human/GPS-derived positions.
-        #   • how starts with "h"     → ATAK SA / GPS position (human/GPS-derived)
+        # Meshtastic SA beacons forwarded by an ATAK Meshtastic plugin carry a
+        # <meshtastic> element in their <detail> block.  These are checked first
+        # because ATAK Meshtastic SA beacons use how="h-*" just like regular ATAK
+        # SA beacons; the <meshtastic> element is the authoritative signal that
+        # this is a Meshtastic node, not a human ATAK user.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
-        if lpu5_type == "rechteck" and how.startswith("h"):
-            lpu5_type = "tak_unit"
-        elif _has_mesh_detail:
+        #   • how starts with "h" (no meshtastic detail) → ATAK SA / GPS position
+        if _has_mesh_detail:
             lpu5_type = "meshtastic_node"
+        elif lpu5_type == "rechteck" and how.startswith("h"):
+            lpu5_type = "tak_unit"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are

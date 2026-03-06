@@ -657,17 +657,17 @@ class CoTProtocolHandler:
 
         # Refine the type for ATAK-specific CoT sources so they render with
         # the correct icon rather than the generic blue-rectangle ("rechteck"):
-        #   • ATAK SA / GPS position updates use a "h-*" how code.  These are
-        #     checked first because some ATAK Meshtastic plugins may add a
-        #     spurious <meshtastic> element to SA beacons; the how code is the
-        #     more reliable signal for human/GPS-derived positions.
-        #   • Meshtastic nodes forwarded by an ATAK Meshtastic plugin carry a
-        #     <meshtastic> element in their <detail> block and always use
-        #     how="m-g" (machine-generated).
-        if lpu5_type == "rechteck" and cot_event.how.startswith("h"):
-            lpu5_type = "tak_unit"
-        elif cot_event.has_meshtastic_detail:
+        #   • Meshtastic SA beacons forwarded by an ATAK Meshtastic plugin carry a
+        #     <meshtastic> element in their <detail> block.  These are checked first
+        #     because ATAK Meshtastic SA beacons use how="h-*" just like regular ATAK
+        #     SA beacons; the <meshtastic> element is the authoritative signal that
+        #     this is a Meshtastic node, not a human ATAK user.
+        #   • ATAK SA / GPS position updates without a <meshtastic> element use a
+        #     "h-*" how code and are treated as friendly tak_unit markers.
+        if cot_event.has_meshtastic_detail:
             lpu5_type = "meshtastic_node"
+        elif lpu5_type == "rechteck" and cot_event.how.startswith("h"):
+            lpu5_type = "tak_unit"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are
