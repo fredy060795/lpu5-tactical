@@ -1142,6 +1142,73 @@
     const symbolLayers = new Map(); // symbol id -> L.marker layer (symbols from /api/map/symbols)
     let serverConnected = false; // Track server connection status
     const DEBUG_MODE = false; // Set to false in production to disable diagnostic logging
+
+    // ── Overlay Layer Visibility ──────────────────────────────────────────────────
+    // Persisted state for which data layers the EUD wants to see.
+    // Keys: 'mesh' | 'imageOverlays' | 'symbols' | 'intel'
+    const _ovVis = (function() {
+      var defaults = { mesh: true, imageOverlays: true, symbols: true, intel: true };
+      try {
+        var saved = JSON.parse(localStorage.getItem('lpu5_overview_overlay_vis') || '{}');
+        return Object.assign({}, defaults, saved);
+      } catch(e) { return defaults; }
+    })();
+
+    function _saveOvVis() {
+      try { localStorage.setItem('lpu5_overview_overlay_vis', JSON.stringify(_ovVis)); } catch(e) {}
+    }
+
+    function _applyOvVis(type, visible) {
+      if (!map) return;
+      _ovVis[type] = visible;
+      switch (type) {
+        case 'mesh': {
+          var p = map.getPane('meshtasticPane');
+          if (p) p.style.display = visible ? '' : 'none';
+          break;
+        }
+        case 'imageOverlays': {
+          var p = map.getPane('overlayPane');
+          if (p) p.style.display = visible ? '' : 'none';
+          break;
+        }
+        case 'symbols': {
+          var p = map.getPane('drawPane');
+          if (p) p.style.display = visible ? '' : 'none';
+          break;
+        }
+        case 'intel': {
+          var layers = [window._intelSingleLayer, window._intelGroupLayer].filter(Boolean);
+          if (visible) {
+            layers.forEach(function(l) { if (!map.hasLayer(l)) l.addTo(map); });
+          } else {
+            layers.forEach(function(l) { try { l.remove(); } catch(e) {} });
+          }
+          break;
+        }
+      }
+    }
+
+    window.toggleOverlayLayer = function(type) {
+      _applyOvVis(type, !_ovVis[type]);
+      _saveOvVis();
+      // Refresh button labels if the Overlays popup is open
+      var statusEl = document.getElementById('ov-lbl-' + type);
+      if (statusEl) {
+        statusEl.textContent = _ovVis[type] ? 'AN' : 'AUS';
+        statusEl.style.color = _ovVis[type] ? '#2ecc71' : '#e74c3c';
+      }
+    };
+
+    // Restore saved visibility states once the map panes are ready.
+    // A short delay ensures all Leaflet panes are created before we modify them.
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        Object.keys(_ovVis).forEach(function(type) {
+          if (!_ovVis[type]) _applyOvVis(type, false);
+        });
+      }, 1500); // 1500ms: allow Leaflet pane creation + initial data load to complete
+    });
     const chatUnreadByChannel = {}; // Unread counts per channel id
     function _chatTotalUnread() { return Object.values(chatUnreadByChannel).reduce(function(a,b){return a+b;},0); }
     const _sentChatMessageIds = new Set(); // Track IDs of messages we sent to suppress WebSocket echoes
@@ -1297,6 +1364,8 @@
           // Handle new symbol from another client
           console.log('Received symbol update:', data.type, data.data);
           scheduledSync();
+          // Also refresh /api/map/symbols so symbols placed in admin_map appear immediately
+          if (typeof loadMapSymbols === 'function') loadMapSymbols();
           break;
 
         case 'drawing_created':
@@ -4350,6 +4419,7 @@
         html += sidebarTile('tile-status', 'fas fa-user', 'Status',    "openMenuPopup('status')");
         html += sidebarTile('tile-gps',    'fas fa-location-arrow', 'GPS', "openMenuPopup('gps')");
         html += sidebarTile('tile-map',    'fas fa-layer-group', 'Karte', "openMenuPopup('map')");
+        html += sidebarTile('tile-overlays','fas fa-layer-group',  'Overlays', "openMenuPopup('overlays')");
         html += sidebarTile('tile-video',  'fas fa-video',       'Video', "openMenuPopup('video')");
         html += sidebarTile('tile-mesh',   'fab fa-bluetooth-b', 'Mesh',  "openMenuPopup('mesh')");
         html += sidebarTile('tile-sync',   'fas fa-sync-alt',    'Sync',  'closeHamburgerMenu();refreshAllData()');
@@ -4444,6 +4514,29 @@
             <button class="menu-btn" id="menu-mesh-disconnect-btn"
               onclick="event.stopPropagation();disconnectMeshtastic();closeMenuPopup()" style="display:none;">
               <i class="fas fa-times"></i> Disconnect Mesh Device
+            </button>`
+        },
+        overlays: {
+          title: 'OVERLAYS',
+          html: `
+            <div style="font-size:0.8em;color:#888;margin-bottom:12px;">
+              <i class="fas fa-info-circle"></i> Datenlayer ein-/ausblenden
+            </div>
+            <button class="menu-btn" onclick="event.stopPropagation();toggleOverlayLayer('mesh')">
+              <i class="fab fa-bluetooth-b"></i> Meshtastic
+              <span id="ov-lbl-mesh" style="margin-left:auto;font-size:0.85em;color:${_ovVis.mesh?'#2ecc71':'#e74c3c'}">${_ovVis.mesh?'AN':'AUS'}</span>
+            </button>
+            <button class="menu-btn" onclick="event.stopPropagation();toggleOverlayLayer('imageOverlays')">
+              <i class="fas fa-image"></i> Karten-Overlays
+              <span id="ov-lbl-imageOverlays" style="margin-left:auto;font-size:0.85em;color:${_ovVis.imageOverlays?'#2ecc71':'#e74c3c'}">${_ovVis.imageOverlays?'AN':'AUS'}</span>
+            </button>
+            <button class="menu-btn" onclick="event.stopPropagation();toggleOverlayLayer('symbols')">
+              <i class="fas fa-map-marker-alt"></i> Tactical Symbole
+              <span id="ov-lbl-symbols" style="margin-left:auto;font-size:0.85em;color:${_ovVis.symbols?'#2ecc71':'#e74c3c'}">${_ovVis.symbols?'AN':'AUS'}</span>
+            </button>
+            <button class="menu-btn" onclick="event.stopPropagation();toggleOverlayLayer('intel')">
+              <i class="fas fa-satellite-dish"></i> Global Intel
+              <span id="ov-lbl-intel" style="margin-left:auto;font-size:0.85em;color:${_ovVis.intel?'#2ecc71':'#e74c3c'}">${_ovVis.intel?'AN':'AUS'}</span>
             </button>`
         }
       };
