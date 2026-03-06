@@ -108,6 +108,35 @@ class TestGpsPositionType(unittest.TestCase):
     def test_lpu5_type_to_cot_gps_position_case_insensitive(self):
         self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("GPS_POSITION"), "a-f-G-E-S-U-M")
 
+    def test_gps_position_has_meshtastic_element_in_xml(self):
+        """GPS positions use a-f-G-E-S-U-M and must carry a <meshtastic> element
+        so that ATAK displays them with the Meshtastic symbol, not as a generic marker."""
+        marker = {"id": "GPS-user1", "lat": 48.0, "lng": 11.0, "type": "gps_position",
+                  "name": "Callsign1", "callsign": "Callsign1"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M",
+                         "GPS positions must use a-f-G-E-S-U-M (Meshtastic equipment type)")
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        self.assertIsNotNone(detail)
+        mesh_elem = detail.find("meshtastic")
+        self.assertIsNotNone(mesh_elem, "GPS position CoT must contain a <meshtastic> element")
+
+    def test_meshtastic_node_has_meshtastic_element(self):
+        """Meshtastic nodes must contain <meshtastic> element in CoT XML."""
+        marker = {"id": "mesh-123", "lat": 48.0, "lng": 11.0, "type": "node",
+                  "name": "MeshNode", "callsign": "MeshNode"}
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M")
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        detail = root.find("detail")
+        mesh_elem = detail.find("meshtastic")
+        self.assertIsNotNone(mesh_elem, "Meshtastic node CoT must contain a <meshtastic> element")
+
     def test_gps_position_callsign_takes_priority_over_name(self):
         """callsign from user profile should take priority over name for GPS positions."""
         marker = {
