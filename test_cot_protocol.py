@@ -538,6 +538,45 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         # a-h maps to raute → CBT variant (ATAK-sourced); tak_unit only applies to rechteck (a-f)
         self.assertEqual(marker["type"], "cbt_raute")
 
+    def test_cot_to_marker_meshtastic_equipment_type_no_detail(self):
+        # CoT type a-f-G-E-S-U-M from ATAK without <meshtastic> element must
+        # still produce meshtastic_node — the CoT type alone is authoritative.
+        # This covers ATAK Meshtastic plugins that omit the <meshtastic> tag
+        # and ATAK echo-backs that strip custom detail elements.
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<event version="2.0" uid="ATAKNODE-1" type="a-f-G-E-S-U-M" '
+            'how="m-g" time="2024-01-01T00:00:00.000Z" '
+            'start="2024-01-01T00:00:00.000Z" stale="2024-01-01T00:10:00.000Z">'
+            '<point lat="48.0" lon="11.0" hae="250.0" ce="10.0" le="10.0"/>'
+            '<detail><contact callsign="MeshNode1"/></detail>'
+            '</event>'
+        )
+        evt = CoTEvent.from_xml(xml)
+        self.assertFalse(evt.has_meshtastic_detail)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["type"], "meshtastic_node",
+                         "a-f-G-E-S-U-M CoT type must map to meshtastic_node even without "
+                         "<meshtastic> detail element")
+
+    def test_cot_to_marker_meshtastic_equipment_type_with_how_h(self):
+        # a-f-G-E-S-U-M with how="h-g-i-g-o" (GPS-derived) must still produce
+        # meshtastic_node — the Meshtastic CoT type takes precedence over the
+        # tak_unit heuristic which only applies to plain a-f-G-U-C (rechteck).
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<event version="2.0" uid="ATAKNODE-2" type="a-f-G-E-S-U-M" '
+            'how="h-g-i-g-o" time="2024-01-01T00:00:00.000Z" '
+            'start="2024-01-01T00:00:00.000Z" stale="2024-01-01T00:10:00.000Z">'
+            '<point lat="48.0" lon="11.0" hae="250.0" ce="10.0" le="10.0"/>'
+            '<detail><contact callsign="MeshNode2"/></detail>'
+            '</event>'
+        )
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["type"], "meshtastic_node",
+                         "a-f-G-E-S-U-M with GPS how must still produce meshtastic_node")
+
 
 class TestGatewayContactDisplay(unittest.TestCase):
     """Tests for Meshtastic gateway node ATAK display.

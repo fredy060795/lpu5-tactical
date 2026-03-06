@@ -1613,6 +1613,19 @@ def _process_incoming_cot(cot_xml: str) -> None:
         db = SessionLocal()
         try:
             marker = db.query(MapMarker).filter(MapMarker.id == uid).first()
+
+            # Resolve the effective LPU5 type, potentially preserving an existing
+            # meshtastic_node classification when the incoming CoT lacks a
+            # <meshtastic> element.  ATAK may strip custom detail elements when
+            # redistributing CoT events, causing a correctly-identified Meshtastic
+            # node to revert to cbt_rechteck on subsequent position updates.
+            effective_type = lpu5_type
+            if (marker
+                    and marker.type == "meshtastic_node"
+                    and not _has_mesh_detail
+                    and effective_type != "meshtastic_node"):
+                effective_type = "meshtastic_node"
+
             if marker:
                 if uid.startswith("mesh-") or marker.created_by not in _TAK_INGEST_SOURCES:
                     # ATAK is echoing back a marker that LPU5 (or Meshtastic) originated.
@@ -1622,7 +1635,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 marker.lat = lat
                 marker.lng = lng
                 marker.name = callsign
-                marker.type = lpu5_type
+                marker.type = effective_type
                 new_data = dict(marker.data) if marker.data else {}
                 new_data["cot_type"] = event_type
                 marker.data = new_data
@@ -1642,7 +1655,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     name=callsign,
                     lat=lat,
                     lng=lng,
-                    type=lpu5_type,
+                    type=effective_type,
                     created_by="tak_server",
                     data={"cot_type": event_type},
                 )
@@ -1656,7 +1669,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 "callsign": callsign,
                 "lat": lat,
                 "lng": lng,
-                "type": lpu5_type,
+                "type": effective_type,
                 "cot_type": event_type,
                 "created_by": "tak_server",
             })
@@ -6797,15 +6810,26 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
         with SessionLocal() as db:
             existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
             if existing:
-                if existing.created_by not in _TAK_INGEST_SOURCES:
+                if (marker_dict["id"].startswith("mesh-")
+                        or existing.created_by not in _TAK_INGEST_SOURCES):
                     # Echo-back of an LPU5-originated marker — skip the update to
                     # prevent the native LPU5 type from being overwritten with a
                     # CBT variant (e.g. "raute" → "cbt_raute").
                     return
+                # Guard: don't downgrade a meshtastic_node marker to cbt_rechteck
+                # or tak_unit when the incoming CoT echo lacks a <meshtastic>
+                # element.  ATAK may strip custom detail elements when re-
+                # distributing CoT, which would cause the node to lose its
+                # Meshtastic icon on every subsequent position update.
+                incoming_type = marker_dict.get("type", "unknown")
+                if (existing.type == "meshtastic_node"
+                        and not cot_event.has_meshtastic_detail
+                        and incoming_type != "meshtastic_node"):
+                    incoming_type = "meshtastic_node"
                 existing.lat = marker_dict["lat"]
                 existing.lng = marker_dict["lng"]
                 existing.name = marker_dict.get("name") or marker_dict["id"]
-                existing.type = marker_dict.get("type", "unknown")
+                existing.type = incoming_type
                 extra = dict(existing.data) if isinstance(existing.data, dict) else {}
                 extra["cot_type"] = marker_dict.get("cot_type")
                 extra["source"] = "cot"
