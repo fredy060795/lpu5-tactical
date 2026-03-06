@@ -4353,6 +4353,7 @@
         html += sidebarTile('tile-video',  'fas fa-video',       'Video', "openMenuPopup('video')");
         html += sidebarTile('tile-mesh',   'fab fa-bluetooth-b', 'Mesh',  "openMenuPopup('mesh')");
         html += sidebarTile('tile-sync',   'fas fa-sync-alt',    'Sync',  'closeHamburgerMenu();refreshAllData()');
+        html += sidebarTile('tile-intel',  'fas fa-satellite-dish', 'Intel', "closeHamburgerMenu();window.location.href='global_Intel.html'");
       }
       html += sidebarTile('tile-night', 'fas fa-moon', 'Nacht', 'closeHamburgerMenu();toggleNightMode()');
       html += isLoggedIn
