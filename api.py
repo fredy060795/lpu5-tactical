@@ -1547,10 +1547,10 @@ def _process_incoming_cot(cot_xml: str) -> None:
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
-            # Meshtastic equipment type maps to CBT rectangle; meshtastic_node
-            # is detected via the <meshtastic> detail element check below.
+            # Meshtastic equipment type (a-f-G-E-S-U-M) maps directly to
+            # meshtastic_node so Meshtastic nodes are never shown as rectangles.
             if event_type == "a-f-G-E-S-U-M":
-                lpu5_type = "cbt_rechteck"
+                lpu5_type = "meshtastic_node"
             elif event_type.startswith("a-f"):
                 lpu5_type = "rechteck"
             elif event_type.startswith("a-h"):
