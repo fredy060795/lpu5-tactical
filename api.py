@@ -1560,12 +1560,10 @@ def _process_incoming_cot(cot_xml: str) -> None:
         try:
             marker = db.query(MapMarker).filter(MapMarker.id == uid).first()
             if marker:
-                if uid.startswith("mesh-"):
-                    # ATAK is echoing back a Meshtastic node we forwarded.
-                    # Ignore the echo entirely — updating with ATAK's normalised
-                    # type would corrupt the stored "node"/"gateway" type and
-                    # cause the node to appear as the wrong icon (e.g. yellow
-                    # flower) on the next broadcast cycle.
+                if uid.startswith("mesh-") or marker.created_by not in _TAK_INGEST_SOURCES:
+                    # ATAK is echoing back a marker that LPU5 (or Meshtastic) originated.
+                    # Skip the update entirely to prevent the native LPU5 type from being
+                    # overwritten with a CBT variant (e.g. "raute" → "cbt_raute").
                     return
                 marker.lat = lat
                 marker.lng = lng
@@ -6740,6 +6738,11 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
         with SessionLocal() as db:
             existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
             if existing:
+                if existing.created_by not in _TAK_INGEST_SOURCES:
+                    # Echo-back of an LPU5-originated marker — skip the update to
+                    # prevent the native LPU5 type from being overwritten with a
+                    # CBT variant (e.g. "raute" → "cbt_raute").
+                    return
                 existing.lat = marker_dict["lat"]
                 existing.lng = marker_dict["lng"]
                 existing.name = marker_dict.get("name") or marker_dict["id"]

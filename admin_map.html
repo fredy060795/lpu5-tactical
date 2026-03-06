@@ -369,6 +369,28 @@
       outline: 2px solid var(--accent-red);
     }
 
+    /* Measure tool active state */
+    #symMeasureBtn.active {
+      background: rgba(255, 215, 0, 0.15);
+      border-color: #ffd700;
+    }
+
+    /* Measure distance label */
+    .measure-label {
+      background: rgba(20, 20, 20, 0.88) !important;
+      color: #ffd700;
+      border: 1px solid #ffd700 !important;
+      border-radius: 4px;
+      padding: 3px 9px;
+      font-size: 0.9rem;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      white-space: nowrap;
+      pointer-events: none;
+      width: max-content !important;
+      height: auto !important;
+    }
+
     /* Overlay editor specific dark styling (applies to dynamically created editor panel) */
     #overlayEditorPanel {
       background: #151515;
@@ -974,34 +996,38 @@
     <h4>Symbols</h4>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="fly-sym-btn" data-sym="raute" title="Enemy"> <svg viewBox="0 0 100 100" width="18" height="18">
-          <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="2" />
+          <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="2" />
         </svg></button>
       <button class="fly-sym-btn" data-sym="rechteck" title="Friendly"> <svg viewBox="0 0 100 100" width="18"
           height="18">
-          <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="2" />
+          <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="2" />
         </svg></button>
       <button class="fly-sym-btn" data-sym="quadrat" title="Neutral"> <svg viewBox="0 0 100 100" width="18" height="18">
-          <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="2" />
+          <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="2" />
         </svg></button>
       <button class="fly-sym-btn" data-sym="blume" title="Unknown"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path
             d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
-            fill="#ffff00" stroke="white" stroke-width="2" />
+            fill="#ffff00" stroke="black" stroke-width="2" />
         </svg></button>
 
-      <button class="fly-sym-btn" id="symStopBtn" title="Stop Placement">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="22" height="22">
-          <polygon points="60,10 140,10 190,60 190,140 140,190 60,190 10,140 10,60" fill="#e63946" stroke="#fff"
-            stroke-width="10" />
-          <text x="100" y="118" font-family="Arial" font-size="48" font-weight="700" fill="#fff"
-            text-anchor="middle">STOP</text>
+      <button class="fly-sym-btn" id="symMeasureBtn" title="Entfernung messen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2" width="20" height="20">
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <line x1="2" y1="12" x2="4" y2="10"/>
+          <line x1="2" y1="12" x2="4" y2="14"/>
+          <line x1="22" y1="12" x2="20" y2="10"/>
+          <line x1="22" y1="12" x2="20" y2="14"/>
+          <line x1="8" y1="12" x2="8" y2="10"/>
+          <line x1="12" y1="12" x2="12" y2="9"/>
+          <line x1="16" y1="12" x2="16" y2="10"/>
         </svg>
       </button>
 
       <button class="fly-sym-btn" id="symTrashBtn" title="Delete Mode"><i class="fas fa-trash"
           style="color:#ff6666"></i></button>
     </div>
-    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol and click on the map to place it once. Placement mode deactivates automatically. Use Stop to cancel before placing. Trash activates
+    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol and click on the map to place it once. Placement mode deactivates automatically. Ruler activates distance measurement mode. Trash activates
       delete mode: click symbol to remove.</div>
   </div>
 
@@ -2545,23 +2571,23 @@
       let activeSymbol = null; let placingSymbol = false; let symbolDeleteMode = false;
       function getSymbolSvg(sym) {
         switch (sym) {
-          case 'raute': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="3"/></svg>`;
-          case 'rechteck': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="3"/></svg>`;
-          case 'quadrat': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="3"/></svg>`;
-          case 'blume': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="white" stroke-width="3"/></svg>`;
-          case 'friendly': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="white" stroke-width="3"/></svg>`;
-          case 'hostile': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#e74c3c" stroke="white" stroke-width="3"/></svg>`;
-          case 'neutral': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="#27ae60" stroke="white" stroke-width="3"/></svg>`;
-          case 'unknown': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#f39c12" stroke="white" stroke-width="3"/></svg>`;
-          case 'pending': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="white" stroke-width="3"/></svg>`;
-          case 'marker': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="white" stroke-width="3"/></svg>`;
-          case 'meshtastic_node': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="white" stroke-width="5"/><text x="50" y="62" font-size="44" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
-          case 'tak_unit': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="white" stroke-width="5"/><text x="50" y="62" font-size="44" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
-          case 'cbt_raute': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="white" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_rechteck': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="white" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_quadrat': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="white" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_blume': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="white" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          default: return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="white" stroke-width="3"/></svg>`;
+          case 'raute': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`;
+          case 'rechteck': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`;
+          case 'quadrat': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`;
+          case 'blume': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`;
+          case 'friendly': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
+          case 'hostile': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#e74c3c" stroke="black" stroke-width="3"/></svg>`;
+          case 'neutral': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="#27ae60" stroke="black" stroke-width="3"/></svg>`;
+          case 'unknown': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#f39c12" stroke="black" stroke-width="3"/></svg>`;
+          case 'pending': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>`;
+          case 'marker': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
+          case 'meshtastic_node': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="62" font-size="44" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'tak_unit': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="62" font-size="44" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'cbt_raute': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_rechteck': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_quadrat': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_blume': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          default: return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
         }
       }
 
@@ -2575,7 +2601,85 @@
         });
       });
 
-      document.getElementById('symStopBtn').addEventListener('click', () => { stopPlacingSymbol(); document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active')); activeSymbol = null; });
+      // ---- Distance Measurement Tool ----
+      let measureActive = false;
+      let measurePoints = [];
+      let measureLayers = [];
+      let measurePolyline = null;
+
+      const measureBtn = document.getElementById('symMeasureBtn');
+      measureBtn.addEventListener('click', () => { toggleMeasure(); });
+
+      function toggleMeasure() {
+        measureActive = !measureActive;
+        measureBtn.classList.toggle('active', measureActive);
+        if (measureActive) {
+          stopPlacingSymbol();
+          document.querySelectorAll('.fly-sym-btn[data-sym]').forEach(x => x.classList.remove('active'));
+          activeSymbol = null;
+          map.getContainer().style.cursor = 'crosshair';
+          document.getElementById('gpsFlyInfo').textContent = '📏 Karte klicken zum Messen · Nochmal klicken zum Beenden';
+          if (!map._measureHandler) {
+            map._measureHandler = function(ev) { addMeasurePoint(ev.latlng); };
+            map.on('click', map._measureHandler);
+          }
+        } else {
+          clearMeasure();
+        }
+      }
+
+      function addMeasurePoint(latlng) {
+        measurePoints.push(latlng);
+        const dot = L.circleMarker(latlng, {
+          radius: 5, color: '#ffd700', fillColor: '#ffd700', fillOpacity: 1, weight: 2
+        }).addTo(map);
+        measureLayers.push(dot);
+
+        // Remove previous polyline and distance label
+        if (measurePolyline) { try { map.removeLayer(measurePolyline); } catch(e) {} measurePolyline = null; }
+        measureLayers = measureLayers.filter(l => l !== measurePolyline);
+        // Remove old distance labels
+        measureLayers.forEach(l => { if (l._isDistLabel) { try { map.removeLayer(l); } catch(e) {} } });
+        measureLayers = measureLayers.filter(l => !l._isDistLabel);
+
+        if (measurePoints.length >= 2) {
+          measurePolyline = L.polyline(measurePoints, { color: '#ffd700', weight: 2, dashArray: '6 4', opacity: 0.9 }).addTo(map);
+          measureLayers.push(measurePolyline);
+
+          let totalDist = 0;
+          for (let i = 1; i < measurePoints.length; i++) {
+            totalDist += measurePoints[i - 1].distanceTo(measurePoints[i]);
+          }
+          const distStr = totalDist >= 1000
+            ? (totalDist / 1000).toFixed(2) + ' km'
+            : Math.round(totalDist) + ' m';
+
+          const distLabel = L.marker(latlng, {
+            icon: L.divIcon({
+              className: 'measure-label',
+              html: distStr,
+              iconSize: null,
+              iconAnchor: [-8, 10]
+            }),
+            interactive: false
+          }).addTo(map);
+          distLabel._isDistLabel = true;
+          measureLayers.push(distLabel);
+        }
+      }
+
+      function clearMeasure() {
+        measurePoints = [];
+        measureLayers.forEach(l => { try { map.removeLayer(l); } catch(e) {} });
+        measureLayers = [];
+        measurePolyline = null;
+        if (map._measureHandler) { map.off('click', map._measureHandler); map._measureHandler = null; }
+        map.getContainer().style.cursor = '';
+        document.getElementById('gpsFlyInfo').textContent = '';
+        measureActive = false;
+        measureBtn.classList.remove('active');
+      }
+      // ---- End Distance Measurement Tool ----
 
       const trashBtn = document.getElementById('symTrashBtn');
       trashBtn.addEventListener('click', () => { symbolDeleteMode = !symbolDeleteMode; trashBtn.classList.toggle('trash-active', symbolDeleteMode); if (symbolDeleteMode) { stopPlacingSymbol(); map.getContainer().style.cursor = 'crosshair'; document.getElementById('gpsFlyInfo').textContent = 'Delete mode active'; } else { map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; } });
@@ -3083,7 +3187,7 @@
 
             // Build blue circle icon with shortName text inside
             const displayName = shortName || '';
-            const iconHtml = `<div style="width:28px;height:28px;background:#007bff;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;line-height:1;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>`;
+            const iconHtml = `<div style="width:28px;height:28px;background:#007bff;border:2px solid black;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;line-height:1;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>`;
 
             if (meshtasticMarkers.has(mesh)) {
               // Update existing marker
