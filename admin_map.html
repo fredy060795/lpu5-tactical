@@ -2949,8 +2949,26 @@
       // ---------------- GPS (controlled) - fix by device OR click-on-map
       let gpsFixedMarker = null, gpsTempMarker = null, gpsAutoUpdateId = null;
       let gpsMapClickHandler = null; // <-- handler for "click on map to set fix"
+      let lastGpsHeading = null; // Last known GPS heading (degrees from North)
+      // fa-location-arrow icon points NE (upper-right) by default, which equals 45° from North.
+      const FA_ARROW_NORTH_OFFSET = 45;
 
-      function createArrowIconHtml(color) { return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`; }
+      function createArrowIconHtml(color, heading) {
+        // To point at compass bearing H: rotate(H - FA_ARROW_NORTH_OFFSET)deg
+        const deg = (heading != null && Number.isFinite(heading)) ? heading - FA_ARROW_NORTH_OFFSET : 0;
+        return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(${deg}deg);"></i>`;
+      }
+
+      function updateMarkerArrowRotation(marker, heading) {
+        if (!marker) return;
+        const el = marker.getElement();
+        if (!el) return;
+        const i = el.querySelector('i');
+        if (!i) return;
+        const effectiveHeading = (heading != null && Number.isFinite(heading)) ? heading
+                               : (lastGpsHeading != null ? lastGpsHeading : 0);
+        i.style.transform = `rotate(${effectiveHeading - FA_ARROW_NORTH_OFFSET}deg)`;
+      }
 
       // Send GPS position to server for bidirectional sync with overview.html
       let _lastGpsSendId = localStorage.getItem('lpu5_last_gps_send_id') || null;
@@ -2995,15 +3013,17 @@
         }
       }
 
-      function putFixedArrow(lat, lon) {
+      function putFixedArrow(lat, lon, heading) {
         const color = '#007bff';
+        if (heading != null && Number.isFinite(heading)) lastGpsHeading = heading;
         if (gpsFixedMarker) {
           try { gpsFixedMarker.setLatLng([lat, lon]); } catch (e) { }
+          updateMarkerArrowRotation(gpsFixedMarker, heading);
         } else {
           gpsFixedMarker = L.marker([lat, lon], {
             icon: L.divIcon({
               className: 'fixed-gps-icon',
-              html: createArrowIconHtml(color),
+              html: createArrowIconHtml(color, lastGpsHeading),
               iconSize: [40, 40],
               iconAnchor: [20, 20]
             }),
@@ -3015,13 +3035,18 @@
         sendGpsToServer(lat, lon);
       }
 
-      function putTempArrow(lat, lon) {
+      function putTempArrow(lat, lon, heading) {
         const color = '#007bff';
-        if (gpsTempMarker) gpsTempMarker.setLatLng([lat, lon]);
-        else gpsTempMarker = L.marker([lat, lon], {
-          icon: L.divIcon({ className: 'temp-gps-icon', html: createArrowIconHtml(color), iconSize: [40, 40], iconAnchor: [20, 20] }),
-          pane: 'paneSymbols'
-        }).addTo(map);
+        if (heading != null && Number.isFinite(heading)) lastGpsHeading = heading;
+        if (gpsTempMarker) {
+          gpsTempMarker.setLatLng([lat, lon]);
+          updateMarkerArrowRotation(gpsTempMarker, heading);
+        } else {
+          gpsTempMarker = L.marker([lat, lon], {
+            icon: L.divIcon({ className: 'temp-gps-icon', html: createArrowIconHtml(color, lastGpsHeading), iconSize: [40, 40], iconAnchor: [20, 20] }),
+            pane: 'paneSymbols'
+          }).addTo(map);
+        }
         document.getElementById('gpsFlyInfo').textContent = `Refresh: ${lat.toFixed(6)}, ${lon.toFixed(6)} (temporary)`;
         setTimeout(() => { try { if (gpsTempMarker) { map.removeLayer(gpsTempMarker); gpsTempMarker = null; document.getElementById('gpsFlyInfo').textContent = 'No temporary position'; } } catch (e) { } }, 30000);
       }
@@ -3077,12 +3102,12 @@
         const mode = document.querySelector('input[name="gpsMode"]:checked')?.value || 'off';
         const interval = parseInt(document.getElementById('gpsIntervalSelect').value, 10) || 0;
         if (mode === 'off') { gpsUnfix(); if (gpsTempMarker) { try { map.removeLayer(gpsTempMarker); } catch (e) { } gpsTempMarker = null; } document.getElementById('gpsFlyInfo').textContent = 'GPS aus'; return; }
-        if (mode === 'refresh') { if (gpsFixedMarker) { alert('GPS is fixed. Remove the fix first (UNFIX).'); return; } try { const pos = await getCurrentPositionPromise(); putTempArrow(pos.coords.latitude, pos.coords.longitude); map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15)); } catch (e) { alert('GPS error: ' + (e.message || e)); } return; }
+        if (mode === 'refresh') { if (gpsFixedMarker) { alert('GPS is fixed. Remove the fix first (UNFIX).'); return; } try { const pos = await getCurrentPositionPromise(); putTempArrow(pos.coords.latitude, pos.coords.longitude, pos.coords.heading); map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15)); } catch (e) { alert('GPS error: ' + (e.message || e)); } return; }
         if (mode === 'fix') {
           // prefer device geolocation when "AKTIVIEREN" clicked
           try {
             const pos = await getCurrentPositionPromise();
-            putFixedArrow(pos.coords.latitude, pos.coords.longitude);
+            putFixedArrow(pos.coords.latitude, pos.coords.longitude, pos.coords.heading);
             map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15));
             if (gpsTempMarker) { try { map.removeLayer(gpsTempMarker); } catch (e) { } gpsTempMarker = null; }
             stopGpsAutoUpdate();
@@ -3102,7 +3127,7 @@
 
       function startGpsAutoUpdate(intervalSeconds) {
         stopGpsAutoUpdate();
-        async function updateOnce() { try { const pos = await getCurrentPositionPromise(); if (gpsFixedMarker) putFixedArrow(pos.coords.latitude, pos.coords.longitude); } catch (e) { console.warn('gps auto update failed', e); document.getElementById('gpsFlyInfo').textContent = 'Auto-update error'; } }
+        async function updateOnce() { try { const pos = await getCurrentPositionPromise(); if (gpsFixedMarker) putFixedArrow(pos.coords.latitude, pos.coords.longitude, pos.coords.heading); } catch (e) { console.warn('gps auto update failed', e); document.getElementById('gpsFlyInfo').textContent = 'Auto-update error'; } }
         updateOnce();
         gpsAutoUpdateId = setInterval(updateOnce, Math.max(10, intervalSeconds) * 1000);
         document.getElementById('gpsFlyInfo').textContent = 'Auto-update active (' + intervalSeconds + 's)';
