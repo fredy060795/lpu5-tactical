@@ -900,7 +900,7 @@
     <div class="icon-btn" data-flyout="fly-layer-toggle" title="Overlays"><i class="fas fa-layer-group"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
     <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
-    <div class="icon-btn" id="intelLayerToggleBtn" onclick="toggleIntelLayers()" title="Toggle Global Intel markers"><i class="fas fa-satellite-dish"></i></div>
+    <div class="icon-btn" id="intelLayerToggleBtn" data-flyout="fly-intel" title="Intel Filter"><i class="fas fa-satellite-dish"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
   </div>
 
@@ -1033,6 +1033,15 @@
 
     <div id="layer-toggle-list">
       <!-- Items rendered by initLayerToggleFlyout() -->
+    </div>
+  </div>
+
+  <!-- Flyout: Intel Filter -->
+  <div id="fly-intel" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Intel Filter</h4>
+    <div style="font-size:.82rem;color:#888;margin-bottom:10px;"><i class="fas fa-info-circle"></i> Intel-Quellen ein-/ausblenden</div>
+    <div id="intel-source-list">
+      <!-- Items rendered by initIntelFlyout() -->
     </div>
   </div>
 
@@ -3643,33 +3652,42 @@
         }
 
         function applyGroupShare(payload) {
-          const layer = getIntelGroupLayer();
-          if (!layer) return;
-          layer.clearLayers();
-          const markers = payload.markers || [];
-          markers.forEach(function(data) {
-            if (data.lat == null || data.lon == null) return;
-            const color = data.color || '#9b59b6';
-            const iconClass = data.icon || 'fa-map-marker-alt';
-            const icon = L.divIcon({
-              className: '',
-              html: `<div style="width:26px;height:26px;border-radius:50%;background:${color}33;border:2px solid ${color};
-                          display:flex;align-items:center;justify-content:center;font-size:11px;
-                          box-shadow:0 0 6px ${color}66;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
-                       <i class="fas ${iconClass}" style="color:${color}"></i></div>`,
-              iconSize:   [26, 26],
-              iconAnchor: [13, 13],
+          // Store the full payload so the Intel filter flyout can re-render with filters.
+          window._lastIntelGroupPayload = payload;
+          // Delegate filtered rendering to the Intel flyout system if it's ready,
+          // otherwise fall back to showing all markers directly.
+          if (typeof window._intelPatchGroupShare === 'function') {
+            window._intelPatchGroupShare(payload);
+          } else {
+            // Fallback: render all markers unfiltered (runs before the flyout IIFE)
+            const layer = getIntelGroupLayer();
+            if (!layer) return;
+            layer.clearLayers();
+            const markers = payload.markers || [];
+            markers.forEach(function(data) {
+              if (data.lat == null || data.lon == null) return;
+              const color = data.color || '#9b59b6';
+              const iconClass = data.icon || 'fa-map-marker-alt';
+              const icon = L.divIcon({
+                className: '',
+                html: `<div style="width:26px;height:26px;border-radius:50%;background:${color}33;border:2px solid ${color};
+                            display:flex;align-items:center;justify-content:center;font-size:11px;
+                            box-shadow:0 0 6px ${color}66;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
+                         <i class="fas ${iconClass}" style="color:${color}"></i></div>`,
+                iconSize:   [26, 26],
+                iconAnchor: [13, 13],
+              });
+              const marker = L.marker([data.lat, data.lon], { icon })
+                .bindPopup(
+                  `<b style="color:${color}">${data.title||'Intel'}</b><br>` +
+                  `<span style="color:#888;font-size:.8em">Source: Global Intel (Group)</span><br>` +
+                  `Type: ${data.type||'–'}` +
+                  (data.detail ? `<br><span style="font-size:.8em">${data.detail}</span>` : '')
+                );
+              layer.addLayer(marker);
             });
-            const marker = L.marker([data.lat, data.lon], { icon })
-              .bindPopup(
-                `<b style="color:${color}">${data.title||'Intel'}</b><br>` +
-                `<span style="color:#888;font-size:.8em">Source: Global Intel (Group)</span><br>` +
-                `Type: ${data.type||'–'}` +
-                (data.detail ? `<br><span style="font-size:.8em">${data.detail}</span>` : '')
-              );
-            layer.addLayer(marker);
-          });
-          showGroupToast(markers.length);
+          }
+          showGroupToast((payload.markers || []).length);
         }
 
         function checkForGroupShare() {
@@ -3709,35 +3727,203 @@
         });
       }());
 
-      // ─── Toggle Global Intel Layers ─────────────────────────────────────────────
-      var _intelLayersVisible = (localStorage.getItem('lpu5_intel_layers_visible') !== 'false');
+      // ─── Intel Filter Flyout – per-source visibility ─────────────────────────────
+      (function () {
+        var INTEL_SOURCES = [
+          { key: 'single',      label: 'Einzel-Intel',       icon: 'fas fa-satellite-dish', color: '#9b59b6' },
+          { key: 'earthquake',  label: 'Erdbeben',            icon: 'fas fa-circle-exclamation', color: '#e74c3c' },
+          { key: 'flight',      label: 'Zivilflüge',          icon: 'fas fa-plane',          color: '#f1c40f' },
+          { key: 'milaircraft', label: 'Mil. Luftfahrzeuge',  icon: 'fas fa-fighter-jet',    color: '#e74c3c' },
+          { key: 'conflict',    label: 'Konflikte',           icon: 'fas fa-fire',           color: '#e74c3c' },
+          { key: 'milbase',     label: 'Mil. Stützpunkte',    icon: 'fas fa-shield-halved',  color: '#e67e22' },
+          { key: 'naval',       label: 'Marine',              icon: 'fas fa-anchor',         color: '#1abc9c' }
+        ];
 
-      function _applyIntelLayerVisibility(visible) {
-        const layers = [window._intelSingleLayer, window._intelGroupLayer].filter(Boolean);
-        const btn = document.getElementById('intelLayerToggleBtn');
-        if (visible) {
-          layers.forEach(function(l) { if (!window.map.hasLayer(l)) l.addTo(window.map); });
-          if (btn) { btn.style.opacity = '1'; btn.title = 'Hide Global Intel markers'; }
-        } else {
-          layers.forEach(function(l) { l.remove(); });
-          if (btn) { btn.style.opacity = '0.4'; btn.title = 'Show Global Intel markers'; }
+        var LS_KEY_SRC  = 'lpu5_intel_source_vis';
+        var LS_KEY_ALL  = 'lpu5_intel_layers_visible';
+
+        // Per-source visibility state (all on by default)
+        var _srcVis = (function () {
+          var def = {};
+          INTEL_SOURCES.forEach(function (s) { def[s.key] = true; });
+          try {
+            var saved = JSON.parse(localStorage.getItem(LS_KEY_SRC) || '{}');
+            return Object.assign({}, def, saved);
+          } catch (e) { return def; }
+        }());
+
+        // Master visibility (all Intel on/off)
+        var _intelLayersVisible = (localStorage.getItem(LS_KEY_ALL) !== 'false');
+
+        function _saveSrcVis() {
+          try { localStorage.setItem(LS_KEY_SRC, JSON.stringify(_srcVis)); } catch (e) {}
         }
-        localStorage.setItem('lpu5_intel_layers_visible', visible ? 'true' : 'false');
-        _intelLayersVisible = visible;
-      }
 
-      function toggleIntelLayers() {
-        if (!window.map || !window.L) return;
-        _applyIntelLayerVisibility(!_intelLayersVisible);
-      }
+        // Expose master flag so _applyPaneVis (Overlays flyout) can still call it if needed.
+        window._intelLayersVisible = _intelLayersVisible;
 
-      // Restore saved visibility state once the map is ready.
-      window.addEventListener('load', function () {
-        if (!_intelLayersVisible) {
-          // Apply hidden state after a short delay to ensure layers are created.
-          setTimeout(function() { _applyIntelLayerVisibility(false); }, 1000);
+        // Apply visibility of the single-intel layer based on master + per-source flag
+        function _applySingleVis() {
+          if (!window.map || !window._intelSingleLayer) return;
+          var show = _intelLayersVisible && _srcVis['single'];
+          if (show) {
+            if (!window.map.hasLayer(window._intelSingleLayer)) window._intelSingleLayer.addTo(window.map);
+          } else {
+            try { window._intelSingleLayer.remove(); } catch (e) {}
+          }
         }
-      });
+
+        // Re-render the group layer, filtering markers by per-source visibility.
+        // Relies on window._lastIntelGroupPayload set by applyGroupShare below.
+        function _reapplyGroupFilter() {
+          var layer = window._intelGroupLayer;
+          if (!layer) return;
+          layer.clearLayers();
+          var payload = window._lastIntelGroupPayload;
+          if (!payload || !payload.markers) return;
+          if (!_intelLayersVisible) return; // master off → show nothing
+
+          payload.markers.forEach(function (data) {
+            if (data.lat == null || data.lon == null) return;
+            var srcKey = data.type; // group markers always have a type set by global_Intel
+            // If srcKey is not in the source list, show by default (unknown type)
+            if (srcKey && _srcVis.hasOwnProperty(srcKey) && !_srcVis[srcKey]) return; // filtered out
+            var color = data.color || '#9b59b6';
+            var iconClass = data.icon || 'fa-map-marker-alt';
+            var icon = L.divIcon({
+              className: '',
+              html: '<div style="width:26px;height:26px;border-radius:50%;background:' + color + '33;border:2px solid ' + color + ';' +
+                    'display:flex;align-items:center;justify-content:center;font-size:11px;' +
+                    'box-shadow:0 0 6px ' + color + '66;cursor:pointer" title="' + (data.title||'').replace(/"/g,'&quot;') + '">' +
+                    '<i class="fas ' + iconClass + '" style="color:' + color + '"></i></div>',
+              iconSize:   [26, 26],
+              iconAnchor: [13, 13]
+            });
+            var marker = L.marker([data.lat, data.lon], { icon: icon })
+              .bindPopup(
+                '<b style="color:' + color + '">' + (data.title||'Intel') + '</b><br>' +
+                '<span style="color:#888;font-size:.8em">Source: Global Intel (Group)</span><br>' +
+                'Type: ' + (data.type||'–') +
+                (data.detail ? '<br><span style="font-size:.8em">' + data.detail + '</span>' : '')
+              );
+            layer.addLayer(marker);
+          });
+        }
+
+        // Master toggle helper used by buttons & keyboard shortcuts
+        function _applyMasterVis(visible) {
+          _intelLayersVisible = visible;
+          window._intelLayersVisible = visible;
+          localStorage.setItem(LS_KEY_ALL, visible ? 'true' : 'false');
+          _applySingleVis();
+          _reapplyGroupFilter();
+          _updateFlyoutUI();
+          // update toolbar button opacity
+          var btn = document.getElementById('intelLayerToggleBtn');
+          if (btn) btn.style.opacity = visible ? '1' : '0.4';
+        }
+
+        // Expose for legacy callers (e.g. old Overlays flyout code that may still reference it)
+        window._applyIntelLayerVisibility = _applyMasterVis;
+        window.toggleIntelLayers = function () {
+          if (!window.map || !window.L) return;
+          _applyMasterVis(!_intelLayersVisible);
+        };
+
+        // Patch applyGroupShare to also store the full payload and apply filter.
+        // The heavy lifting (rendering markers) is now done in _reapplyGroupFilter.
+        window._intelPatchGroupShare = function (payload) {
+          window._lastIntelGroupPayload = payload;
+          _reapplyGroupFilter();
+        };
+
+        // ── Flyout rendering ───────────────────────────────────────────────────────
+        function _updateFlyoutUI() {
+          // update master button text
+          var masterLbl = document.getElementById('intel-master-lbl');
+          if (masterLbl) {
+            masterLbl.textContent = _intelLayersVisible ? 'AN' : 'AUS';
+            masterLbl.style.color = _intelLayersVisible ? '#2ecc71' : '#e74c3c';
+          }
+          // update per-source labels
+          INTEL_SOURCES.forEach(function (s) {
+            var lbl = document.getElementById('islbl-' + s.key);
+            if (lbl) {
+              var on = _srcVis[s.key];
+              lbl.textContent = on ? 'AN' : 'AUS';
+              lbl.style.color = on ? '#2ecc71' : '#e74c3c';
+              lbl.style.opacity = _intelLayersVisible ? '1' : '0.5';
+            }
+          });
+        }
+
+        function _renderIntelFlyout() {
+          var list = document.getElementById('intel-source-list');
+          if (!list) return;
+          list.innerHTML = '';
+
+          // ── Master toggle row ──────────────────────────────────────────────
+          var masterRow = document.createElement('div');
+          masterRow.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #333;cursor:pointer;margin-bottom:6px';
+          masterRow.innerHTML =
+            '<i class="fas fa-layer-group" style="width:16px;text-align:center;color:#9b59b6"></i>' +
+            '<span style="flex:1;font-size:.85rem;font-weight:bold">Alle Intel</span>' +
+            '<span id="intel-master-lbl" style="font-size:.78rem;font-weight:bold;color:' + (_intelLayersVisible ? '#2ecc71' : '#e74c3c') + '">' + (_intelLayersVisible ? 'AN' : 'AUS') + '</span>';
+          masterRow.addEventListener('click', function () {
+            _applyMasterVis(!_intelLayersVisible);
+          });
+          list.appendChild(masterRow);
+
+          // ── Per-source rows ───────────────────────────────────────────────
+          INTEL_SOURCES.forEach(function (src) {
+            var on = _srcVis[src.key];
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #1a1a1a;cursor:pointer';
+            row.innerHTML =
+              '<i class="' + src.icon + '" style="width:16px;text-align:center;color:' + src.color + '"></i>' +
+              '<span style="flex:1;font-size:.84rem">' + src.label + '</span>' +
+              '<span id="islbl-' + src.key + '" style="font-size:.78rem;font-weight:bold;color:' + (on ? '#2ecc71' : '#e74c3c') + ';opacity:' + (_intelLayersVisible ? '1' : '0.5') + '">' + (on ? 'AN' : 'AUS') + '</span>';
+            row.addEventListener('click', function () {
+              _srcVis[src.key] = !_srcVis[src.key];
+              _saveSrcVis();
+              if (src.key === 'single') {
+                _applySingleVis();
+              } else {
+                _reapplyGroupFilter();
+              }
+              _updateFlyoutUI();
+            });
+            list.appendChild(row);
+          });
+        }
+
+        // Re-render when flyout opens
+        window.addEventListener('load', function () {
+          var flyout = document.getElementById('fly-intel');
+          if (flyout) {
+            var obs = new MutationObserver(function (mutations) {
+              mutations.forEach(function (m) {
+                if (m.type === 'attributes') {
+                  if (m.attributeName === 'class' && flyout.classList.contains('open')) {
+                    _renderIntelFlyout();
+                  } else if (m.attributeName === 'aria-hidden' && flyout.getAttribute('aria-hidden') === 'false') {
+                    _renderIntelFlyout();
+                  }
+                }
+              });
+            });
+            obs.observe(flyout, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
+          }
+
+          // Restore saved master visibility
+          if (!_intelLayersVisible) {
+            setTimeout(function () { _applyMasterVis(false); }, 1000);
+          } else {
+            // Restore single-intel visibility (per-source)
+            setTimeout(function () { _applySingleVis(); }, 1000);
+          }
+        });
+      }());
 
       // ── Overlays flyout – layer visibility toggles ───────────────────────────────
       (function () {
@@ -3745,8 +3931,7 @@
           { key: 'paneOverlays',   label: 'Karten-Overlays',  icon: 'fas fa-image' },
           { key: 'paneDrawings',   label: 'Zeichnungen',       icon: 'fas fa-pen-nib' },
           { key: 'paneSymbols',    label: 'Tactical Symbole',  icon: 'fas fa-map-marker-alt' },
-          { key: 'paneMeshtastic', label: 'Meshtastic',        icon: 'fab fa-bluetooth-b' },
-          { key: 'intel',          label: 'Global Intel',      icon: 'fas fa-satellite-dish' }
+          { key: 'paneMeshtastic', label: 'Meshtastic',        icon: 'fab fa-bluetooth-b' }
         ];
 
         var LS_KEY = 'lpu5_adminmap_layer_vis';
@@ -3760,10 +3945,6 @@
         })();
 
         function _applyPaneVis(key, visible) {
-          if (key === 'intel') {
-            _applyIntelLayerVisibility(visible);
-            return;
-          }
           if (!window.map) return;
           var pane = window.map.getPane(key);
           if (pane) pane.style.display = visible ? '' : 'none';
