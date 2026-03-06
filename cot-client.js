@@ -266,13 +266,13 @@ class COTEvent {
             // equipment) so ATAK displays each node with the Meshtastic icon
             // as an individually identifiable device, not as a generic unit.
             node:            'a-f-G-E-S-U-M',
-            meshtastic_node: 'a-f-G-U-C',        // Meshtastic SA position (shows as SA in ATAK)
+            meshtastic_node: 'a-f-G-E-S-U-M',   // Meshtastic node (blue M-circle in ATAK)
             gateway:         'a-f-G-E-S-U-M',
             tak_unit:        'a-f-G-U-C',
             // CBT variants — ATAK-sourced markers; map back to the same CoT
             // types as their base shapes so they round-trip correctly.
             cbt_raute:       'a-h-G-U-C',
-            cbt_rechteck:    'a-f-G-E-S-U-M',   // ATAK friendly (blue rectangle + CBT)
+            cbt_rechteck:    'a-f-G-U-C',        // ATAK friendly (blue rectangle + CBT)
             cbt_quadrat:     'a-n-G-U-C',
             cbt_blume:       'a-u-G-U-C',
         };
@@ -289,7 +289,7 @@ class COTEvent {
             ['u-d-r',       'rechteck'],       // TAK drawing rectangle
             ['u-d-f',       'raute'],          // TAK drawing freehand → diamond
             ['u-d-p',       'raute'],          // TAK drawing generic point → diamond
-            ['a-f-G-E-S-U-M', 'cbt_rechteck'],   // ATAK Meshtastic equipment type → CBT rectangle
+            ['a-f-G-E-S-U-M', 'meshtastic_node'],   // Meshtastic equipment → meshtastic_node
             ['a-f',         'friendly'],       // friendly → blue rectangle
             ['a-h',         'hostile'],        // hostile → red diamond
             ['a-n',         'neutral'],        // neutral → green square

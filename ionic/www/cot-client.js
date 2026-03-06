@@ -243,11 +243,11 @@ class COTEvent {
             unknown:  'a-u-G-U-C',
             pending:  'a-p-G-U-C',
             // Meshtastic node types — must match cot_protocol.py
-            // Use a-f-G-U-C (Unit > Combat, friendly) so ATAK displays nodes
-            // as standard "Unit > Combat" contacts, not as unknown/yellow flower.
-            node:            'a-f-G-U-C',
-            meshtastic_node: 'a-f-G-U-C',
-            gateway:         'a-f-G-U-C',
+            // All Meshtastic node/gateway types use a-f-G-E-S-U-M (Meshtastic
+            // equipment) so ATAK displays each node with the Meshtastic icon.
+            node:            'a-f-G-E-S-U-M',
+            meshtastic_node: 'a-f-G-E-S-U-M',
+            gateway:         'a-f-G-E-S-U-M',
             tak_unit:        'a-f-G-U-C',
             // CBT variants — ATAK-sourced markers; map back to same CoT types.
             cbt_raute:       'a-h-G-U-C',
