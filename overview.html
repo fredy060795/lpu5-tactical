@@ -1271,7 +1271,7 @@
           // Handle new marker from another client
           if (data.data && data.channel === 'markers') {
             console.log('Received marker_created:', data.data);
-            sync();
+            scheduledSync();
           }
           break;
 
@@ -1279,7 +1279,7 @@
           // Handle marker update from another client
           if (data.data && data.channel === 'markers') {
             console.log('Received marker_updated:', data.data);
-            sync();
+            scheduledSync();
           }
           break;
 
@@ -1287,7 +1287,7 @@
           // Handle marker deletion from another client
           if (data.data && data.channel === 'markers') {
             console.log('Received marker_deleted:', data.data);
-            sync();
+            scheduledSync();
           }
           break;
 
@@ -1295,7 +1295,7 @@
         case 'symbol_created':
           // Handle new symbol from another client
           console.log('Received symbol update:', data.type, data.data);
-          sync();
+          scheduledSync();
           break;
 
         case 'drawing_created':
@@ -1319,7 +1319,7 @@
           // Handle symbol update from another client
           if (data.data && data.channel === 'symbols') {
             console.log('Received symbol_updated:', data.data);
-            sync();
+            scheduledSync();
           }
           break;
 
@@ -1327,7 +1327,7 @@
           // Handle symbol deletion from another client
           if (data.data && data.channel === 'symbols') {
             console.log('Received symbol_deleted:', data.data);
-            sync();
+            scheduledSync();
           }
           break;
 
@@ -1370,10 +1370,10 @@
           break;
 
         case 'tak_unit_update':
-          // Handle TAK server unit updates — refresh markers
+          // Handle TAK server unit updates — use debounced sync to avoid
+          // flooding the server when the ATAK stream is very active.
           if (data.data && data.channel === 'markers') {
-            console.log('Received TAK unit update:', data.data);
-            sync();
+            scheduledSync();
           }
           break;
 
@@ -2297,6 +2297,15 @@
       }
       
       return false;
+    }
+
+    // Debounced wrapper for sync() — coalesces rapid WebSocket-triggered sync
+    // requests (e.g. from a busy ATAK stream) into a single call.
+    const SYNC_DEBOUNCE_MS = 500;
+    let _syncDebounceTimer = null;
+    function scheduledSync() {
+      clearTimeout(_syncDebounceTimer);
+      _syncDebounceTimer = setTimeout(sync, SYNC_DEBOUNCE_MS);
     }
 
     // sync
