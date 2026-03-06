@@ -7079,9 +7079,25 @@ async def ingest_cot_xml(request: Request):
         # Convert to map marker and upsert into DB
         marker_dict = CoTProtocolHandler.cot_to_marker(cot_event)
 
+        # Suppress recreation of permanently deleted markers so that ATAK
+        # echo-backs cannot bring back a marker the user intentionally removed.
+        if _is_deleted_marker(marker_dict["id"]):
+            logger.debug("ingest_cot_xml: suppressing deleted marker %s", marker_dict["id"])
+            return {"status": "suppressed", "reason": "marker permanently deleted"}
+
         with SessionLocal() as db:
             existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
             if existing:
+                # Guard: never overwrite a marker that was created by a native LPU5
+                # user or Meshtastic ingest.  ATAK echo-backs for LPU5-originated
+                # markers would otherwise corrupt the marker type (e.g. "raute" →
+                # "cbt_raute") and lose the original user-set label.
+                if existing.created_by not in _TAK_INGEST_SOURCES:
+                    logger.debug(
+                        "ingest_cot_xml: skipping echo-back update for LPU5-originated marker %s",
+                        marker_dict["id"],
+                    )
+                    return {"status": "skipped", "reason": "echo-back of LPU5-originated marker"}
                 existing.lat   = marker_dict["lat"]
                 existing.lng   = marker_dict["lng"]
                 existing.name  = marker_dict.get("name") or marker_dict["id"]
