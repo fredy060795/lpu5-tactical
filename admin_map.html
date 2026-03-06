@@ -3821,6 +3821,9 @@
           // update toolbar button opacity
           var btn = document.getElementById('intelLayerToggleBtn');
           if (btn) btn.style.opacity = visible ? '1' : '0.4';
+          // keep Overlays flyout label in sync (ltlbl-intel)
+          var ovLbl = document.getElementById('ltlbl-intel');
+          if (ovLbl) { ovLbl.textContent = visible ? 'AN' : 'AUS'; ovLbl.style.color = visible ? '#2ecc71' : '#e74c3c'; }
         }
 
         // Expose for legacy callers (e.g. old Overlays flyout code that may still reference it)
@@ -3839,12 +3842,6 @@
 
         // ── Flyout rendering ───────────────────────────────────────────────────────
         function _updateFlyoutUI() {
-          // update master button text
-          var masterLbl = document.getElementById('intel-master-lbl');
-          if (masterLbl) {
-            masterLbl.textContent = _intelLayersVisible ? 'AN' : 'AUS';
-            masterLbl.style.color = _intelLayersVisible ? '#2ecc71' : '#e74c3c';
-          }
           // update per-source labels
           INTEL_SOURCES.forEach(function (s) {
             var lbl = document.getElementById('islbl-' + s.key);
@@ -3861,18 +3858,6 @@
           var list = document.getElementById('intel-source-list');
           if (!list) return;
           list.innerHTML = '';
-
-          // ── Master toggle row ──────────────────────────────────────────────
-          var masterRow = document.createElement('div');
-          masterRow.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #333;cursor:pointer;margin-bottom:6px';
-          masterRow.innerHTML =
-            '<i class="fas fa-layer-group" style="width:16px;text-align:center;color:#9b59b6"></i>' +
-            '<span style="flex:1;font-size:.85rem;font-weight:bold">Alle Intel</span>' +
-            '<span id="intel-master-lbl" style="font-size:.78rem;font-weight:bold;color:' + (_intelLayersVisible ? '#2ecc71' : '#e74c3c') + '">' + (_intelLayersVisible ? 'AN' : 'AUS') + '</span>';
-          masterRow.addEventListener('click', function () {
-            _applyMasterVis(!_intelLayersVisible);
-          });
-          list.appendChild(masterRow);
 
           // ── Per-source rows ───────────────────────────────────────────────
           INTEL_SOURCES.forEach(function (src) {
@@ -3931,7 +3916,8 @@
           { key: 'paneOverlays',   label: 'Karten-Overlays',  icon: 'fas fa-image' },
           { key: 'paneDrawings',   label: 'Zeichnungen',       icon: 'fas fa-pen-nib' },
           { key: 'paneSymbols',    label: 'Tactical Symbole',  icon: 'fas fa-map-marker-alt' },
-          { key: 'paneMeshtastic', label: 'Meshtastic',        icon: 'fab fa-bluetooth-b' }
+          { key: 'paneMeshtastic', label: 'Meshtastic',        icon: 'fab fa-bluetooth-b' },
+          { key: 'intel',          label: 'Global Intel',      icon: 'fas fa-satellite-dish' }
         ];
 
         var LS_KEY = 'lpu5_adminmap_layer_vis';
@@ -3945,6 +3931,11 @@
         })();
 
         function _applyPaneVis(key, visible) {
+          if (key === 'intel') {
+            // Delegate to the master Intel visibility function which manages per-source state.
+            if (typeof window._applyIntelLayerVisibility === 'function') window._applyIntelLayerVisibility(visible);
+            return;
+          }
           if (!window.map) return;
           var pane = window.map.getPane(key);
           if (pane) pane.style.display = visible ? '' : 'none';
