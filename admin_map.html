@@ -3753,8 +3753,13 @@
           if (!payload || !payload.markers) return;
           if (!_intelLayersVisible) return; // master off → show nothing
 
+          var currentZoom = (window.map && typeof window.map.getZoom === 'function') ? window.map.getZoom() : 99;
+          var flMinZoom = (window.LPU5Intel && window.LPU5Intel.FL_MIN_ZOOM) || 4;
+
           payload.markers.forEach(function (data) {
             if (data.lat == null || data.lon == null) return;
+            // Civil flights require minimum zoom — military aircraft are always shown
+            if (data.type === 'flight' && currentZoom < flMinZoom) return;
             var srcKey = data.type; // group markers always have a type set by global_Intel
             // If srcKey is not in the source list, show by default (unknown type)
             if (srcKey && _srcVis.hasOwnProperty(srcKey) && !_srcVis[srcKey]) return; // filtered out
@@ -3890,6 +3895,13 @@
                 if (s.key !== 'single' && _srcVis[s.key]) _startPoll(s.key);
               });
             }, 1000);
+          }
+
+          // Re-apply intel group filter on zoom change so that civil flights
+          // are hidden below FL_MIN_ZOOM but military aircraft remain visible.
+          if (window.map) {
+            window.map.off('zoomend', _reapplyGroupFilter);
+            window.map.on('zoomend', _reapplyGroupFilter);
           }
         });
       }());
