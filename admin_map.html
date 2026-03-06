@@ -897,6 +897,7 @@
     <div class="icon-btn" data-flyout="fly-overlay" title="Overlay"><i class="fas fa-image"></i></div>
     <div class="icon-btn" data-flyout="fly-draw" title="Draw"><i class="fas fa-pen-nib"></i></div>
     <div class="icon-btn" data-flyout="fly-symbols" title="Symbols"><i class="fas fa-map-marker-alt"></i></div>
+    <div class="icon-btn" data-flyout="fly-layer-toggle" title="Overlays"><i class="fas fa-layer-group"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
     <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
     <div class="icon-btn" id="intelLayerToggleBtn" onclick="toggleIntelLayers()" title="Toggle Global Intel markers"><i class="fas fa-satellite-dish"></i></div>
@@ -1022,6 +1023,16 @@
     <div style="margin-top:8px; display:flex; gap:8px;">
       <button class="btn ghost" id="settingsRefreshBtn">Refresh</button>
       <button class="btn ghost" id="settingsClearAllBtn">DELETE ALL</button>
+    </div>
+  </div>
+
+  <!-- Flyout: Overlays (Layer Toggle) -->
+  <div id="fly-layer-toggle" class="icon-flyout" role="dialog" aria-hidden="true">
+    <h4>Overlays</h4>
+    <div style="font-size:.82rem;color:#888;margin-bottom:10px;"><i class="fas fa-info-circle"></i> Datenlayer ein-/ausblenden</div>
+
+    <div id="layer-toggle-list">
+      <!-- Items rendered by initLayerToggleFlyout() -->
     </div>
   </div>
 
@@ -3727,6 +3738,90 @@
           setTimeout(function() { _applyIntelLayerVisibility(false); }, 1000);
         }
       });
+
+      // ── Overlays flyout – layer visibility toggles ───────────────────────────────
+      (function () {
+        var LAYERS = [
+          { key: 'paneOverlays',   label: 'Karten-Overlays',  icon: 'fas fa-image' },
+          { key: 'paneDrawings',   label: 'Zeichnungen',       icon: 'fas fa-pen-nib' },
+          { key: 'paneSymbols',    label: 'Tactical Symbole',  icon: 'fas fa-map-marker-alt' },
+          { key: 'paneMeshtastic', label: 'Meshtastic',        icon: 'fab fa-bluetooth-b' },
+          { key: 'intel',          label: 'Global Intel',      icon: 'fas fa-satellite-dish' }
+        ];
+
+        var LS_KEY = 'lpu5_adminmap_layer_vis';
+        var _vis = (function() {
+          var def = {};
+          LAYERS.forEach(function(l) { def[l.key] = true; });
+          try {
+            var s = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+            return Object.assign({}, def, s);
+          } catch(e) { return def; }
+        })();
+
+        function _applyPaneVis(key, visible) {
+          if (key === 'intel') {
+            _applyIntelLayerVisibility(visible);
+            return;
+          }
+          if (!window.map) return;
+          var pane = window.map.getPane(key);
+          if (pane) pane.style.display = visible ? '' : 'none';
+        }
+
+        function _saveVis() {
+          try { localStorage.setItem(LS_KEY, JSON.stringify(_vis)); } catch(e) {}
+        }
+
+        function _renderToggleList() {
+          var list = document.getElementById('layer-toggle-list');
+          if (!list) return;
+          list.innerHTML = '';
+          LAYERS.forEach(function(layer) {
+            var visible = _vis[layer.key];
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #222;cursor:pointer';
+            row.innerHTML =
+              '<i class="' + layer.icon + '" style="width:16px;text-align:center;color:#aaa"></i>' +
+              '<span style="flex:1;font-size:.85rem">' + layer.label + '</span>' +
+              '<span id="ltlbl-' + layer.key + '" style="font-size:.78rem;font-weight:bold;color:' + (visible ? '#2ecc71' : '#e74c3c') + '">' + (visible ? 'AN' : 'AUS') + '</span>';
+            row.addEventListener('click', function() {
+              _vis[layer.key] = !_vis[layer.key];
+              _saveVis();
+              _applyPaneVis(layer.key, _vis[layer.key]);
+              var lbl = document.getElementById('ltlbl-' + layer.key);
+              if (lbl) { lbl.textContent = _vis[layer.key] ? 'AN' : 'AUS'; lbl.style.color = _vis[layer.key] ? '#2ecc71' : '#e74c3c'; }
+            });
+            list.appendChild(row);
+          });
+        }
+
+        // Restore visibility after map panes are ready.
+        // A short delay ensures Leaflet panes are created before we modify them.
+        window.addEventListener('load', function() {
+          setTimeout(function() {
+            LAYERS.forEach(function(l) { if (!_vis[l.key]) _applyPaneVis(l.key, false); });
+          }, 1200); // 1200ms: allow Leaflet pane creation + initial overlays to be added
+        });
+
+        // Re-render list whenever the flyout is opened
+        var flyout = document.getElementById('fly-layer-toggle');
+        if (flyout) {
+          var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(m) {
+              if (m.type === 'attributes' && m.attributeName === 'aria-hidden') {
+                if (flyout.getAttribute('aria-hidden') === 'false') _renderToggleList();
+              }
+            });
+          });
+          observer.observe(flyout, { attributes: true });
+          // also render when flyout gets 'open' class
+          var classObserver = new MutationObserver(function() {
+            if (flyout.classList.contains('open')) _renderToggleList();
+          });
+          classObserver.observe(flyout, { attributes: true, attributeFilter: ['class'] });
+        }
+      }());
 
       // Check for incoming messages periodically
       window.addEventListener('load', function () {

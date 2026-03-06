@@ -662,20 +662,48 @@ var FL_URL_BASE = 'https://opensky-network.org/api/states/all';
 var FL_MIN_ZOOM = 4;
 var _flMarkers = [], _milMarkers = [];
 var _flLoadTimer = null;
+
+// Helper: create a flight marker and list row for one aircraft state array
+function _buildFlightMarker(s) {
+    var icao = s[0], cs = (s[1] || s[0] || '?').trim(), origin = s[2];
+    var lon = s[5], lat = s[6], alt = s[7];
+    if (!lat || !lon) return null;
+    var altM = alt ? Math.round(alt) + ' m' : 'Ground';
+    var hdg = s[10], vel = s[9];
+    var isMil = MIL_REGEX.test(cs);
+    var rot = (hdg != null) ? 'transform:rotate(' + (hdg - 45) + 'deg)' : '';
+    var clsMil = isMil ? ' mil' : '';
+    var icon = L.divIcon({
+        className: '',
+        html: '<div id="fl-icon-' + icao + '" class="fl-icon' + clsMil + '"><i class="fas fa-plane" style="' + rot + '"></i></div>',
+        iconSize: [24, 24], iconAnchor: [12, 12]
+    });
+    var colorStr = isMil ? '#e74c3c' : '#f1c40f';
+    var milTag   = isMil ? ' <span style="color:#e74c3c;font-size:0.75em">[MIL]</span>' : '';
+    var speedTxt = vel ? ' · ' + Math.round(vel * 3.6) + ' km/h' : '';
+    var marker = L.marker([lat, lon], { icon: icon })
+        .bindPopup('<b style="color:' + colorStr + '">' + cs + '</b>' + milTag + '<br>Origin: ' + (origin || '?') + '<br>Alt: ' + altM + speedTxt + '<br><small style="color:#888">Click icon to show/hide route</small>');
+    marker.on('click', (function(ic, la, lo, hd, ve, c, or2, am, col) {
+        return function(e) { L.DomEvent.stopPropagation(e); toggleFlightRoute(ic, la, lo, hd, ve, c, or2, am, col); };
+    })(icao, lat, lon, hdg, vel, cs, origin, altM, colorStr));
+    var routeArgs = JSON.stringify(icao) + ',' + lat + ',' + lon + ',' + (hdg != null ? hdg : 'null') + ',' + (vel != null ? vel : 'null') + ',' + JSON.stringify(cs) + ',' + JSON.stringify(origin || '') + ',' + JSON.stringify(altM) + ',' + JSON.stringify(colorStr);
+    var rowonclick = 'map.setView([' + lat + ',' + lon + '],Math.max(map.getZoom(),5));toggleFlightRoute(' + routeArgs + ')';
+    return { marker: marker, isMil: isMil, icao: icao, cs: cs, origin: origin, altM: altM, colorStr: colorStr, rowonclick: rowonclick, lat: lat, lon: lon };
+}
+
 function loadFlights() {
     var zoom = map.getZoom();
     if (zoom < FL_MIN_ZOOM) {
-        flightLayer.clearLayers(); milLayer.clearLayers();
-        _flMarkers = []; _milMarkers = [];
-        var hint = '<div class="loading-placeholder"><i class="fas fa-magnifying-glass-plus"></i> Zoom in to level ' + FL_MIN_ZOOM + '+ to load flights</div>';
-        document.getElementById('fl-list').innerHTML          = hint;
-        document.getElementById('mil-list').innerHTML         = hint;
+        // Civil flights require minimum zoom — clear civil layer and show hint
+        flightLayer.clearLayers();
+        _flMarkers = [];
+        var civHint = '<div class="loading-placeholder"><i class="fas fa-magnifying-glass-plus"></i> Zoom in to level ' + FL_MIN_ZOOM + '+ to load flights</div>';
+        document.getElementById('fl-list').innerHTML          = civHint;
         document.getElementById('fl-count').textContent       = '–';
-        document.getElementById('mil-count').textContent      = '–';
         document.getElementById('fl-badge-text').textContent  = 'Flights: zoom in';
-        document.getElementById('mil-badge-text').textContent = 'Mil AC: zoom in';
         document.getElementById('stat-fl').textContent        = '–';
-        document.getElementById('stat-mil').textContent       = '–';
+        // Military aircraft have no zoom restriction — load globally
+        _loadMilFlightsGlobal();
         return;
     }
     var b = map.getBounds();
@@ -691,47 +719,26 @@ function loadFlights() {
         _flMarkers = []; _milMarkers = [];
         var civHtml = '', milHtml = '', civShown = 0, milShown = 0, civCount = 0, milCount = 0;
         states.forEach(function(s) {
-            var icao = s[0], cs = (s[1] || s[0] || '?').trim(), origin = s[2];
-            var lon = s[5], lat = s[6], alt = s[7];
-            if (!lat || !lon) return;
-            var altM = alt ? Math.round(alt) + ' m' : 'Ground';
-            var hdg = s[10], vel = s[9];
-            var isMil = MIL_REGEX.test(cs);
-            var rot = (hdg != null) ? 'transform:rotate(' + (hdg - 45) + 'deg)' : '';
-            var clsMil = isMil ? ' mil' : '';
-            var icon = L.divIcon({
-                className: '',
-                html: '<div id="fl-icon-' + icao + '" class="fl-icon' + clsMil + '"><i class="fas fa-plane" style="' + rot + '"></i></div>',
-                iconSize: [24, 24], iconAnchor: [12, 12]
-            });
-            var colorStr = isMil ? '#e74c3c' : '#f1c40f';
-            var milTag   = isMil ? ' <span style="color:#e74c3c;font-size:0.75em">[MIL]</span>' : '';
-            var speedTxt = vel ? ' · ' + Math.round(vel * 3.6) + ' km/h' : '';
-            var marker = L.marker([lat, lon], { icon: icon })
-                .bindPopup('<b style="color:' + colorStr + '">' + cs + '</b>' + milTag + '<br>Origin: ' + (origin || '?') + '<br>Alt: ' + altM + speedTxt + '<br><small style="color:#888">Click icon to show/hide route</small>');
-            marker.on('click', (function(ic, la, lo, hd, ve, c, or2, am, col) {
-                return function(e) { L.DomEvent.stopPropagation(e); toggleFlightRoute(ic, la, lo, hd, ve, c, or2, am, col); };
-            })(icao, lat, lon, hdg, vel, cs, origin, altM, colorStr));
-            var routeArgs = JSON.stringify(icao) + ',' + lat + ',' + lon + ',' + (hdg != null ? hdg : 'null') + ',' + (vel != null ? vel : 'null') + ',' + JSON.stringify(cs) + ',' + JSON.stringify(origin || '') + ',' + JSON.stringify(altM) + ',' + JSON.stringify(colorStr);
-            var rowonclick = 'map.setView([' + lat + ',' + lon + '],Math.max(map.getZoom(),5));toggleFlightRoute(' + routeArgs + ')';
-            if (isMil) {
-                milLayer.addLayer(marker); milCount++;
-                _milMarkers.push({ type: 'milaircraft', title: cs + (origin ? ' – ' + origin : ''), lat: lat, lon: lon, color: '#e74c3c', icon: 'fa-fighter-jet' });
+            var f = _buildFlightMarker(s);
+            if (!f) return;
+            if (f.isMil) {
+                milLayer.addLayer(f.marker); milCount++;
+                _milMarkers.push({ type: 'milaircraft', title: f.cs + (f.origin ? ' \u2013 ' + f.origin : ''), lat: f.lat, lon: f.lon, color: '#e74c3c', icon: 'fa-fighter-jet' });
                 if (milShown < 20) {
-                    milHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + rowonclick.replace(/"/g, '&quot;') + '">' +
-                        '<div class="flight-callsign"><i class="fas fa-fighter-jet" style="color:#e74c3c"></i> ' + cs + '</div>' +
-                        '<div class="flight-info">' + (origin || '&#8211;') + '</div>' +
-                        '<div class="flight-alt">' + altM + '</div></div>';
+                    milHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + f.rowonclick.replace(/"/g, '&quot;') + '">' +
+                        '<div class="flight-callsign"><i class="fas fa-fighter-jet" style="color:#e74c3c"></i> ' + f.cs + '</div>' +
+                        '<div class="flight-info">' + (f.origin || '&#8211;') + '</div>' +
+                        '<div class="flight-alt">' + f.altM + '</div></div>';
                     milShown++;
                 }
             } else {
-                flightLayer.addLayer(marker); civCount++;
-                _flMarkers.push({ type: 'flight', title: cs + (origin ? ' – ' + origin : ''), lat: lat, lon: lon, color: '#f1c40f', icon: 'fa-plane' });
+                flightLayer.addLayer(f.marker); civCount++;
+                _flMarkers.push({ type: 'flight', title: f.cs + (f.origin ? ' \u2013 ' + f.origin : ''), lat: f.lat, lon: f.lon, color: '#f1c40f', icon: 'fa-plane' });
                 if (civShown < 20) {
-                    civHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + rowonclick.replace(/"/g, '&quot;') + '">' +
-                        '<div class="flight-callsign"><i class="fas fa-plane" style="color:#f1c40f"></i> ' + cs + '</div>' +
-                        '<div class="flight-info">' + (origin || '&#8211;') + '</div>' +
-                        '<div class="flight-alt">' + altM + '</div></div>';
+                    civHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + f.rowonclick.replace(/"/g, '&quot;') + '">' +
+                        '<div class="flight-callsign"><i class="fas fa-plane" style="color:#f1c40f"></i> ' + f.cs + '</div>' +
+                        '<div class="flight-info">' + (f.origin || '&#8211;') + '</div>' +
+                        '<div class="flight-alt">' + f.altM + '</div></div>';
                     civShown++;
                 }
             }
@@ -751,6 +758,44 @@ function loadFlights() {
         document.getElementById('mil-list').innerHTML = '<div class="loading-placeholder">OpenSky unreachable</div>';
         document.getElementById('fl-badge-text').textContent  = 'Flights: offline';
         document.getElementById('mil-badge-text').textContent = 'Mil AC: offline';
+    });
+}
+
+// Load military aircraft globally (no viewport bounds, no zoom restriction)
+function _loadMilFlightsGlobal() {
+    milLayer.clearLayers();
+    _milMarkers = [];
+    document.getElementById('mil-list').innerHTML = '<div class="loading-placeholder"><i class="fas fa-circle-notch fa-spin"></i> Loading mil data&#8230;</div>';
+    document.getElementById('mil-count').textContent      = '&#8230;';
+    document.getElementById('mil-badge-text').textContent = 'Mil AC: loading';
+    document.getElementById('stat-mil').textContent       = '&#8230;';
+    fetch(FL_URL_BASE, { signal: AbortSignal.timeout(15000) }).then(function(r) { return r.json(); }).then(function(data) {
+        var states = data.states || [];
+        milLayer.clearLayers();
+        _milMarkers = [];
+        var milHtml = '', milShown = 0, milCount = 0;
+        states.forEach(function(s) {
+            var f = _buildFlightMarker(s);
+            if (!f || !f.isMil) return;
+            milLayer.addLayer(f.marker); milCount++;
+            _milMarkers.push({ type: 'milaircraft', title: f.cs + (f.origin ? ' \u2013 ' + f.origin : ''), lat: f.lat, lon: f.lon, color: '#e74c3c', icon: 'fa-fighter-jet' });
+            if (milShown < 50) {
+                milHtml += '<div class="flight-item" style="cursor:pointer" onclick="' + f.rowonclick.replace(/"/g, '&quot;') + '">' +
+                    '<div class="flight-callsign"><i class="fas fa-fighter-jet" style="color:#e74c3c"></i> ' + f.cs + '</div>' +
+                    '<div class="flight-info">' + (f.origin || '&#8211;') + '</div>' +
+                    '<div class="flight-alt">' + f.altM + '</div></div>';
+                milShown++;
+            }
+        });
+        document.getElementById('mil-list').innerHTML         = milHtml || '<div class="loading-placeholder">No mil data</div>';
+        document.getElementById('mil-count').textContent      = milCount;
+        document.getElementById('mil-badge-text').textContent = 'Mil AC: ' + milCount;
+        document.getElementById('stat-mil').textContent       = milCount;
+        if (groupShareState.milflights) publishGroupShare();
+    }).catch(function() {
+        document.getElementById('mil-list').innerHTML         = '<div class="loading-placeholder">OpenSky unreachable</div>';
+        document.getElementById('mil-badge-text').textContent = 'Mil AC: offline';
+        document.getElementById('stat-mil').textContent       = '&#8211;';
     });
 }
 var WX_URL = 'https://api.weather.gov/alerts/active?status=actual&message_type=alert&limit=25';
