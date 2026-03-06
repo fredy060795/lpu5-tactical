@@ -1428,6 +1428,20 @@ def _process_incoming_cot(cot_xml: str) -> None:
             return
         event_type = root.get("type", "")
 
+        # Skip echo-backs of LPU5-originated markers so ATAK does not corrupt
+        # or duplicate them:
+        #   • "GPS-<username>" UIDs are own GPS position markers forwarded to
+        #     ATAK; filtering here prevents ATAK's echo-back from overwriting the
+        #     gps_position type and from creating a duplicate tak_unit overlay.
+        #   • _LPU5_COT_UID ("LPU5-GW") is the LPU5 gateway SA beacon that
+        #     some TAK servers reflect back; ingesting it would create a spurious
+        #     map marker at (0, 0).
+        if uid.startswith("GPS-") or uid == _LPU5_COT_UID:
+            logger.debug("CoT: skipping LPU5 echo-back for UID: %s", uid)
+            with _TAK_RECEIVER_STATS_LOCK:
+                _TAK_RECEIVER_STATS["packets_received"] += 1
+            return
+
         # Process unit/marker types, ATAK drawings, and GeoChat messages;
         # skip ping-acks and other non-tactical system types.
         relevant_prefixes = ("a-f", "a-h", "a-n", "a-u", "a-p", "b-m-p", "b-t-f", "u-d", "b-a")
