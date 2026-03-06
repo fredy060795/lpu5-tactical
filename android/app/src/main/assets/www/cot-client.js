@@ -408,21 +408,21 @@ class COTProtocolHandler {
 
         // Refine the type for ATAK-specific CoT sources so they render with
         // the correct icon rather than the generic placeholder.
-        // The how-based SA-beacon check runs first because some ATAK Meshtastic
-        // plugins may add a spurious <meshtastic> element to SA beacons; the
-        // how code ("h-*") is the more reliable signal for human/GPS-derived
-        // positions.
-        //   • a-f-G-U-C with human/GPS how (h-*) → ATAK SA / GPS position
+        // Meshtastic SA beacons forwarded by an ATAK Meshtastic plugin carry a
+        // <meshtastic> element in their detail block and may use how="h-*" just
+        // like regular ATAK SA beacons.  The <meshtastic> element is checked first
+        // as the authoritative signal that this is a Meshtastic node.
         //   • <meshtastic> in detail → Meshtastic node forwarded by ATAK plugin
+        //   • a-f-G-U-C with human/GPS how (h-*), no meshtastic detail → ATAK SA
         //   • Other ATAK-sourced shapes → CBT variant for visual distinction
         const _ATAK_TO_CBT = {
             raute: 'cbt_raute', rechteck: 'cbt_rechteck',
             quadrat: 'cbt_quadrat', blume: 'cbt_blume'
         };
-        if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
-            lpu5Type = 'tak_unit';
-        } else if (cotEvent.hasMeshtasticDetail) {
+        if (cotEvent.hasMeshtasticDetail) {
             lpu5Type = 'meshtastic_node';
+        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
+            lpu5Type = 'tak_unit';
         } else if (_ATAK_TO_CBT[lpu5Type]) {
             lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }
