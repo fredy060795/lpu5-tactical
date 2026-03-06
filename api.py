@@ -1576,13 +1576,17 @@ def _process_incoming_cot(cot_xml: str) -> None:
             if callsign_lower in CoTProtocolHandler.LPU5_TO_COT_TYPE:
                 lpu5_type = callsign_lower
 
-        # Override with more specific types for ATAK-sourced events:
-        #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
+        # Override with more specific types for ATAK-sourced events.
+        # The how-based SA-beacon check runs first because some ATAK
+        # Meshtastic plugins may add a spurious <meshtastic> element to SA
+        # beacons; the how code ("h-*") is the more reliable signal for
+        # human/GPS-derived positions.
         #   • how starts with "h"     → ATAK SA / GPS position (human/GPS-derived)
-        if _has_mesh_detail:
-            lpu5_type = "meshtastic_node"
-        elif lpu5_type == "rechteck" and how.startswith("h"):
+        #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
+        if lpu5_type == "rechteck" and how.startswith("h"):
             lpu5_type = "tak_unit"
+        elif _has_mesh_detail:
+            lpu5_type = "meshtastic_node"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are
@@ -7092,16 +7096,26 @@ async def ingest_cot_xml(request: Request):
                 # user or Meshtastic ingest.  ATAK echo-backs for LPU5-originated
                 # markers would otherwise corrupt the marker type (e.g. "raute" →
                 # "cbt_raute") and lose the original user-set label.
-                if existing.created_by not in _TAK_INGEST_SOURCES:
+                if marker_dict["id"].startswith("mesh-") or existing.created_by not in _TAK_INGEST_SOURCES:
                     logger.debug(
                         "ingest_cot_xml: skipping echo-back update for LPU5-originated marker %s",
                         marker_dict["id"],
                     )
                     return {"status": "skipped", "reason": "echo-back of LPU5-originated marker"}
+                # Guard: don't downgrade a meshtastic_node marker to cbt_rechteck
+                # or tak_unit when the incoming CoT echo lacks a <meshtastic>
+                # element.  ATAK may strip custom detail elements when re-
+                # distributing CoT, which would cause the node to lose its
+                # Meshtastic icon on every subsequent position update.
+                incoming_type = marker_dict.get("type", "unknown")
+                if (existing.type == "meshtastic_node"
+                        and not cot_event.has_meshtastic_detail
+                        and incoming_type != "meshtastic_node"):
+                    incoming_type = "meshtastic_node"
                 existing.lat   = marker_dict["lat"]
                 existing.lng   = marker_dict["lng"]
                 existing.name  = marker_dict.get("name") or marker_dict["id"]
-                existing.type  = marker_dict.get("type", "unknown")
+                existing.type  = incoming_type
                 # Preserve non-CoT fields already stored; only overwrite CoT-specific keys
                 extra = dict(existing.data) if isinstance(existing.data, dict) else {}
                 extra["cot_type"]  = marker_dict.get("cot_type")
