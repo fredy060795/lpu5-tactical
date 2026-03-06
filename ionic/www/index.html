@@ -1748,17 +1748,19 @@
           const symType = s.type || s.sym || 'raute';
           let iconHtml;
           if (isGps) {
-            // Foreign GPS positions shown as blue arrow (unified with Meshtastic node blue)
-            iconHtml = `<i class="fas fa-location-arrow" style="color:#007bff; font-size: 28px;"></i>`;
+            // Other users' GPS positions shown as Meshtastic node circles (person/node markers).
+            // Own GPS position is already excluded above and shown locally as a GPS arrow.
+            iconHtml = SYMBOLS.meshtastic_node;
+            iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
           } else {
             iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.raute;
             iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
           }
           const icon = L.divIcon({
-            className: isGps ? 'gps-marker-arrow' : 'server-symbol',
+            className: 'server-symbol',
             html: iconHtml,
-            iconSize: isGps ? [36, 36] : [32, 32],
-            iconAnchor: isGps ? [18, 18] : [16, 16]
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
           });
           const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
 
