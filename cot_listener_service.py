@@ -99,6 +99,13 @@ class CoTListenerService:
         self._clients: Dict[int, "socket.socket"] = {}
         self._clients_lock = threading.Lock()
 
+        # Circuit-breaker for SA Multicast send failures.
+        # After the first failure the log level is downgraded to DEBUG to avoid
+        # spamming WARNING messages every time a send is attempted on a machine
+        # where the multicast network is unreachable (e.g. WinError 10051).
+        # The counter resets to 0 on every successful send.
+        self._mcast_consecutive_failures: int = 0
+
         self.stats: Dict = {
             "running": False,
             "started_at": None,
@@ -462,14 +469,31 @@ class CoTListenerService:
                 self.multicast_port,
                 len(data),
             )
+            # Reset circuit-breaker on success.
+            self._mcast_consecutive_failures = 0
             return True
         except Exception as exc:
-            logger.warning(
-                "CoT SA Multicast send to %s:%d failed: %s",
-                self.multicast_group,
-                self.multicast_port,
-                exc,
-            )
+            self._mcast_consecutive_failures += 1
+            # Emit a WARNING only on the first failure so the operator is
+            # informed once.  Subsequent failures (e.g. network unavailable on
+            # Windows: WinError 10051) are logged at DEBUG level to avoid
+            # filling the log with repeated identical WARNING messages.
+            if self._mcast_consecutive_failures == 1:
+                logger.warning(
+                    "CoT SA Multicast send to %s:%d failed: %s"
+                    " (further failures will be logged at DEBUG level)",
+                    self.multicast_group,
+                    self.multicast_port,
+                    exc,
+                )
+            else:
+                logger.debug(
+                    "CoT SA Multicast send to %s:%d failed (%d): %s",
+                    self.multicast_group,
+                    self.multicast_port,
+                    self._mcast_consecutive_failures,
+                    exc,
+                )
             return False
 
 

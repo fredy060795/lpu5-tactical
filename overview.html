@@ -2612,8 +2612,16 @@
                   headers: delToken ? { 'Authorization': 'Bearer ' + delToken } : {}
                 });
                 if (dres.ok) {
-                  map.removeLayer(layer);
-                  serverMarkerLayers.delete(m.id);
+                  // Use the currently-tracked layer so that a concurrent sync()
+                  // cannot leave an orphaned layer on the map (race condition fix).
+                  const activeLayer = serverMarkerLayers.get(m.id);
+                  if (activeLayer) {
+                    try { map.removeLayer(activeLayer); } catch (e) {}
+                    serverMarkerLayers.delete(m.id);
+                  }
+                  // Also remove the layer captured in this closure in case it
+                  // differs from activeLayer (already removed by sync, no-op).
+                  try { map.removeLayer(layer); } catch (e) {}
                 } else alert('Delete failed');
               } catch (e) {
                 console.error('Delete marker error:', e);
