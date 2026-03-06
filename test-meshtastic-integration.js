@@ -264,9 +264,9 @@ test('node type maps to a-f-G-E-S-U-M (Meshtastic equipment)', () => {
   assert(cotType === 'a-f-G-E-S-U-M', `node should map to a-f-G-E-S-U-M, got ${cotType}`);
 });
 
-test('meshtastic_node type maps to a-f-G-E-S-U-M', () => {
+test('meshtastic_node type maps to a-f-G-U-C (SA type, shows as SA in ATAK)', () => {
   const cotType = COTEvent.lpu5TypeToCot('meshtastic_node');
-  assert(cotType === 'a-f-G-E-S-U-M', `meshtastic_node should map to a-f-G-E-S-U-M, got ${cotType}`);
+  assert(cotType === 'a-f-G-U-C', `meshtastic_node should map to a-f-G-U-C, got ${cotType}`);
 });
 
 test('gateway type maps to a-f-G-E-S-U-M', () => {
@@ -274,9 +274,9 @@ test('gateway type maps to a-f-G-E-S-U-M', () => {
   assert(cotType === 'a-f-G-E-S-U-M', `gateway should map to a-f-G-E-S-U-M, got ${cotType}`);
 });
 
-test('a-f-G-E-S-U-M maps back to meshtastic_node (not rechteck/friendly)', () => {
+test('a-f-G-E-S-U-M maps back to cbt_rechteck (not meshtastic_node)', () => {
   const lpu5 = COTEvent.cotTypeToLpu5('a-f-G-E-S-U-M');
-  assert(lpu5 === 'meshtastic_node', `a-f-G-E-S-U-M should map to meshtastic_node, got ${lpu5}`);
+  assert(lpu5 === 'cbt_rechteck', `a-f-G-E-S-U-M should map to cbt_rechteck, got ${lpu5}`);
 });
 
 test('markerToCOT with node type produces a-f-G-E-S-U-M', () => {
@@ -328,25 +328,25 @@ test('cotToMarker with hasMeshtasticDetail=true overrides type to meshtastic_nod
     `hasMeshtasticDetail with how=m-g should force type=meshtastic_node, got ${marker.type}`);
 });
 
-test('cotToMarker human SA beacon with spurious meshtastic detail produces tak_unit', () => {
-  // Simulates an ATAK SA beacon (how='h-e', human-entered) that has a
-  // <meshtastic> element in detail due to a plugin bug.  The how code is the
-  // more reliable signal — the SA beacon must become tak_unit, not meshtastic_node.
+test('cotToMarker Meshtastic SA beacon with meshtastic detail produces meshtastic_node', () => {
+  // hasMeshtasticDetail is the authoritative signal that this is a Meshtastic
+  // node (not a plain human ATAK user), regardless of how="h-e".  In
+  // cot-client.js the hasMeshtasticDetail check runs first.
   const cot = new COTEvent({
     uid: 'SA-UNIT-1',
     type: 'a-f-G-U-C',
     lat: 48.0,
     lon: 11.0,
     callsign: 'Alpha',
-    how: 'h-e',  // human-entered SA beacon
-    hasMeshtasticDetail: true,  // spurious <meshtastic> from a plugin
+    how: 'h-e',
+    hasMeshtasticDetail: true,
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'tak_unit',
-    `how='h-e' SA beacon must produce tak_unit even with hasMeshtasticDetail=true, got ${marker.type}`);
+  assert(marker.type === 'meshtastic_node',
+    `how='h-e' + hasMeshtasticDetail must produce meshtastic_node, got ${marker.type}`);
 });
 
-test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives meshtastic_node', () => {
+test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives cbt_rechteck', () => {
   const cot = new COTEvent({
     uid: 'MESH-3',
     type: 'a-f-G-E-S-U-M',
@@ -355,8 +355,8 @@ test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives mesht
     callsign: 'Node3',
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'meshtastic_node',
-    `a-f-G-E-S-U-M should map to meshtastic_node, got ${marker.type}`);
+  assert(marker.type === 'cbt_rechteck',
+    `a-f-G-E-S-U-M without <meshtastic> detail should map to cbt_rechteck, got ${marker.type}`);
 });
 
 // Summary

@@ -188,11 +188,10 @@ class CoTEvent:
                 group.set("role", _grp_role)
         
         # Add a <meshtastic> element so that ATAK / WinTAK knows this CoT event
-        # originated from a Meshtastic node or GPS position.  This element is
-        # only emitted for CoT type a-f-G-E-S-U-M (Meshtastic equipment), which
-        # covers all Meshtastic nodes, gateways, and GPS positions so that ATAK
-        # displays them with the Meshtastic icon rather than a generic symbol.
-        if self.is_meshtastic_node and self.callsign and self.cot_type == "a-f-G-E-S-U-M":
+        # originated from a Meshtastic node or GPS position.  Emitted for all
+        # is_meshtastic_node events (node, meshtastic_node, gateway, gps_position)
+        # regardless of CoT type, so that ATAK handles them as live SA contacts.
+        if self.is_meshtastic_node and self.callsign:
             mesh_elem = ET.SubElement(detail, "meshtastic")
             mesh_elem.set("longName", self.callsign)
             mesh_elem.set("shortName", self.callsign[:2])
@@ -208,10 +207,11 @@ class CoTEvent:
         # Military-affiliation markers (a-f/h/n/u) placed by LPU5 users are
         # also archived so they persist on the ATAK map like spot-map markers.
         #
-        # Meshtastic nodes (type "node"/"meshtastic_node"/"gateway", CoT type
-        # a-f-G-E-S-U-M) and GPS positions are live SA contacts whose positions
-        # are refreshed periodically.  They must NOT receive <archive/> so that
-        # ATAK displays them as refreshing contacts rather than static markers.
+        # Meshtastic nodes (type "node"/"meshtastic_node"/"gateway") and GPS
+        # positions are live SA contacts refreshed periodically.  They must NOT
+        # receive <archive/> so ATAK displays them as refreshing contacts rather
+        # than static markers.  The is_meshtastic_node flag is the authoritative
+        # signal regardless of the CoT type used (a-f-G-U-C or a-f-G-E-S-U-M).
         if (self.cot_type.startswith(("b-m", "u-d", "a-f", "a-h", "a-n", "a-u", "a-p"))
                 and not self.is_meshtastic_node):
             ET.SubElement(detail, "archive")
@@ -371,13 +371,13 @@ class CoTProtocolHandler:
         "pending":          "a-p-G-U-C",   # pending ground unit
         "gps_position":     "a-f-G-E-S-U-M",   # live GPS position sent as Meshtastic node
         "node":             "a-f-G-E-S-U-M",   # Meshtastic equipment node
-        "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic equipment node (ATAK plugin)
+        "meshtastic_node":  "a-f-G-U-C",        # Meshtastic SA position (shows as SA in ATAK)
         "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router (equipment)
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
         # CBT variants: ATAK-sourced markers rendered with "CBT" label to
         # distinguish them from natively created LPU5 markers.
         "cbt_raute":        "a-h-G-U-C",   # ATAK hostile (red diamond + CBT)
-        "cbt_rechteck":     "a-f-G-U-C",   # ATAK friendly (blue rectangle + CBT)
+        "cbt_rechteck":     "a-f-G-E-S-U-M",   # ATAK friendly (blue rectangle + CBT, Meshtastic equipment icon)
         "cbt_quadrat":      "a-n-G-U-C",   # ATAK neutral (green square + CBT)
         "cbt_blume":        "a-u-G-U-C",   # ATAK unknown (yellow flower + CBT)
     }
@@ -421,7 +421,7 @@ class CoTProtocolHandler:
         ("u-d-r",     "rechteck"),  # TAK drawing rectangle
         ("u-d-f",     "raute"),     # TAK drawing freehand → diamond
         ("u-d-p",     "raute"),     # TAK drawing generic point → diamond
-        ("a-f-G-E-S-U-M", "meshtastic_node"),  # legacy Meshtastic equipment type (backward compat)
+        ("a-f-G-E-S-U-M", "cbt_rechteck"),  # ATAK Meshtastic equipment type → CBT rectangle
         ("a-f",       "rechteck"),  # friendly affiliation → blue rectangle
         ("a-h",       "raute"),     # hostile affiliation → red diamond
         ("a-n",       "quadrat"),   # neutral affiliation → green square
