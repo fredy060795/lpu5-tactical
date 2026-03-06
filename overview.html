@@ -1100,7 +1100,7 @@
   <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
   <script src="assets/api-client.js"></script>
   <script src="assets/ws-client.js"></script>
-  <script src="intel-data.js"></script>
+  <!-- <script src="intel-data.js"></script> -->
   
   <!-- Meshtastic PWA Integration -->
   <script src="meshtastic-web-client.js"></script>
@@ -1148,7 +1148,7 @@
     // Persisted state for which data layers the EUD wants to see.
     // Keys: 'mesh' | 'imageOverlays' | 'symbols' | 'intel'
     const _ovVis = (function() {
-      var defaults = { mesh: true, imageOverlays: true, symbols: true, intel: true };
+      var defaults = { mesh: true, imageOverlays: true, symbols: true, intel: false };
       try {
         var saved = JSON.parse(localStorage.getItem('lpu5_overview_overlay_vis') || '{}');
         return Object.assign({}, defaults, saved);
@@ -1159,6 +1159,7 @@
       try { localStorage.setItem('lpu5_overview_overlay_vis', JSON.stringify(_ovVis)); } catch(e) {}
     }
 
+    /* ── Per-source Intel visibility and all Intel functions – disabled (system load reduction) ──
     // ── Per-source Intel visibility (persisted per user) ─────────────────────────
     var _OV_INTEL_SRC_KEY = 'lpu5_ov_intel_src_vis';
     var _OV_INTEL_SOURCES = [
@@ -1294,6 +1295,7 @@
       var subDiv = document.getElementById('intel-sub-src');
       if (subDiv) subDiv.style.display = _ovVis.intel ? '' : 'none';
     };
+    /* ========== End disabled Intel visibility and functions ========== */
 
     function _applyOvVis(type, visible) {
       if (!map) return;
@@ -1315,6 +1317,7 @@
           break;
         }
         case 'intel': {
+          /* intel layer disabled – system load reduction
           var layers = [window._intelSingleLayer, window._intelGroupLayer].filter(Boolean);
           if (visible) {
             layers.forEach(function(l) { if (!map.hasLayer(l)) l.addTo(map); });
@@ -1330,6 +1333,7 @@
             });
             clearInterval(_ovSrcTimers['_flights']); delete _ovSrcTimers['_flights'];
           }
+          */
           break;
         }
       }
@@ -1345,10 +1349,12 @@
         statusEl.style.color = _ovVis[type] ? '#2ecc71' : '#e74c3c';
       }
       // Show/hide per-source intel sub-toggles
+      /* intel layer disabled – system load reduction
       if (type === 'intel') {
         var subDiv = document.getElementById('intel-sub-src');
         if (subDiv) subDiv.style.display = _ovVis.intel ? '' : 'none';
       }
+      */
     };
 
     // Restore saved visibility states once the map panes are ready.
@@ -1359,6 +1365,7 @@
           if (!_ovVis[type]) _applyOvVis(type, false);
         });
         // Start direct intel polling for all enabled sources if master intel is on
+        /* intel layer disabled – system load reduction
         if (_ovVis.intel) {
           _OV_INTEL_SOURCES.forEach(function (s) {
             if (_ovIntelSrcVis[s.key]) _ovStartPoll(s.key);
@@ -1367,6 +1374,7 @@
         // Re-apply intel filter on zoom change so that civil flights are hidden
         // below FL_MIN_ZOOM but military aircraft remain visible at all zoom levels.
         if (map) { map.off('zoomend', _ovMergeAndApply); map.on('zoomend', _ovMergeAndApply); }
+        */
       }, 1500); // 1500ms: allow Leaflet pane creation + initial data load to complete
     });
     const chatUnreadByChannel = {}; // Unread counts per channel id
@@ -4693,20 +4701,7 @@
             <button class="menu-btn" onclick="event.stopPropagation();toggleOverlayLayer('symbols')">
               <i class="fas fa-map-marker-alt"></i> Tactical Symbole
               <span id="ov-lbl-symbols" style="margin-left:auto;font-size:0.85em;color:${_ovVis.symbols?'#2ecc71':'#e74c3c'}">${_ovVis.symbols?'AN':'AUS'}</span>
-            </button>
-            <button class="menu-btn" onclick="event.stopPropagation();toggleOverlayLayer('intel')">
-              <i class="fas fa-satellite-dish"></i> Global Intel
-              <span id="ov-lbl-intel" style="margin-left:auto;font-size:0.85em;color:${_ovVis.intel?'#2ecc71':'#e74c3c'}">${_ovVis.intel?'AN':'AUS'}</span>
-            </button>
-            <div id="intel-sub-src" style="padding-left:14px;border-left:2px solid #9b59b630;margin:2px 0 0 0;${_ovVis.intel?'':'display:none'}">
-              ${_OV_INTEL_SOURCES.map(function(s){
-                var on = _ovIntelSrcVis[s.key];
-                return '<button class="menu-btn" onclick="event.stopPropagation();toggleOvIntelSrc(\'' + s.key + '\')">' +
-                  '<i class="fas ' + s.icon + '" style="font-size:0.8em;color:' + s.color + '"></i> ' + s.label +
-                  '<span id="ov-ilbl-' + s.key + '" style="margin-left:auto;font-size:0.78em;font-weight:bold;color:' + (on?'#2ecc71':'#e74c3c') + '">' + (on?'AN':'AUS') + '</span>' +
-                  '</button>';
-              }).join('')}
-            </div>`
+            </button>`
         }
       };
 
@@ -4772,6 +4767,7 @@
       closeMenuPopup();
     };
 
+    /* ── Global Intel share receiver – disabled (system load reduction) ─────────
     // ── Global Intel share receiver ──────────────────────────────────────────
     (function () {
       const ICON_MAP = {
@@ -4873,6 +4869,7 @@
     (function () {
       // no-op placeholder – kept for structural clarity
     }());
+    /* ========== End disabled Global Intel share receiver and group layer ========== */
 
     /* ----------------- SERVICE WORKER FOR OFFLINE MAPS -----------------
        Registers service worker for map tile caching
