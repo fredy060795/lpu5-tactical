@@ -205,3 +205,19 @@ class PendingRegistration(Base):
     callsign = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data = Column(JSON, nullable=True)
+
+
+class DeletedMarker(Base):
+    """
+    Persistent tombstone for every map marker that has been explicitly deleted
+    in LPU5.  Rows in this table prevent CoT echo-backs from ATAK/WinTAK from
+    silently recreating a marker that a user intentionally removed.
+
+    The record lives forever (no automatic expiry) so that even after a server
+    restart the deletion is honoured.  A row can be removed manually via the
+    admin API if the same marker UID should be allowed to appear again.
+    """
+    __tablename__ = "deleted_markers"
+    marker_id = Column(String, primary_key=True, index=True)
+    deleted_by = Column(String, nullable=True)   # username of who deleted it
+    deleted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

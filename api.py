@@ -65,7 +65,7 @@ _SHUTDOWN_IN_PROGRESS = threading.Event()
 
 # Database imports
 from database import Base, SessionLocal, engine, get_db
-from models import User, Unit, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration
+from models import User, Unit, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration, DeletedMarker
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from fastapi import Depends
@@ -281,6 +281,10 @@ async def lifespan(application):
     ensure_db_files()
     ensure_default_admin()
     ensure_default_unit()
+
+    # Warm up the in-memory deleted-marker cache from the database so that
+    # CoT echo-backs are suppressed immediately on startup.
+    _load_deleted_markers_from_db()
 
     # Start data server process if available
     if DATA_SERVER_AVAILABLE and data_server_manager:
@@ -1369,12 +1373,79 @@ _TAK_RECEIVER_STATS: Dict[str, Any] = {
 }
 _TAK_RECEIVER_STATS_LOCK = threading.Lock()
 
-# Thread-safe tracking of recently deleted marker IDs.
-# Prevents ATAK echo-back SA updates from recreating a marker that was just
-# deleted in LPU5.  Entries expire after _MARKER_DELETION_SUPPRESSION_SECS.
-_deleted_marker_ids: Dict[str, float] = {}
+# Thread-safe in-memory cache of deleted marker IDs for fast lookups.
+# The authoritative source of truth is the `deleted_markers` DB table which
+# survives server restarts.  This cache is populated at startup from the DB
+# and updated on every new deletion so hot-path checks avoid a DB round-trip.
+_deleted_marker_ids: set = set()
 _deleted_marker_ids_lock = threading.Lock()
-_MARKER_DELETION_SUPPRESSION_SECS = 60
+
+
+def _load_deleted_markers_from_db() -> None:
+    """Populate the in-memory deleted-marker cache from the database on startup."""
+    try:
+        with SessionLocal() as db:
+            rows = db.query(DeletedMarker.marker_id).all()
+            with _deleted_marker_ids_lock:
+                for (mid,) in rows:
+                    _deleted_marker_ids.add(mid)
+            logger.info("Loaded %d permanently deleted marker IDs from DB", len(rows))
+    except Exception as _e:
+        logger.warning("Could not load deleted markers from DB: %s", _e)
+
+
+def _record_deleted_marker(marker_id: str, deleted_by: str = "system") -> None:
+    """
+    Permanently record a marker ID as deleted.
+
+    Writes to both the in-memory fast-path cache and the `deleted_markers`
+    database table so the suppression survives server restarts.  Also evicts
+    the marker from the CoT dedup caches so a future CoT event with the same
+    UID is immediately checked against the deleted-markers table rather than
+    silently passing through the dedup filter.
+    """
+    with _deleted_marker_ids_lock:
+        _deleted_marker_ids.add(marker_id)
+    # Persist to DB (upsert — safe to call multiple times for the same ID)
+    try:
+        with SessionLocal() as db:
+            existing = db.query(DeletedMarker).filter(DeletedMarker.marker_id == marker_id).first()
+            if not existing:
+                db.add(DeletedMarker(marker_id=marker_id, deleted_by=deleted_by))
+                db.commit()
+    except Exception as _e:
+        logger.warning("Could not persist deleted marker %s to DB: %s", marker_id, _e)
+    # Evict from CoT dedup caches so re-checks are forced on the next incoming event.
+    with _TAK_INCOMING_CACHE_LOCK:
+        _TAK_INCOMING_CACHE.pop(marker_id, None)
+    with _TAK_FORWARD_CACHE_LOCK:
+        _TAK_FORWARD_CACHE.pop(marker_id, None)
+
+
+def _is_deleted_marker(marker_id: str) -> bool:
+    """
+    Return True if the marker was explicitly deleted in LPU5.
+
+    Checks the in-memory cache first (fast path); falls back to the database
+    if the ID is not cached (e.g. right after a startup before the background
+    load completes).
+    """
+    with _deleted_marker_ids_lock:
+        if marker_id in _deleted_marker_ids:
+            return True
+    # Fallback: check DB directly (handles the brief window between startup
+    # and the async cache warm-up, and also acts as a safety net).
+    try:
+        with SessionLocal() as db:
+            row = db.query(DeletedMarker).filter(DeletedMarker.marker_id == marker_id).first()
+            if row:
+                with _deleted_marker_ids_lock:
+                    _deleted_marker_ids.add(marker_id)
+                return True
+    except Exception:
+        pass
+    return False
+
 
 # Deduplication cache for incoming CoT events.
 # Maps uid → (lat, lng, callsign, lpu5_type) of the last processed state.
@@ -1390,29 +1461,12 @@ _TAK_FORWARD_CACHE: Dict[str, tuple] = {}
 _TAK_FORWARD_CACHE_LOCK = threading.Lock()
 
 
-def _record_deleted_marker(marker_id: str) -> None:
-    """Record a marker ID as recently deleted to suppress ATAK echo-back recreation."""
-    with _deleted_marker_ids_lock:
-        _deleted_marker_ids[marker_id] = time.time()
-        cutoff = time.time() - _MARKER_DELETION_SUPPRESSION_SECS
-        for k in list(_deleted_marker_ids.keys()):
-            if _deleted_marker_ids[k] < cutoff:
-                del _deleted_marker_ids[k]
-    # Evict from incoming dedup cache so the marker can be re-created if TAK
-    # sends it again after the deletion suppression window expires.
-    with _TAK_INCOMING_CACHE_LOCK:
-        _TAK_INCOMING_CACHE.pop(marker_id, None)
-    with _TAK_FORWARD_CACHE_LOCK:
-        _TAK_FORWARD_CACHE.pop(marker_id, None)
-
-
+# ---------------------------------------------------------------------------
+# Backwards-compatible alias used in a few existing call sites.
+# ---------------------------------------------------------------------------
 def _is_recently_deleted_marker(marker_id: str) -> bool:
-    """Return True if the marker was deleted within the suppression window."""
-    with _deleted_marker_ids_lock:
-        ts = _deleted_marker_ids.get(marker_id)
-        if ts is None:
-            return False
-        return (time.time() - ts) < _MARKER_DELETION_SUPPRESSION_SECS
+    """Alias for _is_deleted_marker (deletion is now permanent, not time-bounded)."""
+    return _is_deleted_marker(marker_id)
 
 
 def _process_incoming_cot(cot_xml: str) -> None:
@@ -3641,8 +3695,9 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
         db.delete(marker)
         db.commit()
         
-        # Record the deletion to suppress ATAK echo-back from recreating this marker
-        _record_deleted_marker(marker_id)
+        # Record the deletion permanently — suppresses ATAK echo-back from ever
+        # recreating this marker, even after a server restart.
+        _record_deleted_marker(marker_id, deleted_by=current_username)
 
         log_audit("delete_marker", current_username, {"marker_id": marker_id})
         broadcast_websocket_update("markers", "marker_deleted", {"id": marker_id})
@@ -6735,6 +6790,10 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
         if not cot_event:
             return
         marker_dict = CoTProtocolHandler.cot_to_marker(cot_event)
+        # Suppress re-creation of permanently deleted markers.
+        if _is_deleted_marker(marker_dict["id"]):
+            logger.debug("CoT listener: suppressing deleted marker %s", marker_dict["id"])
+            return
         with SessionLocal() as db:
             existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
             if existing:
@@ -8445,8 +8504,9 @@ async def delete_map_symbol(symbol_id: str, authorization: str = Header(None)):
             db.delete(marker)
             db.commit()
 
-        # Record the deletion to suppress ATAK echo-back from recreating this marker
-        _record_deleted_marker(symbol_id)
+        # Record the deletion permanently — suppresses ATAK echo-back from ever
+        # recreating this marker, even after a server restart.
+        _record_deleted_marker(symbol_id, deleted_by=current_username)
 
         # Broadcast to WebSocket clients using helper
         broadcast_websocket_update("symbols", "symbol_deleted", {"id": symbol_id})
