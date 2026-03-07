@@ -298,7 +298,8 @@ class COTImportDiagnostics:
             with open(_LOG_FILE, "r", encoding="utf-8") as f:
                 lines = f.readlines()
             return "".join(lines[-tail_lines:])
-        except Exception:
+        except Exception as exc:
+            self._logger.warning("Failed to read log file: %s", exc)
             return ""
 
 

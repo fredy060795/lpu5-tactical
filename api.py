@@ -79,6 +79,9 @@ try:
 except Exception:
     cot_diag = None  # graceful degradation if module unavailable
 
+# Meshtastic LPU5 types expected when a mesh-prefix UID or <meshtastic> detail is detected
+_DIAG_MESH_EXPECTED_TYPES = {"meshtastic_node", "node", "gateway"}
+
 # Migrate existing tables: add missing columns that create_all() won't add to existing tables
 from sqlalchemy import text as sa_text, inspect as sa_inspect
 _inspector = sa_inspect(engine)
@@ -1648,8 +1651,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 uid_is_mesh=_uid_is_mesh,
             )
             # Detect potential Meshtastic mismatch
-            _MESH_EXPECTED = {"meshtastic_node", "node", "gateway"}
-            if (_has_mesh_detail or _uid_is_mesh) and lpu5_type not in _MESH_EXPECTED:
+            if (_has_mesh_detail or _uid_is_mesh) and lpu5_type not in _DIAG_MESH_EXPECTED_TYPES:
                 cot_diag.log_meshtastic_mismatch(
                     uid=uid, cot_type=event_type,
                     expected_lpu5_type="meshtastic_node/node",
@@ -6103,7 +6105,7 @@ def clear_cot_import_log():
 def toggle_cot_import_log(enabled: Optional[bool] = None):
     """Enable or disable COT import diagnostic logging.
     
-    Body / query param:
+    Query param:
         enabled – true/false.  If omitted the current state is toggled.
     """
     if not cot_diag:
