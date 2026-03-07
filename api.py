@@ -1584,9 +1584,12 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # SA beacons; the <meshtastic> element is the authoritative signal that
         # this is a Meshtastic node, not a human ATAK user.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
-        #   • how starts with "h" (no meshtastic detail) → ATAK SA / GPS position
+        #   • how starts with "h-g" (no meshtastic detail) → GPS position
+        #   • how starts with "h" (no meshtastic detail) → ATAK SA / tak_maker
         if _has_mesh_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
+        elif lpu5_type == "friendly" and how.startswith("h-g"):
+            lpu5_type = "gps_position"
         elif lpu5_type == "friendly" and how.startswith("h"):
             lpu5_type = "tak_maker"
         else:
@@ -8394,7 +8397,7 @@ def get_map_symbols():
             symbol_list = []
             for s in symbols:
                 # Skip meshtastic-synced markers — rendered by updateMeshtasticNodes()
-                if s.type == "node" or (s.created_by and s.created_by in _MESHTASTIC_CREATED_BY):
+                if s.type in ("node", "meshtastic_node", "gateway") or (s.created_by and s.created_by in _MESHTASTIC_CREATED_BY):
                     continue
                 # Skip ATAK-echoed meshtastic node markers (uid prefix "mesh-") —
                 # these originate from _forward_meshtastic_node_to_tak and are

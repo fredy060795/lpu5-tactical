@@ -2605,7 +2605,7 @@
           case 'meshtastic_node': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
           case 'node': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
           case 'gateway': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
-          case 'gps_position': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'gps_position': return `<svg width="35" height="35" viewBox="0 0 32 32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
           case 'tak_maker': return getMilSymbolSvg('SFGPU----------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">MKR</text></svg>`;
           case 'cbt_hostile': return getMilSymbolSvg('SHGPU----------', 35, { uniqueDesignation: 'CBT' }) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
           case 'cbt_friendly': return getMilSymbolSvg('SFGPU----------', 35, { uniqueDesignation: 'CBT' }) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
@@ -2810,9 +2810,9 @@
             const isGps = (s.type === 'gps_position');
             let icon;
             if (isGps) {
-              // Other users' GPS positions shown as Meshtastic node circles (person/node markers).
+              // Other users' GPS positions shown as GPS arrow icons.
               // Own GPS is excluded above and shown as a live arrow by gpsFixedMarker.
-              const svgHtml = getSymbolSvg('meshtastic_node');
+              const svgHtml = getSymbolSvg('gps_position');
               icon = L.divIcon({
                 className: 'custom-sym',
                 html: svgHtml,

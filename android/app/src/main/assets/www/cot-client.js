@@ -262,9 +262,8 @@ class COTEvent {
             unknown:        'a-u-G-U-C',   // unknown — yellow flower
             friendly:       'a-f-G-U-C',   // friendly — blue rectangle
             pending:        'a-p-G-U-C',
-            // GPS positions and Meshtastic node/gateway types use a-f-G-E-S-U-M
-            // so ATAK displays them as Meshtastic contacts with the Mesh icon.
-            // This was explicitly decided to unify GPS and Meshtastic display.
+            // GPS positions use a-f-G-E-S-U-M (Meshtastic equipment) so ATAK
+            // displays them as GPS person markers.
             gps_position:    'a-f-G-E-S-U-M',
             // Meshtastic node types — must match cot_protocol.py
             // All Meshtastic node/gateway types use a-f-G-E-S-U-M (Meshtastic
@@ -428,6 +427,8 @@ class COTProtocolHandler {
         };
         if (cotEvent.hasMeshtasticDetail || lpu5Type === 'meshtastic_node') {
             lpu5Type = 'meshtastic_node';
+        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
+            lpu5Type = 'gps_position';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
             lpu5Type = 'tak_maker';
         } else if (_ATAK_TO_CBT[lpu5Type]) {

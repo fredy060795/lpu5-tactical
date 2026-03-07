@@ -365,7 +365,7 @@ class CoTProtocolHandler:
         "unknown":          "a-u-G-U-C",   # unknown ground unit (yellow flower)
         "friendly":         "a-f-G-U-C",   # friendly ground unit (blue rectangle)
         "pending":          "a-p-G-U-C",   # pending ground unit
-        "gps_position":     "a-f-G-E-S-U-M",   # live GPS position sent as Meshtastic node
+        "gps_position":     "a-f-G-E-S-U-M",   # live GPS position (Meshtastic equipment in ATAK)
         "node":             "a-f-G-E-S-U-M",   # Meshtastic equipment node
         "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic node (blue M-circle in ATAK)
         "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router (equipment)
@@ -660,9 +660,13 @@ class CoTProtocolHandler:
         #     SA beacons; the <meshtastic> element is the authoritative signal that
         #     this is a Meshtastic node, not a human ATAK user.
         #   • ATAK SA / GPS position updates without a <meshtastic> element use a
-        #     "h-*" how code and are treated as friendly tak_maker markers.
+        #     "h-*" how code.  GPS-derived positions (how="h-g*") are classified
+        #     as gps_position; other human-entered positions (how="h-e" etc.)
+        #     become tak_maker.
         if cot_event.has_meshtastic_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
+        elif lpu5_type == "friendly" and cot_event.how.startswith("h-g"):
+            lpu5_type = "gps_position"
         elif lpu5_type == "friendly" and cot_event.how.startswith("h"):
             lpu5_type = "tak_maker"
         else:

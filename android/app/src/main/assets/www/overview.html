@@ -745,7 +745,7 @@
       meshtastic_node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
       node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
       gateway: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      gps_position: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      gps_position: '<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>',
       pending: getMilSymbolSvg('SPGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>'
     };
 
@@ -1819,9 +1819,9 @@
           const symType = s.type || s.sym || 'hostile';
           let iconHtml;
           if (isGps) {
-            // Other users' GPS positions shown as Meshtastic node circles (person/node markers).
+            // Other users' GPS positions shown as GPS arrow icons.
             // Own GPS position is already excluded above and shown locally as a GPS arrow.
-            iconHtml = SYMBOLS.meshtastic_node;
+            iconHtml = SYMBOLS.gps_position;
             iconHtml = `<div style="width:40px;height:40px;">${iconHtml}</div>`;
           } else {
             iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.hostile;
