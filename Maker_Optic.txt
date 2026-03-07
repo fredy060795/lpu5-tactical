@@ -1,0 +1,155 @@
+================================================================================
+  LPU5 Tactical – Marker / Symbol Typen Übersicht (Maker_Optic.txt)
+  Stand: 2026-03-07
+================================================================================
+
+Dieses Dokument listet alle Marker-Symbol-Typen mit ihrer COT-Bezeichnung,
+ihrem Aussehen, ihrer Beschriftung sowie dem Verhalten bei ATAK Import/Export.
+
+================================================================================
+ 1.  KOMPLETTE MARKER-TYPEN-LISTE
+================================================================================
+
+Nr | LPU5 Typ          | COT Typ (Export)    | Aussehen (Form)            | Farbe     | Beschriftung | ATAK Import                | ATAK Export
+---|-------------------|---------------------|----------------------------|-----------|--------------|----------------------------|---------------------------
+ 1 | raute             | a-h-G-U-C           | Raute (Diamant)            | #ff4444   | (keine)      | Hostile Ground Unit        | a-h-G-U-C
+ 2 | rechteck          | a-f-G-U-C           | Rechteck                   | #0088ff   | (keine)      | Friendly Ground Unit       | a-f-G-U-C
+ 3 | quadrat           | a-n-G-U-C           | Quadrat                    | #00ff00   | (keine)      | Neutral Ground Unit        | a-n-G-U-C
+ 4 | blume             | a-u-G-U-C           | Blume (8 Blütenblätter)    | #ffff00   | (keine)      | Unknown Ground Unit        | a-u-G-U-C
+ 5 | marker            | –                    | Kreis                      | #3498db   | (keine)      | (kein COT-Mapping)         | –
+ 6 | friendly          | a-f-G-U-C           | Kreis                      | #3498db   | (keine)      | ← COT a-f-* (ohne h-how)  | a-f-G-U-C
+ 7 | hostile           | a-h-G-U-C           | Raute (Diamant)            | #e74c3c   | (keine)      | ← COT a-h-*               | a-h-G-U-C
+ 8 | neutral           | a-n-G-U-C           | Quadrat (groß)             | #27ae60   | (keine)      | ← COT a-n-*               | a-n-G-U-C
+ 9 | unknown           | a-u-G-U-C           | Raute (Diamant)            | #f39c12   | (keine)      | ← COT a-u-*               | a-u-G-U-C
+10 | pending           | a-p-G-U-C           | Raute (Diamant)            | #9b59b6   | (keine)      | ← COT a-p-*               | a-p-G-U-C
+11 | meshtastic_node   | a-f-G-E-S-U-M       | Kreis mit "M"              | #007bff   | M            | ← COT a-f-G-E-S-U-M       | a-f-G-E-S-U-M + <meshtastic>
+12 | tak_unit          | a-f-G-U-C           | Kreis mit "SA"             | #0099cc   | SA           | ← COT a-f-G-U-C + how=h-* | a-f-G-U-C
+13 | cbt_raute         | a-h-G-U-C           | Raute mit "CBT"            | #ff4444   | CBT          | ATAK hostile → CBT Variante| a-h-G-U-C
+14 | cbt_rechteck      | a-f-G-U-C           | Rechteck mit "CBT"         | #0088ff   | CBT          | ATAK friendly → CBT Var.   | a-f-G-U-C
+15 | cbt_quadrat       | a-n-G-U-C           | Quadrat mit "CBT"          | #00ff00   | CBT          | ATAK neutral → CBT Var.    | a-n-G-U-C
+16 | cbt_blume         | a-u-G-U-C           | Blume mit "CBT"            | #ffff00   | CBT          | ATAK unknown → CBT Var.    | a-u-G-U-C
+
+Zusätzliche Meshtastic-Typen (kein eigenes SYMBOLS-Icon, werden als meshtastic_node gerendert):
+17 | node              | a-f-G-E-S-U-M       | (→ meshtastic_node)        | #007bff   | M            | Meshtastic Equipment       | a-f-G-E-S-U-M + <meshtastic>
+18 | gateway           | a-f-G-E-S-U-M       | (→ meshtastic_node)        | #007bff   | M            | Meshtastic Gateway         | a-f-G-E-S-U-M + <meshtastic>
+19 | gps_position      | a-f-G-E-S-U-M       | (→ meshtastic_node)        | #007bff   | M            | GPS Position               | a-f-G-E-S-U-M
+
+================================================================================
+ 2.  COT-TYP → LPU5-TYP IMPORT-MAPPING (von ATAK empfangen)
+================================================================================
+
+COT Typ empfangen    | LPU5 Typ (JS)       | LPU5 Typ (Python)   | Anmerkung
+---------------------|---------------------|---------------------|---------------------------
+b-m-p-s-m            | raute               | raute               | TAK Spot-Map Marker
+u-d-c-e              | raute               | raute               | TAK Drawing Ellipse
+u-d-c-c              | raute               | raute               | TAK Drawing Circle
+u-d-r                | rechteck            | rechteck            | TAK Drawing Rectangle
+u-d-f                | raute               | raute               | TAK Drawing Freehand
+u-d-p                | raute               | raute               | TAK Drawing Generic Point
+a-f-G-E-S-U-M       | meshtastic_node     | meshtastic_node     | Meshtastic Equipment
+a-f-*                | friendly            | rechteck            | Friendly Affiliation
+a-h-*                | hostile             | raute               | Hostile Affiliation
+a-n-*                | neutral             | quadrat             | Neutral Affiliation
+a-u-*                | unknown             | blume               | Unknown Affiliation
+a-p-*                | pending             | raute               | Pending Affiliation
+
+Hinweis: JavaScript und Python verwenden verschiedene interne Namen:
+  JS:     a-f → friendly, a-h → hostile, a-n → neutral, a-u → unknown
+  Python: a-f → rechteck, a-h → raute, a-n → quadrat, a-u → blume
+Beide Varianten sind im SYMBOLS-Objekt definiert und rendern das korrekte Icon.
+
+================================================================================
+ 3.  ATAK IMPORT – SONDERFÄLLE (cotToMarker / cot_to_marker Refinement)
+================================================================================
+
+Bedingung                                          | Ergebnis-Typ
+---------------------------------------------------|---------------------------
+COT hat <meshtastic> in <detail>                   | → meshtastic_node
+COT ist a-f-G-U-C + how beginnt mit "h" (human)   | → tak_unit  (SA-Kreis)
+COT ist a-f-* + how beginnt mit "h" (human)        | → tak_unit  (SA-Kreis)
+Sonstiger ATAK-Marker (raute/rechteck/etc.)        | → cbt_raute / cbt_rechteck / ...
+
+Priorität: <meshtastic> Detail > Human-how > Standard-Mapping
+
+================================================================================
+ 4.  ATAK EXPORT – LPU5 → COT (markerToCOT / marker_to_cot)
+================================================================================
+
+LPU5 Typ              | Erzeugter COT Typ    | Besonderheiten
+-----------------------|---------------------|---------------------------
+raute                  | a-h-G-U-C           | Hostile Ground Unit
+rechteck               | a-f-G-U-C           | Friendly Ground Unit
+quadrat                | a-n-G-U-C           | Neutral Ground Unit
+blume                  | a-u-G-U-C           | Unknown Ground Unit
+friendly               | a-f-G-U-C           | Friendly (gleich wie rechteck)
+hostile                | a-h-G-U-C           | Hostile (gleich wie raute)
+neutral                | a-n-G-U-C           | Neutral (gleich wie quadrat)
+unknown                | a-u-G-U-C           | Unknown (gleich wie blume)
+pending                | a-p-G-U-C           | Pending Ground Unit
+meshtastic_node        | a-f-G-E-S-U-M       | + <meshtastic> in <detail>, kein <archive>
+node                   | a-f-G-E-S-U-M       | + <meshtastic> in <detail>, kein <archive>
+gateway                | a-f-G-E-S-U-M       | + <meshtastic> in <detail>, kein <archive>
+gps_position           | a-f-G-E-S-U-M       | GPS Position als Mesh Equipment
+tak_unit               | a-f-G-U-C           | ATAK SA / GPS Position
+cbt_raute              | a-h-G-U-C           | CBT-Variante → Hostile
+cbt_rechteck           | a-f-G-U-C           | CBT-Variante → Friendly
+cbt_quadrat            | a-n-G-U-C           | CBT-Variante → Neutral
+cbt_blume              | a-u-G-U-C           | CBT-Variante → Unknown
+
+================================================================================
+ 5.  FRONTEND-VERFÜGBARKEIT (SYMBOLS-Objekt pro Frontend)
+================================================================================
+
+Symbol-Typ        | overview.html | ionic/index.html | pwa/overview.html | android/overview.html
+------------------|:------------:|:----------------:|:-----------------:|:-------------------:
+raute             |      ✓       |        ✓         |         ✓         |          ✓
+rechteck          |      ✓       |        ✓         |         ✓         |          ✓
+quadrat           |      ✓       |        ✓         |         ✓         |          ✓
+blume             |      ✓       |        ✓         |         ✓         |          ✓
+marker            |      ✓       |        ✓         |         ✓         |          ✓
+friendly          |      ✓       |        ✓         |         ✓         |          ✓
+hostile           |      ✓       |        ✓         |         ✓         |          ✓
+neutral           |      ✓       |        ✓         |         ✓         |          ✓
+unknown           |      ✓       |        ✓         |         ✓         |          ✓
+pending           |      ✓       |        ✓         |         ✓         |          ✓
+meshtastic_node   |      ✓       |        ✓         |         ✓         |          ✓
+tak_unit          |      ✓       |        ✓         |         ✓         |          ✓
+cbt_raute         |      ✓       |        ✓         |         ✓         |          ✓
+cbt_rechteck      |      ✓       |        ✓         |         ✓         |          ✓
+cbt_quadrat       |      ✓       |        ✓         |         ✓         |          ✓
+cbt_blume         |      ✓       |        ✓         |         ✓         |          ✓
+
+================================================================================
+ 6.  COT-TYP ERKLÄRUNG (Aufschlüsselung)
+================================================================================
+
+COT Typ Format: a-{affiliation}-G-{function}
+
+Affiliation:
+  f = friendly (freundlich)
+  h = hostile  (feindlich)
+  n = neutral
+  u = unknown  (unbekannt)
+  p = pending  (ausstehend)
+
+Häufige COT-Typen:
+  a-f-G-U-C       = Atom, Friendly, Ground, Unit, Combat
+  a-h-G-U-C       = Atom, Hostile, Ground, Unit, Combat
+  a-n-G-U-C       = Atom, Neutral, Ground, Unit, Combat
+  a-u-G-U-C       = Atom, Unknown, Ground, Unit, Combat
+  a-p-G-U-C       = Atom, Pending, Ground, Unit, Combat
+  a-f-G-E-S-U-M   = Atom, Friendly, Ground, Equipment, Sensor, Unit, Meshtastic
+  b-m-p-s-m        = Bits, Mapping, Point, Spot, Map
+  u-d-c-e          = User-defined, Drawing, Circle, Ellipse
+  u-d-r            = User-defined, Drawing, Rectangle
+
+================================================================================
+ 7.  BEKANNTE PROBLEME / CHANGELOG
+================================================================================
+
+[2026-03-07] PWA Frontend (pwa/overview.html) fehlten die Symbol-Typen
+             hostile, neutral, unknown, pending. Marker dieser Typen wurden
+             fälschlicherweise als meshtastic_node (blauer M-Kreis) gerendert.
+             → Behoben: Alle 4 fehlenden Typen zum SYMBOLS-Objekt hinzugefügt.
+
+================================================================================
