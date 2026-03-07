@@ -1474,8 +1474,8 @@ class TestMeshtasticDetailInOutgoingCoT(unittest.TestCase):
 
     def test_round_trip_cot_from_lpu5_echoed_by_atak_with_normalised_type(self):
         """Full round-trip: LPU5 generates CoT → ATAK normalises type to a-f-G-U-C
-        and echoes back → LPU5 must still identify the marker as meshtastic_node
-        via the preserved <meshtastic> element.
+        and echoes back → LPU5 must still identify the marker as type "node"
+        because the UID starts with "mesh-" (authoritative for Meshtastic nodes).
         """
         # 1. LPU5 generates CoT for a Meshtastic node (with <meshtastic> in detail)
         marker = {"id": "mesh-!deadbeef", "lat": 48.0, "lng": 11.0,
@@ -1498,14 +1498,14 @@ class TestMeshtasticDetailInOutgoingCoT(unittest.TestCase):
         self.assertTrue(echo_evt.has_meshtastic_detail,
                         "Parsed echo must have has_meshtastic_detail=True")
 
-        # 4. Convert to marker → must be meshtastic_node, not friendly
+        # 4. Convert to marker → must be "node" because UID starts with "mesh-"
         echo_marker = CoTProtocolHandler.cot_to_marker(echo_evt)
-        self.assertEqual(echo_marker["type"], "meshtastic_node",
-                         "ATAK-echoed node must map to meshtastic_node via <meshtastic> detail")
+        self.assertEqual(echo_marker["type"], "node",
+                         "mesh- UID CoT must always map to type 'node' regardless of detail")
 
     def test_round_trip_preserves_meshtastic_type_when_cot_type_preserved(self):
         """If ATAK preserves a-f-G-E-S-U-M type AND <meshtastic> detail, the result
-        must still be meshtastic_node (both mechanisms agree).
+        must be type "node" for mesh- UIDs (UID prefix is authoritative).
         """
         marker = {"id": "mesh-!11223344", "lat": 47.8, "lng": 10.1,
                   "name": "Scout-2", "type": "node"}
@@ -1519,7 +1519,7 @@ class TestMeshtasticDetailInOutgoingCoT(unittest.TestCase):
         self.assertTrue(echo_evt.has_meshtastic_detail)
 
         echo_marker = CoTProtocolHandler.cot_to_marker(echo_evt)
-        self.assertEqual(echo_marker["type"], "meshtastic_node")
+        self.assertEqual(echo_marker["type"], "node")
 
 
 if __name__ == "__main__":
