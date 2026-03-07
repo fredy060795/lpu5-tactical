@@ -1550,9 +1550,9 @@ def _process_incoming_cot(cot_xml: str) -> None:
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
-            # Meshtastic equipment type (a-f-G-E-S-U-M) maps directly to
+            # Meshtastic equipment types (a-f-G-E...) map directly to
             # meshtastic_node so Meshtastic nodes are never shown as rectangles.
-            if event_type == "a-f-G-E-S-U-M":
+            if event_type.startswith("a-f-G-E"):
                 lpu5_type = "meshtastic_node"
             elif event_type.startswith("a-f"):
                 lpu5_type = "friendly"
@@ -1586,7 +1586,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # this is a Meshtastic node, not a human ATAK user.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
         #   • how starts with "h" (no meshtastic detail) → ATAK SA / GPS position
-        if _has_mesh_detail:
+        if _has_mesh_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
         elif lpu5_type == "friendly" and how.startswith("h"):
             lpu5_type = "tak_maker"

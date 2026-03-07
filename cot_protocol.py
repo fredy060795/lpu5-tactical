@@ -418,6 +418,7 @@ class CoTProtocolHandler:
         ("u-d-f",     "hostile"),   # TAK drawing freehand → diamond
         ("u-d-p",     "hostile"),   # TAK drawing generic point → diamond
         ("a-f-G-E-S-U-M", "meshtastic_node"),  # Meshtastic equipment → meshtastic_node
+        ("a-f-G-E",   "meshtastic_node"),  # Friendly ground equipment (Meshtastic nodes via ATAK plugin)
         ("a-f",       "friendly"),  # friendly affiliation → blue rectangle
         ("a-h",       "hostile"),   # hostile affiliation → red diamond
         ("a-n",       "neutral"),   # neutral affiliation → green square
@@ -660,7 +661,7 @@ class CoTProtocolHandler:
         #     this is a Meshtastic node, not a human ATAK user.
         #   • ATAK SA / GPS position updates without a <meshtastic> element use a
         #     "h-*" how code and are treated as friendly tak_maker markers.
-        if cot_event.has_meshtastic_detail:
+        if cot_event.has_meshtastic_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
         elif lpu5_type == "friendly" and cot_event.how.startswith("h"):
             lpu5_type = "tak_maker"
