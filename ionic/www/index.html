@@ -1892,7 +1892,7 @@
           }
 
           // Build blue circle icon for Meshtastic node — use shortName if available, fallback to "M"
-          const iconLabel = shortName || 'M';
+          const iconLabel = _escapeHtml(shortName) || 'M';
           const iconHtml = `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
 
           // Update existing marker or create new
@@ -4164,7 +4164,8 @@
     function addMeshNodeToMap(node) {
       if (!map || !node.lat || !node.lon) return;
 
-      const nodeLabel = (node.user && (node.user.shortName || node.user.shortname)) || node.shortName || node.short_name || 'M';
+      const _rawLabel = (node.user && (node.user.shortName || node.user.shortname)) || node.shortName || node.short_name || '';
+      const nodeLabel = _escapeHtml(_rawLabel) || 'M';
       const icon = L.divIcon({
         className: 'mesh-node-marker',
         html: `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${nodeLabel}</text></svg></div>`,
