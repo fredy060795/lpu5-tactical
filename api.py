@@ -1550,7 +1550,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
         else:
-            # Meshtastic equipment type (a-f-G-E*) maps directly to
+            # Meshtastic equipment types (a-f-G-E...) map directly to
             # meshtastic_node so Meshtastic nodes are never shown as rectangles.
             if event_type.startswith("a-f-G-E"):
                 lpu5_type = "meshtastic_node"

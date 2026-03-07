@@ -295,7 +295,7 @@ class COTEvent {
             ['u-d-f',       'hostile'],          // TAK drawing freehand → diamond
             ['u-d-p',       'hostile'],          // TAK drawing generic point → diamond
             ['a-f-G-E-S-U-M', 'meshtastic_node'],   // Meshtastic equipment → meshtastic_node
-            ['a-f-G-E',    'meshtastic_node'],   // Any friendly ground equipment → meshtastic_node
+            ['a-f-G-E',    'meshtastic_node'],   // Friendly ground equipment (Meshtastic nodes via ATAK plugin)
             ['a-f',         'friendly'],       // friendly → blue rectangle
             ['a-h',         'hostile'],        // hostile → red diamond
             ['a-n',         'neutral'],        // neutral → green square
