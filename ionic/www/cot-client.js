@@ -18,6 +18,10 @@ class COTEvent {
         this.teamName = options.teamName || '';
         this.teamRole = options.teamRole || '';
         this.how = options.how || 'm-g'; // machine-generated
+        // True when the CoT detail block contains a <meshtastic> child element,
+        // which is added by ATAK Meshtastic plugins (e.g. atak-forwarder) and
+        // by LPU5 itself when generating CoT for Meshtastic nodes.
+        this.hasMeshtasticDetail = options.hasMeshtasticDetail || false;
         
         const now = new Date();
         this.time = options.time || now;
@@ -190,6 +194,12 @@ class COTEvent {
                     remarks = remarksElem.textContent || '';
                 }
             }
+
+            // Detect <meshtastic> child element — added by ATAK Meshtastic plugins
+            // (e.g. atak-forwarder) and by LPU5 itself when generating CoT for
+            // Meshtastic nodes.  Its presence is the canonical indicator that the
+            // event originates from a Meshtastic node.
+            const hasMeshtasticDetail = detail ? detail.querySelector('meshtastic') !== null : false;
             
             // Parse times
             const timeStr = event.getAttribute('time');
@@ -209,6 +219,7 @@ class COTEvent {
                 teamName,
                 teamRole,
                 how,
+                hasMeshtasticDetail,
                 time: timeStr ? new Date(timeStr) : new Date(),
                 start: startStr ? new Date(startStr) : new Date(),
                 stale: staleStr ? new Date(staleStr) : new Date(Date.now() + 5 * 60 * 1000)
@@ -233,25 +244,33 @@ class COTEvent {
     /** LPU5 type name → TAK CoT type code */
     static get LPU5_TO_COT_TYPE() {
         return {
-            raute:    'b-m-p-s-m',
-            quadrat:  'b-m-p-s-m',
-            blume:    'b-m-p-s-m',
-            rechteck: 'u-d-r',
-            friendly: 'a-f-G-U-C',
-            hostile:  'a-h-G-U-C',
-            neutral:  'a-n-G-U-C',
-            unknown:  'a-u-G-U-C',
-            pending:  'a-p-G-U-C',
+            // LPU5 shapes → military CoT affiliation types.
+            // Shape colors match ATAK affiliation: raute=hostile(red), quadrat=neutral(green),
+            // blume=unknown(yellow), rechteck=friendly(blue).
+            raute:          'a-h-G-U-C',   // hostile — red diamond
+            quadrat:        'a-n-G-U-C',   // neutral — green square
+            blume:          'a-u-G-U-C',   // unknown — yellow flower
+            rechteck:       'a-f-G-U-C',   // friendly — blue rectangle
+            friendly:       'a-f-G-U-C',
+            hostile:        'a-h-G-U-C',
+            neutral:        'a-n-G-U-C',
+            unknown:        'a-u-G-U-C',
+            pending:        'a-p-G-U-C',
+            // GPS positions and Meshtastic node/gateway types use a-f-G-E-S-U-M
+            // so ATAK displays them as Meshtastic contacts with the Mesh icon.
+            gps_position:    'a-f-G-E-S-U-M',
             // Meshtastic node types — must match cot_protocol.py
             // All Meshtastic node/gateway types use a-f-G-E-S-U-M (Meshtastic
-            // equipment) so ATAK displays each node with the Meshtastic icon.
+            // equipment) so ATAK displays each node with the Meshtastic icon
+            // as an individually identifiable device, not as a generic unit.
             node:            'a-f-G-E-S-U-M',
-            meshtastic_node: 'a-f-G-E-S-U-M',
+            meshtastic_node: 'a-f-G-E-S-U-M',   // Meshtastic node (blue M-circle in ATAK)
             gateway:         'a-f-G-E-S-U-M',
             tak_unit:        'a-f-G-U-C',
-            // CBT variants — ATAK-sourced markers; map back to same CoT types.
+            // CBT variants — ATAK-sourced markers; map back to the same CoT
+            // types as their base shapes so they round-trip correctly.
             cbt_raute:       'a-h-G-U-C',
-            cbt_rechteck:    'a-f-G-U-C',
+            cbt_rechteck:    'a-f-G-U-C',        // ATAK friendly (blue rectangle + CBT)
             cbt_quadrat:     'a-n-G-U-C',
             cbt_blume:       'a-u-G-U-C',
         };

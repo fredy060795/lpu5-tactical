@@ -4247,10 +4247,13 @@
     function addMeshMarkerToMap(markerData) {
       if (!map) return;
 
+      const markerType = markerData.type || markerData.status || 'meshtastic_node';
+      const svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
       const icon = L.divIcon({
         className: 'mesh-marker',
-        html: '<div style="background: #3498db; border: 2px solid black; border-radius: 50%; width: 20px; height: 20px;"></div>',
-        iconSize: [20, 20]
+        html: `<div style="width:28px;height:28px;">${svgHtml}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
       });
 
       const marker = L.marker([markerData.lat, markerData.lng], { icon: icon })
