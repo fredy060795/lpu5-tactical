@@ -1709,8 +1709,9 @@
         return true;
       }
       
-      // Check 2: Legacy type='node' check
-      if (marker.type === 'node') {
+      // Check 2: type matches any known Meshtastic/node marker type
+      const _MESH_TYPES = new Set(['node', 'meshtastic_node', 'gateway']);
+      if (_MESH_TYPES.has(marker.type)) {
         return true;
       }
       
@@ -2006,8 +2007,9 @@
             longName = n.name || n.callsign || mesh;
           }
 
-          // Build blue M-circle icon for Meshtastic node
-          const iconHtml = `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg></div>`;
+          // Build blue circle icon for Meshtastic node — use shortName if available, fallback to "M"
+          const iconLabel = shortName || 'M';
+          const iconHtml = `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
 
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
@@ -4272,9 +4274,10 @@
     function addMeshNodeToMap(node) {
       if (!map || !node.lat || !node.lon) return;
 
+      const nodeLabel = (node.user && (node.user.shortName || node.user.shortname)) || node.shortName || node.short_name || 'M';
       const icon = L.divIcon({
         className: 'mesh-node-marker',
-        html: '<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg></div>',
+        html: `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${nodeLabel}</text></svg></div>`,
         iconSize: [28, 28]
       });
 
