@@ -8335,7 +8335,7 @@ def get_map_symbols():
                     continue
                 # Skip ATAK-echoed meshtastic node markers (uid prefix "mesh-") —
                 # these originate from _forward_meshtastic_node_to_tak and are
-                # re-ingested as TAK units; they are already shown as blue circles
+                # re-ingested as TAK units; they are already shown as blue rectangles
                 # by updateMeshtasticNodes() so we exclude them here to avoid a
                 # duplicate white-dot rendering.
                 if s.created_by == "tak_server" and s.id.startswith("mesh-"):
