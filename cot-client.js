@@ -295,6 +295,7 @@ class COTEvent {
             ['u-d-f',       'hostile'],          // TAK drawing freehand → diamond
             ['u-d-p',       'hostile'],          // TAK drawing generic point → diamond
             ['a-f-G-E-S-U-M', 'meshtastic_node'],   // Meshtastic equipment → meshtastic_node
+            ['a-f-G-E',    'meshtastic_node'],   // Any friendly ground equipment → meshtastic_node
             ['a-f',         'friendly'],       // friendly → blue rectangle
             ['a-h',         'hostile'],        // hostile → red diamond
             ['a-n',         'neutral'],        // neutral → green square
@@ -425,7 +426,7 @@ class COTProtocolHandler {
             hostile: 'cbt_hostile', friendly: 'cbt_friendly',
             neutral: 'cbt_neutral', unknown: 'cbt_unknown'
         };
-        if (cotEvent.hasMeshtasticDetail) {
+        if (cotEvent.hasMeshtasticDetail || lpu5Type === 'meshtastic_node') {
             lpu5Type = 'meshtastic_node';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
             lpu5Type = 'tak_maker';

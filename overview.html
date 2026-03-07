@@ -1134,24 +1134,36 @@
     }
 
     const SYMBOLS = {
-      hostile: getMilSymbolSvg('SHGPUCI--------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
-      friendly: getMilSymbolSvg('SFGPUCI--------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
-      neutral: getMilSymbolSvg('SNGPUCI--------', 35) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
-      unknown: getMilSymbolSvg('SUGPUCI--------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
+      hostile: getMilSymbolSvg('SHGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
+      friendly: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
+      neutral: getMilSymbolSvg('SNGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
+      unknown: getMilSymbolSvg('SUGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
       marker: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>',
-      pending: getMilSymbolSvg('SPGPUCI--------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>',
-      // tak_maker: ATAK SA / GPS position markers rendered with MilSymbol (friendly ground unit combat)
-      tak_maker: getMilSymbolSvg('SFGPUCI--------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">MKR</text></svg>',
+      pending: getMilSymbolSvg('SPGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>',
+      // tak_maker: ATAK SA / GPS position markers rendered with MilSymbol (friendly ground unit)
+      tak_maker: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">MKR</text></svg>',
       // Meshtastic node types rendered with MilSymbol (friendly ground equipment electronic)
       meshtastic_node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
       node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
       gateway: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
       gps_position: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      cbt_hostile: getMilSymbolSvg('SHGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_friendly: getMilSymbolSvg('SFGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_neutral: getMilSymbolSvg('SNGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_unknown: getMilSymbolSvg('SUGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>'
+      cbt_hostile: getMilSymbolSvg('SHGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_friendly: getMilSymbolSvg('SFGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_neutral: getMilSymbolSvg('SNGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_unknown: getMilSymbolSvg('SUGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>'
     };
+
+    // Replace toolbar button icons with real MilSymbol SVGs at runtime so the
+    // toolbar shows standard military symbology instead of the static fallback shapes.
+    const _TOOLBAR_SIDC = { hostile: 'SHGPU----------', friendly: 'SFGPU----------', neutral: 'SNGPU----------', unknown: 'SUGPU----------' };
+    (function _replaceToolbarIcons() {
+      Object.keys(_TOOLBAR_SIDC).forEach(function (sym) {
+        var el = document.getElementById('s-' + sym);
+        if (!el) return;
+        var svg = getMilSymbolSvg(_TOOLBAR_SIDC[sym], 28);
+        if (svg) el.innerHTML = svg;
+      });
+    })();
 
     // Meshtastic-related created_by values — markers from these sources are rendered
     // exclusively by updateMeshtasticNodes() as blue M-circles, not by the general sync().
