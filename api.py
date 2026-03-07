@@ -73,6 +73,12 @@ from fastapi import Depends
 # Ensure all tables exist (creates any missing tables like chat_channels, chat_messages)
 Base.metadata.create_all(bind=engine)
 
+# COT Import Diagnostic Logger – singleton for ATAK↔LPU5 data-flow debugging
+try:
+    from cot_import_logger import cot_diag
+except Exception:
+    cot_diag = None  # graceful degradation if module unavailable
+
 # Migrate existing tables: add missing columns that create_all() won't add to existing tables
 from sqlalchemy import text as sa_text, inspect as sa_inspect
 _inspector = sa_inspect(engine)
@@ -1494,6 +1500,8 @@ def _process_incoming_cot(cot_xml: str) -> None:
         #     guarded against echo-back corruption at the upsert stage (line ~1640).
         if uid.startswith("GPS-") or uid == _LPU5_COT_UID:
             logger.debug("CoT: skipping LPU5 echo-back for UID: %s", uid)
+            if cot_diag:
+                cot_diag.log_cot_skipped(uid, "LPU5 echo-back (GPS-* or LPU5-GW)", event_type)
             with _TAK_RECEIVER_STATS_LOCK:
                 _TAK_RECEIVER_STATS["packets_received"] += 1
             return
@@ -1545,6 +1553,15 @@ def _process_incoming_cot(cot_xml: str) -> None:
             # Inline fallback when cot_protocol is unavailable: check directly.
             _has_mesh_detail = (detail is not None and detail.find("meshtastic") is not None)
 
+        # --- Diagnostic: log the raw incoming CoT event ---
+        if cot_diag:
+            cot_diag.log_incoming_cot(
+                uid=uid, event_type=event_type, how=how,
+                lat=lat, lng=lng, callsign=callsign,
+                has_meshtastic_detail=_has_mesh_detail,
+                raw_xml_snippet=cot_xml[:2000] if cot_xml else None,
+            )
+
         # Map CoT type to LPU5 internal type
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
@@ -1567,6 +1584,8 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 lpu5_type = "friendly"
             else:
                 lpu5_type = "hostile"
+
+        _diag_initial_type = lpu5_type  # capture for diagnostic logging
 
         # For spot-map markers the CoT type is the same for all LPU5 shapes.
         # When the callsign matches a known LPU5 shape name use it directly so
@@ -1609,6 +1628,35 @@ def _process_incoming_cot(cot_xml: str) -> None:
         if uid.startswith("mesh-"):
             lpu5_type = "node"
 
+        # --- Diagnostic: log the type mapping decision ---
+        if cot_diag:
+            _uid_is_mesh = uid.startswith("mesh-")
+            _reason_parts = []
+            if _has_mesh_detail:
+                _reason_parts.append("has <meshtastic> detail")
+            if _uid_is_mesh:
+                _reason_parts.append("UID prefix mesh-")
+            if _diag_initial_type != lpu5_type:
+                _reason_parts.append(f"remapped {_diag_initial_type}->{lpu5_type}")
+            _reason = "; ".join(_reason_parts) if _reason_parts else "standard mapping"
+            cot_diag.log_type_mapping(
+                uid=uid, cot_type=event_type,
+                initial_lpu5_type=_diag_initial_type,
+                final_lpu5_type=lpu5_type,
+                reason=_reason,
+                has_meshtastic_detail=_has_mesh_detail,
+                uid_is_mesh=_uid_is_mesh,
+            )
+            # Detect potential Meshtastic mismatch
+            _MESH_EXPECTED = {"meshtastic_node", "node", "gateway"}
+            if (_has_mesh_detail or _uid_is_mesh) and lpu5_type not in _MESH_EXPECTED:
+                cot_diag.log_meshtastic_mismatch(
+                    uid=uid, cot_type=event_type,
+                    expected_lpu5_type="meshtastic_node/node",
+                    actual_lpu5_type=lpu5_type,
+                    details=f"how={how}, initial={_diag_initial_type}",
+                )
+
         # Deduplication: skip identical events to avoid redundant DB writes,
         # WebSocket broadcasts, and log spam when the TAK server re-sends the
         # same position in rapid succession.
@@ -1640,12 +1688,26 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     and not _has_mesh_detail
                     and effective_type not in _MESHTASTIC_DB_TYPES):
                 effective_type = marker.type
+                if cot_diag:
+                    cot_diag.log_meshtastic_mismatch(
+                        uid=uid, cot_type=event_type,
+                        expected_lpu5_type=marker.type,
+                        actual_lpu5_type=lpu5_type,
+                        details=f"Preserved DB type '{marker.type}' (incoming would be '{lpu5_type}')",
+                    )
 
             if marker:
                 if uid.startswith("mesh-") or marker.created_by not in _TAK_INGEST_SOURCES:
                     # ATAK is echoing back a marker that LPU5 (or Meshtastic) originated.
                     # Skip the update entirely to prevent the native LPU5 type from being
                     # overwritten with a CBT variant (e.g. "hostile" → "cbt_hostile").
+                    if cot_diag:
+                        cot_diag.log_marker_action(
+                            uid=uid, action="skip_echo_back",
+                            effective_type=effective_type, callsign=callsign,
+                            lat=lat, lng=lng, cot_type=event_type,
+                            extra={"db_type": marker.type, "created_by": marker.created_by},
+                        )
                     return
                 marker.lat = lat
                 marker.lng = lng
@@ -1655,11 +1717,20 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 new_data["cot_type"] = event_type
                 marker.data = new_data
                 flag_modified(marker, "data")
+                if cot_diag:
+                    cot_diag.log_marker_action(
+                        uid=uid, action="updated",
+                        effective_type=effective_type, callsign=callsign,
+                        lat=lat, lng=lng, cot_type=event_type,
+                        extra={"prev_type": marker.type if marker.type != effective_type else None},
+                    )
             else:
                 if _is_recently_deleted_marker(uid):
                     # ATAK is echoing back a marker that was just deleted in LPU5.
                     # Suppress recreation so the deletion takes effect immediately.
                     logger.debug("CoT: suppressing recreation of recently deleted marker: %s", uid)
+                    if cot_diag:
+                        cot_diag.log_cot_skipped(uid, "recently deleted marker", event_type)
                     return
                 marker = MapMarker(
                     id=uid,
@@ -1671,6 +1742,12 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     data={"cot_type": event_type},
                 )
                 db.add(marker)
+                if cot_diag:
+                    cot_diag.log_marker_action(
+                        uid=uid, action="created",
+                        effective_type=effective_type, callsign=callsign,
+                        lat=lat, lng=lng, cot_type=event_type,
+                    )
             db.commit()
 
             # Broadcast to WebSocket clients
@@ -5618,6 +5695,12 @@ async def import_meshtastic_nodes(
                             'callsign': parsed['callsign'],
                             'action': 'updated'
                         })
+                        if cot_diag:
+                            cot_diag.log_gateway_import(
+                                node_id=parsed['id'], action="updated",
+                                callsign=parsed['callsign'], lat=lat_val, lng=lng_val,
+                                raw_node_snippet=json.dumps(raw_node, default=str)[:500],
+                            )
                     else:
                         # Add new node
                         node_rec['created_at'] = datetime.now().isoformat()
@@ -5629,12 +5712,26 @@ async def import_meshtastic_nodes(
                             'callsign': parsed['callsign'],
                             'action': 'created'
                         })
+                        if cot_diag:
+                            cot_diag.log_gateway_import(
+                                node_id=parsed['id'], action="created",
+                                callsign=parsed['callsign'], lat=lat_val, lng=lng_val,
+                                raw_node_snippet=json.dumps(raw_node, default=str)[:500],
+                            )
                 else:
                     errors.append({
                         'node': parsed.get('callsign', 'Unknown'),
                         'id': parsed.get('id', 'Unknown'),
                         'reason': error_reason
                     })
+                    if cot_diag:
+                        cot_diag.log_gateway_import(
+                            node_id=parsed.get('id', 'Unknown'),
+                            action="validation_failed",
+                            callsign=parsed.get('callsign', 'Unknown'),
+                            error=error_reason,
+                            raw_node_snippet=json.dumps(raw_node, default=str)[:500],
+                        )
             except Exception as e:
                 # Extract node identifier for error reporting
                 node_id = 'Unknown'
@@ -5649,6 +5746,12 @@ async def import_meshtastic_nodes(
                     'node': node_id,
                     'reason': f'Parse error: {str(e)}'
                 })
+                if cot_diag:
+                    cot_diag.log_gateway_import(
+                        node_id=node_id, action="parse_error",
+                        error=str(e),
+                        raw_node_snippet=json.dumps(raw_node, default=str)[:500] if isinstance(raw_node, dict) else str(raw_node)[:500],
+                    )
         
         # Save updated nodes to JSON DB
         if imported:
@@ -5704,6 +5807,15 @@ async def import_meshtastic_nodes(
                 "errors": len(errors),
                 "source": "file" if file else "json_paste"
             })
+        
+        # --- Diagnostic: log import summary ---
+        if cot_diag:
+            cot_diag.log_gateway_import_summary(
+                total=len(nodes_data),
+                imported=len(imported),
+                errors=len(errors),
+                source="file" if file else "json_paste",
+            )
         
         return {
             'status': 'success' if imported else 'partial' if errors else 'no_data',
@@ -5936,6 +6048,73 @@ def get_audit_log(limit: int = 100):
         ]
     finally:
         db.close()
+
+# -------------------------
+# COT Import Diagnostic Log (ATAK ↔ LPU5 debug)
+# -------------------------
+@app.get("/api/debug/cot-import-log")
+def get_cot_import_log(
+    limit: int = 200,
+    category: Optional[str] = None,
+    uid: Optional[str] = None,
+    format: Optional[str] = None,
+):
+    """
+    Return recent COT import diagnostic log entries.
+    
+    Query params:
+        limit    – max entries to return (default 200)
+        category – filter by category: COT_INCOMING, TYPE_MAPPING, MARKER_ACTION,
+                   COT_SKIPPED, GATEWAY_IMPORT, GATEWAY_IMPORT_SUMMARY,
+                   MESHTASTIC_MISMATCH
+        uid      – filter entries containing this UID / node_id substring
+        format   – "file" to download the raw log file instead of JSON
+    """
+    if not cot_diag:
+        return {"error": "Diagnostic logger not available", "entries": []}
+
+    if format == "file":
+        from fastapi.responses import PlainTextResponse
+        content = cot_diag.get_log_file_content(tail_lines=2000)
+        return PlainTextResponse(
+            content=content or "(log file is empty)",
+            media_type="text/plain",
+        )
+
+    entries = cot_diag.get_entries(limit=limit, category=category, uid_filter=uid)
+    return {
+        "count": len(entries),
+        "enabled": cot_diag.is_enabled,
+        "log_file": cot_diag.get_log_file_path(),
+        "entries": entries,
+    }
+
+
+@app.post("/api/debug/cot-import-log/clear")
+def clear_cot_import_log():
+    """Clear the in-memory diagnostic ring buffer (log file is not deleted)."""
+    if not cot_diag:
+        return {"error": "Diagnostic logger not available"}
+    n = cot_diag.clear()
+    return {"status": "ok", "cleared": n}
+
+
+@app.post("/api/debug/cot-import-log/toggle")
+def toggle_cot_import_log(enabled: Optional[bool] = None):
+    """Enable or disable COT import diagnostic logging.
+    
+    Body / query param:
+        enabled – true/false.  If omitted the current state is toggled.
+    """
+    if not cot_diag:
+        return {"error": "Diagnostic logger not available"}
+    if enabled is None:
+        enabled = not cot_diag.is_enabled
+    if enabled:
+        cot_diag.enable()
+    else:
+        cot_diag.disable()
+    return {"status": "ok", "enabled": cot_diag.is_enabled}
 
 # -------------------------
 # QR endpoints with redirect logic (admin.html flow)

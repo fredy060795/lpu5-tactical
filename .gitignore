@@ -26,6 +26,7 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 install_log.txt
 
 # Temporary files
