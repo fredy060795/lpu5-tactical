@@ -1125,6 +1125,9 @@
       marker: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>',
       pending: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>',
       meshtastic_node: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      node: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      gateway: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      gps_position: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
       tak_unit: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       cbt_hostile: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       cbt_friendly: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
@@ -2025,7 +2028,7 @@
 
       map.createPane('overlayPane').style.zIndex = 300;
       map.createPane('drawPane').style.zIndex = 600;
-      map.createPane('meshtasticPane').style.zIndex = 650; // Above draw so blue rectangles always visible
+      map.createPane('meshtasticPane').style.zIndex = 650; // Above draw so blue M-circles always visible
       map.createPane('pendingPane').style.zIndex = 700;
       map.createPane('gpsPane').style.zIndex = 750; // Own GPS marker always on top of all other layers
       map.getContainer().style.touchAction = 'manipulation';
@@ -2839,9 +2842,9 @@
             longName = n.name || n.callsign || mesh;
           }
 
-          // Build blue rectangle icon with shortName text inside
+          // Build blue M-circle icon with shortName text inside
           const displayName = shortName || '';
-          const iconHtml = `<div style="width:36px;height:20px;background:#007bff;border:2px solid black;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;line-height:1;overflow:hidden;white-space:nowrap;">${displayName}</div>`;
+          const iconHtml = `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg></div>`;
 
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
@@ -5252,8 +5255,8 @@
 
       const icon = L.divIcon({
         className: 'mesh-node-marker',
-        html: '<div style="background: #007bff; border: 2px solid black; width: 16px; height: 16px;"></div>',
-        iconSize: [16, 16]
+        html: '<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg></div>',
+        iconSize: [28, 28]
       });
 
       const marker = L.marker([node.lat, node.lon], { icon: icon })
