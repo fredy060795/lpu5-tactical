@@ -555,7 +555,7 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "tak_unit")
 
-    def test_cot_to_marker_rechteck_for_machine_generated(self):
+    def test_cot_to_marker_friendly_for_machine_generated(self):
         # "m-g" without <meshtastic> → CBT variant of friendly for a-f (ATAK-sourced)
         xml = self._make_cot_xml(how="m-g")
         evt = CoTEvent.from_xml(xml)
