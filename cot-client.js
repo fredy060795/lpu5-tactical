@@ -183,6 +183,7 @@ class COTEvent {
             // Meshtastic nodes.  Its presence is the canonical indicator that the
             // event originates from a Meshtastic node.
             let hasMeshtasticDetail = false;
+            let meshtasticShortName = '';
             
             if (detail) {
                 const contact = detail.querySelector('contact');
@@ -204,7 +205,6 @@ class COTEvent {
                 hasMeshtasticDetail = detail.querySelector('meshtastic') !== null;
                 // Extract shortName from <meshtastic shortName="..."/> if present
                 const meshElem = detail.querySelector('meshtastic');
-                var meshtasticShortName = '';
                 if (meshElem) {
                     meshtasticShortName = meshElem.getAttribute('shortName') || '';
                 }
