@@ -360,14 +360,10 @@ class CoTProtocolHandler:
     # (Combat), which caused ATAK to cluster them with standard unit markers
     # instead of showing them as distinct Meshtastic contacts.
     LPU5_TO_COT_TYPE: Dict[str, str] = {
-        "raute":            "a-h-G-U-C",   # hostile ground unit (red diamond)
-        "quadrat":          "a-n-G-U-C",   # neutral ground unit (green square)
-        "blume":            "a-u-G-U-C",   # unknown ground unit (yellow flower)
-        "rechteck":         "a-f-G-U-C",   # friendly ground unit (blue rectangle)
-        "friendly":         "a-f-G-U-C",   # friendly ground unit
-        "hostile":          "a-h-G-U-C",   # hostile ground unit
-        "neutral":          "a-n-G-U-C",   # neutral ground unit
-        "unknown":          "a-u-G-U-C",   # unknown ground unit
+        "hostile":          "a-h-G-U-C",   # hostile ground unit (red diamond)
+        "neutral":          "a-n-G-U-C",   # neutral ground unit (green square)
+        "unknown":          "a-u-G-U-C",   # unknown ground unit (yellow flower)
+        "friendly":         "a-f-G-U-C",   # friendly ground unit (blue rectangle)
         "pending":          "a-p-G-U-C",   # pending ground unit
         "gps_position":     "a-f-G-E-S-U-M",   # live GPS position sent as Meshtastic node
         "node":             "a-f-G-E-S-U-M",   # Meshtastic equipment node
@@ -376,20 +372,20 @@ class CoTProtocolHandler:
         "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
         # CBT variants: ATAK-sourced markers rendered with "CBT" label to
         # distinguish them from natively created LPU5 markers.
-        "cbt_raute":        "a-h-G-U-C",   # ATAK hostile (red diamond + CBT)
-        "cbt_rechteck":     "a-f-G-U-C",        # ATAK friendly (blue rectangle + CBT)
-        "cbt_quadrat":      "a-n-G-U-C",   # ATAK neutral (green square + CBT)
-        "cbt_blume":        "a-u-G-U-C",   # ATAK unknown (yellow flower + CBT)
+        "cbt_hostile":      "a-h-G-U-C",   # ATAK hostile (red diamond + CBT)
+        "cbt_friendly":     "a-f-G-U-C",        # ATAK friendly (blue rectangle + CBT)
+        "cbt_neutral":      "a-n-G-U-C",   # ATAK neutral (green square + CBT)
+        "cbt_unknown":      "a-u-G-U-C",   # ATAK unknown (yellow flower + CBT)
     }
 
     # Remaps the four basic LPU5 shape types to their ATAK-sourced CBT variants.
     # Applied to every marker that arrives via CoT so that ATAK-originated data
     # is immediately distinguishable from natively created LPU5 markers.
     ATAK_TO_CBT_TYPE: Dict[str, str] = {
-        "raute":    "cbt_raute",
-        "rechteck": "cbt_rechteck",
-        "quadrat":  "cbt_quadrat",
-        "blume":    "cbt_blume",
+        "hostile":  "cbt_hostile",
+        "friendly": "cbt_friendly",
+        "neutral":  "cbt_neutral",
+        "unknown":  "cbt_unknown",
     }
 
     # Mapping from normalized lowercase hex color strings to ATAK team names.
@@ -410,23 +406,23 @@ class CoTProtocolHandler:
     #
     # ATAK military-affiliation types map to the LPU5 shape that shares the
     # same colour convention:
-    #   a-f (Friendly, blue)   → rechteck (blue rectangle)
-    #   a-u (Unknown, yellow)  → blume    (yellow flower)
-    #   a-n (Neutral, green)   → quadrat  (green square)
-    #   a-h (Hostile, red)     → raute    (red diamond)
+    #   a-f (Friendly, blue)   → friendly (blue rectangle)
+    #   a-u (Unknown, yellow)  → unknown  (yellow flower)
+    #   a-n (Neutral, green)   → neutral  (green square)
+    #   a-h (Hostile, red)     → hostile  (red diamond)
     COT_TO_LPU5_TYPE: List[tuple] = [
-        ("b-m-p-s-m", "raute"),     # TAK spot-map marker (all shapes)
-        ("u-d-c-e",   "raute"),     # TAK drawing ellipse → diamond
-        ("u-d-c-c",   "raute"),     # TAK drawing circle → diamond
-        ("u-d-r",     "rechteck"),  # TAK drawing rectangle
-        ("u-d-f",     "raute"),     # TAK drawing freehand → diamond
-        ("u-d-p",     "raute"),     # TAK drawing generic point → diamond
+        ("b-m-p-s-m", "hostile"),   # TAK spot-map marker (all shapes)
+        ("u-d-c-e",   "hostile"),   # TAK drawing ellipse → diamond
+        ("u-d-c-c",   "hostile"),   # TAK drawing circle → diamond
+        ("u-d-r",     "friendly"),  # TAK drawing rectangle
+        ("u-d-f",     "hostile"),   # TAK drawing freehand → diamond
+        ("u-d-p",     "hostile"),   # TAK drawing generic point → diamond
         ("a-f-G-E-S-U-M", "meshtastic_node"),  # Meshtastic equipment → meshtastic_node
-        ("a-f",       "rechteck"),  # friendly affiliation → blue rectangle
-        ("a-h",       "raute"),     # hostile affiliation → red diamond
-        ("a-n",       "quadrat"),   # neutral affiliation → green square
-        ("a-u",       "blume"),     # unknown affiliation → yellow flower
-        ("a-p",       "raute"),     # pending affiliation → red diamond
+        ("a-f",       "friendly"),  # friendly affiliation → blue rectangle
+        ("a-h",       "hostile"),   # hostile affiliation → red diamond
+        ("a-n",       "neutral"),   # neutral affiliation → green square
+        ("a-u",       "unknown"),   # unknown affiliation → yellow flower
+        ("a-p",       "hostile"),   # pending affiliation → red diamond
     ]
 
     @classmethod
@@ -648,7 +644,7 @@ class CoTProtocolHandler:
 
         # For spot-map markers (b-m-p-s-m) the CoT type is the same for all
         # LPU5 shapes.  When the callsign matches a known LPU5 shape name use
-        # it directly so that ATAK-placed markers labelled "quadrat" or "blume"
+        # it directly so that ATAK-placed markers labelled "neutral" or "unknown"
         # are rendered with the correct icon in the LPU5 web UI.
         if cot_event.cot_type == "b-m-p-s-m" and cot_event.callsign:
             callsign_lower = cot_event.callsign.lower()
@@ -656,7 +652,7 @@ class CoTProtocolHandler:
                 lpu5_type = callsign_lower
 
         # Refine the type for ATAK-specific CoT sources so they render with
-        # the correct icon rather than the generic blue-rectangle ("rechteck"):
+        # the correct icon rather than the generic blue-rectangle ("friendly"):
         #   • Meshtastic SA beacons forwarded by an ATAK Meshtastic plugin carry a
         #     <meshtastic> element in their <detail> block.  These are checked first
         #     because ATAK Meshtastic SA beacons use how="h-*" just like regular ATAK
@@ -666,7 +662,7 @@ class CoTProtocolHandler:
         #     "h-*" how code and are treated as friendly tak_unit markers.
         if cot_event.has_meshtastic_detail:
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "rechteck" and cot_event.how.startswith("h"):
+        elif lpu5_type == "friendly" and cot_event.how.startswith("h"):
             lpu5_type = "tak_unit"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic

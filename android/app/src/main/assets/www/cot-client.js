@@ -234,7 +234,7 @@ class COTEvent {
     // -----------------------------------------------------------------------
     // TAK compatibility: symbol-type mappings
     //
-    // LPU5 uses German shape names ("raute", "rechteck", …) internally.
+    // LPU5 marker type names use English affiliation identifiers.
     // All TAK clients (ATAK, ITAK, WinTAK, XTAK) expect the CoT event
     // `type` attribute to carry the official TAK type code (e.g. "b-m-p-s-m"
     // for a spot-map marker).  These two tables must be kept in sync with
@@ -246,16 +246,12 @@ class COTEvent {
     static get LPU5_TO_COT_TYPE() {
         return {
             // LPU5 shapes → military CoT affiliation types.
-            // Shape colors match ATAK affiliation: raute=hostile(red), quadrat=neutral(green),
-            // blume=unknown(yellow), rechteck=friendly(blue).
-            raute:          'a-h-G-U-C',   // hostile — red diamond
-            quadrat:        'a-n-G-U-C',   // neutral — green square
-            blume:          'a-u-G-U-C',   // unknown — yellow flower
-            rechteck:       'a-f-G-U-C',   // friendly — blue rectangle
-            friendly:       'a-f-G-U-C',
-            hostile:        'a-h-G-U-C',
-            neutral:        'a-n-G-U-C',
-            unknown:        'a-u-G-U-C',
+            // Shape colors match ATAK affiliation: hostile(red), neutral(green),
+            // unknown(yellow), friendly(blue).
+            hostile:        'a-h-G-U-C',   // hostile — red diamond
+            neutral:        'a-n-G-U-C',   // neutral — green square
+            unknown:        'a-u-G-U-C',   // unknown — yellow flower
+            friendly:       'a-f-G-U-C',   // friendly — blue rectangle
             pending:        'a-p-G-U-C',
             // GPS positions and Meshtastic node/gateway types use a-f-G-E-S-U-M
             // so ATAK displays them as Meshtastic contacts with the Mesh icon.
@@ -271,10 +267,10 @@ class COTEvent {
             tak_unit:        'a-f-G-U-C',
             // CBT variants — ATAK-sourced markers; map back to the same CoT
             // types as their base shapes so they round-trip correctly.
-            cbt_raute:       'a-h-G-U-C',
-            cbt_rechteck:    'a-f-G-U-C',        // ATAK friendly (blue rectangle + CBT)
-            cbt_quadrat:     'a-n-G-U-C',
-            cbt_blume:       'a-u-G-U-C',
+            cbt_hostile:     'a-h-G-U-C',
+            cbt_friendly:    'a-f-G-U-C',        // ATAK friendly (blue rectangle + CBT)
+            cbt_neutral:     'a-n-G-U-C',
+            cbt_unknown:     'a-u-G-U-C',
         };
     }
 
@@ -283,12 +279,12 @@ class COTEvent {
      *  before shorter prefix alternatives when iterating. */
     static get COT_TO_LPU5_TYPE() {
         return [
-            ['b-m-p-s-m',   'raute'],          // TAK spot-map marker (all shapes)
-            ['u-d-c-e',     'raute'],          // TAK drawing ellipse → diamond
-            ['u-d-c-c',     'raute'],          // TAK drawing circle → diamond
-            ['u-d-r',       'rechteck'],       // TAK drawing rectangle
-            ['u-d-f',       'raute'],          // TAK drawing freehand → diamond
-            ['u-d-p',       'raute'],          // TAK drawing generic point → diamond
+            ['b-m-p-s-m',   'hostile'],          // TAK spot-map marker (all shapes)
+            ['u-d-c-e',     'hostile'],          // TAK drawing ellipse → diamond
+            ['u-d-c-c',     'hostile'],          // TAK drawing circle → diamond
+            ['u-d-r',       'friendly'],       // TAK drawing rectangle
+            ['u-d-f',       'hostile'],          // TAK drawing freehand → diamond
+            ['u-d-p',       'hostile'],          // TAK drawing generic point → diamond
             ['a-f-G-E-S-U-M', 'meshtastic_node'],   // Meshtastic equipment → meshtastic_node
             ['a-f',         'friendly'],       // friendly → blue rectangle
             ['a-h',         'hostile'],        // hostile → red diamond
@@ -416,8 +412,8 @@ class COTProtocolHandler {
         //   • a-f-G-U-C with human/GPS how (h-*), no meshtastic detail → ATAK SA
         //   • Other ATAK-sourced shapes → CBT variant for visual distinction
         const _ATAK_TO_CBT = {
-            raute: 'cbt_raute', rechteck: 'cbt_rechteck',
-            quadrat: 'cbt_quadrat', blume: 'cbt_blume'
+            hostile: 'cbt_hostile', friendly: 'cbt_friendly',
+            neutral: 'cbt_neutral', unknown: 'cbt_unknown'
         };
         if (cotEvent.hasMeshtasticDetail) {
             lpu5Type = 'meshtastic_node';

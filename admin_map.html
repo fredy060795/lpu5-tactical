@@ -995,17 +995,17 @@
   <div id="fly-symbols" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>Symbols</h4>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="fly-sym-btn" data-sym="raute" title="Enemy"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="hostile" title="Enemy"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="rechteck" title="Friendly"> <svg viewBox="0 0 100 100" width="18"
+      <button class="fly-sym-btn" data-sym="friendly" title="Friendly"> <svg viewBox="0 0 100 100" width="18"
           height="18">
           <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="quadrat" title="Neutral"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="neutral" title="Neutral"> <svg viewBox="0 0 100 100" width="18" height="18">
           <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="2" />
         </svg></button>
-      <button class="fly-sym-btn" data-sym="blume" title="Unknown"> <svg viewBox="0 0 100 100" width="18" height="18">
+      <button class="fly-sym-btn" data-sym="unknown" title="Unknown"> <svg viewBox="0 0 100 100" width="18" height="18">
           <path
             d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
             fill="#ffff00" stroke="black" stroke-width="2" />
@@ -1644,7 +1644,7 @@
               // Render symbol on map
               try {
                 const latlng = s.latlng || { lat: s.lat, lng: s.lng };
-                const svgHtml = getSymbolSvg(s.symbol || s.sym || 'raute');
+                const svgHtml = getSymbolSvg(s.symbol || s.sym || 'hostile');
                 const icon = L.divIcon({
                   className: 'custom-sym',
                   html: svgHtml,
@@ -1670,7 +1670,7 @@
                 symbols.push({
                   id: s.id,
                   marker: marker,
-                  sym: s.symbol || s.sym || 'raute',
+                  sym: s.symbol || s.sym || 'hostile',
                   creator: s.creator || 'unknown'
                 });
                 renderSettingsList();
@@ -1695,7 +1695,7 @@
                 // Add updated marker
                 try {
                   const latlng = s.latlng || { lat: s.lat, lng: s.lng };
-                  const svgHtml = getSymbolSvg(s.symbol || s.sym || 'raute');
+                  const svgHtml = getSymbolSvg(s.symbol || s.sym || 'hostile');
                   const icon = L.divIcon({
                     className: 'custom-sym',
                     html: svgHtml,
@@ -1718,7 +1718,7 @@
                   symbols[idx] = {
                     id: s.id,
                     marker: marker,
-                    sym: s.symbol || s.sym || 'raute',
+                    sym: s.symbol || s.sym || 'hostile',
                     creator: s.creator || 'unknown'
                   };
                   renderSettingsList();
@@ -1936,7 +1936,7 @@
           const apiSymbolData = {
             lat: symbolData.lat,
             lng: symbolData.lng,
-            type: symbolData.sym || 'raute',
+            type: symbolData.sym || 'hostile',
             source_page: 'admin_map',
             label: '',
             color: '#3498db',
@@ -2571,22 +2571,18 @@
       let activeSymbol = null; let placingSymbol = false; let symbolDeleteMode = false;
       function getSymbolSvg(sym) {
         switch (sym) {
-          case 'raute': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`;
-          case 'rechteck': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`;
-          case 'quadrat': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`;
-          case 'blume': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`;
-          case 'friendly': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
-          case 'hostile': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#e74c3c" stroke="black" stroke-width="3"/></svg>`;
-          case 'neutral': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="#27ae60" stroke="black" stroke-width="3"/></svg>`;
-          case 'unknown': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#f39c12" stroke="black" stroke-width="3"/></svg>`;
+          case 'hostile': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`;
+          case 'friendly': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`;
+          case 'neutral': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`;
+          case 'unknown': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`;
           case 'pending': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>`;
           case 'marker': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
-          case 'meshtastic_node': return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="62" font-size="44" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'meshtastic_node': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
           case 'tak_unit': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_raute': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_rechteck': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_quadrat': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_blume': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_hostile': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_friendly': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_neutral': return `<svg width="28" height="28" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_unknown': return `<svg width="28" height="28" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
           default: return `<svg width="28" height="28" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
         }
       }
@@ -2696,7 +2692,7 @@
       function stopPlacingSymbol() { placingSymbol = false; showCrosshair(false); if (map._symbolPlaceHandler) { map.off('click', map._symbolPlaceHandler); map._symbolPlaceHandler = null; } map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; }
 
       async function placeSymbolAt(latlng) {
-        const svgHtml = getSymbolSvg(activeSymbol || 'raute');
+        const svgHtml = getSymbolSvg(activeSymbol || 'hostile');
         const icon = L.divIcon({ className: 'custom-sym', html: svgHtml, iconSize: [32, 32], iconAnchor: [16, 32] });
         const marker = L.marker(latlng, { icon, pane: 'paneSymbols' }).addTo(map);
         const id = genId('sym'); const creator = getCurrentUsername();
@@ -2708,7 +2704,7 @@
             if (idx !== -1) { removeSymbol(symbols[idx].id); renderSettingsList(); }
           }
         });
-        symbols.push({ id, marker, sym: activeSymbol || 'raute', creator });
+        symbols.push({ id, marker, sym: activeSymbol || 'hostile', creator });
 
         // Save state to localStorage
         saveStateToLocalStorage();
@@ -2719,7 +2715,7 @@
           id,
           lat: latlng.lat,
           lng: latlng.lng,
-          sym: activeSymbol || 'raute',
+          sym: activeSymbol || 'hostile',
           creator,
           ts: Date.now()
         };
@@ -2792,7 +2788,7 @@
                 iconAnchor: [16, 16]
               });
             } else {
-              const svgHtml = getSymbolSvg(s.type || s.sym || 'raute');
+              const svgHtml = getSymbolSvg(s.type || s.sym || 'hostile');
               icon = L.divIcon({
                 className: 'custom-sym',
                 html: svgHtml,
@@ -2819,7 +2815,7 @@
               });
             }
 
-            symbols.push({ id: s.id, marker, sym: s.type || s.sym || 'raute', creator: s.username });
+            symbols.push({ id: s.id, marker, sym: s.type || s.sym || 'hostile', creator: s.username });
           });
 
           // Re-add pending (not-yet-synced) local symbols so they remain visible
@@ -2827,10 +2823,10 @@
           pending.forEach(p => {
             const alreadyOnMap = symbols.some(s => {
               const ll = s.marker.getLatLng();
-              return Math.abs(ll.lat - p.lat) < 0.00001 && Math.abs(ll.lng - p.lng) < 0.00001 && s.sym === (p.sym || 'raute');
+              return Math.abs(ll.lat - p.lat) < 0.00001 && Math.abs(ll.lng - p.lng) < 0.00001 && s.sym === (p.sym || 'hostile');
             });
             if (!alreadyOnMap) {
-              const svgHtml = getSymbolSvg(p.sym || 'raute');
+              const svgHtml = getSymbolSvg(p.sym || 'hostile');
               const icon = L.divIcon({ className: 'custom-sym', html: svgHtml, iconSize: [32, 32], iconAnchor: [16, 32] });
               const marker = L.marker([p.lat, p.lng], { icon, pane: 'paneSymbols' }).addTo(map);
               marker.on('click', () => {
@@ -2840,7 +2836,7 @@
                   renderSettingsList();
                 }
               });
-              symbols.push({ id: p.id, marker, sym: p.sym || 'raute', creator: p.creator });
+              symbols.push({ id: p.id, marker, sym: p.sym || 'hostile', creator: p.creator });
             }
           });
 
@@ -3190,9 +3186,9 @@
               longName = n.name || n.callsign || mesh;
             }
 
-            // Build blue circle icon with shortName text inside
+            // Build blue rectangle icon with shortName text inside
             const displayName = shortName || '';
-            const iconHtml = `<div style="width:28px;height:28px;background:#007bff;border:2px solid black;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;line-height:1;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>`;
+            const iconHtml = `<div style="width:36px;height:20px;background:#007bff;border:2px solid black;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;line-height:1;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>`;
 
             if (meshtasticMarkers.has(mesh)) {
               // Update existing marker
