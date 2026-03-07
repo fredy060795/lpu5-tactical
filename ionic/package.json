@@ -21,7 +21,8 @@
     "@capacitor/ios": "^8.1.0",
     "@capacitor/geolocation": "^7.1.8",
     "@capacitor/toast": "^7.0.4",
-    "@capacitor-community/bluetooth-le": "^8.1.0"
+    "@capacitor-community/bluetooth-le": "^8.1.0",
+    "milsymbol": "^2.2.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.1.0"

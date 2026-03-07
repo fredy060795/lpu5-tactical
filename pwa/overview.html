@@ -711,6 +711,8 @@
   <script src="meshtastic-web-client.js"></script>
   <script src="cot-client.js"></script>
   <script src="message-queue-manager.js"></script>
+  <!-- MilSymbol: spatialillusions/milsymbol for dynamic military symbol SVG generation -->
+  <script src="https://cdn.jsdelivr.net/npm/milsymbol@2.2.0/dist/milsymbol.js"></script>
 
   <script>
     // Dynamic viewport height polyfill for iOS
@@ -737,6 +739,16 @@
     const PENDING_KEY = 'pending_map_markers_v1';
     const DEBOUNCE_THRESHOLD_MS = 500; // Prevent double-firing of touch/click events
     const IP_GEOLOCATION_TIMEOUT_MS = 5000; // Timeout for external IP geolocation service
+
+    // MilSymbol helper – generates a military symbol SVG via spatialillusions/milsymbol.
+    // Falls back gracefully when the library is unavailable (e.g. offline / no CDN).
+    function getMilSymbolSvg(sidc, size) {
+      if (typeof ms !== 'undefined') {
+        try { return new ms.Symbol(sidc, { size: size || 35 }).asSVG(); } catch (e) {}
+      }
+      return null;
+    }
+
     const SYMBOLS = {
       hostile: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
       friendly: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
@@ -747,11 +759,13 @@
       cbt_friendly: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       cbt_neutral: '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       cbt_unknown: '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      meshtastic_node: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      node: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      gateway: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      gps_position: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      tak_unit: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>'
+      // tak_maker: ATAK SA / GPS position markers rendered with MilSymbol (friendly ground unit combat)
+      tak_maker: getMilSymbolSvg('SFGPUCI--------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">MKR</text></svg>',
+      // Meshtastic node types rendered with MilSymbol (friendly ground equipment electronic)
+      meshtastic_node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      gateway: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      gps_position: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>'
     };
 
     // Meshtastic-related created_by values — markers from these sources are rendered
@@ -977,7 +991,7 @@
           }
           break;
 
-        case 'tak_unit_update':
+        case 'tak_maker_update':
           // Handle TAK server unit updates — use debounced sync to avoid
           // flooding the server when the ATAK stream is very active.
           if (data.data && data.channel === 'markers') {

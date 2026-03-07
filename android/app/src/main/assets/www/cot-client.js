@@ -273,7 +273,7 @@ class COTEvent {
             node:            'a-f-G-E-S-U-M',
             meshtastic_node: 'a-f-G-E-S-U-M',   // Meshtastic node (blue M-circle in ATAK)
             gateway:         'a-f-G-E-S-U-M',
-            tak_unit:        'a-f-G-U-C',
+            tak_maker:        'a-f-G-U-C',
             // CBT variants — ATAK-sourced markers; map back to the same CoT
             // types as their base shapes so they round-trip correctly.
             cbt_hostile:     'a-h-G-U-C',
@@ -428,7 +428,7 @@ class COTProtocolHandler {
         if (cotEvent.hasMeshtasticDetail) {
             lpu5Type = 'meshtastic_node';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
-            lpu5Type = 'tak_unit';
+            lpu5Type = 'tak_maker';
         } else if (_ATAK_TO_CBT[lpu5Type]) {
             lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }
