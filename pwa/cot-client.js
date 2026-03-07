@@ -22,6 +22,8 @@ class COTEvent {
         // which is added by ATAK Meshtastic plugins (e.g. atak-forwarder) and
         // by LPU5 itself when generating CoT for Meshtastic nodes.
         this.hasMeshtasticDetail = options.hasMeshtasticDetail || false;
+        // Short name extracted from <meshtastic shortName="..."/> in CoT detail.
+        this.meshtasticShortName = options.meshtasticShortName || '';
         
         const now = new Date();
         this.time = options.time || now;
@@ -200,6 +202,12 @@ class COTEvent {
                 }
 
                 hasMeshtasticDetail = detail.querySelector('meshtastic') !== null;
+                // Extract shortName from <meshtastic shortName="..."/> if present
+                const meshElem = detail.querySelector('meshtastic');
+                var meshtasticShortName = '';
+                if (meshElem) {
+                    meshtasticShortName = meshElem.getAttribute('shortName') || '';
+                }
             }
             
             // Parse times
@@ -221,6 +229,7 @@ class COTEvent {
                 teamRole,
                 how,
                 hasMeshtasticDetail,
+                meshtasticShortName,
                 time: timeStr ? new Date(timeStr) : new Date(),
                 start: startStr ? new Date(startStr) : new Date(),
                 stale: staleStr ? new Date(staleStr) : new Date(Date.now() + 5 * 60 * 1000)
@@ -440,7 +449,8 @@ class COTProtocolHandler {
             timestamp: cotEvent._formatTime(cotEvent.time),
             cotType: cotEvent.type,
             how: cotEvent.how,
-            source: 'cot'
+            source: 'cot',
+            shortName: cotEvent.meshtasticShortName || ''
         };
     }
 

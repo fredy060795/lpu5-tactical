@@ -1221,11 +1221,11 @@
           var iconClass = data.icon || 'fa-map-marker-alt';
           var icon = window.L.divIcon({
             className: '',
-            html: '<div style="width:26px;height:26px;border-radius:50%;background:' + color + '33;border:2px solid ' + color + ';' +
-                  'display:flex;align-items:center;justify-content:center;font-size:11px;' +
-                  'box-shadow:0 0 6px ' + color + '66;cursor:pointer" title="' + (data.title||'').replace(/"/g,'&quot;') + '">' +
+            html: '<div style="width:32px;height:32px;border-radius:50%;background:' + color + '33;border:2px solid ' + color + ';' +
+                  'display:flex;align-items:center;justify-content:center;font-size:14px;' +
+                  'box-shadow:0 0 8px ' + color + '66;cursor:pointer" title="' + (data.title||'').replace(/"/g,'&quot;') + '">' +
                   '<i class="fas ' + iconClass + '" style="color:' + color + '"></i></div>',
-            iconSize: [26, 26], iconAnchor: [13, 13]
+            iconSize: [32, 32], iconAnchor: [16, 16]
           });
           window.L.marker([data.lat, data.lon], { icon: icon })
             .bindPopup('<b style="color:' + color + '">' + (data.title||'Intel') + '</b><br>' +
@@ -2367,8 +2367,8 @@
         icon: L.divIcon({
           className: 'gps-marker-arrow',
           html: createGpsArrowIconHtml('#007bff'),
-          iconSize: [40, 40],
-          iconAnchor: [20, 20]
+          iconSize: [50, 50],
+          iconAnchor: [25, 25]
         }),
         pane: 'gpsPane'
       }).addTo(map).bindPopup('GPS Position (Manual)', { closeButton: true });
@@ -2401,9 +2401,9 @@
       addPendingLocal(pending);
       const icon = L.divIcon({
         className: 'pending-marker',
-        html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[pending.name] || SYMBOLS.hostile}</div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
+        html: `<div class="pending-icon" style="width:45px;height:45px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[pending.name] || SYMBOLS.hostile}</div>`,
+        iconSize: [45, 45],
+        iconAnchor: [23, 23]
       });
       const layer = L.marker([pending.lat, pending.lng], { icon, pane: 'pendingPane' }).addTo(map);
       layer._cid = cid;
@@ -2439,9 +2439,9 @@
         if (pendingLayers.has(p._cid)) continue;
         const icon = L.divIcon({
           className: 'pending-marker',
-          html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[p.name] || SYMBOLS.hostile}</div>`,
-          iconSize: [36, 36],
-          iconAnchor: [18, 18]
+          html: `<div class="pending-icon" style="width:45px;height:45px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[p.name] || SYMBOLS.hostile}</div>`,
+          iconSize: [45, 45],
+          iconAnchor: [23, 23]
         });
         const layer = L.marker([p.lat, p.lng], { icon, pane: 'pendingPane' }).addTo(map);
         layer._cid = p._cid;
@@ -2598,9 +2598,9 @@
           const iconHtml = SYMBOLS[iconType] || SYMBOLS[m.name] || SYMBOLS[m.type] || SYMBOLS.hostile;
           const icon = L.divIcon({
             className: 'server-marker',
-            html: `<div style="width:36px;height:36px;">${iconHtml}</div>`,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18]
+            html: `<div style="width:45px;height:45px;">${iconHtml}</div>`,
+            iconSize: [45, 45],
+            iconAnchor: [23, 23]
           });
           const layer = L.marker([m.lat, m.lng], { icon, pane: 'drawPane' }).addTo(map);
           layer._serverId = m.id;
@@ -2682,16 +2682,16 @@
             // Other users' GPS positions shown as Meshtastic node circles (person/node markers).
             // Own GPS position is already excluded above and shown locally as a GPS arrow.
             iconHtml = SYMBOLS.meshtastic_node;
-            iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
+            iconHtml = `<div style="width:40px;height:40px;">${iconHtml}</div>`;
           } else {
             iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.hostile;
-            iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
+            iconHtml = `<div style="width:40px;height:40px;">${iconHtml}</div>`;
           }
           const icon = L.divIcon({
             className: 'server-symbol',
             html: iconHtml,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
           });
           const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
 
@@ -2845,7 +2845,7 @@
 
           // Build blue circle icon for Meshtastic node — use shortName if available, fallback to "M"
           const iconLabel = _escapeHtml(shortName) || 'M';
-          const iconHtml = `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
+          const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
 
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
@@ -2856,8 +2856,8 @@
             const newIcon = L.divIcon({
               className: 'meshtastic-marker',
               html: iconHtml,
-              iconSize: [28, 28],
-              iconAnchor: [14, 14]
+              iconSize: [35, 35],
+              iconAnchor: [18, 18]
             });
             entry.marker.setIcon(newIcon);
 
@@ -2868,8 +2868,8 @@
             const icon = L.divIcon({
               className: 'meshtastic-marker',
               html: iconHtml,
-              iconSize: [28, 28],
-              iconAnchor: [14, 14]
+              iconSize: [35, 35],
+              iconAnchor: [18, 18]
             });
 
             const marker = L.marker([lat, lng], {
@@ -3055,8 +3055,8 @@
               icon: L.divIcon({
                 className: 'gps-marker-arrow',
                 html: createGpsArrowIconHtml('#007bff'),
-                iconSize: [40, 40],
-                iconAnchor: [20, 20]
+                iconSize: [50, 50],
+                iconAnchor: [25, 25]
               }),
               pane: 'gpsPane'
             }).addTo(map).bindPopup('GPS Position (Auto-tracking)', {
@@ -3121,8 +3121,8 @@
           icon: L.divIcon({
             className: 'gps-marker-arrow',
             html: createGpsArrowIconHtml('#007bff'),
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
+            iconSize: [50, 50],
+            iconAnchor: [25, 25]
           }),
           pane: 'gpsPane'
         }).addTo(map).bindPopup('GPS Position (Manual)', {
@@ -3159,8 +3159,8 @@
           icon: L.divIcon({
             className: 'gps-marker-arrow',
             html: createGpsArrowIconHtml('#007bff'),
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
+            iconSize: [50, 50],
+            iconAnchor: [25, 25]
           }),
           pane: 'gpsPane'
         }).addTo(map).bindPopup('GPS Position', {
@@ -3214,8 +3214,8 @@
             icon: L.divIcon({
               className: 'gps-marker-arrow',
               html: createGpsArrowIconHtml('#ffaa00'),
-              iconSize: [40, 40],
-              iconAnchor: [20, 20]
+              iconSize: [50, 50],
+              iconAnchor: [25, 25]
             }),
             pane: 'gpsPane'
           }).addTo(map).bindPopup('IP-based position (approximate)', {
@@ -3261,8 +3261,8 @@
           icon: L.divIcon({
             className: 'gps-marker-arrow',
             html: createGpsArrowIconHtml('#ffcc00'),
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
+            iconSize: [50, 50],
+            iconAnchor: [25, 25]
           }),
           pane: 'gpsPane'
         }).addTo(map).bindPopup('Manually entered position', {
@@ -4831,12 +4831,12 @@
         const color = data.color || '#9b59b6';
         const icon = L.divIcon({
           className: '',
-          html: `<div style="width:28px;height:28px;border-radius:50%;background:${color}33;border:2px solid ${color};
-                      display:flex;align-items:center;justify-content:center;font-size:12px;
-                      box-shadow:0 0 8px ${color}88;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
+          html: `<div style="width:35px;height:35px;border-radius:50%;background:${color}33;border:2px solid ${color};
+                      display:flex;align-items:center;justify-content:center;font-size:15px;
+                      box-shadow:0 0 10px ${color}88;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
                    <i class="fas ${data.icon||'fa-map-marker-alt'}" style="color:${color}"></i></div>`,
-          iconSize:   [28, 28],
-          iconAnchor: [14, 14],
+          iconSize: [35, 35],
+          iconAnchor: [18, 18],
         });
         const marker = L.marker([data.lat, data.lon], { icon })
           .bindPopup(
@@ -5231,12 +5231,23 @@
       if (!map) return;
 
       const markerType = markerData.type || markerData.status || 'meshtastic_node';
-      const svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
+      // For Meshtastic node types, build the same blue circle icon with
+      // shortName (or "M" fallback) that updateMeshtasticNodes() uses,
+      // so ATAK-imported mesh nodes look identical to import_nodes.html nodes.
+      const _MESH_MARKER_TYPES = new Set(['meshtastic_node', 'node', 'gateway']);
+      let svgHtml;
+      if (_MESH_MARKER_TYPES.has(markerType)) {
+        const rawLabel = markerData.shortName || '';
+        const iconLabel = _escapeHtml(rawLabel) || 'M';
+        svgHtml = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg>`;
+      } else {
+        svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
+      }
       const icon = L.divIcon({
         className: 'mesh-marker',
-        html: `<div style="width:28px;height:28px;">${svgHtml}</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
+        html: `<div style="width:35px;height:35px;">${svgHtml}</div>`,
+        iconSize: [35, 35],
+        iconAnchor: [18, 18]
       });
 
       const marker = L.marker([markerData.lat, markerData.lng], { icon: icon })
@@ -5258,8 +5269,8 @@
       const nodeLabel = _escapeHtml(_rawLabel) || 'M';
       const icon = L.divIcon({
         className: 'mesh-node-marker',
-        html: `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${nodeLabel}</text></svg></div>`,
-        iconSize: [28, 28]
+        html: `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${nodeLabel}</text></svg></div>`,
+        iconSize: [35, 35]
       });
 
       const marker = L.marker([node.lat, node.lon], { icon: icon })
