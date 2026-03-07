@@ -262,9 +262,9 @@ class COTEvent {
             unknown:        'a-u-G-U-C',   // unknown — yellow flower
             friendly:       'a-f-G-U-C',   // friendly — blue rectangle
             pending:        'a-p-G-U-C',
-            // GPS positions use a-f-G-E-S-U-M (Meshtastic equipment) so ATAK
-            // displays them as GPS person markers.
-            gps_position:    'a-f-G-E-S-U-M',
+            // GPS positions use a-f-G-U-C (friendly SA person marker) so
+            // receivers classify them correctly via the how="h-g*" check.
+            gps_position:    'a-f-G-U-C',
             // Meshtastic node types — must match cot_protocol.py
             // All Meshtastic node/gateway types use a-f-G-E-S-U-M (Meshtastic
             // equipment) so ATAK displays each node with the Meshtastic icon
@@ -383,9 +383,10 @@ class COTProtocolHandler {
             }
 
             // Preserve the original `how` attribute so that re-broadcast of
-            // TAK-originated markers retains correct provenance.  Fall back to
-            // "m-g" (machine-generated) which matches the previous behaviour.
-            const how = marker.how || marker.cot_how || 'm-g';
+            // TAK-originated markers retains correct provenance.  GPS positions
+            // default to "h-g-i-g-o" (human / GPS-derived) so receivers classify
+            // them correctly via the how="h-g*" check.
+            const how = marker.how || marker.cot_how || (lpu5Type === 'gps_position' ? 'h-g-i-g-o' : 'm-g');
 
             return new COTEvent({
                 uid,
