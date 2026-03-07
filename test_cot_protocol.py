@@ -100,29 +100,25 @@ class TestGpsPositionType(unittest.TestCase):
 
     def test_gps_position_in_lpu5_to_cot(self):
         self.assertIn("gps_position", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["gps_position"], "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["gps_position"], "a-f-G-U-C")
 
     def test_lpu5_type_to_cot_gps_position(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("gps_position"), "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("gps_position"), "a-f-G-U-C")
 
     def test_lpu5_type_to_cot_gps_position_case_insensitive(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("GPS_POSITION"), "a-f-G-E-S-U-M")
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("GPS_POSITION"), "a-f-G-U-C")
 
-    def test_gps_position_has_meshtastic_element_in_xml(self):
-        """GPS positions use a-f-G-E-S-U-M and must carry a <meshtastic> element
-        so that ATAK displays them with the Meshtastic symbol, not as a generic marker."""
+    def test_gps_position_produces_sa_marker_xml(self):
+        """GPS positions use a-f-G-U-C (SA person marker) so ATAK displays
+        them as real person GPS points, not as Meshtastic equipment."""
         marker = {"id": "GPS-user1", "lat": 48.0, "lng": 11.0, "type": "gps_position",
                   "name": "Callsign1", "callsign": "Callsign1"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M",
-                         "GPS positions must use a-f-G-E-S-U-M (Meshtastic equipment type)")
-        xml_str = evt.to_xml()
-        root = ET.fromstring(xml_str.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
-        detail = root.find("detail")
-        self.assertIsNotNone(detail)
-        mesh_elem = detail.find("meshtastic")
-        self.assertIsNotNone(mesh_elem, "GPS position CoT must contain a <meshtastic> element")
+        self.assertEqual(evt.cot_type, "a-f-G-U-C",
+                         "GPS positions must use a-f-G-U-C (SA person marker)")
+        self.assertFalse(evt.is_meshtastic_node,
+                         "GPS position must NOT be flagged as Meshtastic node")
 
     def test_meshtastic_node_has_meshtastic_element(self):
         """Meshtastic nodes must contain <meshtastic> element in CoT XML."""
@@ -272,13 +268,13 @@ class TestMarkerToCotColorAndTeam(unittest.TestCase):
         self.assertIsNone(evt.color)
         self.assertIsNone(evt.team_name)
 
-    def test_gps_position_marker_maps_to_meshtastic_node(self):
+    def test_gps_position_marker_maps_to_sa_type(self):
         marker = {"id": "gps-1", "lat": 48.0, "lng": 11.0, "type": "gps_position"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
-        self.assertEqual(evt.cot_type, "a-f-G-E-S-U-M")
-        self.assertTrue(evt.is_meshtastic_node,
-                        "GPS position marker must be treated as a Meshtastic node")
+        self.assertEqual(evt.cot_type, "a-f-G-U-C")
+        self.assertFalse(evt.is_meshtastic_node,
+                         "GPS position marker must NOT be treated as a Meshtastic node")
 
 
 class TestAtakSymbolTypeMappings(unittest.TestCase):
@@ -548,12 +544,12 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "tak_maker")
 
-    def test_cot_to_marker_tak_maker_type_gps_how(self):
-        # "h-g-i-g-o" (GPS-derived) → tak_maker
+    def test_cot_to_marker_gps_position_type_gps_how(self):
+        # "h-g-i-g-o" (GPS-derived) → gps_position (not tak_maker)
         xml = self._make_cot_xml(how="h-g-i-g-o")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_maker")
+        self.assertEqual(marker["type"], "gps_position")
 
     def test_cot_to_marker_friendly_for_machine_generated(self):
         # "m-g" without <meshtastic> → CBT variant of friendly for a-f (ATAK-sourced)
