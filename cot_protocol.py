@@ -369,7 +369,7 @@ class CoTProtocolHandler:
         "node":             "a-f-G-E-S-U-M",   # Meshtastic equipment node
         "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic node (blue M-circle in ATAK)
         "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router (equipment)
-        "tak_unit":         "a-f-G-U-C",   # ATAK SA / GPS position marker
+        "tak_maker":        "a-f-G-U-C",   # ATAK SA / GPS position marker
         # CBT variants: ATAK-sourced markers rendered with "CBT" label to
         # distinguish them from natively created LPU5 markers.
         "cbt_hostile":      "a-h-G-U-C",   # ATAK hostile (red diamond + CBT)
@@ -659,11 +659,11 @@ class CoTProtocolHandler:
         #     SA beacons; the <meshtastic> element is the authoritative signal that
         #     this is a Meshtastic node, not a human ATAK user.
         #   • ATAK SA / GPS position updates without a <meshtastic> element use a
-        #     "h-*" how code and are treated as friendly tak_unit markers.
+        #     "h-*" how code and are treated as friendly tak_maker markers.
         if cot_event.has_meshtastic_detail:
             lpu5_type = "meshtastic_node"
         elif lpu5_type == "friendly" and cot_event.how.startswith("h"):
-            lpu5_type = "tak_unit"
+            lpu5_type = "tak_maker"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are

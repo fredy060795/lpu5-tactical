@@ -484,9 +484,9 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertIsNotNone(detail.find("meshtastic"),
                              "meshtastic_node CoT must contain <meshtastic> element")
 
-    def test_tak_unit_in_lpu5_to_cot(self):
-        self.assertIn("tak_unit", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["tak_unit"], "a-f-G-U-C")
+    def test_tak_maker_in_lpu5_to_cot(self):
+        self.assertIn("tak_maker", CoTProtocolHandler.LPU5_TO_COT_TYPE)
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["tak_maker"], "a-f-G-U-C")
 
     def test_node_marker_to_cot_produces_meshtastic_equipment_type(self):
         # "node" type must produce the a-f-G-E-S-U-M CoT type so ATAK
@@ -541,19 +541,19 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "meshtastic_node")
 
-    def test_cot_to_marker_tak_unit_type_human_how(self):
-        # "h-e" (human-entered) → ATAK SA / GPS position marker → tak_unit
+    def test_cot_to_marker_tak_maker_type_human_how(self):
+        # "h-e" (human-entered) → ATAK SA / GPS position marker → tak_maker
         xml = self._make_cot_xml(how="h-e")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_unit")
+        self.assertEqual(marker["type"], "tak_maker")
 
-    def test_cot_to_marker_tak_unit_type_gps_how(self):
-        # "h-g-i-g-o" (GPS-derived) → tak_unit
+    def test_cot_to_marker_tak_maker_type_gps_how(self):
+        # "h-g-i-g-o" (GPS-derived) → tak_maker
         xml = self._make_cot_xml(how="h-g-i-g-o")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_unit")
+        self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_friendly_for_machine_generated(self):
         # "m-g" without <meshtastic> → CBT variant of friendly for a-f (ATAK-sourced)
@@ -574,7 +574,7 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "meshtastic_node",
-                         "how='h-e' + <meshtastic> must produce meshtastic_node, not tak_unit")
+                         "how='h-e' + <meshtastic> must produce meshtastic_node, not tak_maker")
 
     def test_meshtastic_detail_overrides_machine_generated(self):
         # how="m-g" (machine-generated) + <meshtastic> in detail must also
@@ -588,8 +588,8 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "meshtastic_node",
                          "how='m-g' + <meshtastic> must produce meshtastic_node")
 
-    def test_tak_unit_does_not_affect_hostile_type(self):
-        # how="h-e" with a-h type should NOT produce tak_unit (only overrides a-f→friendly)
+    def test_tak_maker_does_not_affect_hostile_type(self):
+        # how="h-e" with a-h type should NOT produce tak_maker (only overrides a-f→friendly)
         xml = (
             '<?xml version="1.0" encoding="UTF-8"?>'
             '<event version="2.0" uid="TEST-2" type="a-h-G-U-C" '
@@ -601,7 +601,7 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         )
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        # a-h maps to hostile → CBT variant (ATAK-sourced); tak_unit only applies to friendly (a-f)
+        # a-h maps to hostile → CBT variant (ATAK-sourced); tak_maker only applies to friendly (a-f)
         self.assertEqual(marker["type"], "cbt_hostile")
 
     def test_cot_to_marker_meshtastic_equipment_type_no_detail(self):

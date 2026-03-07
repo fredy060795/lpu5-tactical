@@ -1486,7 +1486,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # or duplicate them:
         #   • "GPS-<username>" UIDs are own GPS position markers forwarded to
         #     ATAK; filtering here prevents ATAK's echo-back from overwriting the
-        #     gps_position type and from creating a duplicate tak_unit overlay.
+        #     gps_position type and from creating a duplicate tak_maker overlay.
         #   • _LPU5_COT_UID ("LPU5-GW") is the LPU5 gateway SA beacon that
         #     some TAK servers reflect back; ingesting it would create a spurious
         #     map marker at (0, 0).
@@ -1586,7 +1586,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
         if _has_mesh_detail:
             lpu5_type = "meshtastic_node"
         elif lpu5_type == "friendly" and how.startswith("h"):
-            lpu5_type = "tak_unit"
+            lpu5_type = "tak_maker"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are
@@ -1667,7 +1667,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
             db.commit()
 
             # Broadcast to WebSocket clients
-            broadcast_websocket_update("markers", "tak_unit_update", {
+            broadcast_websocket_update("markers", "tak_maker_update", {
                 "id": uid,
                 "name": callsign,
                 "callsign": callsign,
@@ -6821,7 +6821,7 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
                     # CBT variant (e.g. "hostile" → "cbt_hostile").
                     return
                 # Guard: don't downgrade a meshtastic_node marker to cbt_friendly
-                # or tak_unit when the incoming CoT echo lacks a <meshtastic>
+                # or tak_maker when the incoming CoT echo lacks a <meshtastic>
                 # element.  ATAK may strip custom detail elements when re-
                 # distributing CoT, which would cause the node to lose its
                 # Meshtastic icon on every subsequent position update.
@@ -7103,7 +7103,7 @@ async def ingest_cot_xml(request: Request):
                     )
                     return {"status": "skipped", "reason": "echo-back of LPU5-originated marker"}
                 # Guard: don't downgrade a meshtastic_node marker to cbt_friendly
-                # or tak_unit when the incoming CoT echo lacks a <meshtastic>
+                # or tak_maker when the incoming CoT echo lacks a <meshtastic>
                 # element.  ATAK may strip custom detail elements when re-
                 # distributing CoT, which would cause the node to lose its
                 # Meshtastic icon on every subsequent position update.
