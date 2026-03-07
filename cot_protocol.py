@@ -365,7 +365,7 @@ class CoTProtocolHandler:
         "unknown":          "a-u-G-U-C",   # unknown ground unit (yellow flower)
         "friendly":         "a-f-G-U-C",   # friendly ground unit (blue rectangle)
         "pending":          "a-p-G-U-C",   # pending ground unit
-        "gps_position":     "a-f-G-U-C",   # live GPS position (SA person marker in ATAK)
+        "gps_position":     "a-f-G-E-S-U-M",   # live GPS position (Meshtastic equipment in ATAK)
         "node":             "a-f-G-E-S-U-M",   # Meshtastic equipment node
         "meshtastic_node":  "a-f-G-E-S-U-M",   # Meshtastic node (blue M-circle in ATAK)
         "gateway":          "a-f-G-E-S-U-M",   # Meshtastic gateway/router (equipment)
@@ -536,7 +536,7 @@ class CoTProtocolHandler:
             # from the marker's type field (a-f-G-E-S-U-M for nodes and gateway).
             # Any cot_type stored in marker.data from a previous ATAK echo is
             # ignored so that the node is always sent with the correct type.
-            _MESHTASTIC_LPU5_TYPES = ("node", "meshtastic_node", "gateway")
+            _MESHTASTIC_LPU5_TYPES = ("node", "meshtastic_node", "gateway", "gps_position")
             if lpu5_type in _MESHTASTIC_LPU5_TYPES:
                 cot_type = CoTProtocolHandler.lpu5_type_to_cot(lpu5_type)
             else:

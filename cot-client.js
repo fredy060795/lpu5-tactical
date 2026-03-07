@@ -262,9 +262,9 @@ class COTEvent {
             unknown:        'a-u-G-U-C',   // unknown — yellow flower
             friendly:       'a-f-G-U-C',   // friendly — blue rectangle
             pending:        'a-p-G-U-C',
-            // GPS positions use a-f-G-U-C (SA person marker) so ATAK displays
-            // them as real person GPS points, not as Meshtastic equipment.
-            gps_position:    'a-f-G-U-C',
+            // GPS positions use a-f-G-E-S-U-M (Meshtastic equipment) so ATAK
+            // displays them as GPS person markers.
+            gps_position:    'a-f-G-E-S-U-M',
             // Meshtastic node types — must match cot_protocol.py
             // All Meshtastic node/gateway types use a-f-G-E-S-U-M (Meshtastic
             // equipment) so ATAK displays each node with the Meshtastic icon
