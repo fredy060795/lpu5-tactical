@@ -1543,7 +1543,8 @@
           if (data.data && data.channel === 'markers') {
             console.log('Received marker_created:', data.data);
             scheduledSync();
-            // Also refresh symbol layers for non-ATAK markers created via legacy path
+            // Also refresh symbol layers — markers created via /api/map_markers
+            // (legacy path) need loadMapSymbols() to render in the symbol layer
             if (typeof loadMapSymbols === 'function') loadMapSymbols();
           }
           break;
