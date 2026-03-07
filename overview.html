@@ -1543,6 +1543,8 @@
           if (data.data && data.channel === 'markers') {
             console.log('Received marker_created:', data.data);
             scheduledSync();
+            // Also refresh symbol layers for non-ATAK markers created via legacy path
+            if (typeof loadMapSymbols === 'function') loadMapSymbols();
           }
           break;
 
@@ -1568,10 +1570,9 @@
 
         case 'symbol_placed':
         case 'symbol_created':
-          // Handle new symbol from another client
+          // Handle new symbol from another client — only refresh symbol layers.
+          // sync() handles ATAK markers separately; calling it here caused duplicates.
           console.log('Received symbol update:', data.type, data.data);
-          scheduledSync();
-          // Also refresh /api/map/symbols so symbols placed in admin_map appear immediately
           if (typeof loadMapSymbols === 'function') loadMapSymbols();
           break;
 
@@ -2621,6 +2622,10 @@
 
           // Skip GPS position markers — those are rendered by loadMapSymbols() as blue arrows
           if (m.type === 'gps_position') return;
+
+          // Skip user-placed symbols — those are rendered exclusively by loadMapSymbols()
+          // sync() only handles ATAK/CoT markers (tak_server, cot_ingest) to avoid duplicates
+          if (m.created_by !== 'tak_server' && m.created_by !== 'cot_ingest') return;
 
           serverIds.add(m.id);
           // Robust icon selection: check m.type, then m.name, then fallback to hostile

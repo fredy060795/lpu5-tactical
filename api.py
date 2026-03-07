@@ -8571,8 +8571,10 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
                 symbol_data["role"] = user_tak_role
         
         # Broadcast to WebSocket clients using helper
+        # Only broadcast symbol_created — the marker_created event is reserved for
+        # /api/map_markers POST (ATAK/CoT) so overview.html can separate symbol
+        # rendering (loadMapSymbols) from ATAK marker rendering (sync) without duplicates.
         broadcast_websocket_update("symbols", "symbol_created", symbol_data)
-        broadcast_websocket_update("markers", "marker_created", symbol_data)
 
         # Forward to ATAK/TAK server if enabled
         if AUTONOMOUS_MODULES_AVAILABLE:
