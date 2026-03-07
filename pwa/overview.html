@@ -2006,8 +2006,7 @@
             longName = n.name || n.callsign || mesh;
           }
 
-          // Build blue M-circle icon with shortName text inside
-          const displayName = shortName || '';
+          // Build blue M-circle icon for Meshtastic node
           const iconHtml = `<div style="width:28px;height:28px;"><svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg></div>`;
 
           // Update existing marker or create new
