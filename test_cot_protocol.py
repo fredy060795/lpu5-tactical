@@ -170,7 +170,7 @@ class TestGpsPositionType(unittest.TestCase):
             "id": "m-cs1",
             "lat": 48.0,
             "lng": 11.0,
-            "type": "rechteck",
+            "type": "friendly",
             "name": "Marker Alpha",
             "callsign": "ALPHA-1",
         }
@@ -222,41 +222,41 @@ class TestMarkerToCotColorAndTeam(unittest.TestCase):
     """Tests for color/team derivation in marker_to_cot()"""
 
     def test_yellow_marker_gets_team_yellow(self):
-        marker = {"id": "m1", "lat": 1.0, "lng": 2.0, "type": "raute", "color": "#ffff00"}
+        marker = {"id": "m1", "lat": 1.0, "lng": 2.0, "type": "hostile", "color": "#ffff00"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
         self.assertEqual(evt.team_name, "Yellow")
 
     def test_blue_marker_gets_team_blue(self):
-        marker = {"id": "m2", "lat": 1.0, "lng": 2.0, "type": "raute", "color": "#0000ff"}
+        marker = {"id": "m2", "lat": 1.0, "lng": 2.0, "type": "hostile", "color": "#0000ff"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertEqual(evt.team_name, "Blue")
 
     def test_green_marker_gets_team_green(self):
-        marker = {"id": "m3", "lat": 1.0, "lng": 2.0, "type": "raute", "color": "#00ff00"}
+        marker = {"id": "m3", "lat": 1.0, "lng": 2.0, "type": "hostile", "color": "#00ff00"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertEqual(evt.team_name, "Green")
 
     def test_red_marker_gets_team_red(self):
-        marker = {"id": "m4", "lat": 1.0, "lng": 2.0, "type": "raute", "color": "#ff0000"}
+        marker = {"id": "m4", "lat": 1.0, "lng": 2.0, "type": "hostile", "color": "#ff0000"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertEqual(evt.team_name, "Red")
 
     def test_unknown_color_no_team(self):
-        marker = {"id": "m5", "lat": 1.0, "lng": 2.0, "type": "raute", "color": "#aabbcc"}
+        marker = {"id": "m5", "lat": 1.0, "lng": 2.0, "type": "hostile", "color": "#aabbcc"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNone(evt.team_name)
 
     def test_explicit_team_not_overridden_by_color(self):
-        marker = {"id": "m6", "lat": 1.0, "lng": 2.0, "type": "raute",
+        marker = {"id": "m6", "lat": 1.0, "lng": 2.0, "type": "hostile",
                   "color": "#ffff00", "team": "Cyan"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertEqual(evt.team_name, "Cyan")
 
     def test_spot_map_marker_color_in_xml(self):
-        # raute now maps to a-h-G-U-C (hostile); color element is not emitted
+        # hostile now maps to a-h-G-U-C (hostile); color element is not emitted
         # for military-affiliation types — ATAK uses affiliation colour instead.
-        marker = {"id": "m7", "lat": 1.0, "lng": 2.0, "type": "raute", "color": "#ffff00"}
+        marker = {"id": "m7", "lat": 1.0, "lng": 2.0, "type": "hostile", "color": "#ffff00"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
         self.assertEqual(evt.cot_type, "a-h-G-U-C")
@@ -286,58 +286,58 @@ class TestAtakSymbolTypeMappings(unittest.TestCase):
 
     LPU5 shapes map to ATAK military-affiliation CoT types so that ATAK
     renders each shape with the correct colour:
-      rechteck (blue rectangle) → a-f-G-U-C  (Friendly, blue,   F.1.…)
-      blume    (yellow flower)  → a-u-G-U-C  (Unknown,  yellow, U.1.…)
-      quadrat  (green square)   → a-n-G-U-C  (Neutral,  green,  N.1.…)
-      raute    (red diamond)    → a-h-G-U-C  (Hostile,  red,    R.1.…)
+      friendly (blue rectangle) → a-f-G-U-C  (Friendly, blue,   F.1.…)
+      unknown  (yellow flower)  → a-u-G-U-C  (Unknown,  yellow, U.1.…)
+      neutral  (green square)   → a-n-G-U-C  (Neutral,  green,  N.1.…)
+      hostile  (red diamond)    → a-h-G-U-C  (Hostile,  red,    R.1.…)
     """
 
     # --- Forward mapping (LPU5 shape → ATAK CoT type) ---
 
-    def test_rechteck_maps_to_friendly(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("rechteck"), "a-f-G-U-C")
+    def test_friendly_maps_to_friendly_cot(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("friendly"), "a-f-G-U-C")
 
-    def test_blume_maps_to_unknown(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("blume"), "a-u-G-U-C")
+    def test_unknown_maps_to_unknown_cot(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("unknown"), "a-u-G-U-C")
 
-    def test_quadrat_maps_to_neutral(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("quadrat"), "a-n-G-U-C")
+    def test_neutral_maps_to_neutral_cot(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("neutral"), "a-n-G-U-C")
 
-    def test_raute_maps_to_hostile(self):
-        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("raute"), "a-h-G-U-C")
+    def test_hostile_maps_to_hostile_cot(self):
+        self.assertEqual(CoTProtocolHandler.lpu5_type_to_cot("hostile"), "a-h-G-U-C")
 
-    def test_rechteck_in_lpu5_to_cot_dict(self):
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["rechteck"], "a-f-G-U-C")
+    def test_friendly_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["friendly"], "a-f-G-U-C")
 
-    def test_blume_in_lpu5_to_cot_dict(self):
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["blume"], "a-u-G-U-C")
+    def test_unknown_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["unknown"], "a-u-G-U-C")
 
-    def test_quadrat_in_lpu5_to_cot_dict(self):
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["quadrat"], "a-n-G-U-C")
+    def test_neutral_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["neutral"], "a-n-G-U-C")
 
-    def test_raute_in_lpu5_to_cot_dict(self):
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["raute"], "a-h-G-U-C")
+    def test_hostile_in_lpu5_to_cot_dict(self):
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["hostile"], "a-h-G-U-C")
 
     # --- Reverse mapping (ATAK CoT type → LPU5 shape) ---
 
-    def test_friendly_cot_maps_to_rechteck(self):
-        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-f-G-U-C"), "rechteck")
+    def test_friendly_cot_maps_to_friendly(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-f-G-U-C"), "friendly")
 
-    def test_unknown_cot_maps_to_blume(self):
-        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-u-G-U-C"), "blume")
+    def test_unknown_cot_maps_to_unknown(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-u-G-U-C"), "unknown")
 
-    def test_neutral_cot_maps_to_quadrat(self):
-        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-n-G-U-C"), "quadrat")
+    def test_neutral_cot_maps_to_neutral(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-n-G-U-C"), "neutral")
 
-    def test_hostile_cot_maps_to_raute(self):
-        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-h-G-U-C"), "raute")
+    def test_hostile_cot_maps_to_hostile(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-h-G-U-C"), "hostile")
 
-    def test_friendly_subtype_resolves_to_rechteck(self):
-        # Any a-f-* sub-type should resolve to rechteck
-        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-f-G-I-U-T-H"), "rechteck")
+    def test_friendly_subtype_resolves_to_friendly(self):
+        # Any a-f-* sub-type should resolve to friendly
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-f-G-I-U-T-H"), "friendly")
 
-    def test_hostile_subtype_resolves_to_raute(self):
-        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-h-G-U-C-I"), "raute")
+    def test_hostile_subtype_resolves_to_hostile(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-h-G-U-C-I"), "hostile")
 
     # --- Archive element present for military-affiliation types ---
 
@@ -419,26 +419,26 @@ class TestAtakSymbolTypeMappings(unittest.TestCase):
 
     # --- marker_to_cot() produces correct ATAK types for LPU5 shapes ---
 
-    def test_marker_rechteck_produces_friendly_cot(self):
-        marker = {"id": "s1", "lat": 1.0, "lng": 2.0, "type": "rechteck"}
+    def test_marker_friendly_produces_friendly_cot(self):
+        marker = {"id": "s1", "lat": 1.0, "lng": 2.0, "type": "friendly"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
         self.assertEqual(evt.cot_type, "a-f-G-U-C")
 
-    def test_marker_blume_produces_unknown_cot(self):
-        marker = {"id": "s2", "lat": 1.0, "lng": 2.0, "type": "blume"}
+    def test_marker_unknown_produces_unknown_cot(self):
+        marker = {"id": "s2", "lat": 1.0, "lng": 2.0, "type": "unknown"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
         self.assertEqual(evt.cot_type, "a-u-G-U-C")
 
-    def test_marker_quadrat_produces_neutral_cot(self):
-        marker = {"id": "s3", "lat": 1.0, "lng": 2.0, "type": "quadrat"}
+    def test_marker_neutral_produces_neutral_cot(self):
+        marker = {"id": "s3", "lat": 1.0, "lng": 2.0, "type": "neutral"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
         self.assertEqual(evt.cot_type, "a-n-G-U-C")
 
-    def test_marker_raute_produces_hostile_cot(self):
-        marker = {"id": "s4", "lat": 1.0, "lng": 2.0, "type": "raute"}
+    def test_marker_hostile_produces_hostile_cot(self):
+        marker = {"id": "s4", "lat": 1.0, "lng": 2.0, "type": "hostile"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         self.assertIsNotNone(evt)
         self.assertEqual(evt.cot_type, "a-h-G-U-C")
@@ -463,9 +463,9 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertIn("meshtastic_node", CoTProtocolHandler.LPU5_TO_COT_TYPE)
         self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["meshtastic_node"], "a-f-G-E-S-U-M")
 
-    def test_cbt_rechteck_in_lpu5_to_cot(self):
-        self.assertIn("cbt_rechteck", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["cbt_rechteck"], "a-f-G-U-C")
+    def test_cbt_friendly_in_lpu5_to_cot(self):
+        self.assertIn("cbt_friendly", CoTProtocolHandler.LPU5_TO_COT_TYPE)
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["cbt_friendly"], "a-f-G-U-C")
 
     def test_meshtastic_node_marker_produces_meshtastic_equipment_cot(self):
         # meshtastic_node uses a-f-G-E-S-U-M (Meshtastic equipment) so ATAK
@@ -556,11 +556,11 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "tak_unit")
 
     def test_cot_to_marker_rechteck_for_machine_generated(self):
-        # "m-g" without <meshtastic> → CBT variant of rechteck for a-f (ATAK-sourced)
+        # "m-g" without <meshtastic> → CBT variant of friendly for a-f (ATAK-sourced)
         xml = self._make_cot_xml(how="m-g")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "cbt_rechteck")
+        self.assertEqual(marker["type"], "cbt_friendly")
 
     def test_meshtastic_detail_takes_precedence_over_human_how(self):
         # how="h-e" (human-entered) + <meshtastic> in detail must produce
@@ -589,7 +589,7 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
                          "how='m-g' + <meshtastic> must produce meshtastic_node")
 
     def test_tak_unit_does_not_affect_hostile_type(self):
-        # how="h-e" with a-h type should NOT produce tak_unit (only overrides a-f→rechteck)
+        # how="h-e" with a-h type should NOT produce tak_unit (only overrides a-f→friendly)
         xml = (
             '<?xml version="1.0" encoding="UTF-8"?>'
             '<event version="2.0" uid="TEST-2" type="a-h-G-U-C" '
@@ -601,8 +601,8 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         )
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        # a-h maps to raute → CBT variant (ATAK-sourced); tak_unit only applies to rechteck (a-f)
-        self.assertEqual(marker["type"], "cbt_raute")
+        # a-h maps to hostile → CBT variant (ATAK-sourced); tak_unit only applies to friendly (a-f)
+        self.assertEqual(marker["type"], "cbt_hostile")
 
     def test_cot_to_marker_meshtastic_equipment_type_no_detail(self):
         # CoT type a-f-G-E-S-U-M from ATAK without <meshtastic> element must
@@ -841,14 +841,14 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
         )
 
     def test_non_meshtastic_marker_still_uses_stored_cot_type(self):
-        """Non-Meshtastic markers (e.g. 'rechteck') must still use the stored
+        """Non-Meshtastic markers (e.g. 'friendly') must still use the stored
         cot_type from data so that symbol detail is preserved on re-broadcast."""
         marker = {
             "id": "uuid-rect-1",
             "lat": 48.0,
             "lng": 11.0,
             "name": "Friendly Unit",
-            "type": "rechteck",
+            "type": "friendly",
             "cot_type": "a-f-G-U-C-I",  # specific sub-type from ATAK
         }
         evt = CoTProtocolHandler.marker_to_cot(marker)
@@ -1498,7 +1498,7 @@ class TestMeshtasticDetailInOutgoingCoT(unittest.TestCase):
         self.assertTrue(echo_evt.has_meshtastic_detail,
                         "Parsed echo must have has_meshtastic_detail=True")
 
-        # 4. Convert to marker → must be meshtastic_node, not rechteck
+        # 4. Convert to marker → must be meshtastic_node, not friendly
         echo_marker = CoTProtocolHandler.cot_to_marker(echo_evt)
         self.assertEqual(echo_marker["type"], "meshtastic_node",
                          "ATAK-echoed node must map to meshtastic_node via <meshtastic> detail")

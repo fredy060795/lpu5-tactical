@@ -645,7 +645,7 @@
   </div>
 
   <div class="bottom-toolbar" id="ui-tools">
-    <!-- Menu first as requested: hamburger/raute/rechteck/viereck/blume/kamera/chat -->
+    <!-- Menu first as requested: hamburger/hostile/friendly/neutral/unknown/kamera/chat -->
     <div class="tool-btn" id="s-hamburger" ontouchstart="handleToolInteraction(() => toggleHamburgerMenu(), event)"
       onclick="handleToolInteraction(() => toggleHamburgerMenu(), event)" title="Menu">
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
@@ -656,20 +656,20 @@
     </div>
 
     <!-- Symbol Tools - reordered as requested -->
-    <div class="tool-btn" id="s-raute" ontouchstart="handleToolInteraction(() => setTool('raute'), event)"
-      onclick="handleToolInteraction(() => setTool('raute'), event)"><svg viewBox="0 0 100 100">
+    <div class="tool-btn" id="s-hostile" ontouchstart="handleToolInteraction(() => setTool('hostile'), event)"
+      onclick="handleToolInteraction(() => setTool('hostile'), event)"><svg viewBox="0 0 100 100">
         <path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="4" />
       </svg></div>
-    <div class="tool-btn" id="s-rechteck" ontouchstart="handleToolInteraction(() => setTool('rechteck'), event)"
-      onclick="handleToolInteraction(() => setTool('rechteck'), event)"><svg viewBox="0 0 100 100">
+    <div class="tool-btn" id="s-friendly" ontouchstart="handleToolInteraction(() => setTool('friendly'), event)"
+      onclick="handleToolInteraction(() => setTool('friendly'), event)"><svg viewBox="0 0 100 100">
         <rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="4" />
       </svg></div>
-    <div class="tool-btn" id="s-quadrat" ontouchstart="handleToolInteraction(() => setTool('quadrat'), event)"
-      onclick="handleToolInteraction(() => setTool('quadrat'), event)"><svg viewBox="0 0 100 100">
+    <div class="tool-btn" id="s-neutral" ontouchstart="handleToolInteraction(() => setTool('neutral'), event)"
+      onclick="handleToolInteraction(() => setTool('neutral'), event)"><svg viewBox="0 0 100 100">
         <rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="4" />
       </svg></div>
-    <div class="tool-btn" id="s-blume" ontouchstart="handleToolInteraction(() => setTool('blume'), event)"
-      onclick="handleToolInteraction(() => setTool('blume'), event)"><svg viewBox="0 0 100 100">
+    <div class="tool-btn" id="s-unknown" ontouchstart="handleToolInteraction(() => setTool('unknown'), event)"
+      onclick="handleToolInteraction(() => setTool('unknown'), event)"><svg viewBox="0 0 100 100">
         <path
           d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20"
           fill="#ffff00" stroke="black" stroke-width="4" />
@@ -722,21 +722,17 @@
     const DEBOUNCE_THRESHOLD_MS = 500; // Prevent double-firing of touch/click events
     const IP_GEOLOCATION_TIMEOUT_MS = 5000; // Timeout for external IP geolocation service
     const SYMBOLS = {
-      raute: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
-      rechteck: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
-      quadrat: '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
-      blume: '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
+      hostile: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
+      friendly: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
+      neutral: '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
+      unknown: '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
       marker: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>',
-      friendly: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>',
-      cbt_raute: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_rechteck: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_quadrat: '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_blume: '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_hostile: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_friendly: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_neutral: '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_unknown: '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       meshtastic_node: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       tak_unit: '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      hostile: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#e74c3c" stroke="black" stroke-width="3"/></svg>',
-      neutral: '<svg viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="#27ae60" stroke="black" stroke-width="3"/></svg>',
-      unknown: '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#f39c12" stroke="black" stroke-width="3"/></svg>',
       pending: '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>'
     };
 
@@ -1489,7 +1485,7 @@
       addPendingLocal(pending);
       const icon = L.divIcon({
         className: 'pending-marker',
-        html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[pending.name] || SYMBOLS.raute}</div>`,
+        html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[pending.name] || SYMBOLS.hostile}</div>`,
         iconSize: [36, 36],
         iconAnchor: [18, 18]
       });
@@ -1527,7 +1523,7 @@
         if (pendingLayers.has(p._cid)) continue;
         const icon = L.divIcon({
           className: 'pending-marker',
-          html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[p.name] || SYMBOLS.raute}</div>`,
+          html: `<div class="pending-icon" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[p.name] || SYMBOLS.hostile}</div>`,
           iconSize: [36, 36],
           iconAnchor: [18, 18]
         });
@@ -1662,9 +1658,9 @@
           if (m.type === 'gps_position') return;
 
           serverIds.add(m.id);
-          // Robust icon selection: check m.type, then m.name, then fallback to raute
-          const iconType = m.type || m.name || 'raute';
-          const iconHtml = SYMBOLS[iconType] || SYMBOLS[m.name] || SYMBOLS[m.type] || SYMBOLS.raute;
+          // Robust icon selection: check m.type, then m.name, then fallback to hostile
+          const iconType = m.type || m.name || 'hostile';
+          const iconHtml = SYMBOLS[iconType] || SYMBOLS[m.name] || SYMBOLS[m.type] || SYMBOLS.hostile;
           const icon = L.divIcon({
             className: 'server-marker',
             html: `<div style="width:36px;height:36px;">${iconHtml}</div>`,
@@ -1741,7 +1737,7 @@
           if (s.type === 'gps_position' && s.username && latestGpsPerUser.get(s.username) !== s) continue;
 
           const isGps = (s.type === 'gps_position');
-          const symType = s.type || s.sym || 'raute';
+          const symType = s.type || s.sym || 'hostile';
           let iconHtml;
           if (isGps) {
             // Other users' GPS positions shown as Meshtastic node circles (person/node markers).
@@ -1749,7 +1745,7 @@
             iconHtml = SYMBOLS.meshtastic_node;
             iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
           } else {
-            iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.raute;
+            iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.hostile;
             iconHtml = `<div style="width:32px;height:32px;">${iconHtml}</div>`;
           }
           const icon = L.divIcon({

@@ -1532,7 +1532,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
 
         # Detect incoming CoT source type before the CoT-type→LPU5-type mapping
         # so that ATAK Meshtastic nodes and ATAK SA/GPS positions receive the
-        # correct LPU5 icon instead of the generic blue rectangle ("rechteck").
+        # correct LPU5 icon instead of the generic blue rectangle ("friendly").
         how = root.get("how", "m-g")
         # Presence of <meshtastic> in <detail> is the canonical indicator that
         # the event was forwarded by an ATAK Meshtastic plugin.  Guard with the
@@ -1552,23 +1552,23 @@ def _process_incoming_cot(cot_xml: str) -> None:
             if event_type == "a-f-G-E-S-U-M":
                 lpu5_type = "meshtastic_node"
             elif event_type.startswith("a-f"):
-                lpu5_type = "rechteck"
+                lpu5_type = "friendly"
             elif event_type.startswith("a-h"):
-                lpu5_type = "raute"
+                lpu5_type = "hostile"
             elif event_type.startswith("a-n"):
-                lpu5_type = "quadrat"
+                lpu5_type = "neutral"
             elif event_type.startswith("a-u"):
-                lpu5_type = "blume"
+                lpu5_type = "unknown"
             elif event_type == "b-m-p-s-m":
-                lpu5_type = "raute"
+                lpu5_type = "hostile"
             elif event_type == "u-d-r":
-                lpu5_type = "rechteck"
+                lpu5_type = "friendly"
             else:
-                lpu5_type = "raute"
+                lpu5_type = "hostile"
 
         # For spot-map markers the CoT type is the same for all LPU5 shapes.
         # When the callsign matches a known LPU5 shape name use it directly so
-        # that ATAK-placed markers labelled "quadrat" or "blume" are rendered
+        # that ATAK-placed markers labelled "neutral" or "unknown" are rendered
         # with the correct icon in the LPU5 web UI.
         if AUTONOMOUS_MODULES_AVAILABLE and event_type == "b-m-p-s-m" and callsign:
             callsign_lower = callsign.lower()
@@ -1585,7 +1585,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
         #   • how starts with "h" (no meshtastic detail) → ATAK SA / GPS position
         if _has_mesh_detail:
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "rechteck" and how.startswith("h"):
+        elif lpu5_type == "friendly" and how.startswith("h"):
             lpu5_type = "tak_unit"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
@@ -1595,10 +1595,10 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 lpu5_type = CoTProtocolHandler.ATAK_TO_CBT_TYPE.get(lpu5_type, lpu5_type)
             else:
                 lpu5_type = {
-                    "raute":    "cbt_raute",
-                    "rechteck": "cbt_rechteck",
-                    "quadrat":  "cbt_quadrat",
-                    "blume":    "cbt_blume",
+                    "hostile":  "cbt_hostile",
+                    "friendly": "cbt_friendly",
+                    "neutral":  "cbt_neutral",
+                    "unknown":  "cbt_unknown",
                 }.get(lpu5_type, lpu5_type)
 
         # Deduplication: skip identical events to avoid redundant DB writes,
@@ -1622,7 +1622,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
             # meshtastic_node classification when the incoming CoT lacks a
             # <meshtastic> element.  ATAK may strip custom detail elements when
             # redistributing CoT events, causing a correctly-identified Meshtastic
-            # node to revert to cbt_rechteck on subsequent position updates.
+            # node to revert to cbt_friendly on subsequent position updates.
             effective_type = lpu5_type
             if (marker
                     and marker.type == "meshtastic_node"
@@ -1634,7 +1634,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 if uid.startswith("mesh-") or marker.created_by not in _TAK_INGEST_SOURCES:
                     # ATAK is echoing back a marker that LPU5 (or Meshtastic) originated.
                     # Skip the update entirely to prevent the native LPU5 type from being
-                    # overwritten with a CBT variant (e.g. "raute" → "cbt_raute").
+                    # overwritten with a CBT variant (e.g. "hostile" → "cbt_hostile").
                     return
                 marker.lat = lat
                 marker.lng = lng
@@ -6818,9 +6818,9 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
                         or existing.created_by not in _TAK_INGEST_SOURCES):
                     # Echo-back of an LPU5-originated marker — skip the update to
                     # prevent the native LPU5 type from being overwritten with a
-                    # CBT variant (e.g. "raute" → "cbt_raute").
+                    # CBT variant (e.g. "hostile" → "cbt_hostile").
                     return
-                # Guard: don't downgrade a meshtastic_node marker to cbt_rechteck
+                # Guard: don't downgrade a meshtastic_node marker to cbt_friendly
                 # or tak_unit when the incoming CoT echo lacks a <meshtastic>
                 # element.  ATAK may strip custom detail elements when re-
                 # distributing CoT, which would cause the node to lose its
@@ -7094,15 +7094,15 @@ async def ingest_cot_xml(request: Request):
             if existing:
                 # Guard: never overwrite a marker that was created by a native LPU5
                 # user or Meshtastic ingest.  ATAK echo-backs for LPU5-originated
-                # markers would otherwise corrupt the marker type (e.g. "raute" →
-                # "cbt_raute") and lose the original user-set label.
+                # markers would otherwise corrupt the marker type (e.g. "hostile" →
+                # "cbt_hostile") and lose the original user-set label.
                 if marker_dict["id"].startswith("mesh-") or existing.created_by not in _TAK_INGEST_SOURCES:
                     logger.debug(
                         "ingest_cot_xml: skipping echo-back update for LPU5-originated marker %s",
                         marker_dict["id"],
                     )
                     return {"status": "skipped", "reason": "echo-back of LPU5-originated marker"}
-                # Guard: don't downgrade a meshtastic_node marker to cbt_rechteck
+                # Guard: don't downgrade a meshtastic_node marker to cbt_friendly
                 # or tak_unit when the incoming CoT echo lacks a <meshtastic>
                 # element.  ATAK may strip custom detail elements when re-
                 # distributing CoT, which would cause the node to lose its
@@ -8314,10 +8314,10 @@ def save_map_symbols(data):
 def get_symbol_priority(symbol_type: str) -> int:
     """Get priority for symbol type (lower number = higher priority)"""
     priorities = {
-        "raute": 1,      # diamond/rhombus
-        "rechteck": 2,   # rectangle
+        "hostile": 1,    # diamond/rhombus
+        "friendly": 2,  # rectangle
         "viereck": 3,    # square
-        "blume": 4       # flower
+        "unknown": 4    # flower
     }
     return priorities.get(symbol_type.lower(), 999)
 
@@ -8382,7 +8382,7 @@ async def place_map_symbol(symbol: Dict = Body(...), authorization: str = Header
         lat = symbol.get("lat")
         lng = symbol.get("lng")
         # Normalise to lowercase so that type IDs are consistent across all
-        # TAK clients (ATAK/ITAK/WinTAK/XTAK) — e.g. "raute" == "Raute".
+        # TAK clients (ATAK/ITAK/WinTAK/XTAK) — e.g. "hostile" == "Hostile".
         symbol_type = symbol.get("type", "marker").lower()
         source_page = symbol.get("source_page", "unknown")
         
