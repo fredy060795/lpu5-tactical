@@ -149,7 +149,8 @@ test('COT to map marker conversion', () => {
   assert(marker.id === 'TEST-001', 'Marker should have correct ID');
   assert(marker.lat === 47.1234, 'Marker should have correct latitude');
   assert(marker.lng === 8.5678, 'Marker should have correct longitude');
-  assert(marker.status === 'friendly', 'Should identify as friendly');
+  // Machine-generated (how='m-g') ATAK events are remapped to CBT variants
+  assert(marker.status === 'cbt_friendly', 'Should identify as cbt_friendly (ATAK machine-generated)');
   assert(marker.source === 'cot', 'Should mark as COT source');
 });
 
@@ -245,17 +246,18 @@ test('Coordinate bounds validation', () => {
 
 // Test Affiliation Parsing
 test('Affiliation parsing from COT type', () => {
+  // Machine-generated (how='m-g') ATAK events are remapped to CBT variants
   const friendly = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-f-G-U-C' }));
-  assert(friendly.status === 'friendly', 'Should parse friendly');
+  assert(friendly.status === 'cbt_friendly', 'Should parse as cbt_friendly (ATAK machine-generated)');
   
   const hostile = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-h-G-U-C' }));
-  assert(hostile.status === 'hostile', 'Should parse hostile');
+  assert(hostile.status === 'cbt_hostile', 'Should parse as cbt_hostile (ATAK machine-generated)');
   
   const neutral = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-n-G-U-C' }));
-  assert(neutral.status === 'neutral', 'Should parse neutral');
+  assert(neutral.status === 'cbt_neutral', 'Should parse as cbt_neutral (ATAK machine-generated)');
   
   const unknown = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-u-G-U-C' }));
-  assert(unknown.status === 'unknown', 'Should parse unknown');
+  assert(unknown.status === 'cbt_unknown', 'Should parse as cbt_unknown (ATAK machine-generated)');
 });
 
 // Test Meshtastic node type mappings

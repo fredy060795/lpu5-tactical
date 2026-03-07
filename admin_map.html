@@ -1194,9 +1194,13 @@
   <script>
     // MilSymbol helper – generates a military symbol SVG via spatialillusions/milsymbol.
     // Falls back gracefully when the library is unavailable (e.g. offline / no CDN).
-    function getMilSymbolSvg(sidc, size) {
+    // Optional `options` parameter is merged into the milsymbol options (e.g. { uniqueDesignation: 'CBT' }).
+    function getMilSymbolSvg(sidc, size, options) {
       if (typeof ms !== 'undefined') {
-        try { return new ms.Symbol(sidc, { size: size || 35 }).asSVG(); } catch (e) {}
+        try {
+          var opts = Object.assign({ size: size || 35 }, options || {});
+          return new ms.Symbol(sidc, opts).asSVG();
+        } catch (e) {}
       }
       return null;
     }
@@ -2582,21 +2586,21 @@
       let activeSymbol = null; let placingSymbol = false; let symbolDeleteMode = false;
       function getSymbolSvg(sym) {
         switch (sym) {
-          case 'hostile': return `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`;
-          case 'friendly': return `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`;
-          case 'neutral': return `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`;
-          case 'unknown': return `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`;
-          case 'pending': return `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>`;
+          case 'hostile': return getMilSymbolSvg('SHGPUCI--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`;
+          case 'friendly': return getMilSymbolSvg('SFGPUCI--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`;
+          case 'neutral': return getMilSymbolSvg('SNGPUCI--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`;
+          case 'unknown': return getMilSymbolSvg('SUGPUCI--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`;
+          case 'pending': return getMilSymbolSvg('SPGPUCI--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>`;
           case 'marker': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
-          case 'meshtastic_node': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
-          case 'node': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
-          case 'gateway': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
-          case 'gps_position': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'meshtastic_node': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'node': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'gateway': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
+          case 'gps_position': return getMilSymbolSvg('SFGPEEE--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>`;
           case 'tak_maker': return getMilSymbolSvg('SFGPUCI--------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">MKR</text></svg>`;
-          case 'cbt_hostile': return `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_friendly': return `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_neutral': return `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
-          case 'cbt_unknown': return `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_hostile': return getMilSymbolSvg('SHGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_friendly': return getMilSymbolSvg('SFGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_neutral': return getMilSymbolSvg('SNGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
+          case 'cbt_unknown': return getMilSymbolSvg('SUGPUCI--------', 35, { uniqueDesignation: 'CBT' }) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>`;
           default: return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`;
         }
       }
@@ -3200,9 +3204,12 @@
               longName = n.name || n.callsign || mesh;
             }
 
-            // Build blue circle icon for Meshtastic node — use shortName if available, fallback to "M"
+            // Build MilSymbol icon for Meshtastic node — use shortName as designation if available
             const iconLabel = escapeHtml(shortName) || 'M';
-            const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
+            const milSvg = getMilSymbolSvg('SFGPEEE--------', 35, { uniqueDesignation: iconLabel });
+            const iconHtml = milSvg
+              ? `<div style="width:35px;height:35px;">${milSvg}</div>`
+              : `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
 
             if (meshtasticMarkers.has(mesh)) {
               // Update existing marker

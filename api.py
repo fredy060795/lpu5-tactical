@@ -1490,7 +1490,10 @@ def _process_incoming_cot(cot_xml: str) -> None:
         #   • _LPU5_COT_UID ("LPU5-GW") is the LPU5 gateway SA beacon that
         #     some TAK servers reflect back; ingesting it would create a spurious
         #     map marker at (0, 0).
-        if uid.startswith("GPS-") or uid == _LPU5_COT_UID:
+        #   • "mesh-<node_id>" UIDs are Meshtastic nodes forwarded to ATAK by
+        #     _forward_meshtastic_node_to_tak(); echoing them back would corrupt
+        #     the node/gateway type to cbt_friendly or tak_maker.
+        if uid.startswith("GPS-") or uid.startswith("mesh-") or uid == _LPU5_COT_UID:
             logger.debug("CoT: skipping LPU5 echo-back for UID: %s", uid)
             with _TAK_RECEIVER_STATS_LOCK:
                 _TAK_RECEIVER_STATS["packets_received"] += 1
@@ -1619,16 +1622,19 @@ def _process_incoming_cot(cot_xml: str) -> None:
             marker = db.query(MapMarker).filter(MapMarker.id == uid).first()
 
             # Resolve the effective LPU5 type, potentially preserving an existing
-            # meshtastic_node classification when the incoming CoT lacks a
+            # Meshtastic classification when the incoming CoT lacks a
             # <meshtastic> element.  ATAK may strip custom detail elements when
             # redistributing CoT events, causing a correctly-identified Meshtastic
             # node to revert to cbt_friendly on subsequent position updates.
+            # All Meshtastic-originated types (meshtastic_node, node, gateway)
+            # must be preserved so the correct icon is rendered.
+            _MESHTASTIC_DB_TYPES = {"meshtastic_node", "node", "gateway"}
             effective_type = lpu5_type
             if (marker
-                    and marker.type == "meshtastic_node"
+                    and marker.type in _MESHTASTIC_DB_TYPES
                     and not _has_mesh_detail
-                    and effective_type != "meshtastic_node"):
-                effective_type = "meshtastic_node"
+                    and effective_type not in _MESHTASTIC_DB_TYPES):
+                effective_type = marker.type
 
             if marker:
                 if uid.startswith("mesh-") or marker.created_by not in _TAK_INGEST_SOURCES:
