@@ -22,6 +22,8 @@ class COTEvent {
         // which is added by ATAK Meshtastic plugins (e.g. atak-forwarder) and
         // by LPU5 itself when generating CoT for Meshtastic nodes.
         this.hasMeshtasticDetail = options.hasMeshtasticDetail || false;
+        // Short name extracted from <meshtastic shortName="..."/> in CoT detail.
+        this.meshtasticShortName = options.meshtasticShortName || '';
         
         const now = new Date();
         this.time = options.time || now;
@@ -176,6 +178,12 @@ class COTEvent {
             let remarks = '';
             let teamName = '';
             let teamRole = '';
+            // Detect <meshtastic> child element — added by ATAK Meshtastic plugins
+            // (e.g. atak-forwarder) and by LPU5 itself when generating CoT for
+            // Meshtastic nodes.  Its presence is the canonical indicator that the
+            // event originates from a Meshtastic node.
+            let hasMeshtasticDetail = false;
+            let meshtasticShortName = '';
             
             if (detail) {
                 const contact = detail.querySelector('contact');
@@ -193,13 +201,14 @@ class COTEvent {
                 if (remarksElem) {
                     remarks = remarksElem.textContent || '';
                 }
-            }
 
-            // Detect <meshtastic> child element — added by ATAK Meshtastic plugins
-            // (e.g. atak-forwarder) and by LPU5 itself when generating CoT for
-            // Meshtastic nodes.  Its presence is the canonical indicator that the
-            // event originates from a Meshtastic node.
-            const hasMeshtasticDetail = detail ? detail.querySelector('meshtastic') !== null : false;
+                hasMeshtasticDetail = detail.querySelector('meshtastic') !== null;
+                // Extract shortName from <meshtastic shortName="..."/> if present
+                const meshElem = detail.querySelector('meshtastic');
+                if (meshElem) {
+                    meshtasticShortName = meshElem.getAttribute('shortName') || '';
+                }
+            }
             
             // Parse times
             const timeStr = event.getAttribute('time');
@@ -220,6 +229,7 @@ class COTEvent {
                 teamRole,
                 how,
                 hasMeshtasticDetail,
+                meshtasticShortName,
                 time: timeStr ? new Date(timeStr) : new Date(),
                 start: startStr ? new Date(startStr) : new Date(),
                 stale: staleStr ? new Date(staleStr) : new Date(Date.now() + 5 * 60 * 1000)
@@ -254,6 +264,7 @@ class COTEvent {
             pending:        'a-p-G-U-C',
             // GPS positions and Meshtastic node/gateway types use a-f-G-E-S-U-M
             // so ATAK displays them as Meshtastic contacts with the Mesh icon.
+            // This was explicitly decided to unify GPS and Meshtastic display.
             gps_position:    'a-f-G-E-S-U-M',
             // Meshtastic node types — must match cot_protocol.py
             // All Meshtastic node/gateway types use a-f-G-E-S-U-M (Meshtastic
@@ -277,18 +288,18 @@ class COTEvent {
      *  before shorter prefix alternatives when iterating. */
     static get COT_TO_LPU5_TYPE() {
         return [
-            ['b-m-p-s-m', 'hostile'],  // TAK spot-map marker (all shapes)
-            ['u-d-c-e',   'hostile'],  // TAK drawing ellipse → diamond
-            ['u-d-c-c',   'hostile'],  // TAK drawing circle → diamond
-            ['u-d-r',     'friendly'], // TAK drawing rectangle
-            ['u-d-f',     'hostile'],  // TAK drawing freehand → diamond
-            ['u-d-p',     'hostile'],  // TAK drawing generic point → diamond
-            ['a-f-G-E-S-U-M', 'meshtastic_node'], // legacy Meshtastic equipment type (backward compat)
-            ['a-f',       'friendly'], // friendly (any sub-type)
-            ['a-h',       'hostile'],
-            ['a-n',       'neutral'],
-            ['a-u',       'unknown'],
-            ['a-p',       'pending'],
+            ['b-m-p-s-m',   'hostile'],          // TAK spot-map marker (all shapes)
+            ['u-d-c-e',     'hostile'],          // TAK drawing ellipse → diamond
+            ['u-d-c-c',     'hostile'],          // TAK drawing circle → diamond
+            ['u-d-r',       'friendly'],       // TAK drawing rectangle
+            ['u-d-f',       'hostile'],          // TAK drawing freehand → diamond
+            ['u-d-p',       'hostile'],          // TAK drawing generic point → diamond
+            ['a-f-G-E-S-U-M', 'meshtastic_node'],   // Meshtastic equipment → meshtastic_node
+            ['a-f',         'friendly'],       // friendly → blue rectangle
+            ['a-h',         'hostile'],        // hostile → red diamond
+            ['a-n',         'neutral'],        // neutral → green square
+            ['a-u',         'unknown'],        // unknown → yellow flower
+            ['a-p',         'pending'],        // pending → purple diamond
         ];
     }
 
@@ -355,7 +366,8 @@ class COTProtocolHandler {
             // ATAK sometimes echoes these back with a normalised type (e.g.
             // a-u-G-U-C = unknown/yellow flower) which, if stored and reused,
             // would cause the node to appear with the wrong icon on the next
-            // broadcast cycle.
+            // broadcast cycle.  This mirrors the protection in marker_to_cot()
+            // on the Python server side.
             const _MESHTASTIC_LPU5_TYPES = new Set(['node', 'meshtastic_node', 'gateway']);
             let type;
             if (_MESHTASTIC_LPU5_TYPES.has(lpu5Type)) {
@@ -437,7 +449,8 @@ class COTProtocolHandler {
             timestamp: cotEvent._formatTime(cotEvent.time),
             cotType: cotEvent.type,
             how: cotEvent.how,
-            source: 'cot'
+            source: 'cot',
+            shortName: cotEvent.meshtasticShortName || ''
         };
     }
 

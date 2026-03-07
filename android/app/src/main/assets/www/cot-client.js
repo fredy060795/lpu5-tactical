@@ -22,6 +22,8 @@ class COTEvent {
         // which is added by ATAK Meshtastic plugins (e.g. atak-forwarder) and
         // by LPU5 itself when generating CoT for Meshtastic nodes.
         this.hasMeshtasticDetail = options.hasMeshtasticDetail || false;
+        // Short name extracted from <meshtastic shortName="..."/> in CoT detail.
+        this.meshtasticShortName = options.meshtasticShortName || '';
         
         const now = new Date();
         this.time = options.time || now;
@@ -181,6 +183,7 @@ class COTEvent {
             // Meshtastic nodes.  Its presence is the canonical indicator that the
             // event originates from a Meshtastic node.
             let hasMeshtasticDetail = false;
+            let meshtasticShortName = '';
             
             if (detail) {
                 const contact = detail.querySelector('contact');
@@ -200,6 +203,11 @@ class COTEvent {
                 }
 
                 hasMeshtasticDetail = detail.querySelector('meshtastic') !== null;
+                // Extract shortName from <meshtastic shortName="..."/> if present
+                const meshElem = detail.querySelector('meshtastic');
+                if (meshElem) {
+                    meshtasticShortName = meshElem.getAttribute('shortName') || '';
+                }
             }
             
             // Parse times
@@ -221,6 +229,7 @@ class COTEvent {
                 teamRole,
                 how,
                 hasMeshtasticDetail,
+                meshtasticShortName,
                 time: timeStr ? new Date(timeStr) : new Date(),
                 start: startStr ? new Date(startStr) : new Date(),
                 stale: staleStr ? new Date(staleStr) : new Date(Date.now() + 5 * 60 * 1000)
@@ -357,7 +366,8 @@ class COTProtocolHandler {
             // ATAK sometimes echoes these back with a normalised type (e.g.
             // a-u-G-U-C = unknown/yellow flower) which, if stored and reused,
             // would cause the node to appear with the wrong icon on the next
-            // broadcast cycle.
+            // broadcast cycle.  This mirrors the protection in marker_to_cot()
+            // on the Python server side.
             const _MESHTASTIC_LPU5_TYPES = new Set(['node', 'meshtastic_node', 'gateway']);
             let type;
             if (_MESHTASTIC_LPU5_TYPES.has(lpu5Type)) {
@@ -439,7 +449,8 @@ class COTProtocolHandler {
             timestamp: cotEvent._formatTime(cotEvent.time),
             cotType: cotEvent.type,
             how: cotEvent.how,
-            source: 'cot'
+            source: 'cot',
+            shortName: cotEvent.meshtasticShortName || ''
         };
     }
 

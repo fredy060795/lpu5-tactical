@@ -1709,8 +1709,9 @@
         return true;
       }
       
-      // Check 2: Legacy type='node' check
-      if (marker.type === 'node') {
+      // Check 2: type matches any known Meshtastic/node marker type
+      const _MESH_TYPES = new Set(['node', 'meshtastic_node', 'gateway']);
+      if (_MESH_TYPES.has(marker.type)) {
         return true;
       }
       
@@ -2006,8 +2007,9 @@
             longName = n.name || n.callsign || mesh;
           }
 
-          // Build blue M-circle icon for Meshtastic node
-          const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg></div>`;
+          // Build blue circle icon for Meshtastic node — use shortName if available, fallback to "M"
+          const iconLabel = _escapeHtml(shortName) || 'M';
+          const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
 
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
@@ -4249,7 +4251,18 @@
       if (!map) return;
 
       const markerType = markerData.type || markerData.status || 'meshtastic_node';
-      const svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
+      // For Meshtastic node types, build the same blue circle icon with
+      // shortName (or "M" fallback) that updateMeshtasticNodes() uses,
+      // so ATAK-imported mesh nodes look identical to import_nodes.html nodes.
+      const _MESH_MARKER_TYPES = new Set(['meshtastic_node', 'node', 'gateway']);
+      let svgHtml;
+      if (_MESH_MARKER_TYPES.has(markerType)) {
+        const rawLabel = markerData.shortName || '';
+        const iconLabel = _escapeHtml(rawLabel) || 'M';
+        svgHtml = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg>`;
+      } else {
+        svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
+      }
       const icon = L.divIcon({
         className: 'mesh-marker',
         html: `<div style="width:35px;height:35px;">${svgHtml}</div>`,
@@ -4272,9 +4285,11 @@
     function addMeshNodeToMap(node) {
       if (!map || !node.lat || !node.lon) return;
 
+      const _rawLabel = (node.user && (node.user.shortName || node.user.shortname)) || node.shortName || node.short_name || '';
+      const nodeLabel = _escapeHtml(_rawLabel) || 'M';
       const icon = L.divIcon({
         className: 'mesh-node-marker',
-        html: '<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg></div>',
+        html: `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${nodeLabel}</text></svg></div>`,
         iconSize: [35, 35]
       });
 
