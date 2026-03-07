@@ -1490,10 +1490,9 @@ def _process_incoming_cot(cot_xml: str) -> None:
         #   • _LPU5_COT_UID ("LPU5-GW") is the LPU5 gateway SA beacon that
         #     some TAK servers reflect back; ingesting it would create a spurious
         #     map marker at (0, 0).
-        #   • "mesh-<node_id>" UIDs are Meshtastic nodes forwarded to ATAK by
-        #     _forward_meshtastic_node_to_tak(); echoing them back would corrupt
-        #     the node/gateway type to cbt_friendly or tak_maker.
-        if uid.startswith("GPS-") or uid.startswith("mesh-") or uid == _LPU5_COT_UID:
+        #   • "mesh-<node_id>" UIDs are processed below with type "node" and are
+        #     guarded against echo-back corruption at the upsert stage (line ~1640).
+        if uid.startswith("GPS-") or uid == _LPU5_COT_UID:
             logger.debug("CoT: skipping LPU5 echo-back for UID: %s", uid)
             with _TAK_RECEIVER_STATS_LOCK:
                 _TAK_RECEIVER_STATS["packets_received"] += 1
@@ -1604,6 +1603,12 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     "unknown":  "cbt_unknown",
                 }.get(lpu5_type, lpu5_type)
 
+        # "mesh-<node_id>" UIDs are Meshtastic nodes imported back via
+        # ATAK/WinTAK SA/COT import.  Always assign type "node" so they render
+        # with the Meshtastic blue-circle icon instead of a generic ground marker.
+        if uid.startswith("mesh-"):
+            lpu5_type = "node"
+
         # Deduplication: skip identical events to avoid redundant DB writes,
         # WebSocket broadcasts, and log spam when the TAK server re-sends the
         # same position in rapid succession.
@@ -1651,10 +1656,6 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 marker.data = new_data
                 flag_modified(marker, "data")
             else:
-                if uid.startswith("mesh-"):
-                    # ATAK is echoing back a Meshtastic node we forwarded; skip
-                    # creating a duplicate marker to avoid double rendering.
-                    return
                 if _is_recently_deleted_marker(uid):
                     # ATAK is echoing back a marker that was just deleted in LPU5.
                     # Suppress recreation so the deletion takes effect immediately.
@@ -2073,9 +2074,9 @@ def sync_meshtastic_nodes_to_map_markers_once():
         # creation sources so we never create a duplicate for a node that
         # was first seen via the ingest_node endpoint).
         existing_markers = db.query(MapMarker).filter(MapMarker.created_by.in_(list(_MESHTASTIC_CREATED_BY))).all()
-        
+
         by_unit = {str(m.data.get("unit_id") if isinstance(m.data, dict) else ""): m for m in existing_markers if m.data}
-        
+
         created = 0
         updated = 0
 
@@ -2100,9 +2101,13 @@ def sync_meshtastic_nodes_to_map_markers_once():
             node_gateway_flags[str(mesh)] = node_is_gateway
             marker_type = "gateway" if node_is_gateway else "node"
 
-            # find existing
+            # find existing: first by unit_id in data, then by stable mesh-<id> marker ID
+            # (the latter covers CoT-ingested markers that lack a unit_id in their data).
+            stable_mesh_id = f"mesh-{mesh}"
             marker = by_unit.get(str(mesh))
-            
+            if marker is None:
+                marker = db.query(MapMarker).filter(MapMarker.id == stable_mesh_id).first()
+
             if marker:
                 # update
                 marker.lat = float(lat)
@@ -2119,12 +2124,11 @@ def sync_meshtastic_nodes_to_map_markers_once():
                 marker.data = marker_data
                 updated += 1
             else:
-                # Use a stable, deterministic ID derived from the Meshtastic node
-                # ID so that the periodic broadcast worker sends CoT events with
+                # stable_mesh_id is already pre-computed above ("mesh-{mesh}").
+                # Use it so the periodic broadcast worker sends CoT events with
                 # the same UID as _forward_meshtastic_node_to_tak().  Without a
                 # stable ID, every broadcast cycle would produce a different CoT
                 # UID which causes ATAK/WinTAK to accumulate duplicate contacts.
-                stable_mesh_id = f"mesh-{mesh}"
                 marker_data: Dict[str, Any] = {"unit_id": mesh, "is_gateway": node_is_gateway}
                 if cot_endpoint:
                     marker_data["contact_endpoint"] = cot_endpoint
@@ -3502,7 +3506,11 @@ def get_map_markers():
     try:
         markers = db.query(MapMarker).all()
         # Convert to dict list for JSON response, excluding meshtastic-synced markers
-        # (those are rendered exclusively via /api/meshtastic/nodes → updateMeshtasticNodes)
+        # (those are rendered exclusively via /api/meshtastic/nodes → updateMeshtasticNodes).
+        # Mesh nodes imported via ATAK/WinTAK CoT (type "node", created_by tak_server/
+        # cot_ingest) are included here with their correct "node" type so that admin_map
+        # and other API consumers can display them; the tactical web UI skips them in
+        # loadMarkers() (isMeshtasticMarker) and renders them via updateMeshtasticNodes().
         return [
             {
                 "id": m.id,
@@ -3517,7 +3525,7 @@ def get_map_markers():
                 "created_at": m.created_at.isoformat() if m.created_at else None,
                 "data": m.data
             } for m in markers
-            if m.type != "node" and (not m.created_by or m.created_by not in _MESHTASTIC_CREATED_BY)
+            if not m.created_by or m.created_by not in _MESHTASTIC_CREATED_BY
         ]
     finally:
         db.close()
@@ -4389,6 +4397,47 @@ def meshtastic_nodes():
             logger.warning("Fallback SQLAlchemy node load failed: %s", e)
         finally:
             db.close()
+
+    # Also include mesh nodes that were imported via ATAK/WinTAK SA/COT (type "node",
+    # "meshtastic_node", or "gateway") and stored in map_markers by the CoT ingestion
+    # pipeline.  These are identified by their "mesh-" UID prefix and CoT-ingest
+    # created_by values.  Skip any node whose mesh_id already exists from the
+    # primary meshtastic_nodes source to avoid duplicates.
+    _COT_INGEST_SOURCES = {"tak_server", "cot_ingest"}
+    _MESH_MARKER_TYPES = {"node", "meshtastic_node", "gateway"}
+    existing_mesh_ids = {str(n.get("mesh_id") or n.get("id", "")) for n in nodes}
+    db_mm = SessionLocal()
+    try:
+        cot_mesh_markers = db_mm.query(MapMarker).filter(
+            MapMarker.created_by.in_(list(_COT_INGEST_SOURCES)),
+            MapMarker.type.in_(list(_MESH_MARKER_TYPES)),
+        ).all()
+        for mm in cot_mesh_markers:
+            # Derive the mesh node id from the marker id ("mesh-<node_id>")
+            mesh_id = mm.id[5:] if mm.id.startswith("mesh-") else mm.id
+            if mesh_id in existing_mesh_ids or mm.id in existing_mesh_ids:
+                continue
+            existing_mesh_ids.add(mesh_id)
+            node_data = mm.data or {}
+            short_name = node_data.get("shortName") or (mm.name[:2] if mm.name else "M")
+            nodes.append({
+                "id": mm.id,
+                "mesh_id": mesh_id,
+                "name": mm.name or mm.id,
+                "longName": mm.name,
+                "shortName": short_name,
+                "lat": mm.lat if mm.lat is not None else 0.0,
+                "lng": mm.lng if mm.lng is not None else 0.0,
+                "type": mm.type,
+                "hardware_model": node_data.get("hardware_model"),
+                "battery": node_data.get("battery"),
+                "is_online": node_data.get("is_online"),
+                "created_by": mm.created_by,
+            })
+    except Exception as e:
+        logger.warning("CoT mesh marker load failed: %s", e)
+    finally:
+        db_mm.close()
 
     normalized = []
     for n in nodes:
@@ -6826,16 +6875,17 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
                     # prevent the native LPU5 type from being overwritten with a
                     # CBT variant (e.g. "hostile" → "cbt_hostile").
                     return
-                # Guard: don't downgrade a meshtastic_node marker to cbt_friendly
-                # or tak_maker when the incoming CoT echo lacks a <meshtastic>
-                # element.  ATAK may strip custom detail elements when re-
-                # distributing CoT, which would cause the node to lose its
+                # Guard: don't downgrade a meshtastic_node/node/gateway marker to
+                # cbt_friendly or tak_maker when the incoming CoT echo lacks a
+                # <meshtastic> element.  ATAK may strip custom detail elements when
+                # re-distributing CoT, which would cause the node to lose its
                 # Meshtastic icon on every subsequent position update.
                 incoming_type = marker_dict.get("type", "unknown")
-                if (existing.type == "meshtastic_node"
+                _MESH_DB_TYPES = {"meshtastic_node", "node", "gateway"}
+                if (existing.type in _MESH_DB_TYPES
                         and not cot_event.has_meshtastic_detail
-                        and incoming_type != "meshtastic_node"):
-                    incoming_type = "meshtastic_node"
+                        and incoming_type not in _MESH_DB_TYPES):
+                    incoming_type = existing.type
                 existing.lat = marker_dict["lat"]
                 existing.lng = marker_dict["lng"]
                 existing.name = marker_dict.get("name") or marker_dict["id"]
@@ -6857,13 +6907,16 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
                     "data": existing.data,
                 }
             else:
+                # For "mesh-" UID markers from ATAK/WinTAK SA/COT import, always
+                # use type "node" so they render with the Meshtastic blue-circle icon.
+                new_type = "node" if marker_dict["id"].startswith("mesh-") else marker_dict.get("type", "unknown")
                 new_marker = MapMarker(
                     id=marker_dict["id"],
                     lat=marker_dict["lat"],
                     lng=marker_dict["lng"],
                     name=marker_dict.get("name") or marker_dict["id"],
                     description=marker_dict.get("description"),
-                    type=marker_dict.get("type", "unknown"),
+                    type=new_type,
                     color="#3498db",
                     icon="default",
                     created_by="cot_ingest",
@@ -7108,16 +7161,17 @@ async def ingest_cot_xml(request: Request):
                         marker_dict["id"],
                     )
                     return {"status": "skipped", "reason": "echo-back of LPU5-originated marker"}
-                # Guard: don't downgrade a meshtastic_node marker to cbt_friendly
-                # or tak_maker when the incoming CoT echo lacks a <meshtastic>
-                # element.  ATAK may strip custom detail elements when re-
-                # distributing CoT, which would cause the node to lose its
+                # Guard: don't downgrade a meshtastic_node/node/gateway marker to
+                # cbt_friendly or tak_maker when the incoming CoT echo lacks a
+                # <meshtastic> element.  ATAK may strip custom detail elements when
+                # re-distributing CoT, which would cause the node to lose its
                 # Meshtastic icon on every subsequent position update.
                 incoming_type = marker_dict.get("type", "unknown")
-                if (existing.type == "meshtastic_node"
+                _MESH_DB_TYPES = {"meshtastic_node", "node", "gateway"}
+                if (existing.type in _MESH_DB_TYPES
                         and not cot_event.has_meshtastic_detail
-                        and incoming_type != "meshtastic_node"):
-                    incoming_type = "meshtastic_node"
+                        and incoming_type not in _MESH_DB_TYPES):
+                    incoming_type = existing.type
                 existing.lat   = marker_dict["lat"]
                 existing.lng   = marker_dict["lng"]
                 existing.name  = marker_dict.get("name") or marker_dict["id"]
@@ -7140,13 +7194,16 @@ async def ingest_cot_xml(request: Request):
                     "data": existing.data,
                 }
             else:
+                # For "mesh-" UID markers from ATAK/WinTAK SA/COT import, always
+                # use type "node" so they render with the Meshtastic blue-circle icon.
+                new_type = "node" if marker_dict["id"].startswith("mesh-") else marker_dict.get("type", "unknown")
                 new_marker = MapMarker(
                     id=marker_dict["id"],
                     lat=marker_dict["lat"],
                     lng=marker_dict["lng"],
                     name=marker_dict.get("name") or marker_dict["id"],
                     description=marker_dict.get("description"),
-                    type=marker_dict.get("type", "unknown"),
+                    type=new_type,
                     color="#3498db",
                     icon="default",
                     created_by="cot_ingest",

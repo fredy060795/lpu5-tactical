@@ -671,6 +671,13 @@ class CoTProtocolHandler:
             # visually distinguished from natively created LPU5 markers.
             lpu5_type = CoTProtocolHandler.ATAK_TO_CBT_TYPE.get(lpu5_type, lpu5_type)
 
+        # CoT events with a "mesh-" UID prefix are LPU5 Meshtastic node forwards
+        # imported back via ATAK/WinTAK SA/COT import.  Always map them to type
+        # "node" so they render with the Meshtastic blue-circle icon instead of
+        # a generic ground marker.
+        if cot_event.uid.startswith("mesh-"):
+            lpu5_type = "node"
+
         return {
             "id": cot_event.uid,
             "name": cot_event.callsign,
