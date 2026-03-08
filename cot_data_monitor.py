@@ -27,6 +27,13 @@ Usage
     python cot_data_monitor.py --tak-host 192.168.1.100 --web
     python cot_data_monitor.py --listen --web --web-port 9090
 
+    # Monitor via the LPU5 API (when the API is already running):
+    python cot_data_monitor.py --api-url http://127.0.0.1:8101
+    python cot_data_monitor.py --api-url http://127.0.0.1:8101 --web
+
+    # --web alone auto-detects a running API; falls back to --listen:
+    python cot_data_monitor.py --web
+
 Each captured CoT event is displayed with:
     • Direction  (LPU5 → ATAK  or  ATAK → LPU5)
     • Raw XML (optional, --show-xml)
@@ -40,6 +47,11 @@ HTML interface (``cot_monitor_ui.html``).  The web UI shows each captured
 CoT event in a table, displays the LPU5-detected marker type, and provides
 a dropdown to manually assign the correct marker type.  Annotated logs
 (with corrections) can be saved as JSON for further development.
+
+When the LPU5 API is already running, use ``--api-url`` to read CoT data
+from the API's built-in monitor stream instead of opening local listeners
+that would conflict with the running API.  The CoT monitor is also
+available directly in the API at ``/api/cot/monitor/ui``.
 
 The tool does **not** modify any data – it is read-only and safe for
 production use.
@@ -825,6 +837,87 @@ class LPU5WebSocketMonitor(threading.Thread):
 
 
 # ---------------------------------------------------------------------------
+# LPU5 API SSE monitor (connects to the API's built-in CoT monitor SSE)
+# ---------------------------------------------------------------------------
+
+class LPU5APIMonitor(threading.Thread):
+    """
+    Connect to the LPU5 API's ``/api/cot/monitor/stream`` SSE endpoint and
+    forward every captured CoT event to the local ``on_event`` callback.
+
+    This is the preferred data source when the LPU5 API is already running
+    because it does **not** open any local TCP/UDP listeners and therefore
+    never conflicts with the API's own ``CoTListenerService``.
+    """
+
+    def __init__(self, api_url: str = "http://127.0.0.1:8101",
+                 on_event=None):
+        super().__init__(daemon=True)
+        self.api_url = api_url.rstrip("/")
+        self.on_event = on_event
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
+
+    def run(self):
+        import urllib.request
+        sse_url = self.api_url + "/api/cot/monitor/stream"
+        while not self._stop_event.is_set():
+            resp = None
+            try:
+                _log_stderr(f"Connecting to LPU5 API SSE at {sse_url}")
+                req = urllib.request.Request(sse_url)
+                resp = urllib.request.urlopen(req, timeout=10)
+                _log_stderr(f"Connected to LPU5 API SSE stream")
+                buf = ""
+                event_name = ""
+                while not self._stop_event.is_set():
+                    try:
+                        line = resp.readline()
+                        if not line:
+                            break
+                        line = line.decode("utf-8", errors="replace").rstrip("\r\n")
+                    except Exception:
+                        break
+                    if line.startswith("event:"):
+                        event_name = line[6:].strip()
+                    elif line.startswith("data:"):
+                        buf = line[5:].strip()
+                    elif line == "" and buf:
+                        # End of SSE message
+                        if event_name == "cot_event":
+                            self._handle_sse_record(buf)
+                        buf = ""
+                        event_name = ""
+                    elif line.startswith(":"):
+                        # Comment / keep-alive
+                        pass
+            except Exception as exc:
+                _log_stderr(f"LPU5 API SSE error: {exc}")
+            finally:
+                if resp is not None:
+                    try:
+                        resp.close()
+                    except Exception:
+                        pass
+            if not self._stop_event.is_set():
+                time.sleep(3)
+
+    def _handle_sse_record(self, raw: str):
+        try:
+            record = json.loads(raw)
+        except json.JSONDecodeError:
+            return
+        parsed = record.get("parsed", {})
+        direction = record.get("direction", "<<<")
+        source = record.get("source", "api")
+        raw_xml = record.get("raw_xml", "")
+        if parsed and self.on_event:
+            self.on_event(parsed, direction, source, raw_xml)
+
+
+# ---------------------------------------------------------------------------
 # Statistics tracker
 # ---------------------------------------------------------------------------
 
@@ -1254,6 +1347,10 @@ def main():
               # Monitor via LPU5 WebSocket (processed events):
               %(prog)s --ws ws://127.0.0.1:8101/ws
 
+              # Monitor via running LPU5 API (no port conflicts):
+              %(prog)s --api-url http://127.0.0.1:8101
+              %(prog)s --api-url http://127.0.0.1:8101 --web
+
               # Start with web UI for graphical monitoring & correction:
               %(prog)s --tak-host 192.168.1.100 --web
               %(prog)s --listen --web --web-port 9090
@@ -1287,6 +1384,13 @@ def main():
     g_ws.add_argument("--ws", metavar="URL",
                       help="LPU5 WebSocket URL (e.g. ws://127.0.0.1:8101/ws)")
 
+    g_api = parser.add_argument_group("LPU5 API monitor (use when API is already running)")
+    g_api.add_argument("--api-url", metavar="URL",
+                       help="LPU5 API base URL (e.g. http://127.0.0.1:8101). "
+                            "Connects to the API's built-in CoT monitor SSE "
+                            "stream instead of opening local listeners that "
+                            "would conflict with the running API.")
+
     g_web = parser.add_argument_group("Web UI (graphical interface)")
     g_web.add_argument("--web", action="store_true",
                        help="Start the built-in web UI for graphical monitoring "
@@ -1313,13 +1417,26 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.tak_host and not args.listen and not args.ws:
+    if not args.tak_host and not args.listen and not args.ws and not args.api_url:
         if args.web:
-            # --web alone implies --listen so the local CoT listener captures
-            # incoming ATAK traffic and feeds it to the web UI.
-            args.listen = True
+            # --web alone: try to auto-detect a running LPU5 API and use its
+            # SSE stream.  This avoids the port conflict that would otherwise
+            # crash the monitor when the API already occupies TCP 8088 / UDP 4242.
+            _default_api = "http://127.0.0.1:8101"
+            try:
+                import urllib.request
+                resp = urllib.request.urlopen(
+                    _default_api + "/api/cot/monitor/stats", timeout=2)
+                resp.close()
+                args.api_url = _default_api
+                _log_stderr(f"Auto-detected running LPU5 API at {_default_api}")
+            except Exception:
+                # API not reachable – fall back to local listener
+                args.listen = True
         else:
-            parser.error("Specify at least one of: --tak-host, --listen, or --ws")
+            parser.error(
+                "Specify at least one of: --tak-host, --listen, --ws, or --api-url"
+            )
 
     # ----- Set up output channels -----
     log_fh: Optional[Any] = None
@@ -1382,6 +1499,8 @@ def main():
               f"Multicast=239.2.3.1:6969")
     if args.ws:
         print(f"  WS      : {args.ws}")
+    if args.api_url:
+        print(f"  API     : {args.api_url} (SSE monitor stream)")
     if args.web:
         print(f"  Web UI  : http://0.0.0.0:{args.web_port}/")
     if args.meshtastic_only:
@@ -1424,6 +1543,14 @@ def main():
                                        on_event=lambda msg, evt: None)
         ws_mon.start()
         monitors.append(ws_mon)
+
+    if args.api_url:
+        api_mon = LPU5APIMonitor(
+            api_url=args.api_url,
+            on_event=on_cot_event,
+        )
+        api_mon.start()
+        monitors.append(api_mon)
 
     # ----- Wait for Ctrl+C -----
     try:
