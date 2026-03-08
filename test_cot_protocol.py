@@ -551,11 +551,13 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_gps_position_type_gps_how(self):
-        # "h-g-i-g-o" (GPS-derived) → gps_position (not tak_maker)
+        # "h-g-i-g-o" (GPS-derived) → tak_maker (ATAK user SA beacon)
+        # LPU5's own GPS positions are created directly via /api/map/symbols
+        # and never pass through CoT type detection.
         xml = self._make_cot_xml(how="h-g-i-g-o")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "gps_position")
+        self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_friendly_for_machine_generated(self):
         # "m-g" without <meshtastic> → CBT variant of friendly for a-f (ATAK-sourced)
