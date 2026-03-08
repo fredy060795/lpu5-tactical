@@ -1298,7 +1298,12 @@ def main():
     args = parser.parse_args()
 
     if not args.tak_host and not args.listen and not args.ws:
-        parser.error("Specify at least one of: --tak-host, --listen, or --ws")
+        if args.web:
+            # --web alone implies --listen so the local CoT listener captures
+            # incoming ATAK traffic and feeds it to the web UI.
+            args.listen = True
+        else:
+            parser.error("Specify at least one of: --tak-host, --listen, or --ws")
 
     # ----- Set up output channels -----
     log_fh: Optional[Any] = None
