@@ -434,9 +434,9 @@ test('b-m-p-s-m-u maps to cbt_unknown', () => {
   assert(lpu5 === 'cbt_unknown', `b-m-p-s-m-u should map to cbt_unknown, got ${lpu5}`);
 });
 
-test('generic b-m-p-s-m still maps to hostile', () => {
+test('generic b-m-p-s-m maps to cbt_hostile', () => {
   const lpu5 = COTEvent.cotTypeToLpu5('b-m-p-s-m');
-  assert(lpu5 === 'hostile', `b-m-p-s-m should still map to hostile, got ${lpu5}`);
+  assert(lpu5 === 'cbt_hostile', `b-m-p-s-m should map to cbt_hostile, got ${lpu5}`);
 });
 
 test('cotToMarker with b-m-p-s-m type applies CBT fallback', () => {
