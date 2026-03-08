@@ -544,12 +544,12 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "meshtastic_node")
 
     def test_cot_to_marker_tak_maker_type_human_how(self):
-        # "h-e" (human-entered) → meshtastic_node (round circle with short name)
-        # Only GPS-derived how="h-g*" produces tak_maker.
+        # "h-e" (human-entered) WITHOUT <meshtastic> detail → tak_maker.
+        # Only <meshtastic> detail or CoT type a-f-G-E* produces meshtastic_node.
         xml = self._make_cot_xml(how="h-e")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "meshtastic_node")
+        self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_gps_position_type_gps_how(self):
         # "h-g-i-g-o" (GPS-derived) → tak_maker (ATAK user SA beacon)
@@ -645,6 +645,48 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "meshtastic_node",
                          "a-f-G-E-S-U-M without <meshtastic> detail must produce meshtastic_node")
+
+    def test_from_xml_extracts_meshtastic_short_name(self):
+        xml = self._make_cot_xml(
+            extra_detail='<meshtastic longName="Büroturm" shortName="BT01"/>'
+        )
+        evt = CoTEvent.from_xml(xml)
+        self.assertEqual(evt.meshtastic_short_name, "BT01")
+
+    def test_cot_to_marker_includes_short_name(self):
+        xml = self._make_cot_xml(
+            extra_detail='<meshtastic longName="Büroturm" shortName="BT01"/>'
+        )
+        evt = CoTEvent.from_xml(xml)
+        marker = CoTProtocolHandler.cot_to_marker(evt)
+        self.assertEqual(marker["shortName"], "BT01")
+
+    def test_meshtastic_short_name_defaults_to_none(self):
+        evt = CoTEvent(uid="x", cot_type="a-f-G-U-C", lat=0.0, lon=0.0)
+        self.assertIsNone(evt.meshtastic_short_name)
+
+    def test_to_xml_uses_meshtastic_short_name(self):
+        evt = CoTEvent(uid="mesh-1", cot_type="a-f-G-E-S-U-M", lat=48.0,
+                       lon=11.0, callsign="Büroturm",
+                       is_meshtastic_node=True,
+                       meshtastic_short_name="BT01")
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace(
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        mesh_elem = root.find("detail/meshtastic")
+        self.assertIsNotNone(mesh_elem)
+        self.assertEqual(mesh_elem.get("shortName"), "BT01")
+
+    def test_to_xml_falls_back_to_callsign_prefix(self):
+        evt = CoTEvent(uid="mesh-2", cot_type="a-f-G-E-S-U-M", lat=48.0,
+                       lon=11.0, callsign="Büroturm",
+                       is_meshtastic_node=True)
+        xml_str = evt.to_xml()
+        root = ET.fromstring(xml_str.replace(
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', ''))
+        mesh_elem = root.find("detail/meshtastic")
+        self.assertIsNotNone(mesh_elem)
+        self.assertEqual(mesh_elem.get("shortName"), "Büro")
 
 
 class TestGatewayContactDisplay(unittest.TestCase):
@@ -1459,15 +1501,16 @@ class TestMeshtasticDetailInOutgoingCoT(unittest.TestCase):
         self.assertIsNotNone(mesh_elem)
         self.assertEqual(mesh_elem.get("longName"), name)
 
-    def test_meshtastic_element_short_name_is_first_two_chars(self):
-        """<meshtastic shortName> must be the first two characters of the callsign."""
+    def test_meshtastic_element_short_name_is_first_four_chars(self):
+        """<meshtastic shortName> must be the first four characters of the callsign
+        when no explicit shortName is provided."""
         name = "Bravo"
         marker = {"id": "mesh-!aa11", "lat": 0.0, "lng": 0.0, "name": name, "type": "node"}
         evt = CoTProtocolHandler.marker_to_cot(marker)
         root = self._parse_xml(evt.to_xml())
         mesh_elem = root.find("./detail/meshtastic")
         self.assertIsNotNone(mesh_elem)
-        self.assertEqual(mesh_elem.get("shortName"), "Br")
+        self.assertEqual(mesh_elem.get("shortName"), "Brav")
 
     def test_non_meshtastic_to_xml_has_no_meshtastic_element(self):
         """to_xml() must NOT include <meshtastic> for non-Meshtastic events."""

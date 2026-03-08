@@ -419,7 +419,8 @@ class COTProtocolHandler {
         // like regular ATAK SA beacons.  The <meshtastic> element is checked first
         // as the authoritative signal that this is a Meshtastic node.
         //   • <meshtastic> in detail → Meshtastic node forwarded by ATAK plugin
-        //   • a-f-G-U-C with human/GPS how (h-*), no meshtastic detail → ATAK SA
+        //   • CoT type maps to meshtastic_node (a-f-G-E-S-U-M, a-f-G-E)
+        //   • All other friendly contacts with human-derived how → tak_maker
         //   • Other ATAK-sourced shapes → CBT variant for visual distinction
         const _ATAK_TO_CBT = {
             hostile: 'cbt_hostile', friendly: 'cbt_friendly',
@@ -427,10 +428,8 @@ class COTProtocolHandler {
         };
         if (cotEvent.hasMeshtasticDetail || lpu5Type === 'meshtastic_node') {
             lpu5Type = 'meshtastic_node';
-        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
-            lpu5Type = 'tak_maker';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
-            lpu5Type = 'meshtastic_node';
+            lpu5Type = 'tak_maker';
         } else if (_ATAK_TO_CBT[lpu5Type]) {
             lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }

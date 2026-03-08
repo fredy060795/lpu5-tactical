@@ -1545,6 +1545,14 @@ def _process_incoming_cot(cot_xml: str) -> None:
             # Inline fallback when cot_protocol is unavailable: check directly.
             _has_mesh_detail = (detail is not None and detail.find("meshtastic") is not None)
 
+        # Extract shortName from the <meshtastic> element when present, so it
+        # can be stored in the marker data for proper rendering.
+        _mesh_short_name = None
+        if _has_mesh_detail and detail is not None:
+            _mesh_elem = detail.find("meshtastic")
+            if _mesh_elem is not None:
+                _mesh_short_name = _mesh_elem.get("shortName")
+
         # Map CoT type to LPU5 internal type
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
@@ -1579,22 +1587,17 @@ def _process_incoming_cot(cot_xml: str) -> None:
 
         # Override with more specific types for ATAK-sourced events.
         # Meshtastic SA beacons forwarded by an ATAK Meshtastic plugin carry a
-        # <meshtastic> element in their <detail> block.  These are checked first
-        # because ATAK Meshtastic SA beacons use how="h-*" just like regular ATAK
-        # SA beacons; the <meshtastic> element is the authoritative signal that
-        # this is a Meshtastic node, not a human ATAK user.
+        # <meshtastic> element in their <detail> block, OR the CoT type maps
+        # directly to meshtastic_node (e.g. a-f-G-E-S-U-M, a-f-G-E).
+        # These are checked first as the authoritative signal for Meshtastic.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
-        #   • how starts with "h-g" (GPS-derived, no meshtastic detail) → tak_maker
-        #     (ATAK user SA beacon; LPU5's own GPS positions use UIDs "GPS-*"
-        #      and are filtered above)
-        #   • how starts with "h" but NOT "h-g" (human-entered) → meshtastic_node
-        #     (round circle with short name or "M")
+        #   • All other friendly contacts with human-derived how ("h-g", "h-e",
+        #     etc.) → tak_maker (ATAK user SA beacon; LPU5's own GPS positions
+        #     use UIDs "GPS-*" and are filtered above)
         if _has_mesh_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly" and how.startswith("h-g"):
-            lpu5_type = "tak_maker"
         elif lpu5_type == "friendly" and how.startswith("h"):
-            lpu5_type = "meshtastic_node"
+            lpu5_type = "tak_maker"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are
@@ -1659,6 +1662,8 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 marker.type = effective_type
                 new_data = dict(marker.data) if marker.data else {}
                 new_data["cot_type"] = event_type
+                if _mesh_short_name:
+                    new_data["shortName"] = _mesh_short_name
                 marker.data = new_data
                 flag_modified(marker, "data")
             else:
@@ -1667,6 +1672,9 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     # Suppress recreation so the deletion takes effect immediately.
                     logger.debug("CoT: suppressing recreation of recently deleted marker: %s", uid)
                     return
+                _new_data = {"cot_type": event_type}
+                if _mesh_short_name:
+                    _new_data["shortName"] = _mesh_short_name
                 marker = MapMarker(
                     id=uid,
                     name=callsign,
@@ -1674,13 +1682,13 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     lng=lng,
                     type=effective_type,
                     created_by="tak_server",
-                    data={"cot_type": event_type},
+                    data=_new_data,
                 )
                 db.add(marker)
             db.commit()
 
             # Broadcast to WebSocket clients
-            broadcast_websocket_update("markers", "tak_maker_update", {
+            _ws_data = {
                 "id": uid,
                 "name": callsign,
                 "callsign": callsign,
@@ -1689,7 +1697,10 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 "type": effective_type,
                 "cot_type": event_type,
                 "created_by": "tak_server",
-            })
+            }
+            if _mesh_short_name:
+                _ws_data["shortName"] = _mesh_short_name
+            broadcast_websocket_update("markers", "tak_maker_update", _ws_data)
             logger.info("TAK event received: %s (%s) @ %.6f, %.6f", callsign, event_type, lat, lng)
         finally:
             db.close()
