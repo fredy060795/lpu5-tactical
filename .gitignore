@@ -69,4 +69,3 @@ test_*.png
 map_markers_db.json
 meshtastic_messages_db.json
 meshtastic_nodes_db.json
-tactical.db
