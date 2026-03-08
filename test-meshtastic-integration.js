@@ -246,17 +246,18 @@ test('Coordinate bounds validation', () => {
 
 // Test Affiliation Parsing
 test('Affiliation parsing from COT type', () => {
-  // Machine-generated (how='m-g') ATAK events are remapped to CBT variants
-  const friendly = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-f-G-U-C' }));
+  // Machine-generated (how='m-g') ATAK events are remapped to CBT variants.
+  // Use explicit non-mesh UIDs to avoid the mesh UID detection.
+  const friendly = COTProtocolHandler.cotToMarker(new COTEvent({ uid: 'ATAK-F-1', type: 'a-f-G-U-C' }));
   assert(friendly.status === 'cbt_friendly', 'Should parse as cbt_friendly (ATAK machine-generated)');
   
-  const hostile = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-h-G-U-C' }));
+  const hostile = COTProtocolHandler.cotToMarker(new COTEvent({ uid: 'ATAK-H-1', type: 'a-h-G-U-C' }));
   assert(hostile.status === 'cbt_hostile', 'Should parse as cbt_hostile (ATAK machine-generated)');
   
-  const neutral = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-n-G-U-C' }));
+  const neutral = COTProtocolHandler.cotToMarker(new COTEvent({ uid: 'ATAK-N-1', type: 'a-n-G-U-C' }));
   assert(neutral.status === 'cbt_neutral', 'Should parse as cbt_neutral (ATAK machine-generated)');
   
-  const unknown = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-u-G-U-C' }));
+  const unknown = COTProtocolHandler.cotToMarker(new COTEvent({ uid: 'ATAK-U-1', type: 'a-u-G-U-C' }));
   assert(unknown.status === 'cbt_unknown', 'Should parse as cbt_unknown (ATAK machine-generated)');
 });
 
@@ -276,9 +277,9 @@ test('gateway type maps to a-f-G-E-S-U-M', () => {
   assert(cotType === 'a-f-G-E-S-U-M', `gateway should map to a-f-G-E-S-U-M, got ${cotType}`);
 });
 
-test('a-f-G-E-S-U-M maps back to meshtastic_node', () => {
+test('a-f-G-E-S-U-M maps back to node', () => {
   const lpu5 = COTEvent.cotTypeToLpu5('a-f-G-E-S-U-M');
-  assert(lpu5 === 'meshtastic_node', `a-f-G-E-S-U-M should map to meshtastic_node, got ${lpu5}`);
+  assert(lpu5 === 'node', `a-f-G-E-S-U-M should map to node, got ${lpu5}`);
 });
 
 test('markerToCOT with node type produces a-f-G-E-S-U-M', () => {
@@ -313,7 +314,7 @@ test('COTEvent hasMeshtasticDetail can be set via constructor', () => {
   assert(cot.hasMeshtasticDetail === true, 'hasMeshtasticDetail should be settable via options');
 });
 
-test('cotToMarker with hasMeshtasticDetail=true overrides type to meshtastic_node', () => {
+test('cotToMarker with hasMeshtasticDetail=true overrides type to node', () => {
   // Simulates receiving a CoT with a-f-G-U-C type but <meshtastic> in detail
   // and how='m-g' (machine-generated, typical for Meshtastic forwarding plugins).
   const cot = new COTEvent({
@@ -326,11 +327,11 @@ test('cotToMarker with hasMeshtasticDetail=true overrides type to meshtastic_nod
     hasMeshtasticDetail: true,  // preserved <meshtastic> element
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'meshtastic_node',
-    `hasMeshtasticDetail with how=m-g should force type=meshtastic_node, got ${marker.type}`);
+  assert(marker.type === 'node',
+    `hasMeshtasticDetail with how=m-g should force type=node, got ${marker.type}`);
 });
 
-test('cotToMarker Meshtastic SA beacon with meshtastic detail produces meshtastic_node', () => {
+test('cotToMarker Meshtastic SA beacon with meshtastic detail produces node', () => {
   // hasMeshtasticDetail is the authoritative signal that this is a Meshtastic
   // node (not a plain human ATAK user), regardless of how="h-e".  In
   // cot-client.js the hasMeshtasticDetail check runs first.
@@ -344,11 +345,11 @@ test('cotToMarker Meshtastic SA beacon with meshtastic detail produces meshtasti
     hasMeshtasticDetail: true,
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'meshtastic_node',
-    `how='h-e' + hasMeshtasticDetail must produce meshtastic_node, got ${marker.type}`);
+  assert(marker.type === 'node',
+    `how='h-e' + hasMeshtasticDetail must produce node, got ${marker.type}`);
 });
 
-test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives meshtastic_node', () => {
+test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives node', () => {
   const cot = new COTEvent({
     uid: 'MESH-3',
     type: 'a-f-G-E-S-U-M',
@@ -357,8 +358,58 @@ test('cotToMarker with a-f-G-E-S-U-M type and no hasMeshtasticDetail gives mesht
     callsign: 'Node3',
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'meshtastic_node',
-    `a-f-G-E-S-U-M without <meshtastic> detail should map to meshtastic_node, got ${marker.type}`);
+  assert(marker.type === 'node',
+    `a-f-G-E-S-U-M without <meshtastic> detail should map to node, got ${marker.type}`);
+});
+
+test('a-f-G-E-S maps to node', () => {
+  const lpu5 = COTEvent.cotTypeToLpu5('a-f-G-E-S');
+  assert(lpu5 === 'node', `a-f-G-E-S should map to node, got ${lpu5}`);
+});
+
+test('a-f-G-E maps to node', () => {
+  const lpu5 = COTEvent.cotTypeToLpu5('a-f-G-E');
+  assert(lpu5 === 'node', `a-f-G-E should map to node, got ${lpu5}`);
+});
+
+test('cotToMarker with uppercase MESH UID maps to node', () => {
+  const cot = new COTEvent({
+    uid: 'MESH-123',
+    type: 'a-f-G-U-C',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'MeshUpper',
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'node',
+    `UID MESH-123 should map to node, got ${marker.type}`);
+});
+
+test('cotToMarker with embedded mesh in UID maps to node', () => {
+  const cot = new COTEvent({
+    uid: 'node-mesh-456',
+    type: 'a-f-G-U-C',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'MeshEmbed',
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'node',
+    `UID node-mesh-456 should map to node, got ${marker.type}`);
+});
+
+test('cotToMarker with a-f-G-E-S-U-M and how=h-g still maps to node (not tak_maker)', () => {
+  const cot = new COTEvent({
+    uid: 'MESHTASTIC-NODE-1',
+    type: 'a-f-G-E-S-U-M',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'MeshHG',
+    how: 'h-g',
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'node',
+    `a-f-G-E-S-U-M with how=h-g should be node (not tak_maker), got ${marker.type}`);
 });
 
 // Summary

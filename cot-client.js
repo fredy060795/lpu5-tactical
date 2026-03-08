@@ -293,8 +293,9 @@ class COTEvent {
             ['u-d-r',       'friendly'],       // TAK drawing rectangle
             ['u-d-f',       'hostile'],          // TAK drawing freehand → diamond
             ['u-d-p',       'hostile'],          // TAK drawing generic point → diamond
-            ['a-f-G-E-S-U-M', 'meshtastic_node'],   // Meshtastic equipment → meshtastic_node
-            ['a-f-G-E',    'meshtastic_node'],   // Friendly ground equipment (Meshtastic nodes via ATAK plugin)
+            ['a-f-G-E-S-U-M', 'node'],   // Meshtastic equipment → node
+            ['a-f-G-E-S',  'node'],   // Ground equipment / subsurface (ATAK plugin interfaces)
+            ['a-f-G-E',    'node'],   // Friendly ground equipment (Meshtastic nodes via ATAK plugin)
             ['a-f',         'friendly'],       // friendly → blue rectangle
             ['a-h',         'hostile'],        // hostile → red diamond
             ['a-n',         'neutral'],        // neutral → green square
@@ -425,12 +426,12 @@ class COTProtocolHandler {
             hostile: 'cbt_hostile', friendly: 'cbt_friendly',
             neutral: 'cbt_neutral', unknown: 'cbt_unknown'
         };
-        if (cotEvent.hasMeshtasticDetail || lpu5Type === 'meshtastic_node') {
-            lpu5Type = 'meshtastic_node';
+        if (cotEvent.hasMeshtasticDetail || lpu5Type === 'node' || cotEvent.type === 'a-f-G-E-S-U-M') {
+            lpu5Type = 'node';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
             lpu5Type = 'tak_maker';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
-            lpu5Type = 'meshtastic_node';
+            lpu5Type = 'node';
         } else if (_ATAK_TO_CBT[lpu5Type]) {
             lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }
@@ -438,7 +439,7 @@ class COTProtocolHandler {
         // CoT events with a "mesh-" UID prefix are Meshtastic nodes imported back
         // via ATAK/WinTAK SA/COT import.  Always map them to type "node" so they
         // render with the Meshtastic blue-circle icon instead of a generic ground marker.
-        if (cotEvent.uid && cotEvent.uid.startsWith('mesh-')) {
+        if (cotEvent.uid && cotEvent.uid.toLowerCase().includes('mesh')) {
             lpu5Type = 'node';
         }
 
