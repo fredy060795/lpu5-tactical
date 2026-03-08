@@ -27,6 +27,7 @@ Thumbs.db
 # Logs
 *.log
 install_log.txt
+cot_monitor_log_*.json
 
 # Temporary files
 *.tmp

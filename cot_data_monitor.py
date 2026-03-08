@@ -23,6 +23,10 @@ Usage
     # Write to log file as well:
     python cot_data_monitor.py --tak-host 192.168.1.100 --log cot_traffic.log
 
+    # Start with HTML web UI (graphical interface):
+    python cot_data_monitor.py --tak-host 192.168.1.100 --web
+    python cot_data_monitor.py --listen --web --web-port 9090
+
 Each captured CoT event is displayed with:
     • Direction  (LPU5 → ATAK  or  ATAK → LPU5)
     • Raw XML (optional, --show-xml)
@@ -31,6 +35,12 @@ Each captured CoT event is displayed with:
       meshtastic_node / node / gateway / gps_position / cbt_* …)
     • Meshtastic detail flag, contact endpoint, color, remarks, stale window
 
+The ``--web`` flag starts a built-in HTTP server that serves a graphical
+HTML interface (``cot_monitor_ui.html``).  The web UI shows each captured
+CoT event in a table, displays the LPU5-detected marker type, and provides
+a dropdown to manually assign the correct marker type.  Annotated logs
+(with corrections) can be saved as JSON for further development.
+
 The tool does **not** modify any data – it is read-only and safe for
 production use.
 """
@@ -38,9 +48,12 @@ production use.
 from __future__ import annotations
 
 import argparse
+import http.server
 import json
 import logging
 import os
+import pathlib
+import queue
 import re
 import select
 import signal
@@ -894,6 +907,300 @@ class EventFilter:
 
 
 # ---------------------------------------------------------------------------
+# Event store (shared between capture threads and web server)
+# ---------------------------------------------------------------------------
+
+class EventStore:
+    """Thread-safe store for captured CoT events with SSE broadcast."""
+
+    def __init__(self, max_events: int = 10000):
+        self._lock = threading.Lock()
+        self._events: List[Dict[str, Any]] = []
+        self._max = max_events
+        self._sse_queues: List[queue.Queue] = []
+
+    def add(self, parsed: Dict[str, Any], direction: str,
+            source: str, raw_xml: str):
+        record = {
+            "parsed": parsed,
+            "direction": direction,
+            "source": source,
+            "raw_xml": raw_xml,
+        }
+        with self._lock:
+            idx = len(self._events)
+            record["idx"] = idx
+            self._events.append(record)
+            if len(self._events) > self._max:
+                self._events = self._events[-self._max:]
+            # Push to all SSE subscribers
+            dead: List[int] = []
+            for i, q in enumerate(self._sse_queues):
+                try:
+                    q.put_nowait(record)
+                except queue.Full:
+                    dead.append(i)
+            for i in reversed(dead):
+                self._sse_queues.pop(i)
+
+    def get_all(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            return list(self._events)
+
+    def set_correction(self, idx: int, correction: str, notes: str):
+        with self._lock:
+            if 0 <= idx < len(self._events):
+                self._events[idx]["correction"] = correction
+                self._events[idx]["notes"] = notes
+
+    def clear(self):
+        with self._lock:
+            self._events.clear()
+
+    def subscribe_sse(self) -> queue.Queue:
+        q: queue.Queue = queue.Queue(maxsize=500)
+        with self._lock:
+            self._sse_queues.append(q)
+        return q
+
+    def unsubscribe_sse(self, q: queue.Queue):
+        with self._lock:
+            try:
+                self._sse_queues.remove(q)
+            except ValueError:
+                pass
+
+    def export_log(self) -> Dict[str, Any]:
+        with self._lock:
+            all_events = list(self._events)
+
+        corrected = [e for e in all_events if e.get("correction")]
+        return {
+            "export_time": datetime.now(timezone.utc).isoformat(),
+            "summary": {
+                "total_events": len(all_events),
+                "corrections_made": len(corrected),
+            },
+            "corrections": [
+                {
+                    "event_index": e.get("idx", 0) + 1,
+                    "uid": e["parsed"].get("uid"),
+                    "callsign": e["parsed"].get("callsign"),
+                    "cot_type": e["parsed"].get("cot_type"),
+                    "how": e["parsed"].get("how"),
+                    "detected_type": e["parsed"].get("detected_type"),
+                    "detection_reason": e["parsed"].get("detection_reason"),
+                    "correct_type": e.get("correction"),
+                    "notes": e.get("notes", ""),
+                    "direction": ("ATAK->LPU5" if e["direction"] == "<<<"
+                                  else "LPU5->ATAK"),
+                    "raw_xml": e.get("raw_xml", ""),
+                }
+                for e in corrected
+            ],
+            "all_events": [
+                {
+                    "event_index": e.get("idx", 0) + 1,
+                    "direction": ("ATAK->LPU5" if e["direction"] == "<<<"
+                                  else "LPU5->ATAK"),
+                    "source": e.get("source"),
+                    **{k: e["parsed"].get(k) for k in (
+                        "uid", "callsign", "cot_type", "how", "lat", "lon",
+                        "detected_type", "detection_reason", "has_meshtastic",
+                        "mesh_longName", "mesh_shortName", "is_echo_back",
+                        "team", "role", "endpoint", "time", "stale",
+                    )},
+                    "correct_type": e.get("correction") or None,
+                    "notes": e.get("notes") or None,
+                }
+                for e in all_events
+            ],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Built-in HTTP server for the web UI
+# ---------------------------------------------------------------------------
+
+# Module-level reference – set in main() before the server starts.
+_event_store: Optional[EventStore] = None
+_html_dir: str = ""
+
+
+class MonitorHTTPHandler(http.server.BaseHTTPRequestHandler):
+    """Handle HTTP requests for the CoT monitor web UI."""
+
+    # Suppress default request logging to stderr
+    def log_message(self, fmt, *a):
+        pass
+
+    def _send_json(self, obj: Any, status: int = 200):
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_html(self, html_bytes: bytes, status: int = 200):
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(html_bytes)))
+        self.end_headers()
+        self.wfile.write(html_bytes)
+
+    # ── Routes ──
+
+    def do_GET(self):
+        if self.path == "/" or self.path == "/index.html":
+            self._serve_html()
+        elif self.path == "/api/events":
+            self._api_get_events()
+        elif self.path == "/api/events/stream":
+            self._api_sse_stream()
+        elif self.path == "/api/export":
+            self._api_export_get()
+        else:
+            self.send_error(404)
+
+    def do_POST(self):
+        if self.path == "/api/events/clear":
+            self._api_clear()
+        elif self.path.startswith("/api/events/") and self.path.endswith("/correction"):
+            self._api_set_correction()
+        elif self.path == "/api/export":
+            self._api_export_post()
+        else:
+            self.send_error(404)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    # ── Handlers ──
+
+    def _serve_html(self):
+        html_path = os.path.join(_html_dir, "cot_monitor_ui.html")
+        try:
+            with open(html_path, "rb") as f:
+                data = f.read()
+            self._send_html(data)
+        except FileNotFoundError:
+            self.send_error(404, f"cot_monitor_ui.html not found in {_html_dir}")
+
+    def _api_get_events(self):
+        if _event_store is None:
+            self._send_json({"events": []})
+            return
+        self._send_json({"events": _event_store.get_all()})
+
+    def _api_sse_stream(self):
+        """Server-Sent Events stream for real-time updates."""
+        if _event_store is None:
+            self.send_error(503)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        q = _event_store.subscribe_sse()
+        try:
+            while True:
+                try:
+                    record = q.get(timeout=15)
+                    payload = json.dumps(record, ensure_ascii=False)
+                    self.wfile.write(f"event: cot_event\ndata: {payload}\n\n"
+                                     .encode("utf-8"))
+                    self.wfile.flush()
+                except queue.Empty:
+                    # Send keep-alive comment
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        finally:
+            _event_store.unsubscribe_sse(q)
+
+    def _api_clear(self):
+        if _event_store:
+            _event_store.clear()
+        self._send_json({"ok": True})
+
+    def _api_set_correction(self):
+        # Path: /api/events/{idx}/correction
+        try:
+            parts = self.path.split("/")
+            idx = int(parts[3])
+        except (IndexError, ValueError):
+            self.send_error(400)
+            return
+        body = self._read_body()
+        if body is None:
+            return
+        if _event_store:
+            _event_store.set_correction(
+                idx,
+                body.get("correction", ""),
+                body.get("notes", ""),
+            )
+        self._send_json({"ok": True})
+
+    def _api_export_get(self):
+        if _event_store is None:
+            self._send_json({})
+            return
+        self._send_json(_event_store.export_log())
+
+    def _api_export_post(self):
+        body = self._read_body()
+        if body is None:
+            return
+        # Save server-side copy
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"cot_monitor_log_{ts}.json"
+        filepath = os.path.join(_html_dir, filename)
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(body, f, ensure_ascii=False, indent=2)
+            _log_stderr(f"Log saved to {filepath}")
+            self._send_json({"ok": True, "file": filepath})
+        except OSError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=500)
+
+    def _read_body(self) -> Optional[Dict]:
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            return json.loads(raw)
+        except (ValueError, json.JSONDecodeError):
+            self.send_error(400, "Invalid JSON")
+            return None
+
+
+def _start_web_server(port: int, html_dir: str,
+                      store: EventStore) -> threading.Thread:
+    """Start the HTTP server for the web UI in a daemon thread."""
+    global _event_store, _html_dir
+    _event_store = store
+    _html_dir = html_dir
+
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", port),
+                                              MonitorHTTPHandler)
+    t = threading.Thread(target=server.serve_forever, daemon=True,
+                         name="web-server")
+    t.start()
+    _log_stderr(f"Web UI running on http://0.0.0.0:{port}/")
+    return t
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -925,6 +1232,10 @@ def main():
 
               # Monitor via LPU5 WebSocket (processed events):
               %(prog)s --ws ws://127.0.0.1:8101/ws
+
+              # Start with web UI for graphical monitoring & correction:
+              %(prog)s --tak-host 192.168.1.100 --web
+              %(prog)s --listen --web --web-port 9090
         """),
     )
 
@@ -954,6 +1265,13 @@ def main():
     g_ws = parser.add_argument_group("LPU5 WebSocket monitor")
     g_ws.add_argument("--ws", metavar="URL",
                       help="LPU5 WebSocket URL (e.g. ws://127.0.0.1:8101/ws)")
+
+    g_web = parser.add_argument_group("Web UI (graphical interface)")
+    g_web.add_argument("--web", action="store_true",
+                       help="Start the built-in web UI for graphical monitoring "
+                            "and marker-type correction")
+    g_web.add_argument("--web-port", metavar="PORT", type=int, default=8888,
+                       help="HTTP port for the web UI (default: 8888)")
 
     g_filter = parser.add_argument_group("Filtering")
     g_filter.add_argument("--meshtastic-only", action="store_true",
@@ -994,12 +1312,21 @@ def main():
         meshtastic_only=args.meshtastic_only,
     )
 
+    # ----- Event store for the web UI -----
+    event_store = EventStore() if args.web else None
+
     output_lock = threading.Lock()
 
     def on_cot_event(parsed: Dict[str, Any], direction: str,
                      source: str, raw_xml: str):
         """Central handler for every captured CoT event."""
         stats.record(parsed, direction)
+
+        # Always push to web UI store (before filtering – the web UI has
+        # its own client-side filters).
+        if event_store is not None:
+            event_store.add(parsed, direction, source, raw_xml)
+
         if not evt_filter.match(parsed):
             return
 
@@ -1029,6 +1356,8 @@ def main():
               f"Multicast=239.2.3.1:6969")
     if args.ws:
         print(f"  WS      : {args.ws}")
+    if args.web:
+        print(f"  Web UI  : http://0.0.0.0:{args.web_port}/")
     if args.meshtastic_only:
         print(f"  Filter  : Meshtastic-only")
     if args.types:
@@ -1036,6 +1365,11 @@ def main():
     if args.uid:
         print(f"  Filter  : uid=/{args.uid}/")
     print(f"  Ctrl+C to stop and show summary\n")
+
+    # ----- Start web server -----
+    if args.web and event_store is not None:
+        html_dir = str(pathlib.Path(__file__).resolve().parent)
+        _start_web_server(args.web_port, html_dir, event_store)
 
     # ----- Start monitors -----
     monitors: List[threading.Thread] = []
