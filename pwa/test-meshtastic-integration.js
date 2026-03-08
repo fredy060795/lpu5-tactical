@@ -140,7 +140,7 @@ test('COT to map marker conversion', () => {
   assert(marker.id === 'TEST-001', 'Marker should have correct ID');
   assert(marker.lat === 47.1234, 'Marker should have correct latitude');
   assert(marker.lng === 8.5678, 'Marker should have correct longitude');
-  assert(marker.status === 'friendly', 'Should identify as friendly');
+  assert(marker.status === 'node', 'Should identify as node (Meshtastic node relayed by ATAK)');
   assert(marker.source === 'cot', 'Should mark as COT source');
 });
 
@@ -237,7 +237,7 @@ test('Coordinate bounds validation', () => {
 // Test Affiliation Parsing
 test('Affiliation parsing from COT type', () => {
   const friendly = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-f-G-U-C' }));
-  assert(friendly.status === 'friendly', 'Should parse friendly');
+  assert(friendly.status === 'node', 'Should parse friendly as node (Meshtastic node)');
   
   const hostile = COTProtocolHandler.cotToMarker(new COTEvent({ type: 'a-h-G-U-C' }));
   assert(hostile.status === 'hostile', 'Should parse hostile');

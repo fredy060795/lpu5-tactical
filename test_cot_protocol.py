@@ -561,11 +561,11 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_friendly_for_machine_generated(self):
-        # "m-g" without <meshtastic> → CBT variant of friendly for a-f (ATAK-sourced)
+        # "m-g" without <meshtastic> → meshtastic_node (Meshtastic node relayed by ATAK)
         xml = self._make_cot_xml(how="m-g")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "cbt_friendly")
+        self.assertEqual(marker["type"], "meshtastic_node")
 
     def test_meshtastic_detail_takes_precedence_over_human_how(self):
         # how="h-e" (human-entered) + <meshtastic> in detail must produce

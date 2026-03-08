@@ -1140,15 +1140,16 @@
       unknown: getMilSymbolSvg('SUGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
       marker: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>',
       pending: getMilSymbolSvg('SPGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>',
-      // tak_maker: ATAK SA / GPS position markers rendered with MilSymbol (friendly ground unit)
-      tak_maker: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">MKR</text></svg>',
-      // Meshtastic node types rendered with MilSymbol (friendly ground equipment electronic)
-      meshtastic_node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      node: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      gateway: getMilSymbolSvg('SFGPEEE--------', 35) || '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
+      // tak_maker: ATAK SA / GPS position markers rendered as CBT-designated friendly
+      tak_maker: getMilSymbolSvg('SFGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      // Meshtastic node types rendered as GPS arrow icons (default blue)
+      meshtastic_node: '<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+      node: '<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+      gateway: '<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>',
       gps_position: '<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>',
       cbt_hostile: getMilSymbolSvg('SHGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_friendly: getMilSymbolSvg('SFGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      // cbt_friendly: Meshtastic-style circle with shortName (default cyan)
+      cbt_friendly: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#00ffff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
       cbt_neutral: getMilSymbolSvg('SNGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       cbt_unknown: getMilSymbolSvg('SUGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>'
     };
@@ -2666,6 +2667,15 @@
           if (m.type === 'tak_maker') {
             const makerTeam = (m.data && m.data.team) || null;
             iconHtml = getTakMakerSvg(m.name, makerTeam);
+          } else if (m.type === 'cbt_friendly') {
+            // cbt_friendly renders as a Meshtastic-style circle with shortName
+            const shortName = (m.data && (m.data.shortName || m.data.short_name)) || '';
+            const teamName = (m.data && m.data.team) || null;
+            const teamColor = (teamName && TAK_TEAM_COLORS[teamName]) || '#00ffff';
+            const iconLabel = _escapeHtml(shortName) || 'M';
+            const lightColors = new Set(['#00ffff', '#ffff00', '#ffffff', '#00c800']);
+            const textColor = lightColors.has(teamColor) ? '#1a1a1a' : '#ffffff';
+            iconHtml = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="${teamColor}" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="${textColor}" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg>`;
           } else {
             // Robust icon selection: check m.type, then m.name, then fallback to hostile
             const iconType = m.type || m.name || 'hostile';
@@ -2921,12 +2931,9 @@
             longName = n.name || n.callsign || mesh;
           }
 
-          // Build MilSymbol icon for Meshtastic node — use shortName as designation if available
-          const iconLabel = _escapeHtml(shortName) || 'M';
-          const milSvg = getMilSymbolSvg('SFGPEEE--------', 35, { uniqueDesignation: iconLabel });
-          const iconHtml = milSvg
-            ? `<div style="width:35px;height:35px;">${milSvg}</div>`
-            : `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg></div>`;
+          // Build GPS arrow icon for Meshtastic node — use team color if available
+          const teamColor = (n.team ? TAK_TEAM_COLORS[n.team] : null) || '#007bff';
+          const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${teamColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
 
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
@@ -5312,15 +5319,12 @@
       if (!map) return;
 
       const markerType = markerData.type || markerData.status || 'meshtastic_node';
-      // For Meshtastic node types, build a MilSymbol icon with shortName as
-      // designation so ATAK-imported mesh nodes use MIL standard rendering.
+      // For Meshtastic node types, build a GPS arrow icon with team color.
       const _MESH_MARKER_TYPES = new Set(['meshtastic_node', 'node', 'gateway']);
       let svgHtml;
       if (_MESH_MARKER_TYPES.has(markerType)) {
-        const rawLabel = markerData.shortName || '';
-        const iconLabel = _escapeHtml(rawLabel) || 'M';
-        svgHtml = getMilSymbolSvg('SFGPEEE--------', 35, { uniqueDesignation: iconLabel })
-          || `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007bff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="white" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg>`;
+        const teamColor = (markerData.team ? TAK_TEAM_COLORS[markerData.team] : null) || '#007bff';
+        svgHtml = `<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${teamColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
       } else {
         svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
       }
