@@ -1,4 +1,13 @@
 {
+  "defaults": {
+    "meshtastic_node": "/assets/symbols/meshtastic_node.svg",
+    "node": "/assets/symbols/meshtastic_node.svg",
+    "gateway": "/assets/symbols/meshtastic_node.svg",
+    "cbt_raute": "/assets/symbols/cbt_raute.svg",
+    "cbt_rechteck": "/assets/symbols/cbt_rechteck.svg",
+    "cbt_quadrat": "/assets/symbols/cbt_quadrat.svg",
+    "cbt_blume": "/assets/symbols/cbt_blume.svg"
+  },
   "symbols": [
     {
       "id": "5b243d8c-7ddc-4803-8d30-d9e95b52b8d6",
