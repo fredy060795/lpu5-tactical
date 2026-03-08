@@ -291,7 +291,7 @@ class COTEvent {
             ['b-m-p-s-m-h', 'cbt_hostile'],      // TAK spot-map marker hostile
             ['b-m-p-s-m-n', 'cbt_neutral'],      // TAK spot-map marker neutral
             ['b-m-p-s-m-u', 'cbt_unknown'],      // TAK spot-map marker unknown
-            ['b-m-p-s-m',   'hostile'],          // TAK spot-map marker (all shapes)
+            ['b-m-p-s-m',   'cbt_hostile'],      // TAK spot-map marker (all shapes)
             ['u-d-c-e',     'hostile'],          // TAK drawing ellipse → diamond
             ['u-d-c-c',     'hostile'],          // TAK drawing circle → diamond
             ['u-d-r',       'friendly'],       // TAK drawing rectangle
@@ -315,11 +315,11 @@ class COTEvent {
 
     /** Convert a TAK CoT type string back to the LPU5 symbol type */
     static cotTypeToLpu5(cotType) {
-        if (!cotType) return 'unknown';
+        if (!cotType) return 'cbt_unknown';
         for (const [prefix, lpu5] of COTEvent.COT_TO_LPU5_TYPE) {
             if (cotType.startsWith(prefix)) return lpu5;
         }
-        return 'unknown';
+        return 'cbt_unknown';
     }
 
     /**
@@ -430,14 +430,13 @@ class COTProtocolHandler {
             hostile: 'cbt_hostile', friendly: 'cbt_friendly',
             neutral: 'cbt_neutral', unknown: 'cbt_unknown'
         };
+        const isAtakSource = cotEvent.how && cotEvent.how.startsWith('h');
         if (cotEvent.hasMeshtasticDetail || lpu5Type === 'node' || cotEvent.type === 'a-f-G-E-S-U-M') {
             lpu5Type = 'node';
-        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
-            lpu5Type = 'tak_maker';
-        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
-            lpu5Type = 'node';
-        } else if (_ATAK_TO_CBT[lpu5Type] || cotEvent.type.startsWith('b-m-p-s-m')) {
-            lpu5Type = _ATAK_TO_CBT[lpu5Type] || 'cbt_' + lpu5Type;
+        } else if (isAtakSource && _ATAK_TO_CBT[lpu5Type]) {
+            lpu5Type = _ATAK_TO_CBT[lpu5Type];
+        } else if (_ATAK_TO_CBT[lpu5Type]) {
+            lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }
 
         // CoT events with a "mesh-" UID prefix are Meshtastic nodes imported back
