@@ -427,8 +427,10 @@ class COTProtocolHandler {
         };
         if (cotEvent.hasMeshtasticDetail || lpu5Type === 'meshtastic_node') {
             lpu5Type = 'meshtastic_node';
-        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
+        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
             lpu5Type = 'tak_maker';
+        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
+            lpu5Type = 'meshtastic_node';
         } else if (_ATAK_TO_CBT[lpu5Type]) {
             lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }

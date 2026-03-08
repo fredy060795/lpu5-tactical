@@ -660,14 +660,17 @@ class CoTProtocolHandler:
         #     SA beacons; the <meshtastic> element is the authoritative signal that
         #     this is a Meshtastic node, not a human ATAK user.
         #   • ATAK SA position updates without a <meshtastic> element use a
-        #     "h-*" how code (including "h-g*" for GPS-derived positions).
-        #     All such events are ATAK user beacons → tak_maker.
+        #     "h-*" how code.  GPS-derived positions use "h-g*" → tak_maker
+        #     (ATAK user SA beacon).  Human-entered markers use "h-e" etc.
+        #     (without -g) → meshtastic_node (round circle with short name).
         #     LPU5's own GPS positions are created directly via /api/map/symbols
         #     and never pass through CoT type detection.
         if cot_event.has_meshtastic_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly" and cot_event.how.startswith("h"):
+        elif lpu5_type == "friendly" and cot_event.how.startswith("h-g"):
             lpu5_type = "tak_maker"
+        elif lpu5_type == "friendly" and cot_event.how.startswith("h"):
+            lpu5_type = "meshtastic_node"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are
