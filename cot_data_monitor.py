@@ -864,10 +864,11 @@ class LPU5APIMonitor(threading.Thread):
         import urllib.request
         sse_url = self.api_url + "/api/cot/monitor/stream"
         while not self._stop_event.is_set():
+            resp = None
             try:
                 _log_stderr(f"Connecting to LPU5 API SSE at {sse_url}")
                 req = urllib.request.Request(sse_url)
-                resp = urllib.request.urlopen(req, timeout=30)
+                resp = urllib.request.urlopen(req, timeout=10)
                 _log_stderr(f"Connected to LPU5 API SSE stream")
                 buf = ""
                 event_name = ""
@@ -894,6 +895,12 @@ class LPU5APIMonitor(threading.Thread):
                         pass
             except Exception as exc:
                 _log_stderr(f"LPU5 API SSE error: {exc}")
+            finally:
+                if resp is not None:
+                    try:
+                        resp.close()
+                    except Exception:
+                        pass
             if not self._stop_event.is_set():
                 time.sleep(3)
 
@@ -1418,8 +1425,9 @@ def main():
             _default_api = "http://127.0.0.1:8101"
             try:
                 import urllib.request
-                urllib.request.urlopen(_default_api + "/api/cot/monitor/stats",
-                                       timeout=2)
+                resp = urllib.request.urlopen(
+                    _default_api + "/api/cot/monitor/stats", timeout=2)
+                resp.close()
                 args.api_url = _default_api
                 _log_stderr(f"Auto-detected running LPU5 API at {_default_api}")
             except Exception:

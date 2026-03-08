@@ -7036,8 +7036,7 @@ def _cot_monitor_record(cot_xml: str, direction: str, source: str) -> None:
             detected_type = "gps_position"
             detection_reason = "UID starts with GPS-"
 
-        is_echo_back = uid.startswith("GPS-") or uid == getattr(
-            _cot_monitor_record, "_lpu5_uid", "LPU5-GW")
+        is_echo_back = uid.startswith("GPS-") or uid == _LPU5_COT_UID
 
         time_str = root.get("time", "")
         stale_str = root.get("stale", "")
@@ -7432,6 +7431,8 @@ def cot_monitor_ui():
     # Rewrite the API paths so the standalone UI works with the API prefix.
     # The standalone monitor uses /api/events/... whereas the API uses
     # /api/cot/monitor/...
+    # Order matters: replace the most specific paths first so they are not
+    # partially matched by the broader replacements that follow.
     html = html.replace("/api/events/stream", "/api/cot/monitor/stream")
     html = html.replace("/api/events/clear", "/api/cot/monitor/clear")
     html = html.replace("/api/events/", "/api/cot/monitor/events/")
