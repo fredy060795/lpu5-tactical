@@ -7426,20 +7426,7 @@ def cot_monitor_ui():
     if not os.path.isfile(html_path):
         raise HTTPException(status_code=404,
                             detail="cot_monitor_ui.html not found")
-    with open(html_path, "r", encoding="utf-8") as f:
-        html = f.read()
-    # Rewrite the API paths so the standalone UI works with the API prefix.
-    # The standalone monitor uses /api/events/... whereas the API uses
-    # /api/cot/monitor/...
-    # Order matters: replace the most specific paths first so they are not
-    # partially matched by the broader replacements that follow.
-    html = html.replace("/api/events/stream", "/api/cot/monitor/stream")
-    html = html.replace("/api/events/clear", "/api/cot/monitor/clear")
-    html = html.replace("/api/events/", "/api/cot/monitor/events/")
-    html = html.replace("/api/events", "/api/cot/monitor/events")
-    html = html.replace("'/api/export'", "'/api/cot/monitor/export'")
-    html = html.replace('"/api/export"', '"/api/cot/monitor/export"')
-    return Response(content=html, media_type="text/html")
+    return FileResponse(html_path, media_type="text/html")
 
 
 # ===========================
