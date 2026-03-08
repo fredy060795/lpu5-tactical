@@ -1530,13 +1530,17 @@ def _process_incoming_cot(cot_xml: str) -> None:
         if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lng <= 180.0):
             return
 
-        # Extract callsign from detail/contact
+        # Extract callsign and team from detail/contact/__group
         detail = root.find("detail")
         callsign = uid
+        team_name = None
         if detail is not None:
             contact = detail.find("contact")
             if contact is not None:
                 callsign = contact.get("callsign") or callsign
+            grp = detail.find("__group")
+            if grp is not None:
+                team_name = grp.get("name") or None
 
         # Detect incoming CoT source type before the CoT-type→LPU5-type mapping
         # so that ATAK Meshtastic nodes and ATAK SA/GPS positions receive the
@@ -1665,6 +1669,8 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 marker.type = effective_type
                 new_data = dict(marker.data) if marker.data else {}
                 new_data["cot_type"] = event_type
+                if team_name:
+                    new_data["team"] = team_name
                 marker.data = new_data
                 flag_modified(marker, "data")
             else:
@@ -1673,6 +1679,9 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     # Suppress recreation so the deletion takes effect immediately.
                     logger.debug("CoT: suppressing recreation of recently deleted marker: %s", uid)
                     return
+                initial_data = {"cot_type": event_type}
+                if team_name:
+                    initial_data["team"] = team_name
                 marker = MapMarker(
                     id=uid,
                     name=callsign,
@@ -1680,7 +1689,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     lng=lng,
                     type=effective_type,
                     created_by="tak_server",
-                    data={"cot_type": event_type},
+                    data=initial_data,
                 )
                 db.add(marker)
             db.commit()
@@ -1694,6 +1703,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 "lng": lng,
                 "type": effective_type,
                 "cot_type": event_type,
+                "team": team_name,
                 "created_by": "tak_server",
             })
             logger.info("TAK event received: %s (%s) @ %.6f, %.6f", callsign, event_type, lat, lng)
