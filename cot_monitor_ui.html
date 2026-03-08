@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CoT Data-Flow Monitor – LPU5 ↔ ATAK</title>
+<style>
+/* ── Reset & Variables ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+  --text: #c9d1d9; --text2: #8b949e; --accent: #58a6ff;
+  --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+  --blue: #58a6ff; --cyan: #39d5ff; --magenta: #f778ba; --orange: #f0883e;
+  --row-in: rgba(248,81,73,.06); --row-out: rgba(63,185,80,.06);
+  --row-hover: rgba(88,166,255,.08);
+  font-size: 14px;
+}
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; min-height: 100vh; }
+
+/* ── Header ── */
+header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+header h1 { font-size: 18px; white-space: nowrap; }
+header h1 span.arr { color: var(--green); }
+header h1 span.arr2 { color: var(--red); }
+.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 12px; font-size: 12px; border: 1px solid var(--border); }
+.status-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-badge .dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-badge .dot.off { background: var(--red); }
+.counters { display: flex; gap: 12px; font-size: 12px; color: var(--text2); margin-left: auto; }
+.counters b { color: var(--text); }
+
+/* ── Toolbar ── */
+.toolbar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 8px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar label { font-size: 12px; color: var(--text2); }
+.toolbar select, .toolbar input[type="text"] { background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; }
+.toolbar select:focus, .toolbar input:focus { border-color: var(--accent); outline: none; }
+.toolbar .sep { width: 1px; height: 24px; background: var(--border); }
+.btn { background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 14px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; transition: .15s; }
+.btn:hover { background: var(--border); }
+.btn.primary { background: #238636; border-color: #2ea043; color: #fff; }
+.btn.primary:hover { background: #2ea043; }
+.btn.danger { background: #da3633; border-color: #f85149; color: #fff; }
+.btn.danger:hover { background: #f85149; }
+
+/* ── Event Table ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { background: var(--bg2); color: var(--text2); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .5px; padding: 8px 10px; border-bottom: 2px solid var(--border); position: sticky; top: 88px; z-index: 50; text-align: left; white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+tbody tr:hover { background: var(--row-hover); }
+tbody tr.dir-in  { background: var(--row-in); }
+tbody tr.dir-out { background: var(--row-out); }
+tbody td { padding: 6px 10px; vertical-align: top; }
+td.dir { text-align: center; font-weight: bold; font-size: 16px; }
+td.dir.in  { color: var(--red); }
+td.dir.out { color: var(--green); }
+td.uid { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+td.uid:hover { white-space: normal; word-break: break-all; }
+td.coords { font-family: monospace; font-size: 12px; white-space: nowrap; }
+
+/* type badges */
+.type-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.type-badge.friendly, .type-badge.cbt_friendly, .type-badge.tak_maker { background: rgba(88,166,255,.2); color: var(--blue); }
+.type-badge.hostile, .type-badge.cbt_hostile { background: rgba(248,81,73,.2); color: var(--red); }
+.type-badge.neutral, .type-badge.cbt_neutral { background: rgba(63,185,80,.2); color: var(--green); }
+.type-badge.unknown, .type-badge.cbt_unknown { background: rgba(210,153,34,.2); color: var(--yellow); }
+.type-badge.pending { background: rgba(188,140,255,.2); color: var(--purple); }
+.type-badge.meshtastic_node, .type-badge.node, .type-badge.gateway { background: rgba(247,120,186,.2); color: var(--magenta); }
+.type-badge.gps_position { background: rgba(57,213,255,.2); color: var(--cyan); }
+.type-badge.mismatch { box-shadow: 0 0 0 2px var(--orange); }
+
+/* meshtastic flag */
+.mesh-flag { display: inline-block; background: rgba(247,120,186,.15); color: var(--magenta); padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; margin-left: 4px; }
+/* echo flag */
+.echo-flag { display: inline-block; background: rgba(210,153,34,.2); color: var(--yellow); padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; margin-left: 4px; }
+
+/* correction dropdown */
+td select.correction { background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 12px; width: 100%; min-width: 140px; }
+td select.correction.changed { border-color: var(--orange); background: rgba(240,136,62,.1); }
+td input.notes { background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 12px; width: 100%; min-width: 100px; }
+td input.notes:focus { border-color: var(--accent); outline: none; }
+
+/* ── Detail panel ── */
+.detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; }
+.detail-overlay.active { display: flex; align-items: center; justify-content: center; }
+.detail-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; padding: 20px; }
+.detail-panel h2 { margin-bottom: 12px; font-size: 16px; }
+.detail-panel pre { background: var(--bg); padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: var(--text2); white-space: pre-wrap; word-break: break-all; }
+.detail-panel .field { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.detail-panel .field .label { color: var(--text2); min-width: 130px; font-size: 12px; }
+.detail-panel .field .value { font-family: monospace; font-size: 12px; }
+.detail-panel .close-btn { float: right; cursor: pointer; font-size: 20px; color: var(--text2); }
+.detail-panel .close-btn:hover { color: var(--text); }
+
+/* ── Export dialog ── */
+.export-info { margin-top: 10px; padding: 10px; background: rgba(63,185,80,.1); border: 1px solid var(--green); border-radius: 6px; font-size: 12px; color: var(--green); }
+.export-info.warn { background: rgba(210,153,34,.1); border-color: var(--yellow); color: var(--yellow); }
+
+/* ── Empty state ── */
+.empty-state { text-align: center; padding: 80px 20px; color: var(--text2); }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  header { padding: 8px 12px; }
+  .toolbar { padding: 6px 12px; }
+  thead th, tbody td { padding: 4px 6px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header>
+  <h1>🔍 CoT Monitor <span class="arr">→</span><span class="arr2">←</span> LPU5 ↔ ATAK</h1>
+  <div class="status-badge" id="connBadge">
+    <span class="dot off" id="connDot"></span>
+    <span id="connText">Verbinde…</span>
+  </div>
+  <div class="counters">
+    <span>Gesamt: <b id="cntTotal">0</b></span>
+    <span>← Eingehend: <b id="cntIn">0</b></span>
+    <span>→ Ausgehend: <b id="cntOut">0</b></span>
+    <span>🔧 Korrekturen: <b id="cntCorr">0</b></span>
+    <span>⚡ Meshtastic: <b id="cntMesh">0</b></span>
+  </div>
+</header>
+
+<!-- ═══════════════ TOOLBAR ═══════════════ -->
+<div class="toolbar">
+  <label>Richtung:</label>
+  <select id="filterDir">
+    <option value="">Alle</option>
+    <option value="in">← Eingehend (ATAK→LPU5)</option>
+    <option value="out">→ Ausgehend (LPU5→ATAK)</option>
+  </select>
+  <div class="sep"></div>
+  <label>LPU5 Typ:</label>
+  <select id="filterType">
+    <option value="">Alle Typen</option>
+    <option value="friendly">friendly</option>
+    <option value="hostile">hostile</option>
+    <option value="neutral">neutral</option>
+    <option value="unknown">unknown</option>
+    <option value="pending">pending</option>
+    <option value="tak_maker">tak_maker</option>
+    <option value="meshtastic_node">meshtastic_node</option>
+    <option value="node">node</option>
+    <option value="gateway">gateway</option>
+    <option value="gps_position">gps_position</option>
+    <option value="cbt_friendly">cbt_friendly</option>
+    <option value="cbt_hostile">cbt_hostile</option>
+    <option value="cbt_neutral">cbt_neutral</option>
+    <option value="cbt_unknown">cbt_unknown</option>
+  </select>
+  <div class="sep"></div>
+  <label>UID Filter:</label>
+  <input type="text" id="filterUid" placeholder="z.B. mesh- oder ANDROID-" style="width:150px">
+  <div class="sep"></div>
+  <label><input type="checkbox" id="filterMesh"> Nur Meshtastic</label>
+  <label><input type="checkbox" id="filterCorr"> Nur mit Korrektur</label>
+  <div class="sep"></div>
+  <label><input type="checkbox" id="autoScroll" checked> Auto-Scroll</label>
+  <div style="flex:1"></div>
+  <button class="btn" onclick="clearEvents()" title="Alle Events löschen">🗑 Löschen</button>
+  <button class="btn" onclick="pauseToggle()" id="pauseBtn" title="Pause / Fortsetzen">⏸ Pause</button>
+  <button class="btn primary" onclick="exportLog()" title="Annotiertes Log speichern">💾 Log Speichern</button>
+</div>
+
+<!-- ═══════════════ TABLE ═══════════════ -->
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+  <th style="width:30px">#</th>
+  <th style="width:50px">Zeit</th>
+  <th style="width:35px">Dir</th>
+  <th>UID</th>
+  <th>Callsign</th>
+  <th>CoT Type</th>
+  <th>How</th>
+  <th>Position</th>
+  <th>LPU5 erkennt als</th>
+  <th style="min-width:160px">Korrektur (Soll-Typ)</th>
+  <th>Notiz</th>
+  <th style="width:30px"></th>
+</tr>
+</thead>
+<tbody id="evtBody">
+</tbody>
+</table>
+</div>
+
+<div class="empty-state" id="emptyState">
+  <div class="icon">📡</div>
+  <p>Warte auf CoT-Events…<br><small>Events werden automatisch angezeigt sobald Daten fließen.</small></p>
+</div>
+
+<!-- ═══════════════ DETAIL OVERLAY ═══════════════ -->
+<div class="detail-overlay" id="detailOverlay" onclick="if(event.target===this)closeDetail()">
+  <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<!-- ═══════════════ JAVASCRIPT ═══════════════ -->
+<script>
+"use strict";
+
+// ── All LPU5 marker types for the correction dropdown ──
+const LPU5_TYPES = [
+  { value: '',                label: '— unverändert —',              group: 'Standard' },
+  { value: 'friendly',       label: 'friendly (Blau, Rechteck)',     group: 'Standard' },
+  { value: 'hostile',        label: 'hostile (Rot, Diamant)',        group: 'Standard' },
+  { value: 'neutral',        label: 'neutral (Grün, Quadrat)',      group: 'Standard' },
+  { value: 'unknown',        label: 'unknown (Gelb, Blume)',        group: 'Standard' },
+  { value: 'pending',        label: 'pending (Lila)',               group: 'Standard' },
+  { value: 'tak_maker',      label: 'tak_maker (ATAK GPS SA)',      group: 'ATAK' },
+  { value: 'meshtastic_node',label: 'meshtastic_node (M-Kreis)',    group: 'Meshtastic' },
+  { value: 'node',           label: 'node (Meshtastic Knoten)',     group: 'Meshtastic' },
+  { value: 'gateway',        label: 'gateway (Meshtastic GW)',      group: 'Meshtastic' },
+  { value: 'gps_position',   label: 'gps_position (GPS Pfeil)',     group: 'Meshtastic' },
+  { value: 'cbt_friendly',   label: 'cbt_friendly (Blau+CBT)',      group: 'CBT (ATAK)' },
+  { value: 'cbt_hostile',    label: 'cbt_hostile (Rot+CBT)',        group: 'CBT (ATAK)' },
+  { value: 'cbt_neutral',    label: 'cbt_neutral (Grün+CBT)',      group: 'CBT (ATAK)' },
+  { value: 'cbt_unknown',    label: 'cbt_unknown (Gelb+CBT)',      group: 'CBT (ATAK)' },
+];
+
+// ── State ──
+let events = [];       // {idx, parsed, direction, source, raw_xml, correction, notes}
+let paused = false;
+let evtCounter = 0;
+let corrCount = 0;
+let meshCount = 0;
+let inCount = 0, outCount = 0;
+
+// ── SSE Connection ──
+let evtSource = null;
+
+function connect() {
+  if (evtSource) { evtSource.close(); }
+  evtSource = new EventSource('/api/events/stream');
+  evtSource.onopen = () => {
+    document.getElementById('connDot').className = 'dot on';
+    document.getElementById('connText').textContent = 'Verbunden';
+  };
+  evtSource.onerror = () => {
+    document.getElementById('connDot').className = 'dot off';
+    document.getElementById('connText').textContent = 'Getrennt – reconnect…';
+  };
+  evtSource.addEventListener('cot_event', (e) => {
+    if (paused) return;
+    try {
+      const data = JSON.parse(e.data);
+      addEvent(data);
+    } catch (err) { console.warn('SSE parse error', err); }
+  });
+  // Also listen for generic message events
+  evtSource.onmessage = (e) => {
+    if (paused) return;
+    if (e.data === ':ping') return;
+    try {
+      const data = JSON.parse(e.data);
+      if (data.parsed) addEvent(data);
+    } catch (_) {}
+  };
+}
+
+function addEvent(data) {
+  const idx = evtCounter++;
+  const evt = {
+    idx,
+    parsed: data.parsed || {},
+    direction: data.direction || '<<<',
+    source: data.source || '?',
+    raw_xml: data.raw_xml || '',
+    correction: '',
+    notes: '',
+  };
+  events.push(evt);
+
+  // update counters
+  if (evt.direction === '<<<') inCount++; else outCount++;
+  if (evt.parsed.has_meshtastic || ['meshtastic_node','node','gateway','gps_position'].includes(evt.parsed.detected_type)) meshCount++;
+  updateCounters();
+
+  // render row if passes filter
+  if (matchesFilter(evt)) {
+    appendRow(evt);
+    document.getElementById('emptyState').style.display = 'none';
+    if (document.getElementById('autoScroll').checked) {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  }
+}
+
+function updateCounters() {
+  document.getElementById('cntTotal').textContent = events.length;
+  document.getElementById('cntIn').textContent = inCount;
+  document.getElementById('cntOut').textContent = outCount;
+  document.getElementById('cntCorr').textContent = corrCount;
+  document.getElementById('cntMesh').textContent = meshCount;
+}
+
+// ── Filtering ──
+function matchesFilter(evt) {
+  const p = evt.parsed;
+  const dir = document.getElementById('filterDir').value;
+  if (dir === 'in' && evt.direction !== '<<<') return false;
+  if (dir === 'out' && evt.direction !== '>>>') return false;
+  const t = document.getElementById('filterType').value;
+  if (t && p.detected_type !== t) return false;
+  const uid = document.getElementById('filterUid').value.trim();
+  if (uid && !(p.uid || '').includes(uid)) return false;
+  if (document.getElementById('filterMesh').checked) {
+    if (!p.has_meshtastic && !['meshtastic_node','node','gateway','gps_position'].includes(p.detected_type)) return false;
+  }
+  if (document.getElementById('filterCorr').checked && !evt.correction) return false;
+  return true;
+}
+
+function rerender() {
+  const body = document.getElementById('evtBody');
+  body.innerHTML = '';
+  let visible = 0;
+  for (const evt of events) {
+    if (matchesFilter(evt)) { appendRow(evt); visible++; }
+  }
+  document.getElementById('emptyState').style.display = visible ? 'none' : '';
+}
+
+// Attach filter change handlers
+['filterDir','filterType','filterMesh','filterCorr'].forEach(id => {
+  document.getElementById(id).addEventListener('change', rerender);
+});
+document.getElementById('filterUid').addEventListener('input', rerender);
+
+// ── Render table row ──
+function appendRow(evt) {
+  const p = evt.parsed;
+  const tr = document.createElement('tr');
+  tr.className = evt.direction === '<<<' ? 'dir-in' : 'dir-out';
+  tr.dataset.idx = evt.idx;
+
+  const ts = p.time ? p.time.substring(11, 19) : '—';
+  const isIn = evt.direction === '<<<';
+  const dirSymbol = isIn ? '←' : '→';
+  const dirClass = isIn ? 'in' : 'out';
+
+  const lat = p.lat != null ? Number(p.lat).toFixed(5) : '?';
+  const lon = p.lon != null ? Number(p.lon).toFixed(5) : '?';
+
+  // Flags
+  let flags = '';
+  if (p.has_meshtastic) flags += '<span class="mesh-flag">MESH</span>';
+  if (p.is_echo_back) flags += '<span class="echo-flag">ECHO</span>';
+
+  // Build correction dropdown
+  let selHtml = `<select class="correction" data-idx="${evt.idx}" onchange="onCorrection(this)">`;
+  let currentGroup = '';
+  for (const opt of LPU5_TYPES) {
+    if (opt.group !== currentGroup) {
+      if (currentGroup) selHtml += '</optgroup>';
+      selHtml += `<optgroup label="${opt.group}">`;
+      currentGroup = opt.group;
+    }
+    const sel = evt.correction === opt.value ? ' selected' : '';
+    selHtml += `<option value="${opt.value}"${sel}>${opt.label}</option>`;
+  }
+  selHtml += '</optgroup></select>';
+
+  tr.innerHTML = `
+    <td>${evt.idx + 1}</td>
+    <td style="white-space:nowrap;font-size:11px;color:var(--text2)">${ts}</td>
+    <td class="dir ${dirClass}" title="${isIn ? 'ATAK → LPU5' : 'LPU5 → ATAK'}">${dirSymbol}</td>
+    <td class="uid" title="${esc(p.uid)}">${esc(p.uid)}</td>
+    <td>${esc(p.callsign || '—')}${flags}</td>
+    <td style="font-family:monospace;font-size:11px" title="${esc(p.cot_type)}">${esc(p.cot_type)}</td>
+    <td style="font-size:12px" title="${esc(p.detection_reason || '')}">${esc(p.how)}</td>
+    <td class="coords">${lat}, ${lon}</td>
+    <td><span class="type-badge ${p.detected_type} ${evt.correction && evt.correction !== p.detected_type ? 'mismatch' : ''}">${p.detected_type}</span></td>
+    <td>${selHtml}</td>
+    <td><input class="notes" data-idx="${evt.idx}" placeholder="Notiz…" value="${esc(evt.notes)}" onchange="onNotes(this)"></td>
+    <td><button class="btn" onclick="showDetail(${evt.idx})" title="Details anzeigen">🔎</button></td>
+  `;
+  document.getElementById('evtBody').appendChild(tr);
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Correction handler ──
+function onCorrection(sel) {
+  const idx = parseInt(sel.dataset.idx);
+  const evt = events.find(e => e.idx === idx);
+  if (!evt) return;
+  const prev = evt.correction;
+  evt.correction = sel.value;
+  // Update style
+  sel.className = sel.value ? 'correction changed' : 'correction';
+  // Update badge if mismatch
+  const tr = sel.closest('tr');
+  if (tr) {
+    const badge = tr.querySelector('.type-badge');
+    if (badge) {
+      badge.classList.toggle('mismatch', sel.value && sel.value !== evt.parsed.detected_type);
+    }
+  }
+  // Count corrections
+  if (!prev && sel.value) corrCount++;
+  if (prev && !sel.value) corrCount--;
+  updateCounters();
+  // Send to server
+  fetch(`/api/events/${idx}/correction`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correction: evt.correction, notes: evt.notes }),
+  }).catch(() => {});
+}
+
+function onNotes(inp) {
+  const idx = parseInt(inp.dataset.idx);
+  const evt = events.find(e => e.idx === idx);
+  if (!evt) return;
+  evt.notes = inp.value;
+  fetch(`/api/events/${idx}/correction`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correction: evt.correction, notes: evt.notes }),
+  }).catch(() => {});
+}
+
+// ── Detail panel ──
+function showDetail(idx) {
+  const evt = events.find(e => e.idx === idx);
+  if (!evt) return;
+  const p = evt.parsed;
+  const panel = document.getElementById('detailPanel');
+
+  const fields = [
+    ['Richtung', evt.direction === '<<<' ? 'ATAK → LPU5 (Eingehend)' : 'LPU5 → ATAK (Ausgehend)'],
+    ['Quelle', evt.source],
+    ['UID', p.uid],
+    ['Callsign', p.callsign],
+    ['UID Droid', p.uid_droid],
+    ['CoT Type', p.cot_type],
+    ['How', p.how],
+    ['Position', `lat=${p.lat}  lon=${p.lon}  hae=${p.hae}`],
+    ['Genauigkeit', `CE=${p.ce}  LE=${p.le}`],
+    ['Speed/Course', `${p.speed || '—'} / ${p.course || '—'}`],
+    ['Team / Role', `${p.team || '—'} / ${p.role || '—'}`],
+    ['Endpoint', p.endpoint],
+    ['Color ARGB', p.color_argb],
+    ['Remarks', p.remarks],
+    ['Meshtastic', p.has_meshtastic ? `✓  longName=${p.mesh_longName}  shortName=${p.mesh_shortName}` : '✗'],
+    ['Archive', p.has_archive ? 'Ja (statisch)' : 'Nein (Live-Kontakt)'],
+    ['Echo-Back', p.is_echo_back ? '⚠ Ja – LPU5 würde dieses Event überspringen' : 'Nein'],
+    ['Time', p.time],
+    ['Stale', p.stale],
+    ['', ''],
+    ['LPU5 Basis-Typ', p.base_lpu5_type],
+    ['LPU5 Erkannt als', p.detected_type],
+    ['Erkennungsgrund', p.detection_reason],
+    ['', ''],
+    ['Korrektur (Soll)', evt.correction || '— nicht gesetzt —'],
+    ['Notiz', evt.notes || '—'],
+  ];
+
+  let html = `<span class="close-btn" onclick="closeDetail()">✕</span>`;
+  html += `<h2>Event #${evt.idx + 1} – ${esc(p.uid)}</h2>`;
+  for (const [label, value] of fields) {
+    if (!label && !value) { html += '<hr style="border-color:var(--border);margin:8px 0">'; continue; }
+    html += `<div class="field"><span class="label">${esc(label)}</span><span class="value">${esc(String(value || '—'))}</span></div>`;
+  }
+  if (evt.raw_xml) {
+    html += `<h3 style="margin-top:14px;font-size:13px;color:var(--text2)">Raw CoT XML</h3>`;
+    html += `<pre>${esc(formatXml(evt.raw_xml))}</pre>`;
+  }
+  panel.innerHTML = html;
+  document.getElementById('detailOverlay').classList.add('active');
+}
+
+function closeDetail() {
+  document.getElementById('detailOverlay').classList.remove('active');
+}
+
+// Simple XML formatter
+function formatXml(xml) {
+  let formatted = '';
+  let indent = 0;
+  xml = xml.replace(/(>)(<)/g, '$1\n$2');
+  for (const node of xml.split('\n')) {
+    const n = node.trim();
+    if (!n) continue;
+    if (n.startsWith('</')) indent--;
+    formatted += '  '.repeat(Math.max(indent, 0)) + n + '\n';
+    if (n.startsWith('<') && !n.startsWith('</') && !n.startsWith('<?') && !n.endsWith('/>') && !n.includes('</')) indent++;
+  }
+  return formatted.trim();
+}
+
+// ── Controls ──
+function pauseToggle() {
+  paused = !paused;
+  document.getElementById('pauseBtn').innerHTML = paused ? '▶ Weiter' : '⏸ Pause';
+}
+
+function clearEvents() {
+  if (!confirm('Alle erfassten Events löschen?')) return;
+  events = [];
+  evtCounter = 0; inCount = 0; outCount = 0; corrCount = 0; meshCount = 0;
+  updateCounters();
+  document.getElementById('evtBody').innerHTML = '';
+  document.getElementById('emptyState').style.display = '';
+  fetch('/api/events/clear', { method: 'POST' }).catch(() => {});
+}
+
+// ── Export ──
+function exportLog() {
+  const corrected = events.filter(e => e.correction);
+  const all = events;
+
+  const log = {
+    export_time: new Date().toISOString(),
+    summary: {
+      total_events: all.length,
+      incoming: inCount,
+      outgoing: outCount,
+      corrections_made: corrected.length,
+      meshtastic_events: meshCount,
+    },
+    corrections: corrected.map(e => ({
+      event_index: e.idx + 1,
+      uid: e.parsed.uid,
+      callsign: e.parsed.callsign,
+      cot_type: e.parsed.cot_type,
+      how: e.parsed.how,
+      lat: e.parsed.lat,
+      lon: e.parsed.lon,
+      detected_type: e.parsed.detected_type,
+      detection_reason: e.parsed.detection_reason,
+      correct_type: e.correction,
+      notes: e.notes,
+      has_meshtastic: e.parsed.has_meshtastic,
+      is_echo_back: e.parsed.is_echo_back,
+      direction: e.direction === '<<<' ? 'ATAK->LPU5' : 'LPU5->ATAK',
+      raw_xml: e.raw_xml,
+    })),
+    all_events: all.map(e => ({
+      event_index: e.idx + 1,
+      direction: e.direction === '<<<' ? 'ATAK->LPU5' : 'LPU5->ATAK',
+      source: e.source,
+      uid: e.parsed.uid,
+      callsign: e.parsed.callsign,
+      cot_type: e.parsed.cot_type,
+      how: e.parsed.how,
+      lat: e.parsed.lat,
+      lon: e.parsed.lon,
+      detected_type: e.parsed.detected_type,
+      detection_reason: e.parsed.detection_reason,
+      correct_type: e.correction || null,
+      notes: e.notes || null,
+      has_meshtastic: e.parsed.has_meshtastic,
+      mesh_longName: e.parsed.mesh_longName,
+      mesh_shortName: e.parsed.mesh_shortName,
+      is_echo_back: e.parsed.is_echo_back,
+      team: e.parsed.team,
+      role: e.parsed.role,
+      endpoint: e.parsed.endpoint,
+      time: e.parsed.time,
+      stale: e.parsed.stale,
+    })),
+  };
+
+  // Download as JSON
+  const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cot_monitor_log_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  // Also send to server for server-side storage
+  fetch('/api/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(log),
+  }).then(r => r.json()).then(res => {
+    if (res.file) {
+      alert(`Log gespeichert!\n\nClient: Download gestartet\nServer: ${res.file}\n\nKorrekturen: ${corrected.length}\nGesamt Events: ${all.length}`);
+    }
+  }).catch(() => {
+    alert(`Log als Download gespeichert.\n\nKorrekturen: ${corrected.length}\nGesamt Events: ${all.length}`);
+  });
+}
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDetail();
+  if (e.key === ' ' && e.target === document.body) { e.preventDefault(); pauseToggle(); }
+});
+
+// ── Load existing events on page load ──
+async function loadExisting() {
+  try {
+    const res = await fetch('/api/events');
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const d of (data.events || [])) {
+      addEvent(d);
+    }
+  } catch (_) {}
+}
+
+// ── Init ──
+loadExisting().then(() => connect());
+</script>
+</body>
+</html>
