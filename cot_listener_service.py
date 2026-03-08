@@ -888,18 +888,9 @@ class _MonitorHTTPHandler(http.server.BaseHTTPRequestHandler):
     def _serve_html(self):
         html_path = os.path.join(_html_dir, "cot_monitor_ui.html")
         try:
-            with open(html_path, "r", encoding="utf-8") as f:
-                html = f.read()
-            # The HTML natively uses /api/cot/monitor/... paths (for the main
-            # LPU5 API).  Rewrite them to the standalone /api/... paths.
-            # Order matters: replace the most specific paths first so they are
-            # not partially matched by the broader replacements that follow.
-            html = html.replace("/api/cot/monitor/stream", "/api/events/stream")
-            html = html.replace("/api/cot/monitor/clear", "/api/events/clear")
-            html = html.replace("/api/cot/monitor/events/", "/api/events/")
-            html = html.replace("/api/cot/monitor/events", "/api/events")
-            html = html.replace("/api/cot/monitor/export", "/api/export")
-            self._send_html(html.encode("utf-8"))
+            with open(html_path, "rb") as f:
+                data = f.read()
+            self._send_html(data)
         except FileNotFoundError:
             self.send_error(404, f"cot_monitor_ui.html not found in {_html_dir}")
 
