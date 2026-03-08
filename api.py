@@ -1555,6 +1555,13 @@ def _process_incoming_cot(cot_xml: str) -> None:
             # Inline fallback when cot_protocol is unavailable: check directly.
             _has_mesh_detail = (detail is not None and detail.find("meshtastic") is not None)
 
+        # Extract shortName from <meshtastic shortName="..."> for Meshtastic markers.
+        _mesh_short_name = None
+        if _has_mesh_detail and detail is not None:
+            _mesh_el = detail.find("meshtastic")
+            if _mesh_el is not None:
+                _mesh_short_name = _mesh_el.get("shortName") or None
+
         # Map CoT type to LPU5 internal type
         if AUTONOMOUS_MODULES_AVAILABLE:
             lpu5_type = CoTProtocolHandler.cot_type_to_lpu5(event_type)
@@ -1621,10 +1628,11 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 }.get(lpu5_type, lpu5_type)
 
         # "mesh-<node_id>" UIDs are Meshtastic nodes imported back via
-        # ATAK/WinTAK SA/COT import.  Always assign type "node" so they render
-        # with the Meshtastic blue-circle icon instead of a generic ground marker.
+        # ATAK/WinTAK SA/COT import.  Always assign type "meshtastic_node" so
+        # they render with the Meshtastic blue-circle icon instead of a generic
+        # ground marker.
         if uid.startswith("mesh-"):
-            lpu5_type = "node"
+            lpu5_type = "meshtastic_node"
 
         # Deduplication: skip identical events to avoid redundant DB writes,
         # WebSocket broadcasts, and log spam when the TAK server re-sends the
@@ -1672,6 +1680,8 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 new_data["cot_type"] = event_type
                 if team_name:
                     new_data["team"] = team_name
+                if _mesh_short_name:
+                    new_data["shortName"] = _mesh_short_name[:4]
                 marker.data = new_data
                 flag_modified(marker, "data")
             else:
@@ -1683,6 +1693,8 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 initial_data = {"cot_type": event_type}
                 if team_name:
                     initial_data["team"] = team_name
+                if _mesh_short_name:
+                    initial_data["shortName"] = _mesh_short_name[:4]
                 marker = MapMarker(
                     id=uid,
                     name=callsign,
@@ -1695,6 +1707,17 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 db.add(marker)
             db.commit()
 
+            # Compute shortName and symbolLink for the WebSocket broadcast.
+            _MESH_TYPES_SET = {"meshtastic_node", "node", "gateway", "gps_position"}
+            _ws_short_name = None
+            if effective_type in _MESH_TYPES_SET:
+                raw_sn = _mesh_short_name or (callsign[:4] if callsign else None)
+                _ws_short_name = raw_sn[:4] if raw_sn else None
+            _ws_symbol_link = (
+                CoTProtocolHandler.get_symbol_link(effective_type)
+                if AUTONOMOUS_MODULES_AVAILABLE else None
+            )
+
             # Broadcast to WebSocket clients
             broadcast_websocket_update("markers", "tak_maker_update", {
                 "id": uid,
@@ -1706,6 +1729,8 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 "cot_type": event_type,
                 "team": team_name,
                 "created_by": "tak_server",
+                "shortName": _ws_short_name,
+                "symbolLink": _ws_symbol_link,
             })
             logger.info("TAK event received: %s (%s) @ %.6f, %.6f", callsign, event_type, lat, lng)
         finally:
@@ -3546,7 +3571,17 @@ def get_map_markers():
                 "icon": m.icon,
                 "created_by": m.created_by,
                 "created_at": m.created_at.isoformat() if m.created_at else None,
-                "data": m.data
+                "data": m.data,
+                "shortName": (
+                    (m.data or {}).get("shortName")
+                    or (m.name[:4] if m.name else None)
+                    if m.type in {"meshtastic_node", "node", "gateway", "gps_position"}
+                    else None
+                ),
+                "symbolLink": (
+                    CoTProtocolHandler.get_symbol_link(m.type)
+                    if AUTONOMOUS_MODULES_AVAILABLE else None
+                ),
             } for m in markers
             if not m.created_by or m.created_by not in _MESHTASTIC_CREATED_BY
         ]
