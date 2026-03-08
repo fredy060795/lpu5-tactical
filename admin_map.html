@@ -3227,9 +3227,9 @@
               longName = n.name || n.callsign || mesh;
             }
 
-            // Build GPS arrow icon for Meshtastic node — use team color if available
-            const teamColor = (n.team ? TAK_TEAM_COLORS[n.team] : null) || '#007bff';
-            const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${teamColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
+            // Build cyan circle icon for Meshtastic node with shortName (max 4 chars)
+            const iconLabel = ((shortName || '').substring(0, 4)) || 'M';
+            const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${iconLabel}</text></svg></div>`;
 
             if (meshtasticMarkers.has(mesh)) {
               // Update existing marker
