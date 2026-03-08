@@ -244,7 +244,7 @@ let evtSource = null;
 
 function connect() {
   if (evtSource) { evtSource.close(); }
-  evtSource = new EventSource('/api/events/stream');
+  evtSource = new EventSource('/api/cot/monitor/stream');
   evtSource.onopen = () => {
     document.getElementById('connDot').className = 'dot on';
     document.getElementById('connText').textContent = 'Verbunden';
@@ -415,7 +415,7 @@ function onCorrection(sel) {
   if (prev && !sel.value) corrCount--;
   updateCounters();
   // Send to server
-  fetch(`/api/events/${idx}/correction`, {
+  fetch(`/api/cot/monitor/events/${idx}/correction`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ correction: evt.correction, notes: evt.notes }),
@@ -427,7 +427,7 @@ function onNotes(inp) {
   const evt = events.find(e => e.idx === idx);
   if (!evt) return;
   evt.notes = inp.value;
-  fetch(`/api/events/${idx}/correction`, {
+  fetch(`/api/cot/monitor/events/${idx}/correction`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ correction: evt.correction, notes: evt.notes }),
@@ -516,7 +516,7 @@ function clearEvents() {
   updateCounters();
   document.getElementById('evtBody').innerHTML = '';
   document.getElementById('emptyState').style.display = '';
-  fetch('/api/events/clear', { method: 'POST' }).catch(() => {});
+  fetch('/api/cot/monitor/clear', { method: 'POST' }).catch(() => {});
 }
 
 // ── Export ──
@@ -586,7 +586,7 @@ function exportLog() {
   URL.revokeObjectURL(url);
 
   // Also send to server for server-side storage
-  fetch('/api/export', {
+  fetch('/api/cot/monitor/export', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(log),
@@ -608,7 +608,7 @@ document.addEventListener('keydown', (e) => {
 // ── Load existing events on page load ──
 async function loadExisting() {
   try {
-    const res = await fetch('/api/events');
+    const res = await fetch('/api/cot/monitor/events');
     if (!res.ok) return;
     const data = await res.json();
     for (const d of (data.events || [])) {
