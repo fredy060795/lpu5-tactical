@@ -249,7 +249,7 @@ test('Affiliation parsing from COT type', () => {
   assert(unknown.status === 'unknown', 'Should parse unknown');
 });
 
-test('cotToMarker: how=h-e SA beacon with meshtastic detail produces meshtastic_node', () => {
+test('cotToMarker: how=h-e SA beacon with meshtastic detail produces node', () => {
   // The <meshtastic> detail element is the authoritative signal that a CoT event
   // originates from a Meshtastic node, even when how="h-*".  ATAK Meshtastic
   // plugins forward node SA beacons with how="h-e" or how="h-g-*" — the same
@@ -265,11 +265,11 @@ test('cotToMarker: how=h-e SA beacon with meshtastic detail produces meshtastic_
     hasMeshtasticDetail: true,
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'meshtastic_node',
-    `how='h-e' + hasMeshtasticDetail must produce meshtastic_node, got ${marker.type}`);
+  assert(marker.type === 'node',
+    `how='h-e' + hasMeshtasticDetail must produce node, got ${marker.type}`);
 });
 
-test('cotToMarker: how=m-g with meshtastic detail produces meshtastic_node', () => {
+test('cotToMarker: how=m-g with meshtastic detail produces node', () => {
   // Machine-generated (how='m-g') CoT with <meshtastic> detail = Meshtastic node.
   const cot = new COTEvent({
     uid: 'MESH-NODE-1',
@@ -281,8 +281,8 @@ test('cotToMarker: how=m-g with meshtastic detail produces meshtastic_node', () 
     hasMeshtasticDetail: true,
   });
   const marker = COTProtocolHandler.cotToMarker(cot);
-  assert(marker.type === 'meshtastic_node',
-    `how='m-g' + hasMeshtasticDetail must produce meshtastic_node, got ${marker.type}`);
+  assert(marker.type === 'node',
+    `how='m-g' + hasMeshtasticDetail must produce node, got ${marker.type}`);
 });
 
 // Summary

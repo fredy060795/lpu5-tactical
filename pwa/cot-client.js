@@ -276,7 +276,7 @@ class COTEvent {
             // CBT variants — ATAK-sourced markers; map back to the same CoT
             // types as their base shapes so they round-trip correctly.
             cbt_hostile:     'a-h-G-U-C',
-            cbt_friendly:    'a-f-G-U-C',        // ATAK friendly (blue rectangle + CBT)
+            cbt_friendly:    'a-f-G-U-C-I',        // ATAK friendly (blue rectangle + CBT)
             cbt_neutral:     'a-n-G-U-C',
             cbt_unknown:     'a-u-G-U-C',
         };
@@ -287,14 +287,19 @@ class COTEvent {
      *  before shorter prefix alternatives when iterating. */
     static get COT_TO_LPU5_TYPE() {
         return [
+            ['b-m-p-s-m-f', 'cbt_friendly'],     // TAK spot-map marker friendly
+            ['b-m-p-s-m-h', 'cbt_hostile'],      // TAK spot-map marker hostile
+            ['b-m-p-s-m-n', 'cbt_neutral'],      // TAK spot-map marker neutral
+            ['b-m-p-s-m-u', 'cbt_unknown'],      // TAK spot-map marker unknown
             ['b-m-p-s-m',   'hostile'],          // TAK spot-map marker (all shapes)
             ['u-d-c-e',     'hostile'],          // TAK drawing ellipse → diamond
             ['u-d-c-c',     'hostile'],          // TAK drawing circle → diamond
             ['u-d-r',       'friendly'],       // TAK drawing rectangle
             ['u-d-f',       'hostile'],          // TAK drawing freehand → diamond
             ['u-d-p',       'hostile'],          // TAK drawing generic point → diamond
-            ['a-f-G-E-S-U-M', 'meshtastic_node'],   // Meshtastic equipment → meshtastic_node
-            ['a-f-G-E',    'meshtastic_node'],   // Friendly ground equipment (Meshtastic nodes via ATAK plugin)
+            ['a-f-G-E-S-U-M', 'node'],   // Meshtastic equipment → node
+            ['a-f-G-E-S',  'node'],   // Ground equipment / subsurface (ATAK plugin interfaces)
+            ['a-f-G-E',    'node'],   // Friendly ground equipment (Meshtastic nodes via ATAK plugin)
             ['a-f',         'friendly'],       // friendly → blue rectangle
             ['a-h',         'hostile'],        // hostile → red diamond
             ['a-n',         'neutral'],        // neutral → green square
@@ -425,20 +430,20 @@ class COTProtocolHandler {
             hostile: 'cbt_hostile', friendly: 'cbt_friendly',
             neutral: 'cbt_neutral', unknown: 'cbt_unknown'
         };
-        if (cotEvent.hasMeshtasticDetail || lpu5Type === 'meshtastic_node') {
-            lpu5Type = 'meshtastic_node';
+        if (cotEvent.hasMeshtasticDetail || lpu5Type === 'node' || cotEvent.type === 'a-f-G-E-S-U-M') {
+            lpu5Type = 'node';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
             lpu5Type = 'tak_maker';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
-            lpu5Type = 'meshtastic_node';
-        } else if (_ATAK_TO_CBT[lpu5Type]) {
-            lpu5Type = _ATAK_TO_CBT[lpu5Type];
+            lpu5Type = 'node';
+        } else if (_ATAK_TO_CBT[lpu5Type] || cotEvent.type.startsWith('b-m-p-s-m')) {
+            lpu5Type = _ATAK_TO_CBT[lpu5Type] || 'cbt_' + lpu5Type;
         }
 
         // CoT events with a "mesh-" UID prefix are Meshtastic nodes imported back
         // via ATAK/WinTAK SA/COT import.  Always map them to type "node" so they
         // render with the Meshtastic blue-circle icon instead of a generic ground marker.
-        if (cotEvent.uid && cotEvent.uid.startsWith('mesh-')) {
+        if (cotEvent.uid && /(?:^|[\-_])mesh/i.test(cotEvent.uid)) {
             lpu5Type = 'node';
         }
 
