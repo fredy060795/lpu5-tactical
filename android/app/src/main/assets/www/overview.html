@@ -2029,9 +2029,9 @@
             longName = n.name || n.callsign || mesh;
           }
 
-          // Build GPS arrow icon for Meshtastic node — use team color if available
-          const teamColor = (n.team ? TAK_TEAM_COLORS[n.team] : null) || '#007bff';
-          const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${teamColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
+          // Build cyan circle icon for Meshtastic node with shortName (max 4 chars)
+          const iconLabel = _escapeHtml((shortName || '').substring(0, 4)) || 'M';
+          const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${iconLabel}</text></svg></div>`;
 
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
@@ -4284,12 +4284,12 @@
       if (!map) return;
 
       const markerType = markerData.type || markerData.status || 'meshtastic_node';
-      // For Meshtastic node types, build a GPS arrow icon with team color.
+      // For Meshtastic node types, build a cyan circle icon with shortName (max 4 chars).
       const _MESH_MARKER_TYPES = new Set(['meshtastic_node', 'node', 'gateway']);
       let svgHtml;
       if (_MESH_MARKER_TYPES.has(markerType)) {
-        const teamColor = (markerData.team ? TAK_TEAM_COLORS[markerData.team] : null) || '#007bff';
-        svgHtml = `<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${teamColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+        const _sn = _escapeHtml((markerData.shortName || markerData.short_name || markerData.callsign || '').substring(0, 4)) || 'M';
+        svgHtml = `<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${_sn}</text></svg>`;
       } else {
         svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
       }
@@ -4316,9 +4316,8 @@
       if (!map || !node.lat || !node.lon) return;
 
       const _rawLabel = (node.user && (node.user.shortName || node.user.shortname)) || node.shortName || node.short_name || '';
-      const nodeLabel = _escapeHtml(_rawLabel) || 'M';
-      const teamColor = (node.team ? TAK_TEAM_COLORS[node.team] : null) || '#007bff';
-      const nodeIconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${teamColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
+      const nodeLabel = _escapeHtml(_rawLabel.substring(0, 4)) || 'M';
+      const nodeIconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${nodeLabel}</text></svg></div>`;
       const icon = L.divIcon({
         className: 'mesh-node-marker',
         html: nodeIconHtml,
