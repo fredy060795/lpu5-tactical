@@ -1190,19 +1190,35 @@ class MonitorHTTPHandler(http.server.BaseHTTPRequestHandler):
 
 
 def _start_web_server(port: int, html_dir: str,
-                      store: EventStore) -> threading.Thread:
-    """Start the HTTP server for the web UI in a daemon thread."""
+                      store: EventStore,
+                      max_retries: int = 10) -> Optional[threading.Thread]:
+    """Start the HTTP server for the web UI in a daemon thread.
+
+    If *port* is already in use the function tries up to *max_retries*
+    consecutive ports (port+1, port+2, …) before giving up.  Returns
+    ``None`` when no port could be bound so the caller can continue
+    without the web UI.
+    """
     global _event_store, _html_dir
     _event_store = store
     _html_dir = html_dir
 
-    server = http.server.ThreadingHTTPServer(("0.0.0.0", port),
-                                              MonitorHTTPHandler)
-    t = threading.Thread(target=server.serve_forever, daemon=True,
-                         name="web-server")
-    t.start()
-    _log_stderr(f"Web UI running on http://0.0.0.0:{port}/")
-    return t
+    for attempt in range(max_retries):
+        try_port = port + attempt
+        try:
+            server = http.server.ThreadingHTTPServer(
+                ("0.0.0.0", try_port), MonitorHTTPHandler)
+        except OSError as exc:
+            _log_stderr(f"Cannot bind web UI port {try_port}: {exc}")
+            continue
+        t = threading.Thread(target=server.serve_forever, daemon=True,
+                             name="web-server")
+        t.start()
+        _log_stderr(f"Web UI running on http://0.0.0.0:{try_port}/")
+        return t
+
+    _log_stderr("⚠  Could not start web UI – all attempted ports are in use.")
+    return None
 
 
 # ---------------------------------------------------------------------------
