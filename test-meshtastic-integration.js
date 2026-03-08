@@ -412,6 +412,51 @@ test('cotToMarker with a-f-G-E-S-U-M and how=h-g still maps to node (not tak_mak
     `a-f-G-E-S-U-M with how=h-g should be node (not tak_maker), got ${marker.type}`);
 });
 
+// --- Spot-map marker (b-m-p-s-m) CBT tests ---
+
+test('b-m-p-s-m-f maps to cbt_friendly', () => {
+  const lpu5 = COTEvent.cotTypeToLpu5('b-m-p-s-m-f');
+  assert(lpu5 === 'cbt_friendly', `b-m-p-s-m-f should map to cbt_friendly, got ${lpu5}`);
+});
+
+test('b-m-p-s-m-h maps to cbt_hostile', () => {
+  const lpu5 = COTEvent.cotTypeToLpu5('b-m-p-s-m-h');
+  assert(lpu5 === 'cbt_hostile', `b-m-p-s-m-h should map to cbt_hostile, got ${lpu5}`);
+});
+
+test('b-m-p-s-m-n maps to cbt_neutral', () => {
+  const lpu5 = COTEvent.cotTypeToLpu5('b-m-p-s-m-n');
+  assert(lpu5 === 'cbt_neutral', `b-m-p-s-m-n should map to cbt_neutral, got ${lpu5}`);
+});
+
+test('b-m-p-s-m-u maps to cbt_unknown', () => {
+  const lpu5 = COTEvent.cotTypeToLpu5('b-m-p-s-m-u');
+  assert(lpu5 === 'cbt_unknown', `b-m-p-s-m-u should map to cbt_unknown, got ${lpu5}`);
+});
+
+test('generic b-m-p-s-m still maps to hostile', () => {
+  const lpu5 = COTEvent.cotTypeToLpu5('b-m-p-s-m');
+  assert(lpu5 === 'hostile', `b-m-p-s-m should still map to hostile, got ${lpu5}`);
+});
+
+test('cotToMarker with b-m-p-s-m type applies CBT fallback', () => {
+  const cot = new COTEvent({
+    uid: 'SPOT-1',
+    type: 'b-m-p-s-m',
+    lat: 48.0,
+    lon: 11.0,
+    callsign: 'SpotMark',
+  });
+  const marker = COTProtocolHandler.cotToMarker(cot);
+  assert(marker.type === 'cbt_hostile',
+    `b-m-p-s-m should get cbt_hostile via CBT fallback, got ${marker.type}`);
+});
+
+test('cbt_friendly maps to a-f-G-U-C-I', () => {
+  const cotType = COTEvent.lpu5TypeToCot('cbt_friendly');
+  assert(cotType === 'a-f-G-U-C-I', `cbt_friendly should map to a-f-G-U-C-I, got ${cotType}`);
+});
+
 // Summary
 console.log('\n=== Test Summary ===');
 console.log(`Total Tests: ${testsPassed + testsFailed}`);

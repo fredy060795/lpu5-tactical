@@ -276,7 +276,7 @@ class COTEvent {
             // CBT variants — ATAK-sourced markers; map back to the same CoT
             // types as their base shapes so they round-trip correctly.
             cbt_hostile:     'a-h-G-U-C',
-            cbt_friendly:    'a-f-G-U-C',        // ATAK friendly (blue rectangle + CBT)
+            cbt_friendly:    'a-f-G-U-C-I',        // ATAK friendly (blue rectangle + CBT)
             cbt_neutral:     'a-n-G-U-C',
             cbt_unknown:     'a-u-G-U-C',
         };
@@ -287,6 +287,10 @@ class COTEvent {
      *  before shorter prefix alternatives when iterating. */
     static get COT_TO_LPU5_TYPE() {
         return [
+            ['b-m-p-s-m-f', 'cbt_friendly'],     // TAK spot-map marker friendly
+            ['b-m-p-s-m-h', 'cbt_hostile'],      // TAK spot-map marker hostile
+            ['b-m-p-s-m-n', 'cbt_neutral'],      // TAK spot-map marker neutral
+            ['b-m-p-s-m-u', 'cbt_unknown'],      // TAK spot-map marker unknown
             ['b-m-p-s-m',   'hostile'],          // TAK spot-map marker (all shapes)
             ['u-d-c-e',     'hostile'],          // TAK drawing ellipse → diamond
             ['u-d-c-c',     'hostile'],          // TAK drawing circle → diamond
@@ -432,8 +436,8 @@ class COTProtocolHandler {
             lpu5Type = 'tak_maker';
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h')) {
             lpu5Type = 'node';
-        } else if (_ATAK_TO_CBT[lpu5Type]) {
-            lpu5Type = _ATAK_TO_CBT[lpu5Type];
+        } else if (_ATAK_TO_CBT[lpu5Type] || cotEvent.type.startsWith('b-m-p-s-m')) {
+            lpu5Type = _ATAK_TO_CBT[lpu5Type] || 'cbt_' + lpu5Type;
         }
 
         // CoT events with a "mesh-" UID prefix are Meshtastic nodes imported back
