@@ -528,6 +528,9 @@ class TAKServerMonitor(threading.Thread):
 
         if self.use_ssl:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            # TAK servers typically use self-signed certificates;
+            # hostname verification is disabled for compatibility.
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
             if self.certfile:
