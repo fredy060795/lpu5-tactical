@@ -555,6 +555,9 @@ class CoTListenerService:
 # CoT type → LPU5 type mapping (mirrors cot_protocol.py / cot_data_monitor.py)
 # ---------------------------------------------------------------------------
 
+# CoT type → LPU5 type mapping (mirrors cot_protocol.py / cot_data_monitor.py).
+# Entries are checked in order; more specific prefixes must appear before
+# general ones (e.g. "a-f-G-E-S-U-M" before "a-f-G-E" before "a-f").
 _COT_TO_LPU5_TYPE: List[Tuple[str, str]] = [
     ("b-m-p-s-m", "hostile"),
     ("u-d-c-e",   "hostile"),
@@ -788,6 +791,36 @@ class _EventStore:
             except ValueError:
                 pass
 
+    def export_log(self) -> Dict[str, Any]:
+        """Return a summary of all events with corrections for export."""
+        with self._lock:
+            all_events = list(self._events)
+        corrected = [e for e in all_events if e.get("correction")]
+        return {
+            "export_time": datetime.now(timezone.utc).isoformat(),
+            "summary": {
+                "total_events": len(all_events),
+                "corrections_made": len(corrected),
+            },
+            "corrections": [
+                {
+                    "event_index": e.get("idx", 0) + 1,
+                    "uid": e["parsed"].get("uid"),
+                    "callsign": e["parsed"].get("callsign"),
+                    "cot_type": e["parsed"].get("cot_type"),
+                    "how": e["parsed"].get("how"),
+                    "detected_type": e["parsed"].get("detected_type"),
+                    "detection_reason": e["parsed"].get("detection_reason"),
+                    "correct_type": e.get("correction"),
+                    "notes": e.get("notes", ""),
+                    "direction": ("ATAK->LPU5" if e["direction"] == "<<<"
+                                  else "LPU5->ATAK"),
+                    "raw_xml": e.get("raw_xml", ""),
+                }
+                for e in corrected
+            ],
+        }
+
 
 # ---------------------------------------------------------------------------
 # Built-in HTTP server for the web UI (mirrors cot_data_monitor.py)
@@ -923,33 +956,7 @@ class _MonitorHTTPHandler(http.server.BaseHTTPRequestHandler):
         if _event_store is None:
             self._send_json({})
             return
-        with _event_store._lock:
-            all_events = list(_event_store._events)
-        corrected = [e for e in all_events if e.get("correction")]
-        self._send_json({
-            "export_time": datetime.now(timezone.utc).isoformat(),
-            "summary": {
-                "total_events": len(all_events),
-                "corrections_made": len(corrected),
-            },
-            "corrections": [
-                {
-                    "event_index": e.get("idx", 0) + 1,
-                    "uid": e["parsed"].get("uid"),
-                    "callsign": e["parsed"].get("callsign"),
-                    "cot_type": e["parsed"].get("cot_type"),
-                    "how": e["parsed"].get("how"),
-                    "detected_type": e["parsed"].get("detected_type"),
-                    "detection_reason": e["parsed"].get("detection_reason"),
-                    "correct_type": e.get("correction"),
-                    "notes": e.get("notes", ""),
-                    "direction": ("ATAK->LPU5" if e["direction"] == "<<<"
-                                  else "LPU5->ATAK"),
-                    "raw_xml": e.get("raw_xml", ""),
-                }
-                for e in corrected
-            ],
-        })
+        self._send_json(_event_store.export_log())
 
     def _api_export_post(self):
         body = self._read_body()
