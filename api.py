@@ -37,6 +37,8 @@ import jwt
 import base64
 from typing import Optional, Any, Dict, List
 import logging
+import pathlib
+import queue
 import random
 import threading
 import time
@@ -1106,6 +1108,8 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
     sent before the CoT payload on TCP and SSL connections.
     Returns True on success, False if forwarding is disabled or an error occurs.
     """
+    # Capture outgoing CoT for the data monitor (best-effort)
+    _cot_monitor_record(cot_xml, ">>>", "forward_to_tak")
     try:
         tak_cfg = _get_tak_config()
         if not tak_cfg["tak_forward_enabled"] or not tak_cfg["tak_server_host"]:
@@ -1471,6 +1475,8 @@ def _is_recently_deleted_marker(marker_id: str) -> bool:
 
 def _process_incoming_cot(cot_xml: str) -> None:
     """Parse an incoming CoT XML event, upsert a MapMarker, and broadcast to WebSocket clients."""
+    # Capture for the CoT data monitor (best-effort, never blocks the main flow)
+    _cot_monitor_record(cot_xml, "<<<", "tak_server")
     import xml.etree.ElementTree as _ET
     try:
         root = _ET.fromstring(cot_xml)
@@ -6787,6 +6793,281 @@ async def gateway_send_message(data: dict = Body(...)):
             raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 # ===========================
+# CoT Data Monitor (integrated)
+# ===========================
+
+class _CoTMonitorStore:
+    """Thread-safe store for captured CoT events with SSE broadcast.
+
+    Mirrors the ``EventStore`` from ``cot_data_monitor.py`` so the monitor
+    web UI can be served directly from the API without requiring the
+    standalone monitor tool (which would crash due to port conflicts when
+    the API is already running).
+    """
+
+    def __init__(self, max_events: int = 10_000):
+        self._lock = threading.Lock()
+        self._events: List[Dict[str, Any]] = []
+        self._max = max_events
+        self._sse_queues: List[queue.Queue] = []
+        self.total = 0
+        self.incoming = 0
+        self.outgoing = 0
+        self.by_type: Dict[str, int] = {}
+
+    # -- write path ----------------------------------------------------------
+
+    def add(self, parsed: Dict[str, Any], direction: str,
+            source: str, raw_xml: str) -> None:
+        record: Dict[str, Any] = {
+            "parsed": parsed,
+            "direction": direction,
+            "source": source,
+            "raw_xml": raw_xml,
+        }
+        with self._lock:
+            idx = len(self._events)
+            record["idx"] = idx
+            self._events.append(record)
+            if len(self._events) > self._max:
+                self._events = self._events[-self._max:]
+            # Stats
+            self.total += 1
+            if direction == "<<<":
+                self.incoming += 1
+            else:
+                self.outgoing += 1
+            t = parsed.get("detected_type", "?")
+            self.by_type[t] = self.by_type.get(t, 0) + 1
+            # Push to all SSE subscribers
+            dead: List[int] = []
+            for i, q in enumerate(self._sse_queues):
+                try:
+                    q.put_nowait(record)
+                except queue.Full:
+                    dead.append(i)
+            for i in reversed(dead):
+                self._sse_queues.pop(i)
+
+    # -- read path -----------------------------------------------------------
+
+    def get_all(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            return list(self._events)
+
+    def set_correction(self, idx: int, correction: str, notes: str) -> None:
+        with self._lock:
+            if 0 <= idx < len(self._events):
+                self._events[idx]["correction"] = correction
+                self._events[idx]["notes"] = notes
+
+    def clear(self) -> None:
+        with self._lock:
+            self._events.clear()
+            self.total = 0
+            self.incoming = 0
+            self.outgoing = 0
+            self.by_type.clear()
+
+    def stats(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "total": self.total,
+                "incoming": self.incoming,
+                "outgoing": self.outgoing,
+                "by_type": dict(self.by_type),
+            }
+
+    # -- SSE -----------------------------------------------------------------
+
+    def subscribe_sse(self) -> queue.Queue:
+        q: queue.Queue = queue.Queue(maxsize=500)
+        with self._lock:
+            self._sse_queues.append(q)
+        return q
+
+    def unsubscribe_sse(self, q: queue.Queue) -> None:
+        with self._lock:
+            try:
+                self._sse_queues.remove(q)
+            except ValueError:
+                pass
+
+    # -- export --------------------------------------------------------------
+
+    def export_log(self) -> Dict[str, Any]:
+        with self._lock:
+            all_events = list(self._events)
+        corrected = [e for e in all_events if e.get("correction")]
+        return {
+            "export_time": datetime.now(timezone.utc).isoformat(),
+            "summary": {
+                "total_events": len(all_events),
+                "corrections_made": len(corrected),
+            },
+            "corrections": [
+                {
+                    "event_index": e.get("idx", 0) + 1,
+                    "uid": e["parsed"].get("uid"),
+                    "callsign": e["parsed"].get("callsign"),
+                    "cot_type": e["parsed"].get("cot_type"),
+                    "how": e["parsed"].get("how"),
+                    "detected_type": e["parsed"].get("detected_type"),
+                    "detection_reason": e["parsed"].get("detection_reason"),
+                    "correct_type": e.get("correction"),
+                    "notes": e.get("notes", ""),
+                    "direction": ("ATAK->LPU5" if e["direction"] == "<<<"
+                                  else "LPU5->ATAK"),
+                    "raw_xml": e.get("raw_xml", ""),
+                }
+                for e in corrected
+            ],
+            "all_events": [
+                {
+                    "event_index": e.get("idx", 0) + 1,
+                    "direction": ("ATAK->LPU5" if e["direction"] == "<<<"
+                                  else "LPU5->ATAK"),
+                    "source": e.get("source"),
+                    **{k: e["parsed"].get(k) for k in (
+                        "uid", "callsign", "cot_type", "how", "lat", "lon",
+                        "detected_type", "detection_reason", "has_meshtastic",
+                        "mesh_longName", "mesh_shortName", "is_echo_back",
+                        "team", "role", "endpoint", "time", "stale",
+                    )},
+                    "correct_type": e.get("correction") or None,
+                    "notes": e.get("notes") or None,
+                }
+                for e in all_events
+            ],
+        }
+
+
+# Global monitor store – always active so captured events are available
+# the moment the web UI is opened.
+_cot_monitor_store = _CoTMonitorStore()
+
+
+def _cot_monitor_record(cot_xml: str, direction: str, source: str) -> None:
+    """Parse a raw CoT XML string and push it into the monitor store.
+
+    This is a lightweight wrapper called from ``_process_incoming_cot`` and
+    ``_cot_listener_ingest_callback`` so every CoT event that flows through
+    the API is captured for the monitor web UI.
+    """
+    import xml.etree.ElementTree as _ET
+    try:
+        root = _ET.fromstring(cot_xml)
+        if root.tag != "event":
+            return
+        uid = root.get("uid", "")
+        event_type = root.get("type", "")
+        how = root.get("how", "")
+
+        point = root.find("point")
+        lat = lon = 0.0
+        if point is not None:
+            try:
+                lat = float(point.get("lat", 0))
+                lon = float(point.get("lon", 0))
+            except (TypeError, ValueError):
+                pass
+
+        detail = root.find("detail")
+        callsign = uid
+        team = role = endpoint = ""
+        has_meshtastic = False
+        mesh_longName = mesh_shortName = ""
+        if detail is not None:
+            contact = detail.find("contact")
+            if contact is not None:
+                callsign = contact.get("callsign") or callsign
+                endpoint = contact.get("endpoint", "")
+            grp = detail.find("__group")
+            if grp is not None:
+                team = grp.get("name", "")
+                role = grp.get("role", "")
+            mesh_el = detail.find("meshtastic")
+            if mesh_el is not None:
+                has_meshtastic = True
+                mesh_longName = mesh_el.get("longName", "")
+                mesh_shortName = mesh_el.get("shortName", "")
+
+        # Detect LPU5 type (simplified version matching cot_data_monitor logic)
+        detected_type = "unknown"
+        detection_reason = ""
+        if has_meshtastic:
+            detected_type = "meshtastic_node"
+            detection_reason = "<meshtastic> detail element"
+        elif event_type.startswith("a-f-G-E"):
+            detected_type = "meshtastic_node"
+            detection_reason = f"CoT type {event_type} (equipment)"
+        elif event_type.startswith("a-f"):
+            if how.startswith("h-g"):
+                detected_type = "tak_maker"
+                detection_reason = f"friendly + how={how} (GPS)"
+            elif how.startswith("h"):
+                detected_type = "meshtastic_node"
+                detection_reason = f"friendly + how={how} (human, non-GPS)"
+            else:
+                detected_type = "friendly"
+                detection_reason = f"CoT type {event_type}"
+        elif event_type.startswith("a-h"):
+            detected_type = "hostile"
+            detection_reason = f"CoT type {event_type}"
+        elif event_type.startswith("a-n"):
+            detected_type = "neutral"
+            detection_reason = f"CoT type {event_type}"
+        elif event_type.startswith("a-u"):
+            detected_type = "unknown"
+            detection_reason = f"CoT type {event_type}"
+        elif event_type.startswith("a-p"):
+            detected_type = "pending"
+            detection_reason = f"CoT type {event_type}"
+        elif event_type.startswith("b-t-f"):
+            detected_type = "geochat"
+            detection_reason = "GeoChat message"
+        else:
+            detection_reason = f"CoT type {event_type}"
+
+        if uid.startswith("mesh-"):
+            detected_type = "node"
+            detection_reason = "UID starts with mesh-"
+        elif uid.startswith("GPS-"):
+            detected_type = "gps_position"
+            detection_reason = "UID starts with GPS-"
+
+        is_echo_back = uid.startswith("GPS-") or uid == getattr(
+            _cot_monitor_record, "_lpu5_uid", "LPU5-GW")
+
+        time_str = root.get("time", "")
+        stale_str = root.get("stale", "")
+
+        parsed = {
+            "uid": uid,
+            "callsign": callsign,
+            "cot_type": event_type,
+            "how": how,
+            "lat": lat,
+            "lon": lon,
+            "detected_type": detected_type,
+            "detection_reason": detection_reason,
+            "has_meshtastic": has_meshtastic,
+            "mesh_longName": mesh_longName,
+            "mesh_shortName": mesh_shortName,
+            "is_echo_back": is_echo_back,
+            "team": team,
+            "role": role,
+            "endpoint": endpoint,
+            "time": time_str,
+            "stale": stale_str,
+        }
+
+        _cot_monitor_store.add(parsed, direction, source, cot_xml)
+    except Exception:
+        pass  # best-effort; never break the main CoT flow
+
+
+# ===========================
 # CoT Listener Service
 # ===========================
 
@@ -6847,6 +7128,8 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
     GeoChat events (type b-t-f) are saved as LPU5 chat messages instead of
     map markers.
     """
+    # Capture for the CoT data monitor (best-effort, never blocks the main flow)
+    _cot_monitor_record(xml_string, "<<<", "cot_listener")
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return
     try:
@@ -7032,6 +7315,130 @@ def cot_listener_stop(authorization: Optional[str] = Header(None)):
             raise HTTPException(status_code=401, detail="Invalid or expired token")
     _stop_cot_listener()
     return {"status": "stopped"}
+
+
+# ===========================
+# CoT Data Monitor Endpoints
+# ===========================
+
+@app.get("/api/cot/monitor/events", summary="Get captured CoT events")
+def cot_monitor_events():
+    """Return all captured CoT events from the in-memory monitor store."""
+    return {"events": _cot_monitor_store.get_all()}
+
+
+@app.get("/api/cot/monitor/stream", summary="SSE stream of CoT events")
+async def cot_monitor_stream(request: Request):
+    """Server-Sent Events stream for real-time CoT data monitoring.
+
+    Each event is sent as ``event: cot_event`` with a JSON ``data`` payload
+    containing the parsed CoT fields, direction, source, and raw XML.
+    A ``ping`` comment is sent every 15 seconds as a keep-alive.
+    """
+    q = _cot_monitor_store.subscribe_sse()
+
+    async def _event_generator():
+        loop = asyncio.get_event_loop()
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    record = await asyncio.wait_for(
+                        loop.run_in_executor(None, lambda: q.get(timeout=1)),
+                        timeout=15,
+                    )
+                    payload = json.dumps(record, ensure_ascii=False)
+                    yield f"event: cot_event\ndata: {payload}\n\n"
+                except (asyncio.TimeoutError, Exception):
+                    yield ": ping\n\n"
+        finally:
+            _cot_monitor_store.unsubscribe_sse(q)
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/cot/monitor/clear", summary="Clear captured CoT events")
+def cot_monitor_clear():
+    """Clear all captured CoT events from the monitor store."""
+    _cot_monitor_store.clear()
+    return {"ok": True}
+
+
+@app.post("/api/cot/monitor/events/{idx}/correction",
+          summary="Set correction for a captured event")
+def cot_monitor_set_correction(idx: int, data: Dict = Body(...)):
+    """Manually assign the correct marker type for a captured CoT event."""
+    _cot_monitor_store.set_correction(
+        idx,
+        data.get("correction", ""),
+        data.get("notes", ""),
+    )
+    return {"ok": True}
+
+
+@app.get("/api/cot/monitor/export", summary="Export monitor log")
+def cot_monitor_export():
+    """Export all captured events with corrections as JSON."""
+    return _cot_monitor_store.export_log()
+
+
+@app.post("/api/cot/monitor/export", summary="Save monitor log server-side")
+def cot_monitor_export_post(data: Dict = Body(...)):
+    """Save the annotated monitor log to a server-side JSON file."""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"cot_monitor_log_{ts}.json"
+    base_dir = str(pathlib.Path(__file__).resolve().parent)
+    filepath = os.path.join(base_dir, filename)
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info("CoT monitor log saved to %s", filepath)
+        return {"ok": True, "file": filepath}
+    except OSError as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.get("/api/cot/monitor/stats", summary="Get CoT monitor statistics")
+def cot_monitor_stats():
+    """Return current statistics from the CoT data monitor."""
+    return _cot_monitor_store.stats()
+
+
+@app.get("/api/cot/monitor/ui", summary="CoT data monitor web UI")
+def cot_monitor_ui():
+    """Serve the CoT data-flow monitor HTML interface.
+
+    This is the same ``cot_monitor_ui.html`` used by the standalone
+    ``cot_data_monitor.py`` tool, but served directly from the API so
+    there are no port conflicts.
+    """
+    html_path = os.path.join(
+        str(pathlib.Path(__file__).resolve().parent), "cot_monitor_ui.html")
+    if not os.path.isfile(html_path):
+        raise HTTPException(status_code=404,
+                            detail="cot_monitor_ui.html not found")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    # Rewrite the API paths so the standalone UI works with the API prefix.
+    # The standalone monitor uses /api/events/... whereas the API uses
+    # /api/cot/monitor/...
+    html = html.replace("/api/events/stream", "/api/cot/monitor/stream")
+    html = html.replace("/api/events/clear", "/api/cot/monitor/clear")
+    html = html.replace("/api/events/", "/api/cot/monitor/events/")
+    html = html.replace("/api/events", "/api/cot/monitor/events")
+    html = html.replace("'/api/export'", "'/api/cot/monitor/export'")
+    html = html.replace('"/api/export"', '"/api/cot/monitor/export"')
+    return Response(content=html, media_type="text/html")
 
 
 # ===========================
