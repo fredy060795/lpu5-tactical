@@ -74,6 +74,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 _NO_COLOUR = os.environ.get("NO_COLOR") is not None
 
+# Timeout (seconds) used for non-blocking socket recv loops throughout
+# the capture threads.  Keep it short so the stop-event is checked often.
+_SOCK_TIMEOUT = 1
+
 def _c(code: str, text: str) -> str:
     """Wrap *text* in ANSI colour *code* unless colours are disabled."""
     if _NO_COLOUR:
@@ -493,12 +497,10 @@ class TAKServerMonitor(threading.Thread):
 
     def _build_sa_beacon(self) -> str:
         """Minimal SA beacon so the TAK server registers us and relays traffic."""
+        from datetime import timedelta
         now = datetime.now(timezone.utc)
         ts  = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        stale = (now.replace(second=0, microsecond=0)
-                 .__class__(now.year, now.month, now.day,
-                            now.hour, now.minute + 5, 0,
-                            tzinfo=timezone.utc)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        stale = (now + timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         return (
             f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             f'<event version="2.0" uid="{self.sa_callsign}" '
@@ -550,7 +552,7 @@ class TAKServerMonitor(threading.Thread):
                 self.on_event(parsed, ">>>", "SA beacon (monitor)", sa_xml)
 
             buf = ""
-            sock.settimeout(1)
+            sock.settimeout(_SOCK_TIMEOUT)
             last_sa = time.time()
             while not self._stop_event.is_set():
                 # Refresh SA every 25 s to stay alive
@@ -635,7 +637,7 @@ class LocalCoTListener(threading.Thread):
             _log_stderr(f"Cannot bind TCP port {self.tcp_port}: {exc}")
             return
         srv.listen(5)
-        srv.settimeout(1)
+        srv.settimeout(_SOCK_TIMEOUT)
         _log_stderr(f"TCP listener on port {self.tcp_port}")
         while not self._stop_event.is_set():
             try:
@@ -651,7 +653,7 @@ class LocalCoTListener(threading.Thread):
     def _handle_tcp(self, conn: socket.socket, addr):
         _log_stderr(f"TCP connection from {addr}")
         buf = ""
-        conn.settimeout(1)
+        conn.settimeout(_SOCK_TIMEOUT)
         try:
             while not self._stop_event.is_set():
                 try:
@@ -682,7 +684,7 @@ class LocalCoTListener(threading.Thread):
         except OSError as exc:
             _log_stderr(f"Cannot bind UDP port {self.udp_port}: {exc}")
             return
-        sock.settimeout(1)
+        sock.settimeout(_SOCK_TIMEOUT)
         _log_stderr(f"UDP listener on port {self.udp_port}")
         while not self._stop_event.is_set():
             try:
@@ -719,7 +721,7 @@ class LocalCoTListener(threading.Thread):
             _log_stderr(f"Cannot join multicast group {self.multicast_group}: {exc}")
             sock.close()
             return
-        sock.settimeout(1)
+        sock.settimeout(_SOCK_TIMEOUT)
         _log_stderr(f"Multicast listener on {self.multicast_group}:{self.multicast_port}")
         while not self._stop_event.is_set():
             try:
