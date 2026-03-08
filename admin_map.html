@@ -3224,7 +3224,6 @@
             }
 
             // Build GPS arrow icon for Meshtastic node — use team color if available
-            const iconLabel = escapeHtml(shortName) || 'M';
             const teamColor = (n.team ? TAK_TEAM_COLORS[n.team] : null) || '#007bff';
             const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${teamColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
 
