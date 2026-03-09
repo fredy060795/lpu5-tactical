@@ -107,6 +107,37 @@ let deviceAssignmentMap = loadDeviceMap();
 let _deviceSelectOpen = false;
 let _renderPending = false;
 
+// --- Debounce infrastructure to buffer changes before DB writes ---
+let _renderRAF = null;        // requestAnimationFrame id for batched renders
+let _loadInFlight = false;    // true while loadData() is running
+let _loadQueued = false;      // true if another loadData was requested during flight
+let _saveTimer = null;        // debounce timer for server persistence
+
+/** Coalesce multiple renderTable() calls into one frame */
+function scheduleRender(){
+    if (_renderRAF) return;            // already scheduled
+    _renderRAF = requestAnimationFrame(() => {
+        _renderRAF = null;
+        renderTable();
+    });
+}
+
+/** Debounced loadData — prevents overlapping fetches */
+function scheduleLoadData(delayMs){
+    if (_loadInFlight){ _loadQueued = true; return; }
+    const delay = typeof delayMs === 'number' ? delayMs : 300;
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(async () => {
+        if (_loadInFlight){ _loadQueued = true; return; }
+        _loadInFlight = true;
+        try { await loadData(); }
+        finally {
+            _loadInFlight = false;
+            if (_loadQueued){ _loadQueued = false; scheduleLoadData(100); }
+        }
+    }, delay);
+}
+
 // BroadcastChannel for cross-tab status synchronization
 let statusBroadcast = null;
 try { statusBroadcast = new BroadcastChannel('lpu5_status_updates'); } catch(e){}
@@ -143,11 +174,11 @@ function connectWebSocket() {
                         if (user) {
                             const key = getUserKey(user);
                             applyClientStatus(key, normalizeStatus(newStatus), statusData.timestamp || nowISO());
-                            renderTable();
+                            scheduleRender();
                         }
                     }
                 } else if (data.type === 'marker_updated' && data.channel === 'markers') {
-                    loadData().catch(e => console.warn('Failed to reload after marker update', e));
+                    scheduleLoadData(400);
                 }
             } catch (e) {
                 console.error('WebSocket message parse error:', e);
@@ -324,18 +355,17 @@ function renderDeviceSelect(user){
     return select;
 }
 
-/* assign device to user: store locally and try to persist user.device + callsign (Mesh-Callsign) to server */
+/* assign device to user: buffer locally first, then persist to server */
 async function assignDeviceToUser(user, nodeName){
     const key = getUserKey(user);
-    // optimistic assign in-memory
+    // --- buffer: apply in-memory + localStorage immediately (no server call yet) ---
     user._assigned_node_name = nodeName || '';
     deviceAssignmentMap[key] = nodeName || '';
     saveDeviceMap();
-    renderTable();
+    scheduleRender();                       // debounced single render
 
     // attempt persist to server: PUT /api/users/{id} with device + callsign from mesh node
     if (!user || !user.id) return;
-    // Derive the Mesh-Callsign from the assigned node (node.name)
     const assignedNode = nodeName ? findNodeByIdentifier(nodeName) : null;
     const meshCallsign = assignedNode ? (assignedNode.name || nodeName) : (nodeName || '');
     try {
@@ -347,7 +377,8 @@ async function assignDeviceToUser(user, nodeName){
         if (resp.ok){
             // server accepted — remove local fallback
             if (deviceAssignmentMap[key]) { delete deviceAssignmentMap[key]; saveDeviceMap(); }
-            await loadData();
+            // debounced reload instead of immediate loadData + renderTable
+            scheduleLoadData(500);
             return;
         } else {
             console.warn('Server rejected device assignment', resp.status);
@@ -435,7 +466,7 @@ function applyClientStatus(key, newStatus, tsISO){
     saveClientStatus();
 }
 
-/* status change: update client map and try to persist */
+/* status change: buffer locally, render once, then persist to server */
 async function localSetStatus(idEnc, newStatus){
     const id = decodeURIComponent(idEnc);
     let user = allUsers.find(u => String(u.id) === String(id) || String(u.username) === String(id));
@@ -445,8 +476,9 @@ async function localSetStatus(idEnc, newStatus){
     if (!confirm(`Set status for unit ${key} to ${newStatus}?`)) return;
 
     const ts = nowISO();
+    // --- buffer: apply in-memory + localStorage immediately ---
     applyClientStatus(key, newStatus, ts);
-    renderTable();
+    scheduleRender();                       // single debounced render
 
     // Broadcast status change to other tabs (overview.html)
     const username = user ? (user.username || '') : id;
@@ -458,30 +490,38 @@ async function localSetStatus(idEnc, newStatus){
     try { localStorage.setItem('lpu5_last_status_update', JSON.stringify(updateData)); } catch(e){}
     try { localStorage.setItem('lpu5_status', JSON.stringify({ type: 'status-change', status: newStatus })); } catch(e){}
 
-    // try persist: /api/status -> marker PUT -> user metadata PUT (without toggling account active)
+    // --- persist to server (fire-and-forget, debounced reload on success) ---
+    let persisted = false;
     try {
         const resp = await fetch(`/api/status/${encodeURIComponent(id)}/${encodeURIComponent(newStatus)}`, { method:'POST' });
-        if (resp.ok){ await loadData(); return; }
+        if (resp.ok){ persisted = true; }
     } catch(e){}
 
-    const marker = user ? findMarkerForUser(user) : null;
-    if (marker){
-        const payload = { status: newStatus, timestamp: ts };
-        if (newStatus === 'KIA') payload.tod = ts;
-        try {
-            const put = await fetch(`/api/map_markers/${encodeURIComponent(marker.id)}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-            if (put.ok){ await loadData(); return; }
-        } catch(e){}
+    if (!persisted){
+        const marker = user ? findMarkerForUser(user) : null;
+        if (marker){
+            const payload = { status: newStatus, timestamp: ts };
+            if (newStatus === 'KIA') payload.tod = ts;
+            try {
+                const put = await fetch(`/api/map_markers/${encodeURIComponent(marker.id)}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (put.ok){ persisted = true; }
+            } catch(e){}
+        }
     }
 
-    if (user && user.id){
+    if (!persisted && user && user.id){
         try {
             const putu = await fetch(`/api/users/${encodeURIComponent(user.id)}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ updated_at: ts }) });
-            if (putu.ok){ await loadData(); return; }
+            if (putu.ok){ persisted = true; }
         } catch(e){}
     }
 
-    console.warn('Persistence failed for tactical status; kept locally.');
+    if (persisted){
+        // debounced reload instead of immediate loadData
+        scheduleLoadData(500);
+    } else {
+        console.warn('Persistence failed for tactical status; kept locally.');
+    }
 }
 
 /* timestamps and timer logic */
@@ -585,7 +625,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     updateTimers();
     updateMissionHeader();
 
-    setInterval(async ()=>{ await loadData(); }, REFRESH_MS);
+    setInterval(()=>{ scheduleLoadData(0); }, REFRESH_MS);
     setInterval(updateTimers, TIMER_INTERVAL_MS);
     setInterval(updateMissionHeader, 15000);
     
@@ -602,10 +642,10 @@ window.addEventListener('DOMContentLoaded', async () => {
                 if (user) {
                     const key = getUserKey(user);
                     applyClientStatus(key, normalizeStatus(data.status), data.timestamp || nowISO());
-                    renderTable();
+                    scheduleRender();
                 }
-                // Also reload from server for consistency
-                loadData().catch(e => console.warn('Failed to reload data after status update', e));
+                // Debounced reload from server for consistency
+                scheduleLoadData(600);
             }
         });
         
@@ -631,10 +671,10 @@ window.addEventListener('DOMContentLoaded', async () => {
                     if (user) {
                         const key = getUserKey(user);
                         applyClientStatus(key, normalizeStatus(data.status), data.timestamp || nowISO());
-                        renderTable();
+                        scheduleRender();
                     }
-                    // Also reload from server for consistency
-                    loadData().catch(err => console.warn('Failed to reload data after status update', err));
+                    // Debounced reload from server for consistency
+                    scheduleLoadData(600);
                 }
             } catch (err) {
                 console.warn('Failed to parse status update', err);
@@ -771,10 +811,10 @@ function logoutUser(){
     }
     
     // Force refresh of the main table to show updated status
-    // Delay needed to allow status update to complete before re-rendering
-    if (typeof renderTable === 'function') {
+    // Debounced to prevent flickering
+    if (typeof scheduleRender === 'function') {
       clientStatusMap = loadClientStatus();
-      setTimeout(() => renderTable(), 100);
+      scheduleRender();
     }
   }
 
