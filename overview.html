@@ -3587,7 +3587,7 @@
       header.addEventListener('touchstart', function (e) {
         const t = e.touches[0];
         startDrag(t.clientX, t.clientY, e);
-      }, { passive: true });
+      });
       document.addEventListener('touchmove', function (e) {
         if (!isDragging) return;
         e.preventDefault();
@@ -4429,7 +4429,7 @@
         header.addEventListener('touchstart', function (e) {
           const t = e.touches[0];
           startDrag(t.clientX, t.clientY, e);
-        }, { passive: true });
+        });
         document.addEventListener('touchmove', function (e) {
           if (!isDragging) return;
           e.preventDefault();
