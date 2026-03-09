@@ -1837,6 +1837,10 @@ async function fedLoadServers() {
         const headers = {};
         if (token) headers['Authorization'] = 'Bearer ' + token;
         const resp = await fetch('/api/federation/servers', { headers });
+        if (resp.status === 401) {
+            area.innerHTML = '<div class="warning-box"><i class="fas fa-sign-in-alt"></i> Bitte zuerst anmelden, um die Server-Liste zu laden.</div>';
+            return;
+        }
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const servers = await resp.json();
 
@@ -2058,6 +2062,12 @@ async function fedLoadAutoSyncStatus() {
         const headers = {};
         if (token) headers['Authorization'] = 'Bearer ' + token;
         const resp = await fetch('/api/federation/sync/status', { headers });
+        if (resp.status === 401) {
+            badge.textContent = '–';
+            badge.style.background = '#555';
+            info.textContent = 'Bitte anmelden, um den Sync-Status zu laden.';
+            return;
+        }
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
 

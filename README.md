@@ -485,8 +485,8 @@ All endpoints require `Authorization: Bearer <token>` unless noted.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/federation/info` | Local server public key & metadata |
-| `GET` | `/api/federation/qr` | QR code PNG encoding local server info |
+| `GET` | `/api/federation/info` | Local server public key & metadata (no auth required – public info) |
+| `GET` | `/api/federation/qr` | QR code PNG encoding local server info (no auth required – public info) |
 | `POST` | `/api/federation/servers` | Register a remote server |
 | `GET` | `/api/federation/servers` | List all registered servers |
 | `GET` | `/api/federation/servers/{server_id}` | Get specific server details |

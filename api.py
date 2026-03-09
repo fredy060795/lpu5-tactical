@@ -639,6 +639,24 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     return payload
 
 
+def get_optional_user(authorization: Optional[str] = Header(None)) -> Optional[dict]:
+    """FastAPI dependency: like *get_current_user* but returns ``None``
+    instead of raising 401 when no valid token is provided.  Useful for
+    endpoints that should be publicly accessible but may optionally use
+    the caller's identity for logging or enrichment.
+    """
+    token = None
+    if authorization:
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+        else:
+            token = authorization.strip()
+    if not token:
+        return None
+    payload = verify_token(token)
+    return payload  # may be None if token is invalid
+
+
 def log_audit(action: str, user_id: str, details: Dict) -> None:
     """Log an audit event to the database"""
     db = SessionLocal()
@@ -10430,10 +10448,14 @@ def _require_federation(db: Session = None):
 # GET /api/federation/info  – local server identity (public key + metadata)
 # ---------------------------------------------------------------------------
 @app.get("/api/federation/info", tags=["Federation"])
-def federation_info(current_user: dict = Depends(get_current_user)):
+def federation_info(current_user: Optional[dict] = Depends(get_optional_user)):
     """
     Return this server's public key and metadata.
     Clients (and peer servers) use this to register this server in their registry.
+
+    This endpoint does **not** require authentication because the returned
+    data (server ID, public key, fingerprint) is inherently public and is
+    designed to be shared with other servers during the onboarding process.
     """
     _require_federation()
     try:
@@ -10448,10 +10470,14 @@ def federation_info(current_user: dict = Depends(get_current_user)):
 # GET /api/federation/qr  – QR code PNG encoding local server info
 # ---------------------------------------------------------------------------
 @app.get("/api/federation/qr", tags=["Federation"])
-def federation_qr(current_user: dict = Depends(get_current_user)):
+def federation_qr(current_user: Optional[dict] = Depends(get_optional_user)):
     """
     Return a QR code PNG that encodes this server's federation info.
     Scan this with another LPU5 server (or the admin UI) to onboard it.
+
+    This endpoint does **not** require authentication because the QR code
+    encodes only public information (server ID, public key) meant to be
+    shared during the federation onboarding process.
     """
     _require_federation()
     try:
