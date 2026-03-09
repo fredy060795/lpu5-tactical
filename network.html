@@ -1882,8 +1882,15 @@ async function fedLoadServers() {
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
                         <button class="btn btn-sm btn-primary"
                                 onclick="fedStartHandshake(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)}, ${peerUrlJson})"
-                                title="Handshake starten">
+                                title="Manueller Handshake">
                             <i class="fas fa-handshake"></i>
+                        </button>
+                        <button class="btn btn-sm"
+                                style="background:var(--accent-blue);color:#fff;"
+                                onclick="fedAutoHandshake(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)})"
+                                title="Automatischer gegenseitiger Handshake (TCP Connect-Back)"
+                                ${!isSafeUrl ? 'disabled' : ''}>
+                            <i class="fas fa-sync-alt"></i> Auto
                         </button>
                         <button class="btn btn-sm btn-danger"
                                 onclick="fedDeleteServer(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)})"
@@ -1918,6 +1925,26 @@ async function fedDeleteServer(serverId, serverName) {
         fedLoadServers();
     } catch (e) {
         alert('Fehler beim Löschen: ' + e.message);
+    }
+}
+
+async function fedAutoHandshake(serverId, serverName) {
+    if (!confirm(`Automatischen gegenseitigen Handshake mit "${serverName}" starten?\n\nDer Server wird über TCP kontaktiert und beide Seiten tauschen Schlüssel aus.`)) return;
+    const token = _getAuthToken();
+    try {
+        const headers = {'Content-Type': 'application/json'};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch(`/api/federation/servers/${encodeURIComponent(serverId)}/auto-handshake`, {
+            method: 'POST',
+            headers
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.detail || 'HTTP ' + resp.status);
+        alert(`✓ Auto-Handshake gestartet!\n\nDer Server wird im Hintergrund kontaktiert. Bitte in einigen Sekunden die Server-Liste aktualisieren.`);
+        // Refresh after a short delay to show updated trust status
+        setTimeout(() => fedLoadServers(), 3000);
+    } catch (e) {
+        alert('Auto-Handshake fehlgeschlagen: ' + e.message);
     }
 }
 

@@ -10534,6 +10534,17 @@ def federation_register_server(
     db.refresh(entry)
     log_audit("federation_server_registered", current_user.get("username", "?"),
               {"server_id": server_id, "name": name})
+
+    # Trigger automatic bidirectional handshake in the background if URL is present
+    if url:
+        threading.Thread(
+            target=_federation_auto_handshake,
+            args=(url, server_id),
+            daemon=True,
+            name=f"fed-handshake-{server_id[:8]}",
+        ).start()
+        logger.info("federation_register_server: auto-handshake started for %s", server_id)
+
     return JSONResponse(status_code=201, content={
         "status": "registered",
         "id": entry.id,
@@ -10617,6 +10628,42 @@ def federation_delete_server(
     log_audit("federation_server_deleted", current_user.get("username", "?"),
               {"server_id": server_id})
     return JSONResponse(content={"status": "deleted", "server_id": server_id})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/federation/servers/{server_id}/auto-handshake  – trigger auto-handshake
+# ---------------------------------------------------------------------------
+@app.post("/api/federation/servers/{server_id}/auto-handshake", tags=["Federation"])
+def federation_trigger_auto_handshake(
+    server_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Manually trigger the automatic bidirectional handshake with a registered
+    peer server.  The peer's URL must be set.
+
+    This performs the same connect-back handshake that runs automatically
+    when a new server is registered via ``POST /api/federation/servers``.
+    """
+    _require_federation()
+    row = db.query(FederatedServer).filter_by(server_id=server_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Server not found")
+    if not row.url:
+        raise HTTPException(status_code=422, detail="Server has no URL configured – cannot connect")
+
+    threading.Thread(
+        target=_federation_auto_handshake,
+        args=(row.url, server_id),
+        daemon=True,
+        name=f"fed-handshake-{server_id[:8]}",
+    ).start()
+    return JSONResponse(content={
+        "status": "handshake_started",
+        "server_id": server_id,
+        "peer_url": row.url,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -10985,6 +11032,300 @@ def federation_sync_status(current_user: dict = Depends(get_current_user)):
         "last_run": _FEDERATION_SYNC_LAST_RUN,
         "last_result": _FEDERATION_SYNC_LAST_RESULT,
     })
+
+
+# ---------------------------------------------------------------------------
+# Automatic federation handshake  (connect-back via TCP to port 8101)
+# ---------------------------------------------------------------------------
+# When Server B registers Server A (e.g. via QR code), Server A might not
+# know about Server B yet.  The automatic handshake solves this:
+#   1. Server B calls Server A's /api/federation/handshake/init with its own
+#      server info **and** a challenge for A to sign.
+#   2. Server A registers B (if unknown), signs the challenge, creates a
+#      counter-challenge for B, and returns everything in one response.
+#   3. Server B verifies A's signature → marks A as trusted.
+#   4. Server B signs A's counter-challenge and calls
+#      /api/federation/handshake/complete on A.
+#   5. Server A verifies B's counter-signature → marks B as trusted.
+# Both endpoints are unauthenticated (like /ingest) because trust is proven
+# through RSA signatures – the caller must possess the correct private key.
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/federation/handshake/init", tags=["Federation"])
+def federation_handshake_init(
+    body: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Phase 1 of the automatic mutual handshake.
+
+    A remote server calls this endpoint to:
+      * register itself on the local server (if not yet known),
+      * present a challenge for the local server to sign, and
+      * receive a counter-challenge to sign in return.
+
+    No JWT required – trust is established through RSA key verification.
+
+    Body fields
+    -----------
+    server_info : dict – remote server metadata
+        server_id   : str  – UUID
+        name        : str  – human-readable label
+        public_key  : str  – PEM-encoded RSA public key
+        url         : str  – (optional) base URL of the remote server
+    challenge   : str – base64-encoded random bytes for the local server to sign
+
+    Returns
+    -------
+    {
+        server_info      : dict   – *this* server's metadata (id, name, key, url …),
+        signature        : str    – local signature of the incoming challenge,
+        counter_challenge: str    – base64-encoded random bytes for the caller to sign,
+    }
+    """
+    _require_federation()
+
+    remote = body.get("server_info") or {}
+    remote_sid = remote.get("server_id", "")
+    remote_name = remote.get("name", "")
+    remote_pk_pem = remote.get("public_key", "")
+    remote_url = remote.get("url", "")
+    challenge_b64 = body.get("challenge", "")
+
+    if not remote_sid or not remote_name or not remote_pk_pem or not challenge_b64:
+        raise HTTPException(
+            status_code=422,
+            detail="server_info (server_id, name, public_key) and challenge are required",
+        )
+
+    # Validate remote public key
+    try:
+        fingerprint = _fed_fingerprint(remote_pk_pem)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid public_key PEM")
+
+    # Register or update remote server ----------------------------------
+    existing = db.query(FederatedServer).filter_by(server_id=remote_sid).first()
+    if existing:
+        existing.name = remote_name
+        existing.public_key_pem = remote_pk_pem
+        existing.fingerprint = fingerprint
+        if remote_url:
+            existing.url = remote_url
+        db.commit()
+        logger.info("federation_handshake_init: updated existing peer %s", remote_sid)
+    else:
+        entry = FederatedServer(
+            name=remote_name,
+            server_id=remote_sid,
+            public_key_pem=remote_pk_pem,
+            fingerprint=fingerprint,
+            url=remote_url,
+            trusted=False,
+        )
+        db.add(entry)
+        db.commit()
+        db.refresh(entry)
+        logger.info("federation_handshake_init: registered new peer %s", remote_sid)
+
+    # Sign the incoming challenge with OUR private key -------------------
+    try:
+        private_key, _ = _fed_load_keypair(base_path)
+        signature_b64 = _fed_sign_challenge(challenge_b64, private_key)
+    except Exception as exc:
+        logger.error("federation_handshake_init signing error: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Signing error: {exc}")
+
+    # Create a counter-challenge for the remote server to sign -----------
+    counter_challenge_b64 = _fed_generate_challenge()
+    peer_row = db.query(FederatedServer).filter_by(server_id=remote_sid).first()
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=_CHALLENGE_EXPIRE_SECONDS)
+    ch = FederationChallenge(
+        federated_server_id=peer_row.id,
+        challenge_b64=counter_challenge_b64,
+        expires_at=expires_at,
+    )
+    db.add(ch)
+    db.commit()
+    db.refresh(ch)
+
+    local_info = _fed_get_server_info(base_path)
+    log_audit("federation_handshake_init", "federation",
+              {"remote_server_id": remote_sid, "remote_name": remote_name})
+    return JSONResponse(content={
+        "server_info": local_info,
+        "signature": signature_b64,
+        "counter_challenge": counter_challenge_b64,
+        "counter_challenge_id": ch.id,
+    })
+
+
+@app.post("/api/federation/handshake/complete", tags=["Federation"])
+def federation_handshake_complete(
+    body: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Phase 2 of the automatic mutual handshake.
+
+    The initiating server calls this endpoint with the signed counter-challenge.
+    On successful verification the remote server is marked as *trusted*.
+
+    No JWT required – trust is established through RSA signature verification.
+
+    Body fields
+    -----------
+    server_id              : str – UUID of the calling server
+    counter_challenge_id   : str – ID returned by /handshake/init
+    signature              : str – base64-encoded RSA signature of the counter-challenge
+
+    Returns
+    -------
+    { status: "trusted", server_id: str }
+    """
+    _require_federation()
+
+    remote_sid = body.get("server_id", "")
+    cc_id = body.get("counter_challenge_id", "")
+    signature_b64 = body.get("signature", "")
+
+    if not remote_sid or not cc_id or not signature_b64:
+        raise HTTPException(
+            status_code=422,
+            detail="server_id, counter_challenge_id, and signature are required",
+        )
+
+    peer = db.query(FederatedServer).filter_by(server_id=remote_sid).first()
+    if not peer:
+        raise HTTPException(status_code=404, detail="Server not found in registry")
+
+    ch = db.query(FederationChallenge).filter_by(
+        id=cc_id, federated_server_id=peer.id
+    ).first()
+    if not ch:
+        raise HTTPException(status_code=404, detail="Counter-challenge not found")
+    if ch.used:
+        raise HTTPException(status_code=409, detail="Counter-challenge already used")
+    if datetime.now(timezone.utc) > ch.expires_at.replace(tzinfo=timezone.utc):
+        raise HTTPException(status_code=410, detail="Counter-challenge expired")
+
+    valid = _fed_verify_signature(ch.challenge_b64, signature_b64, peer.public_key_pem)
+    ch.used = True
+    db.commit()
+
+    if not valid:
+        log_audit("federation_handshake_complete_failed", "federation",
+                  {"server_id": remote_sid})
+        raise HTTPException(status_code=403, detail="Signature verification failed")
+
+    peer.trusted = True
+    peer.last_seen = datetime.now(timezone.utc)
+    db.commit()
+    log_audit("federation_handshake_complete_success", "federation",
+              {"server_id": remote_sid, "name": peer.name})
+    return JSONResponse(content={
+        "status": "trusted",
+        "server_id": remote_sid,
+        "name": peer.name,
+    })
+
+
+def _federation_auto_handshake(peer_url: str, peer_server_id: str):
+    """
+    Background task: perform a full bidirectional handshake with a remote
+    server via TCP (HTTP on port 8101).
+
+    Steps
+    -----
+    1. Send local server info + challenge  → peer's /api/federation/handshake/init
+    2. Verify peer's signature             → mark peer as trusted locally
+    3. Sign peer's counter-challenge       → send to peer's /api/federation/handshake/complete
+    4. Peer verifies our signature         → peer marks us as trusted
+    """
+    logger.info("federation_auto_handshake: starting with %s (%s)", peer_server_id, peer_url)
+    db = SessionLocal()
+    try:
+        if not FEDERATION_AVAILABLE:
+            logger.warning("federation_auto_handshake: federation not available")
+            return
+
+        private_key, _ = _fed_load_keypair(base_path)
+        local_info = _fed_get_server_info(base_path)
+        challenge_b64 = _fed_generate_challenge()
+
+        # Phase 1 – call peer's /handshake/init --------------------------------
+        init_url = f"{peer_url.rstrip('/')}/api/federation/handshake/init"
+        logger.info("federation_auto_handshake: calling %s", init_url)
+        resp = requests.post(
+            init_url,
+            json={
+                "server_info": local_info,
+                "challenge": challenge_b64,
+            },
+            timeout=15,
+            verify=False,       # self-signed certs common in tactical networks
+        )
+        if resp.status_code != 200:
+            logger.warning(
+                "federation_auto_handshake: init call failed HTTP %s – %s",
+                resp.status_code, resp.text[:300],
+            )
+            return
+        init_data = resp.json()
+
+        # Verify peer's signature of our challenge -----------------------------
+        peer_info = init_data.get("server_info", {})
+        peer_pk_pem = peer_info.get("public_key", "")
+        peer_signature = init_data.get("signature", "")
+        counter_challenge = init_data.get("counter_challenge", "")
+        counter_challenge_id = init_data.get("counter_challenge_id", "")
+
+        if not peer_pk_pem or not peer_signature or not counter_challenge:
+            logger.warning("federation_auto_handshake: incomplete init response")
+            return
+
+        valid = _fed_verify_signature(challenge_b64, peer_signature, peer_pk_pem)
+        if not valid:
+            logger.warning("federation_auto_handshake: peer signature invalid – aborting")
+            return
+
+        # Mark peer as trusted locally -----------------------------------------
+        peer_row = db.query(FederatedServer).filter_by(server_id=peer_server_id).first()
+        if peer_row:
+            peer_row.trusted = True
+            peer_row.last_seen = datetime.now(timezone.utc)
+            db.commit()
+            logger.info("federation_auto_handshake: peer %s marked trusted", peer_server_id)
+
+        # Phase 2 – sign counter-challenge & send to peer's /handshake/complete
+        counter_sig = _fed_sign_challenge(counter_challenge, private_key)
+        complete_url = f"{peer_url.rstrip('/')}/api/federation/handshake/complete"
+        logger.info("federation_auto_handshake: calling %s", complete_url)
+        resp2 = requests.post(
+            complete_url,
+            json={
+                "server_id": local_info["server_id"],
+                "counter_challenge_id": counter_challenge_id,
+                "signature": counter_sig,
+            },
+            timeout=15,
+            verify=False,
+        )
+        if resp2.status_code == 200:
+            logger.info(
+                "federation_auto_handshake: mutual trust established with %s",
+                peer_server_id,
+            )
+        else:
+            logger.warning(
+                "federation_auto_handshake: complete call failed HTTP %s – %s",
+                resp2.status_code, resp2.text[:300],
+            )
+    except Exception as exc:
+        logger.warning("federation_auto_handshake error with %s: %s", peer_server_id, exc)
+    finally:
+        db.close()
 
 
 # -------------------------
