@@ -68,7 +68,7 @@
         <thead>
             <tr>
                 <th>Unit</th>
-                <th>Callsign</th>
+                <th>Mesh-Callsign</th>
                 <th>Device</th>
                 <th>User</th>
                 <th>Status</th>
@@ -83,7 +83,7 @@
 <script>
 /*
   Persist tactical status and device assignment in localStorage so they survive page changes.
-  Device column and Callsign will display the meshtastic node name (node.name), not mesh_id.
+  Device column and Mesh-Callsign will display the meshtastic node name (node.name), not mesh_id.
   Device select uses node.name values for assignment.
   Update: the mission status label in the header is shown only for ongoing missions (prevents showing "SUCCESS").
 */
@@ -102,6 +102,10 @@ const DEVICE_MAP_LS_KEY = 'lpu5_device_map';
 
 let clientStatusMap = loadClientStatus();
 let deviceAssignmentMap = loadDeviceMap();
+
+// Track whether a device-select dropdown is currently open to prevent flickering
+let _deviceSelectOpen = false;
+let _renderPending = false;
 
 // BroadcastChannel for cross-tab status synchronization
 let statusBroadcast = null;
@@ -257,14 +261,32 @@ function deriveUserStatus(user){
     return 'BASE';
 }
 
-/* Render device select (node.name values) */
+/* Render device select (node.name values) — grays out devices already assigned to other users */
 function renderDeviceSelect(user){
     const select = document.createElement('select');
     select.className = 'device-select';
+
+    // Track focus/blur to prevent table re-render while dropdown is open
+    select.addEventListener('focus', () => { _deviceSelectOpen = true; });
+    select.addEventListener('blur', () => {
+        _deviceSelectOpen = false;
+        if (_renderPending) { _renderPending = false; renderTable(); }
+    });
+
     const noneOpt = document.createElement('option');
     noneOpt.value = '';
     noneOpt.textContent = '--kein Device--';
     select.appendChild(noneOpt);
+
+    // Build set of device names already assigned to OTHER users
+    const assignedByOthers = new Set();
+    const thisUserKey = getUserKey(user);
+    for (const u of (allUsers || [])){
+        const uKey = getUserKey(u);
+        if (uKey === thisUserKey) continue;
+        const assignedName = u._assigned_node_name || u.device || '';
+        if (assignedName) assignedByOthers.add(assignedName);
+    }
 
     const seen = new Set();
     (allNodes || []).forEach(n => {
@@ -275,6 +297,13 @@ function renderDeviceSelect(user){
         opt.value = name;
         // label shows node name (device name) — user requested device name visible, not mesh_id
         opt.textContent = `${name}` + (n.device ? ` — ${n.device}` : '');
+        if (assignedByOthers.has(name)){
+            opt.disabled = true;
+            opt.style.color = '#666';
+            // find which user has it assigned for tooltip
+            const otherUser = allUsers.find(u => getUserKey(u) !== thisUserKey && ((u._assigned_node_name || u.device || '') === name));
+            if (otherUser) opt.textContent += ` [${otherUser.username || 'assigned'}]`;
+        }
         select.appendChild(opt);
     });
 
@@ -295,7 +324,7 @@ function renderDeviceSelect(user){
     return select;
 }
 
-/* assign device to user: store locally and try to persist user.device to server */
+/* assign device to user: store locally and try to persist user.device + callsign (Mesh-Callsign) to server */
 async function assignDeviceToUser(user, nodeName){
     const key = getUserKey(user);
     // optimistic assign in-memory
@@ -304,13 +333,16 @@ async function assignDeviceToUser(user, nodeName){
     saveDeviceMap();
     renderTable();
 
-    // attempt persist to server: PUT /api/users/{id} with device = nodeName
+    // attempt persist to server: PUT /api/users/{id} with device + callsign from mesh node
     if (!user || !user.id) return;
+    // Derive the Mesh-Callsign from the assigned node (node.name)
+    const assignedNode = nodeName ? findNodeByIdentifier(nodeName) : null;
+    const meshCallsign = assignedNode ? (assignedNode.name || nodeName) : (nodeName || '');
     try {
         const resp = await fetch(`/api/users/${encodeURIComponent(user.id)}`, {
             method: 'PUT',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ device: nodeName })
+            body: JSON.stringify({ device: nodeName, callsign: meshCallsign })
         });
         if (resp.ok){
             // server accepted — remove local fallback
@@ -326,8 +358,11 @@ async function assignDeviceToUser(user, nodeName){
     // if persist fails, we keep mapping in localStorage so survives reload
 }
 
-/* Render table — Unit column first, then Callsign and Device */
+/* Render table — Unit column first, then Mesh-Callsign and Device */
 function renderTable(){
+    // Defer re-render while a device-select dropdown is open to prevent flickering
+    if (_deviceSelectOpen) { _renderPending = true; return; }
+
     const tbody = document.getElementById('unit-table');
     if (!allUsers || allUsers.length === 0){
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found</td></tr>';

@@ -267,7 +267,7 @@ async function updateUnitTable(users) {
         tdName.textContent = user.fullname || user.username || '-';
         tr.appendChild(tdName);
         
-        // Callsign column
+        // Mesh-Callsign column
         const tdCallsign = document.createElement('td');
         tdCallsign.textContent = user.callsign || user.username || '-';
         tr.appendChild(tdCallsign);

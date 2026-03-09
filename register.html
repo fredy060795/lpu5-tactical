@@ -169,8 +169,8 @@
                         <input id="device" name="device" type="text" placeholder="Name of Meshtastic device" />
                     </div>
                     <div class="col">
-                        <label for="callsign">Callsign</label>
-                        <input id="callsign" name="callsign" type="text" required placeholder="Your callsign" />
+                        <label for="callsign">Mesh-Callsign</label>
+                        <input id="callsign" name="callsign" type="text" required placeholder="Your Mesh-Callsign" />
                     </div>
                 </div>
 
@@ -393,7 +393,7 @@
                 if (!username) { showStatus('Please enter a username.', 'error'); return; }
                 if (!password || password.length < 6) { showStatus('Password must be at least 6 characters.', 'error'); return; }
                 if (password !== passwordConfirm) { showStatus('Passwords do not match.', 'error'); return; }
-                if (!callsign) { showStatus('Please enter a callsign.', 'error'); return; }
+                if (!callsign) { showStatus('Please enter a Mesh-Callsign.', 'error'); return; }
 
                 let proof = null;
                 if (qr.rawD) {
