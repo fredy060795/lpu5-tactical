@@ -450,3 +450,120 @@ For issues and questions, please open an issue on GitHub.
 - ✅ HQ coordination + field operations
 - ✅ Redundant communication paths
 - ✅ Maximum flexibility
+
+---
+
+## 🔒 Server Federation System
+
+LPU5 implements an ATAK-inspired server federation framework that allows multiple LPU5 nodes (e.g., Raspberry Pi field servers + a central Web server) to securely exchange tactical data after establishing mutual trust.
+
+### Architecture Overview
+
+```
+[Field Server A]                  [Web Server (HQ)]
+  ┌───────────────┐                 ┌───────────────┐
+  │  RSA key pair │  ←── QR scan ─→ │  RSA key pair │
+  │  server_id    │                 │  server_id    │
+  │  public key   │  challenge  →   │               │
+  │               │  ← signature    │               │
+  │  TRUSTED ✓    │ ←────────────── │  TRUSTED ✓    │
+  └───────────────┘                 └───────────────┘
+         ↕  signed CoT / marker sync
+```
+
+### How It Works
+
+1. **Key Generation** – Each LPU5 server automatically generates an RSA-2048 key pair (`server_private.pem` / `server_public.pem`) on first boot.
+2. **QR Onboarding** – Each server exposes its public key + metadata as a QR code (`GET /api/federation/qr`). The peer server scans this QR to register the server.
+3. **Reciprocal Registration** – Both servers register each other's public keys via `POST /api/federation/servers`.
+4. **Mutual Handshake** – Server A issues a challenge (`POST /api/federation/servers/{id}/challenge`). Server B signs it with its private key (`POST /api/federation/handshake/respond`) and returns the signature. Server A verifies it (`POST /api/federation/servers/{id}/verify`) and marks B as **trusted**. Both sides repeat this process.
+5. **Trusted Data Exchange** – Only trusted peers receive data via `POST /api/federation/sync` (and `POST /api/federation/ingest`). Each payload is RSA-signed to prevent spoofing.
+
+### Federation API Endpoints
+
+All endpoints require `Authorization: Bearer <token>` unless noted.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/federation/info` | Local server public key & metadata |
+| `GET` | `/api/federation/qr` | QR code PNG encoding local server info |
+| `POST` | `/api/federation/servers` | Register a remote server |
+| `GET` | `/api/federation/servers` | List all registered servers |
+| `GET` | `/api/federation/servers/{server_id}` | Get specific server details |
+| `DELETE` | `/api/federation/servers/{server_id}` | Remove a server |
+| `POST` | `/api/federation/servers/{server_id}/challenge` | Issue a challenge to a peer |
+| `POST` | `/api/federation/servers/{server_id}/verify` | Verify peer's challenge response → trust |
+| `POST` | `/api/federation/handshake/respond` | Sign an incoming challenge with this server's key |
+| `POST` | `/api/federation/sync` | Push local markers to all trusted peers (signed) |
+| `POST` | `/api/federation/ingest` | Receive & verify signed data from a trusted peer (no auth, key-verified) |
+
+### CLI / API Onboarding Example
+
+```bash
+# ── Server A (Field Pi) ──────────────────────────────────────────────────
+TOKEN_A="<jwt_from_server_a>"
+BASE_A="https://192.168.1.10:8101"
+
+# 1. Get Server A's federation info
+curl -sk -H "Authorization: Bearer $TOKEN_A" $BASE_A/api/federation/info
+
+# 2. Display QR code (save PNG and scan with Server B's admin UI)
+curl -sk -H "Authorization: Bearer $TOKEN_A" $BASE_A/api/federation/qr -o serverA.png
+
+
+# ── Server B (Web HQ) ────────────────────────────────────────────────────
+TOKEN_B="<jwt_from_server_b>"
+BASE_B="https://192.168.1.20:8101"
+
+# 3. Register Server A on Server B (paste info JSON from step 1)
+curl -sk -X POST -H "Authorization: Bearer $TOKEN_B" \
+  -H "Content-Type: application/json" \
+  -d '{"server_id":"<A_server_id>","name":"FieldPi","public_key":"<A_pub_pem>"}' \
+  $BASE_B/api/federation/servers
+
+# 4. Server B issues a challenge to Server A's entry
+CHALLENGE=$(curl -sk -X POST -H "Authorization: Bearer $TOKEN_B" \
+  $BASE_B/api/federation/servers/<A_server_id>/challenge)
+CHALLENGE_ID=$(echo $CHALLENGE | python3 -c "import sys,json; print(json.load(sys.stdin)['challenge_id'])")
+CHALLENGE_B64=$(echo $CHALLENGE | python3 -c "import sys,json; print(json.load(sys.stdin)['challenge'])")
+
+
+# ── Back on Server A ─────────────────────────────────────────────────────
+
+# 5. Server A signs the challenge with its private key
+SIG=$(curl -sk -X POST -H "Authorization: Bearer $TOKEN_A" \
+  -H "Content-Type: application/json" \
+  -d "{\"challenge\":\"$CHALLENGE_B64\"}" \
+  $BASE_A/api/federation/handshake/respond | python3 -c "import sys,json; print(json.load(sys.stdin)['signature'])")
+
+
+# ── Back on Server B ─────────────────────────────────────────────────────
+
+# 6. Server B verifies the signature → Server A is now TRUSTED on B
+curl -sk -X POST -H "Authorization: Bearer $TOKEN_B" \
+  -H "Content-Type: application/json" \
+  -d "{\"challenge_id\":\"$CHALLENGE_ID\",\"signature\":\"$SIG\"}" \
+  $BASE_B/api/federation/servers/<A_server_id>/verify
+
+# Repeat steps 3-6 with roles reversed so A also trusts B.
+
+# 7. Trigger data sync from Server B to all trusted peers
+curl -sk -X POST -H "Authorization: Bearer $TOKEN_B" $BASE_B/api/federation/sync
+```
+
+### Key Files
+
+| File | Description |
+|------|-------------|
+| `server_private.pem` | Local RSA private key (never share!) |
+| `server_public.pem` | Local RSA public key (shared via QR / REST) |
+| `server_id.txt` | Stable server UUID |
+| `federation.py` | Core federation module (key gen, sign, verify, QR) |
+
+### Security Notes
+
+- Private key (`server_private.pem`) is stored **unencrypted on disk** – protect file system access.
+- Challenges expire after **120 seconds** and are single-use to prevent replay attacks.
+- Only servers with `trusted=true` receive data via `/api/federation/sync`.
+- Ingest endpoint (`/api/federation/ingest`) does **not** require JWT; trust is enforced via RSA signature verification against the stored public key.
+- All federation events are recorded in the audit log.

@@ -221,3 +221,43 @@ class DeletedMarker(Base):
     marker_id = Column(String, primary_key=True, index=True)
     deleted_by = Column(String, nullable=True)   # username of who deleted it
     deleted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# Federation models
+# ---------------------------------------------------------------------------
+
+class FederatedServer(Base):
+    """
+    Registry of remote LPU5 servers participating in federation.
+    Each entry holds the peer's RSA public key and trust state.
+    A server becomes *trusted* only after a successful challenge/response
+    handshake (mutual verification).
+    """
+    __tablename__ = "federated_servers"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String, nullable=False)               # human-readable label
+    url = Column(String, nullable=True)                 # base URL for REST calls (optional)
+    server_id = Column(String, unique=True, index=True) # remote server's own ID (UUID)
+    public_key_pem = Column(Text, nullable=False)       # RSA public key in PEM format
+    fingerprint = Column(String, index=True)            # SHA-256 of DER-encoded public key
+    trusted = Column(Boolean, default=False)            # True only after successful handshake
+    registered_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen = Column(DateTime, nullable=True)
+    meta = Column(JSON, nullable=True)                  # free-form peer metadata
+
+
+class FederationChallenge(Base):
+    """
+    Pending challenge issued to a federated peer.
+    The peer must sign the challenge bytes with its private key and return
+    the signature.  The challenge expires after a short window to prevent
+    replay attacks.
+    """
+    __tablename__ = "federation_challenges"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    federated_server_id = Column(String, ForeignKey("federated_servers.id"), nullable=False)
+    challenge_b64 = Column(String, nullable=False)      # base64-encoded random bytes
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
