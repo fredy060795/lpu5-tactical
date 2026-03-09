@@ -284,6 +284,156 @@
                 min-height: 44px;
             }
         }
+
+        /* ── Föderations-UI ─────────────────────────────────────────── */
+        .fed-divider {
+            border: none;
+            border-top: 2px solid var(--border);
+            margin: 30px 0 20px;
+        }
+
+        .fed-section-title {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--text-main);
+            margin-bottom: 20px;
+        }
+
+        .fed-section-title i {
+            color: var(--accent-blue);
+            margin-right: 10px;
+        }
+
+        .fed-qr-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .fed-qr-img {
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            background: #fff;
+            padding: 6px;
+            max-width: 200px;
+        }
+
+        .fed-info-grid {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .fed-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .fed-badge-trusted {
+            background: rgba(46, 204, 113, 0.2);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+
+        .fed-badge-untrusted {
+            background: rgba(243, 156, 18, 0.15);
+            color: var(--accent-yellow);
+            border: 1px solid var(--accent-yellow);
+        }
+
+        .fed-server-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+            margin-top: 10px;
+        }
+
+        .fed-server-table th {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+
+        .fed-server-table td {
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            word-break: break-all;
+        }
+
+        .fed-server-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .fed-server-table tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+
+        .fed-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .fed-step-num {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .fed-step-body {
+            flex: 1;
+        }
+
+        .fed-step-label {
+            font-weight: bold;
+            margin-bottom: 6px;
+            color: var(--text-main);
+        }
+
+        .fed-mono {
+            background: #0d0d0d;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.78rem;
+            color: var(--accent);
+            word-break: break-all;
+            white-space: pre-wrap;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .fed-hidden { display: none !important; }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.82rem;
+        }
+
+        @media (max-width: 640px) {
+            .fed-qr-container { flex-direction: column; }
+            .fed-server-table th:nth-child(3),
+            .fed-server-table td:nth-child(3) { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -732,6 +882,224 @@
     </div>
 
     <div id="saveStatus" style="margin-top: 15px; display: none;"></div>
+
+    <!-- ================================================================ -->
+    <!-- SERVER-FÖDERATION VERWALTUNG                                      -->
+    <!-- ================================================================ -->
+    <hr class="fed-divider">
+    <div class="fed-section-title">
+        <i class="fas fa-shield-alt"></i>Server-Föderation
+    </div>
+
+    <!-- Eigener Server – QR-Onboarding -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-qrcode"></i>
+            Eigener Server – QR-Onboarding
+        </div>
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Zeigt den QR-Code dieses Servers an. Andere LPU5-Server können diesen Code scannen
+            oder importieren, um diesen Server in ihrer Föderations-Registry zu registrieren.
+        </div>
+        <div style="margin-bottom:12px;">
+            <button class="btn btn-primary" onclick="fedLoadOwnQR()">
+                <i class="fas fa-qrcode"></i> QR-Code laden
+            </button>
+            <button class="btn" onclick="fedCopyServerInfo()" style="margin-left:8px;">
+                <i class="fas fa-copy"></i> Info kopieren
+            </button>
+        </div>
+        <div id="fedOwnQrSection" class="fed-hidden">
+            <div class="fed-qr-container">
+                <img id="fedOwnQrImg" class="fed-qr-img" alt="Eigener Server QR-Code">
+                <div class="fed-info-grid">
+                    <div class="network-info-item">
+                        <span class="network-info-label">Server-ID:</span>
+                        <span class="network-info-value" id="fedOwnServerId" style="font-size:0.8rem;word-break:break-all;">–</span>
+                    </div>
+                    <div class="network-info-item">
+                        <span class="network-info-label">Fingerprint:</span>
+                        <span class="network-info-value" id="fedOwnFingerprint" style="font-size:0.78rem;word-break:break-all;">–</span>
+                    </div>
+                    <div class="network-info-item">
+                        <span class="network-info-label">Name:</span>
+                        <span class="network-info-value" id="fedOwnName">–</span>
+                    </div>
+                    <div class="network-info-item">
+                        <span class="network-info-label">URL:</span>
+                        <span class="network-info-value" id="fedOwnUrl" style="word-break:break-all;">–</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="fedOwnQrStatus" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- Server importieren via QR-Code oder JSON -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-file-import"></i>
+            Server importieren (QR-Code-Upload / JSON)
+        </div>
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Importiert einen anderen LPU5-Server. Lade dazu dessen QR-Code-Bilddatei hoch
+            oder füge die JSON-Server-Info direkt ein.
+        </div>
+        <div class="grid-2">
+            <div>
+                <div class="form-group">
+                    <label class="form-label">QR-Code-Bilddatei hochladen</label>
+                    <input type="file" id="fedQrFileInput" accept="image/*" class="form-input"
+                           style="padding:6px;" onchange="fedDecodeQrFile(this)">
+                </div>
+                <div class="form-group">
+                    <div id="fedQrCanvas" style="display:none;">
+                        <canvas id="fedQrHiddenCanvas" style="display:none;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div class="form-group">
+                    <label class="form-label">JSON direkt einfügen (alternativ)</label>
+                    <textarea id="fedImportJson" class="form-input"
+                              style="height:100px;resize:vertical;font-size:0.8rem;"
+                              placeholder='{"server_id":"...","name":"...","public_key":"-----BEGIN PUBLIC KEY-----\n..."}'></textarea>
+                </div>
+            </div>
+        </div>
+        <div id="fedImportPreview" class="fed-hidden" style="margin-bottom:12px;">
+            <div class="success-box">
+                <i class="fas fa-check-circle"></i>
+                <strong>Erkannte Server-Info:</strong>
+                <span id="fedImportPreviewText"></span>
+            </div>
+        </div>
+        <div class="button-group" style="margin-top:0;">
+            <button class="btn btn-success" onclick="fedImportServer()">
+                <i class="fas fa-plus-circle"></i> Server hinzufügen
+            </button>
+            <button class="btn" onclick="fedClearImport()">
+                <i class="fas fa-times"></i> Zurücksetzen
+            </button>
+        </div>
+        <div id="fedImportStatus" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- Registrierte Föderations-Server -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-server"></i>
+            Registrierte Föderations-Server
+            <button class="btn btn-sm" onclick="fedLoadServers()" style="float:right;margin-top:-4px;">
+                <i class="fas fa-sync"></i> Aktualisieren
+            </button>
+        </div>
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Alle bekannten Föderations-Server. Nur <strong>vertrauenswürdige</strong> Server
+            erhalten signierte Daten bei der Synchronisierung.
+        </div>
+        <div id="fedServerListArea">
+            <div style="color:var(--text-dim);font-size:0.9rem;">
+                <i class="fas fa-spinner fa-spin"></i> Lade Server-Liste …
+            </div>
+        </div>
+    </div>
+
+    <!-- Handshake-Assistent (erscheint, wenn ein Handshake gestartet wird) -->
+    <div class="section fed-hidden" id="fedHandshakeSection">
+        <div class="section-header">
+            <i class="fas fa-handshake"></i>
+            Handshake-Assistent –
+            <span id="fedHsTargetName" style="color:var(--accent-blue);"></span>
+        </div>
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Der Handshake besteht aus drei Schritten: Challenge ausstellen, signieren lassen und
+            verifizieren. Danach ist der Server als <strong>vertrauenswürdig</strong> markiert.
+        </div>
+
+        <!-- Schritt 1: Challenge ausstellen -->
+        <div class="fed-step">
+            <div class="fed-step-num">1</div>
+            <div class="fed-step-body">
+                <div class="fed-step-label">Challenge ausstellen</div>
+                <button class="btn btn-primary" id="fedHsIssueBtn" onclick="fedHsIssueChallenge()">
+                    <i class="fas fa-bolt"></i> Challenge generieren
+                </button>
+                <div id="fedHsChallengeBox" class="fed-hidden" style="margin-top:10px;">
+                    <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:4px;">
+                        Challenge-Bytes (Base64) – auf den Gegner-Server übertragen:
+                    </div>
+                    <div class="fed-mono" id="fedHsChallengeText"></div>
+                    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="fedHsCopyChallenge()">
+                            <i class="fas fa-copy"></i> Kopieren
+                        </button>
+                        <button class="btn btn-sm btn-primary" id="fedHsAutoSignBtn"
+                                onclick="fedHsAutoSign()" style="display:none;">
+                            <i class="fas fa-robot"></i> Automatisch signieren (Peer erreichbar)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schritt 2: Signatur eintragen -->
+        <div class="fed-step">
+            <div class="fed-step-num">2</div>
+            <div class="fed-step-body">
+                <div class="fed-step-label">Signatur vom Gegner-Server eintragen</div>
+                <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:6px;">
+                    Sende die Challenge zum Gegner-Server (<code>/api/federation/handshake/respond</code>)
+                    und füge die zurückgegebene Signatur hier ein.
+                </div>
+                <textarea id="fedHsSignatureInput" class="form-input"
+                          style="height:80px;resize:vertical;font-size:0.8rem;"
+                          placeholder="Base64-Signatur vom Gegner-Server hier einfügen …"></textarea>
+            </div>
+        </div>
+
+        <!-- Schritt 3: Verifizieren -->
+        <div class="fed-step">
+            <div class="fed-step-num">3</div>
+            <div class="fed-step-body">
+                <div class="fed-step-label">Signatur verifizieren → Server als vertrauenswürdig markieren</div>
+                <button class="btn btn-success" onclick="fedHsVerify()">
+                    <i class="fas fa-check-circle"></i> Verifizieren & vertrauen
+                </button>
+            </div>
+        </div>
+
+        <div id="fedHsStatus" style="margin-top:8px;"></div>
+        <div style="margin-top:12px;">
+            <button class="btn" onclick="fedHsClose()">
+                <i class="fas fa-times"></i> Assistent schließen
+            </button>
+        </div>
+    </div>
+
+    <!-- Daten-Synchronisierung -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-sync-alt"></i>
+            Daten-Synchronisierung
+        </div>
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Sendet signierte lokale Karten-Marker an alle <strong>vertrauenswürdigen</strong>
+            Föderations-Server. Nicht vertrauenswürdige Server werden übersprungen.
+        </div>
+        <div class="button-group" style="margin-top:0;">
+            <button class="btn btn-primary" onclick="fedRunSync()">
+                <i class="fas fa-paper-plane"></i> Sync zu vertrauenswürdigen Servern starten
+            </button>
+        </div>
+        <div id="fedSyncStatus" style="margin-top:10px;"></div>
+    </div>
+
 </div>
 
 <script>
@@ -1259,14 +1627,460 @@ document.getElementById('enableTakIntegration').addEventListener('change', updat
 document.getElementById('enableCoT').addEventListener('change', updateCoTState);
 document.getElementById('saMulticastEnabled').addEventListener('change', updateSaMulticastState);
 
+// ================================================================
+// SERVER-FÖDERATION
+// ================================================================
+
+// -- interne Hilfsvariablen für den Handshake-Assistenten --
+let _fedHsServerId  = null;   // server_id des Ziels
+let _fedHsChalId    = null;   // challenge_id (von /challenge)
+let _fedHsPeerUrl   = null;   // URL des Peer-Servers (kann null sein)
+
+// Hilfsfunktion: Zeichenkette sicher kürzen
+function _fedTruncate(str, maxLen) {
+    if (!str) return '';
+    return str.length > maxLen ? str.substring(0, maxLen) + '…' : str;
+}
+
+// Hilfsfunktion: statusfarbige Box in ein Element rendern
+function _fedShowMsg(elemId, msg, type) {
+    const el = document.getElementById(elemId);
+    if (!el) return;
+    const cls = type === 'success' ? 'success-box' : type === 'error' ? 'warning-box' : 'info-box';
+    const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+    el.className = cls;
+    el.innerHTML = `<i class="fas ${icon}"></i> ${msg}`;
+    el.style.display = 'block';
+}
+
+// ── Eigener Server QR-Code ──────────────────────────────────────
+
+async function fedLoadOwnQR() {
+    const token = _getAuthToken();
+    const statusEl = document.getElementById('fedOwnQrStatus');
+    _fedShowMsg('fedOwnQrStatus', '<i class="fas fa-spinner fa-spin"></i> Lade Server-Informationen …', 'info');
+    try {
+        // Server-Info laden
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const infoResp = await fetch('/api/federation/info', { headers });
+        if (!infoResp.ok) throw new Error('HTTP ' + infoResp.status + ': ' + (await infoResp.text()));
+        const info = await infoResp.json();
+
+        document.getElementById('fedOwnServerId').textContent   = info.server_id  || '–';
+        document.getElementById('fedOwnFingerprint').textContent = info.fingerprint || '–';
+        document.getElementById('fedOwnName').textContent       = info.name        || '–';
+        document.getElementById('fedOwnUrl').textContent        = info.url         || window.location.origin;
+
+        // QR-PNG laden
+        const qrResp = await fetch('/api/federation/qr', { headers });
+        if (!qrResp.ok) throw new Error('QR-Code konnte nicht geladen werden (HTTP ' + qrResp.status + ')');
+        const blob = await qrResp.blob();
+        const url  = URL.createObjectURL(blob);
+        const img  = document.getElementById('fedOwnQrImg');
+        img.src    = url;
+
+        document.getElementById('fedOwnQrSection').classList.remove('fed-hidden');
+        statusEl.style.display = 'none';
+    } catch (e) {
+        _fedShowMsg('fedOwnQrStatus', 'Fehler: ' + _escHtml(e.message), 'error');
+    }
+}
+
+async function fedCopyServerInfo() {
+    const token = _getAuthToken();
+    try {
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/federation/info', { headers });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const info = await resp.json();
+        await navigator.clipboard.writeText(JSON.stringify(info, null, 2));
+        _fedShowMsg('fedOwnQrStatus', 'Server-Info in die Zwischenablage kopiert.', 'success');
+    } catch (e) {
+        _fedShowMsg('fedOwnQrStatus', 'Fehler beim Kopieren: ' + _escHtml(e.message), 'error');
+    }
+}
+
+// ── Server-Import via QR-Code oder JSON ────────────────────────
+
+// Interne Variable: aktuell geparste Import-Daten
+let _fedImportData = null;
+
+function fedDecodeQrFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas  = document.getElementById('fedQrHiddenCanvas');
+            const ctx     = canvas.getContext('2d');
+            canvas.width  = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (typeof jsQR === 'undefined') {
+                _fedShowMsg('fedImportStatus',
+                    'jsQR-Bibliothek nicht geladen. Bitte Internetverbindung prüfen und Seite neu laden, ' +
+                    'oder JSON-Server-Info direkt im Textfeld unten einfügen.', 'error');
+                return;
+            }
+            const code = jsQR(imageData.data, canvas.width, canvas.height);
+            if (!code) {
+                _fedShowMsg('fedImportStatus', 'Kein QR-Code im Bild erkannt. Bitte eine klarere Aufnahme verwenden.', 'error');
+                return;
+            }
+            document.getElementById('fedImportJson').value = code.data;
+            _fedParseImportJson(code.data);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function _fedParseImportJson(jsonStr) {
+    try {
+        const data = JSON.parse(jsonStr);
+        if (!data.server_id || !data.name || !data.public_key) {
+            _fedShowMsg('fedImportStatus',
+                'Unvollständige Server-Info: server_id, name und public_key sind erforderlich.', 'error');
+            _fedImportData = null;
+            document.getElementById('fedImportPreview').classList.add('fed-hidden');
+            return;
+        }
+        _fedImportData = data;
+        document.getElementById('fedImportPreviewText').textContent =
+            ` Name: ${data.name} | ID: ${_fedTruncate(data.server_id, 8)} | URL: ${data.url || '–'}`;
+        document.getElementById('fedImportPreview').classList.remove('fed-hidden');
+        document.getElementById('fedImportStatus').style.display = 'none';
+    } catch (_) {
+        _fedImportData = null;
+        document.getElementById('fedImportPreview').classList.add('fed-hidden');
+    }
+}
+
+// Live-Preview wenn JSON manuell geändert wird
+document.addEventListener('DOMContentLoaded', function() {
+    const ta = document.getElementById('fedImportJson');
+    if (ta) {
+        ta.addEventListener('input', function() {
+            if (this.value.trim()) _fedParseImportJson(this.value.trim());
+            else {
+                _fedImportData = null;
+                document.getElementById('fedImportPreview').classList.add('fed-hidden');
+            }
+        });
+    }
+});
+
+async function fedImportServer() {
+    // JSON-Textarea als Fallback wenn kein QR-Decode vorliegt
+    const jsonStr = document.getElementById('fedImportJson').value.trim();
+    if (jsonStr && !_fedImportData) _fedParseImportJson(jsonStr);
+
+    if (!_fedImportData) {
+        _fedShowMsg('fedImportStatus',
+            'Keine gültige Server-Info vorhanden. Bitte QR-Code hochladen oder JSON einfügen.', 'error');
+        return;
+    }
+    const token = _getAuthToken();
+    _fedShowMsg('fedImportStatus', '<i class="fas fa-spinner fa-spin"></i> Registriere Server …', 'info');
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/federation/servers', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(_fedImportData)
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.detail || 'HTTP ' + resp.status);
+        _fedShowMsg('fedImportStatus',
+            `Server <strong>${_escHtml(_fedImportData.name)}</strong> erfolgreich registriert (Status: ${result.status}).`, 'success');
+        fedClearImport();
+        fedLoadServers();
+    } catch (e) {
+        _fedShowMsg('fedImportStatus', 'Fehler beim Registrieren: ' + _escHtml(e.message), 'error');
+    }
+}
+
+function fedClearImport() {
+    _fedImportData = null;
+    document.getElementById('fedImportJson').value = '';
+    document.getElementById('fedQrFileInput').value = '';
+    document.getElementById('fedImportPreview').classList.add('fed-hidden');
+    document.getElementById('fedImportStatus').style.display = 'none';
+}
+
+// ── Registrierte Server anzeigen ────────────────────────────────
+
+async function fedLoadServers() {
+    const token = _getAuthToken();
+    const area  = document.getElementById('fedServerListArea');
+    area.innerHTML = '<div style="color:var(--text-dim);font-size:0.9rem;"><i class="fas fa-spinner fa-spin"></i> Lade Server-Liste …</div>';
+    try {
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/federation/servers', { headers });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const servers = await resp.json();
+
+        if (!servers.length) {
+            area.innerHTML = '<div class="info-box"><i class="fas fa-info-circle"></i> Keine Föderations-Server registriert.</div>';
+            return;
+        }
+
+        let html = `<table class="fed-server-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Server-ID</th>
+                    <th>URL</th>
+                    <th>Status</th>
+                    <th>Registriert</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+        servers.forEach(s => {
+            const badge = s.trusted
+                ? '<span class="fed-badge fed-badge-trusted"><i class="fas fa-shield-alt"></i> Vertrauenswürdig</span>'
+                : '<span class="fed-badge fed-badge-untrusted"><i class="fas fa-exclamation-circle"></i> Nicht verifiziert</span>';
+            const regDate = s.registered_at
+                ? new Date(s.registered_at).toLocaleString('de-DE')
+                : '–';
+            const serverIdShort = _fedTruncate(s.server_id, 8);
+            // Only allow http/https URLs in clickable links to prevent javascript:/data: injection
+            const isSafeUrl = s.url && /^https?:\/\//i.test(s.url);
+            const urlDisplay = isSafeUrl
+                ? `<a href="${_escHtml(s.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);">${_escHtml(s.url)}</a>`
+                : (s.url ? _escHtml(s.url) : '–');
+            const peerUrlJson = JSON.stringify(s.url || '');
+            html += `<tr>
+                <td><strong>${_escHtml(s.name)}</strong><br><span style="font-size:0.75rem;color:var(--text-dim);">${_escHtml(_fedTruncate(s.fingerprint, 24))}</span></td>
+                <td title="${_escHtml(s.server_id)}">${_escHtml(serverIdShort)}</td>
+                <td>${urlDisplay}</td>
+                <td>${badge}</td>
+                <td style="font-size:0.8rem;color:var(--text-dim);">${regDate}</td>
+                <td>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-primary"
+                                onclick="fedStartHandshake(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)}, ${peerUrlJson})"
+                                title="Handshake starten">
+                            <i class="fas fa-handshake"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger"
+                                onclick="fedDeleteServer(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)})"
+                                title="Server entfernen">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        area.innerHTML = html;
+    } catch (e) {
+        area.innerHTML = `<div class="warning-box"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden: ${_escHtml(e.message)}</div>`;
+    }
+}
+
+async function fedDeleteServer(serverId, serverName) {
+    if (!confirm(`Server "${serverName}" wirklich aus der Föderations-Registry entfernen?`)) return;
+    const token = _getAuthToken();
+    try {
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch(`/api/federation/servers/${encodeURIComponent(serverId)}`, {
+            method: 'DELETE',
+            headers
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || 'HTTP ' + resp.status);
+        }
+        fedLoadServers();
+    } catch (e) {
+        alert('Fehler beim Löschen: ' + e.message);
+    }
+}
+
+// ── Handshake-Assistent ─────────────────────────────────────────
+
+function fedStartHandshake(serverId, serverName, peerUrl) {
+    _fedHsServerId = serverId;
+    _fedHsPeerUrl  = peerUrl || null;
+    _fedHsChalId   = null;
+
+    document.getElementById('fedHsTargetName').textContent = serverName;
+    document.getElementById('fedHsChallengeBox').classList.add('fed-hidden');
+    document.getElementById('fedHsChallengeText').textContent = '';
+    document.getElementById('fedHsSignatureInput').value = '';
+    document.getElementById('fedHsStatus').style.display = 'none';
+    document.getElementById('fedHsAutoSignBtn').style.display = 'none';
+    document.getElementById('fedHsIssueBtn').disabled = false;
+
+    const section = document.getElementById('fedHandshakeSection');
+    section.classList.remove('fed-hidden');
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function fedHsIssueChallenge() {
+    if (!_fedHsServerId) return;
+    const token = _getAuthToken();
+    document.getElementById('fedHsIssueBtn').disabled = true;
+    _fedShowMsg('fedHsStatus', '<i class="fas fa-spinner fa-spin"></i> Generiere Challenge …', 'info');
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch(`/api/federation/servers/${encodeURIComponent(_fedHsServerId)}/challenge`, {
+            method: 'POST',
+            headers,
+            body: '{}'
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'HTTP ' + resp.status);
+
+        _fedHsChalId = data.challenge_id;
+        const challengeB64 = data.challenge;
+        document.getElementById('fedHsChallengeText').textContent = challengeB64;
+        document.getElementById('fedHsChallengeBox').classList.remove('fed-hidden');
+
+        // Wenn ein Peer-URL bekannt ist, Automatik-Button anbieten
+        if (_fedHsPeerUrl) {
+            document.getElementById('fedHsAutoSignBtn').style.display = '';
+        }
+        document.getElementById('fedHsStatus').style.display = 'none';
+    } catch (e) {
+        _fedShowMsg('fedHsStatus', 'Fehler: ' + _escHtml(e.message), 'error');
+        document.getElementById('fedHsIssueBtn').disabled = false;
+    }
+}
+
+function fedHsCopyChallenge() {
+    const text = document.getElementById('fedHsChallengeText').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        _fedShowMsg('fedHsStatus', 'Challenge in Zwischenablage kopiert.', 'success');
+    }).catch(e => {
+        _fedShowMsg('fedHsStatus', 'Kopieren fehlgeschlagen: ' + _escHtml(e.message), 'error');
+    });
+}
+
+async function fedHsAutoSign() {
+    if (!_fedHsPeerUrl) return;
+    // Validate URL scheme to prevent SSRF against internal resources via non-http(s) URLs
+    if (!/^https?:\/\//i.test(_fedHsPeerUrl)) {
+        _fedShowMsg('fedHsStatus',
+            'Peer-URL hat kein gültiges Schema (http/https). Automatische Signierung nicht möglich.', 'error');
+        return;
+    }
+    const challenge = document.getElementById('fedHsChallengeText').textContent.trim();
+    if (!challenge) return;
+    _fedShowMsg('fedHsStatus', '<i class="fas fa-spinner fa-spin"></i> Sende Challenge an Peer-Server …', 'info');
+    try {
+        const resp = await fetch(_fedHsPeerUrl.replace(/\/$/, '') + '/api/federation/handshake/respond', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ challenge })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'HTTP ' + resp.status);
+        document.getElementById('fedHsSignatureInput').value = data.signature;
+        _fedShowMsg('fedHsStatus', 'Signatur vom Peer-Server empfangen – jetzt verifizieren.', 'success');
+    } catch (e) {
+        _fedShowMsg('fedHsStatus',
+            'Automatische Signierung fehlgeschlagen (CORS oder Peer nicht erreichbar). ' +
+            'Bitte Challenge manuell übertragen: ' + _escHtml(e.message), 'error');
+    }
+}
+
+async function fedHsVerify() {
+    if (!_fedHsServerId || !_fedHsChalId) {
+        _fedShowMsg('fedHsStatus', 'Bitte zuerst eine Challenge generieren (Schritt 1).', 'error');
+        return;
+    }
+    const signature = document.getElementById('fedHsSignatureInput').value.trim();
+    if (!signature) {
+        _fedShowMsg('fedHsStatus', 'Bitte die Signatur vom Peer-Server eintragen (Schritt 2).', 'error');
+        return;
+    }
+    const token = _getAuthToken();
+    _fedShowMsg('fedHsStatus', '<i class="fas fa-spinner fa-spin"></i> Verifiziere Signatur …', 'info');
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch(`/api/federation/servers/${encodeURIComponent(_fedHsServerId)}/verify`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ challenge_id: _fedHsChalId, signature })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'HTTP ' + resp.status);
+        _fedShowMsg('fedHsStatus',
+            `<strong>✓ Handshake erfolgreich!</strong> Server „${_escHtml(data.name)}" ist jetzt als vertrauenswürdig markiert.`,
+            'success');
+        fedLoadServers();
+    } catch (e) {
+        _fedShowMsg('fedHsStatus', 'Verifizierung fehlgeschlagen: ' + _escHtml(e.message), 'error');
+    }
+}
+
+function fedHsClose() {
+    document.getElementById('fedHandshakeSection').classList.add('fed-hidden');
+    _fedHsServerId = null;
+    _fedHsChalId   = null;
+    _fedHsPeerUrl  = null;
+}
+
+// ── Daten-Synchronisierung ──────────────────────────────────────
+
+async function fedRunSync() {
+    const token = _getAuthToken();
+    _fedShowMsg('fedSyncStatus', '<i class="fas fa-spinner fa-spin"></i> Sync läuft …', 'info');
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/federation/sync', {
+            method: 'POST',
+            headers,
+            body: '{}'
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'HTTP ' + resp.status);
+
+        const results = data.results || [];
+        if (!results.length) {
+            _fedShowMsg('fedSyncStatus', 'Keine vertrauenswürdigen Server für Sync vorhanden.', 'info');
+            return;
+        }
+        const ok  = results.filter(r => r.ok).length;
+        const err = results.length - ok;
+        let msg = `Sync abgeschlossen: ${ok} erfolgreich, ${err} fehlgeschlagen.<br>`;
+        results.forEach(r => {
+            const icon = r.ok ? '✓' : '✗';
+            msg += `<br>${icon} ${_escHtml(r.name || r.server_id)}: ${_escHtml(r.message || '')}`;
+        });
+        _fedShowMsg('fedSyncStatus', msg, ok > 0 ? 'success' : 'error');
+    } catch (e) {
+        _fedShowMsg('fedSyncStatus', 'Sync fehlgeschlagen: ' + _escHtml(e.message), 'error');
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadServerInfo();
     loadNetworkSettings();
     refreshCotListenerStatus();
+    fedLoadServers();
+    fedLoadOwnQR();
 });
 </script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"
+        integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"
+        crossorigin="anonymous"></script>
 <script src="assets/sidebar.js"></script>
 </body>
 </html>

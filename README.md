@@ -567,3 +567,29 @@ curl -sk -X POST -H "Authorization: Bearer $TOKEN_B" $BASE_B/api/federation/sync
 - Only servers with `trusted=true` receive data via `/api/federation/sync`.
 - Ingest endpoint (`/api/federation/ingest`) does **not** require JWT; trust is enforced via RSA signature verification against the stored public key.
 - All federation events are recorded in the audit log.
+
+### Federation Admin UI (network.html)
+
+The **Network Settings** page (`/network.html`) contains a built-in **Server-Föderations-Verwaltung** section (German-language) that provides a graphical interface for all federation tasks:
+
+#### UI Sections
+
+| Section | Description |
+|---------|-------------|
+| **Eigener Server – QR-Onboarding** | Displays this server's QR code (PNG) and metadata (server_id, fingerprint, URL). Use the *Info kopieren* button to copy the JSON to the clipboard. |
+| **Server importieren** | Upload a QR code image file (decoded in-browser via jsQR) **or** paste the federation JSON directly. Clicking *Server hinzufügen* registers the peer via `POST /api/federation/servers`. |
+| **Registrierte Föderations-Server** | Table of all known servers with trust badge (✓ Vertrauenswürdig / ⚠ Nicht verifiziert), registration date, and per-row action buttons: **Handshake** and **Löschen**. |
+| **Handshake-Assistent** | 3-step wizard: ① Generate challenge → ② Enter or auto-fetch peer signature → ③ Verify and mark trusted. If the peer's URL is stored, the *Automatisch signieren* button attempts to contact the peer's `/api/federation/handshake/respond` endpoint directly. |
+| **Daten-Synchronisierung** | Sends signed local map markers to all trusted peers via `POST /api/federation/sync`. Shows per-peer results. |
+
+#### Onboarding Workflow via UI
+
+1. **Server A admin** opens `network.html` → *Eigener Server* → *QR-Code laden* → saves or copies QR image.
+2. **Server B admin** opens `network.html` → *Server importieren* → uploads the QR image (or pastes JSON) → *Server hinzufügen*.
+3. **Server B admin** goes to *Registrierte Server* → clicks 🤝 next to Server A → *Handshake-Assistent* opens.
+4. Click **Challenge generieren** (Step 1).
+5. If Server A's URL is stored: click **Automatisch signieren** – the UI contacts Server A's `/api/federation/handshake/respond` and fills in the signature automatically.
+   If not: copy the challenge, send it to Server A's admin who calls `/api/federation/handshake/respond`, then paste the returned signature (Step 2).
+6. Click **Verifizieren & vertrauen** (Step 3) → Server A is now trusted on Server B.
+7. Repeat from step 1 with roles swapped so Server A also trusts Server B.
+8. Use **Daten-Synchronisierung** to push markers to all trusted peers.
