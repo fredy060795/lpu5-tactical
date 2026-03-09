@@ -7363,6 +7363,132 @@ def cot_listener_stop(authorization: Optional[str] = Header(None)):
 
 
 # ===========================
+# CoT GeoChat Diagnostic & Push Endpoints
+# ===========================
+
+@app.get("/api/cot/geochat/events", summary="List recent GeoChat (b-t-f) messages")
+def cot_geochat_events(
+    limit: int = 50,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Return the most recent GeoChat messages that were received from ATAK/WinTAK
+    via CoT type ``b-t-f`` and saved to the LPU5 chat channel ``all``.
+
+    This is a read-only diagnostic endpoint – no authentication is required for
+    convenience, but the caller may pass a Bearer token to retrieve user-specific
+    channel-membership metadata in the future.
+
+    Query parameters:
+    - **limit** (int, default 50): maximum number of messages to return.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            msgs = (
+                db.query(ChatMessage)
+                .filter(ChatMessage.channel == MESH_CHAT_CHANNEL)
+                .order_by(ChatMessage.timestamp.desc())
+                .limit(max(1, min(limit, 500)))
+                .all()
+            )
+            return {
+                "channel": MESH_CHAT_CHANNEL,
+                "count": len(msgs),
+                "messages": [_chat_message_to_dict(m) for m in reversed(msgs)],
+            }
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.exception("cot_geochat_events failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/cot/geochat/push", summary="Manually push a GeoChat message into the 'all' channel")
+async def cot_geochat_push(payload: Dict = Body(...), authorization: Optional[str] = Header(None)):
+    """
+    Inject a GeoChat message directly into the LPU5 ``all`` chat channel without
+    requiring an actual CoT XML event.  This is useful for:
+
+    - Testing the ATAK→LPU5 chat bridge from scripts or curl.
+    - Forwarding chat from external TAK integrations that do not speak CoT.
+    - Manual operator broadcasts that should appear in the ATAK GeoChat window.
+
+    **Request body (JSON):**
+
+    ```json
+    {
+        "callsign": "ALPHA-1",
+        "text": "Hello from ATAK",
+        "uid": "ANDROID-abc123"
+    }
+    ```
+
+    - ``callsign`` (str, required): sender display name shown in the chat.
+    - ``text`` (str, required): message body.
+    - ``uid`` (str, optional): sender UID; defaults to callsign when omitted.
+
+    The message is saved as a ``ChatMessage`` in the ``all`` channel and
+    immediately broadcast to all connected WebSocket clients.  If TAK
+    forwarding is enabled it is also echoed back to ATAK clients as a
+    ``b-t-f`` CoT event.
+    """
+    callsign = (payload.get("callsign") or "").strip()
+    text = (payload.get("text") or "").strip()
+    uid = (payload.get("uid") or callsign).strip()
+
+    if not callsign:
+        raise HTTPException(status_code=400, detail="'callsign' is required")
+    if not text:
+        raise HTTPException(status_code=400, detail="'text' is required")
+
+    try:
+        db = SessionLocal()
+        try:
+            _ensure_default_channels(db)
+            new_msg = ChatMessage(
+                channel=MESH_CHAT_CHANNEL,
+                sender=callsign,
+                content=text,
+                timestamp=datetime.now(timezone.utc),
+                type="text",
+                delivered_to=[],
+                read_by=[],
+            )
+            db.add(new_msg)
+            db.commit()
+            db.refresh(new_msg)
+            msg_dict = _chat_message_to_dict(new_msg)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.exception("cot_geochat_push DB error: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    # Broadcast to WebSocket clients
+    if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager and _MAIN_EVENT_LOOP:
+        try:
+            asyncio.run_coroutine_threadsafe(
+                websocket_manager.publish_to_channel(
+                    'chat', {"type": "new_message", "data": msg_dict}
+                ),
+                _MAIN_EVENT_LOOP,
+            )
+        except Exception as ws_exc:
+            logger.warning("cot_geochat_push WebSocket broadcast failed: %s", ws_exc)
+
+    # Echo to ATAK/TAK clients as b-t-f CoT
+    if AUTONOMOUS_MODULES_AVAILABLE:
+        try:
+            _forward_chat_to_atak(callsign, text)
+        except Exception as atak_exc:
+            logger.warning("cot_geochat_push ATAK forward failed: %s", atak_exc)
+
+    logger.info("GeoChat push: [%s/%s] %s (len=%d)", uid, callsign, text[:80], len(text))
+    return {"status": "ok", "message": msg_dict}
+
+
+# ===========================
 # CoT Data Monitor Endpoints
 # ===========================
 
