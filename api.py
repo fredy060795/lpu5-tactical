@@ -592,6 +592,26 @@ def verify_token(token: str) -> Optional[Dict]:
     except Exception:
         return None
 
+
+def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+    """FastAPI dependency: extract and verify the current user from the
+    ``Authorization: Bearer <token>`` header.  Returns the decoded JWT
+    payload dict (contains at least ``user_id`` and ``username``).
+    """
+    token = None
+    if authorization:
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+        else:
+            token = authorization.strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return payload
+
+
 def log_audit(action: str, user_id: str, details: Dict) -> None:
     """Log an audit event to the database"""
     db = SessionLocal()
