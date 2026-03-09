@@ -1636,6 +1636,12 @@ let _fedHsServerId  = null;   // server_id des Ziels
 let _fedHsChalId    = null;   // challenge_id (von /challenge)
 let _fedHsPeerUrl   = null;   // URL des Peer-Servers (kann null sein)
 
+// Hilfsfunktion: Zeichenkette sicher kürzen
+function _fedTruncate(str, maxLen) {
+    if (!str) return '';
+    return str.length > maxLen ? str.substring(0, maxLen) + '…' : str;
+}
+
 // Hilfsfunktion: statusfarbige Box in ein Element rendern
 function _fedShowMsg(elemId, msg, type) {
     const el = document.getElementById(elemId);
@@ -1715,7 +1721,9 @@ function fedDecodeQrFile(input) {
             ctx.drawImage(img, 0, 0);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             if (typeof jsQR === 'undefined') {
-                _fedShowMsg('fedImportStatus', 'jsQR-Bibliothek nicht geladen – bitte JSON manuell einfügen.', 'error');
+                _fedShowMsg('fedImportStatus',
+                    'jsQR-Bibliothek nicht geladen. Bitte Internetverbindung prüfen und Seite neu laden, ' +
+                    'oder JSON-Server-Info direkt im Textfeld unten einfügen.', 'error');
                 return;
             }
             const code = jsQR(imageData.data, canvas.width, canvas.height);
@@ -1743,7 +1751,7 @@ function _fedParseImportJson(jsonStr) {
         }
         _fedImportData = data;
         document.getElementById('fedImportPreviewText').textContent =
-            ` Name: ${data.name} | ID: ${data.server_id.substring(0, 8)}… | URL: ${data.url || '–'}`;
+            ` Name: ${data.name} | ID: ${_fedTruncate(data.server_id, 8)} | URL: ${data.url || '–'}`;
         document.getElementById('fedImportPreview').classList.remove('fed-hidden');
         document.getElementById('fedImportStatus').style.display = 'none';
     } catch (_) {
@@ -1843,11 +1851,15 @@ async function fedLoadServers() {
             const regDate = s.registered_at
                 ? new Date(s.registered_at).toLocaleString('de-DE')
                 : '–';
-            const serverIdShort = s.server_id ? s.server_id.substring(0, 8) + '…' : '–';
-            const urlDisplay = s.url ? `<a href="${_escHtml(s.url)}" target="_blank" rel="noopener" style="color:var(--accent-blue);">${_escHtml(s.url)}</a>` : '–';
+            const serverIdShort = _fedTruncate(s.server_id, 8);
+            // Only allow http/https URLs in clickable links to prevent javascript:/data: injection
+            const isSafeUrl = s.url && /^https?:\/\//i.test(s.url);
+            const urlDisplay = isSafeUrl
+                ? `<a href="${_escHtml(s.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);">${_escHtml(s.url)}</a>`
+                : (s.url ? _escHtml(s.url) : '–');
             const peerUrlJson = JSON.stringify(s.url || '');
             html += `<tr>
-                <td><strong>${_escHtml(s.name)}</strong><br><span style="font-size:0.75rem;color:var(--text-dim);">${_escHtml(s.fingerprint ? s.fingerprint.substring(0,24)+'…' : '')}</span></td>
+                <td><strong>${_escHtml(s.name)}</strong><br><span style="font-size:0.75rem;color:var(--text-dim);">${_escHtml(_fedTruncate(s.fingerprint, 24))}</span></td>
                 <td title="${_escHtml(s.server_id)}">${_escHtml(serverIdShort)}</td>
                 <td>${urlDisplay}</td>
                 <td>${badge}</td>
@@ -1958,6 +1970,12 @@ function fedHsCopyChallenge() {
 
 async function fedHsAutoSign() {
     if (!_fedHsPeerUrl) return;
+    // Validate URL scheme to prevent SSRF against internal resources via non-http(s) URLs
+    if (!/^https?:\/\//i.test(_fedHsPeerUrl)) {
+        _fedShowMsg('fedHsStatus',
+            'Peer-URL hat kein gültiges Schema (http/https). Automatische Signierung nicht möglich.', 'error');
+        return;
+    }
     const challenge = document.getElementById('fedHsChallengeText').textContent.trim();
     if (!challenge) return;
     _fedShowMsg('fedHsStatus', '<i class="fas fa-spinner fa-spin"></i> Sende Challenge an Peer-Server …', 'info');
@@ -2060,7 +2078,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"
+        integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"
+        crossorigin="anonymous"></script>
 <script src="assets/sidebar.js"></script>
 </body>
 </html>
