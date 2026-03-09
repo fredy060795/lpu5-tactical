@@ -730,6 +730,11 @@
       background: rgba(255, 255, 255, 0.22);
     }
 
+    .tsb-btn.active {
+      background: rgba(46, 204, 113, 0.35);
+      box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
+    }
+
     .tsb-btn svg {
       width: 22px;
       height: 22px;
@@ -932,12 +937,12 @@
           <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/>
         </svg>
       </button>
-      <button class="tsb-btn" id="s-chat" ontouchstart="handleToolInteraction(() => openChatWindow(), event)" onclick="handleToolInteraction(() => openChatWindow(), event)" title="Chat">
+      <button class="tsb-btn" id="s-chat" ontouchstart="handleToolInteraction(() => toggleChatWindow(), event)" onclick="handleToolInteraction(() => toggleChatWindow(), event)" title="Chat">
         <svg viewBox="0 0 24 24" fill="#2ecc71" stroke="white" stroke-width="1.5">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
       </button>
-      <button class="tsb-btn" id="s-video" ontouchstart="handleToolInteraction(() => openVideoStream(), event)" onclick="handleToolInteraction(() => openVideoStream(), event)" title="Open Video Stream">
+      <button class="tsb-btn" id="s-video" ontouchstart="handleToolInteraction(() => toggleVideoStream(), event)" onclick="handleToolInteraction(() => toggleVideoStream(), event)" title="Open Video Stream">
         <svg viewBox="0 0 24 24" fill="#007bff" stroke="white" stroke-width="1.5">
           <path d="M23 7l-7 5 7 5V7z" />
           <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
@@ -3471,6 +3476,16 @@
       }
     }
 
+    // ── Toggle Chat Window (toolbar button) ──
+    function toggleChatWindow() {
+      const chatWindow = document.getElementById('chat-window');
+      if (chatWindow && chatWindow.classList.contains('open')) {
+        closeChatWindow();
+      } else {
+        openChatWindow();
+      }
+    }
+
     function openChatWindow() {
       const chatWindow = document.getElementById('chat-window');
       if (chatWindow) {
@@ -3484,6 +3499,9 @@
         updateChatNotificationBadge();
         // Load channels for chat recipient dropdown, then load messages
         loadChatUsers().then(() => loadChatMessages());
+        // Highlight toolbar button
+        const btn = document.getElementById('s-chat');
+        if (btn) btn.classList.add('active');
       }
     }
 
@@ -3515,8 +3533,69 @@
         chatWindow.classList.remove('minimized');
         const icon = document.getElementById('chat-minimize-icon');
         if (icon) icon.className = 'fas fa-minus';
+        // Remove highlight from toolbar button
+        const btn = document.getElementById('s-chat');
+        if (btn) btn.classList.remove('active');
       }
     }
+
+    // ── Make Chat Window draggable (mouse + touch) ──
+    (function initChatDrag() {
+      const chatWindow = document.getElementById('chat-window');
+      const header = document.getElementById('chatWindowHeader');
+      if (!chatWindow || !header) return;
+
+      let isDragging = false;
+      let dragOffset = { x: 0, y: 0 };
+
+      function startDrag(clientX, clientY, e) {
+        if (e.target.closest('.chat-window-btn')) return;
+        isDragging = true;
+        const rect = chatWindow.getBoundingClientRect();
+        dragOffset.x = clientX - rect.left;
+        dragOffset.y = clientY - rect.top;
+        chatWindow.style.transition = 'none';
+      }
+
+      function moveDrag(clientX, clientY) {
+        if (!isDragging) return;
+        let newX = clientX - dragOffset.x;
+        let newY = clientY - dragOffset.y;
+        const maxX = window.innerWidth - chatWindow.offsetWidth;
+        const maxY = window.innerHeight - chatWindow.offsetHeight;
+        newX = Math.max(0, Math.min(newX, maxX));
+        newY = Math.max(0, Math.min(newY, maxY));
+        chatWindow.style.left = newX + 'px';
+        chatWindow.style.top = newY + 'px';
+        chatWindow.style.right = 'auto';
+        chatWindow.style.bottom = 'auto';
+      }
+
+      function endDrag() {
+        if (isDragging) {
+          isDragging = false;
+          chatWindow.style.transition = '';
+        }
+      }
+
+      // Mouse events
+      header.addEventListener('mousedown', function (e) { startDrag(e.clientX, e.clientY, e); });
+      document.addEventListener('mousemove', function (e) { moveDrag(e.clientX, e.clientY); });
+      document.addEventListener('mouseup', endDrag);
+
+      // Touch events
+      header.addEventListener('touchstart', function (e) {
+        const t = e.touches[0];
+        startDrag(t.clientX, t.clientY, e);
+      }, { passive: true });
+      document.addEventListener('touchmove', function (e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        moveDrag(t.clientX, t.clientY);
+      }, { passive: false });
+      document.addEventListener('touchend', endDrag);
+    })();
 
     function sendChatMessage() {
       const input = document.getElementById('chat-input');
@@ -4311,41 +4390,53 @@
         let isDragging = false;
         let dragOffset = { x: 0, y: 0 };
 
-        header.addEventListener('mousedown', function (e) {
+        function startDrag(clientX, clientY, e) {
           if (e.target.closest('.overview-stream-close-btn')) return;
-
           isDragging = true;
           const rect = viewer.getBoundingClientRect();
-          dragOffset.x = e.clientX - rect.left;
-          dragOffset.y = e.clientY - rect.top;
+          dragOffset.x = clientX - rect.left;
+          dragOffset.y = clientY - rect.top;
           viewer.style.transition = 'none';
-        });
+        }
 
-        document.addEventListener('mousemove', function (e) {
+        function moveDrag(clientX, clientY) {
           if (!isDragging) return;
-
-          let newX = e.clientX - dragOffset.x;
-          let newY = e.clientY - dragOffset.y;
-
-          // Keep window in bounds
+          let newX = clientX - dragOffset.x;
+          let newY = clientY - dragOffset.y;
           const maxX = window.innerWidth - viewer.offsetWidth;
           const maxY = window.innerHeight - viewer.offsetHeight;
-
           newX = Math.max(0, Math.min(newX, maxX));
           newY = Math.max(0, Math.min(newY, maxY));
-
           viewer.style.right = 'auto';
           viewer.style.bottom = 'auto';
           viewer.style.left = newX + 'px';
           viewer.style.top = newY + 'px';
-        });
+        }
 
-        document.addEventListener('mouseup', function () {
+        function endDrag() {
           if (isDragging) {
             isDragging = false;
             viewer.style.transition = '';
           }
-        });
+        }
+
+        // Mouse events
+        header.addEventListener('mousedown', function (e) { startDrag(e.clientX, e.clientY, e); });
+        document.addEventListener('mousemove', function (e) { moveDrag(e.clientX, e.clientY); });
+        document.addEventListener('mouseup', endDrag);
+
+        // Touch events
+        header.addEventListener('touchstart', function (e) {
+          const t = e.touches[0];
+          startDrag(t.clientX, t.clientY, e);
+        }, { passive: true });
+        document.addEventListener('touchmove', function (e) {
+          if (!isDragging) return;
+          e.preventDefault();
+          const t = e.touches[0];
+          moveDrag(t.clientX, t.clientY);
+        }, { passive: false });
+        document.addEventListener('touchend', endDrag);
 
         return viewer;
       }
@@ -4381,6 +4472,16 @@
         }
       };
 
+      // ── Toggle Video Stream (toolbar button) ──
+      window.toggleVideoStream = function () {
+        const viewer = document.getElementById('overviewStreamViewer');
+        if (viewer && viewer.classList.contains('active')) {
+          closeOverviewStreamViewer();
+        } else {
+          openVideoStream();
+        }
+      };
+
       // Manual function to open video stream
       window.openVideoStream = function () {
         console.log('Opening video stream manually from overview.html');
@@ -4409,6 +4510,9 @@
         // Show the viewer
         viewer.classList.add('active');
         viewer.dataset.minimized = 'false';
+        // Highlight toolbar button
+        const btn = document.getElementById('s-video');
+        if (btn) btn.classList.add('active');
       };
 
       // Keep for backwards compatibility but now just minimizes
@@ -4432,6 +4536,10 @@
         if (iframe) {
           iframe.remove();
         }
+
+        // Remove highlight from toolbar button
+        const btn = document.getElementById('s-video');
+        if (btn) btn.classList.remove('active');
 
         // Optionally remove the viewer element completely
         viewer.remove();
@@ -4511,6 +4619,9 @@
         }
 
         viewer.classList.add('active');
+        // Highlight toolbar button
+        const vBtn = document.getElementById('s-video');
+        if (vBtn) vBtn.classList.add('active');
       }
 
       function updateCameraFrame(frameData) {
