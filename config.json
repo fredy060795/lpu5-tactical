@@ -7,6 +7,9 @@
     "tak_server_port": 4242,
     "tak_username": "",
     "tak_password": "",
+    "cot_listener_enabled": true,
+    "cot_listener_tcp_port": 8088,
+    "cot_listener_udp_port": 4242,
     "sa_multicast_enabled": true,
     "sa_multicast_group": "239.2.3.1",
     "sa_multicast_port": 6969
