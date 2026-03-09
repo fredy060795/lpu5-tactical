@@ -47,6 +47,7 @@ import ssl
 import asyncio
 import sys
 import xml.sax.saxutils as _sax_utils
+import requests
 
 # Fix Windows asyncio ProactorEventLoop issue that causes
 # "Exception in callback _ProactorBasePipeTransport._call_connection_lost"
@@ -67,7 +68,7 @@ _SHUTDOWN_IN_PROGRESS = threading.Event()
 
 # Database imports
 from database import Base, SessionLocal, engine, get_db
-from models import User, Unit, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration, DeletedMarker
+from models import User, Unit, MapMarker, Mission, MeshtasticNode, AutonomousRule, Geofence, ChatMessage, ChatChannel, AuditLog, Drawing, Overlay, APISession, UserGroup, QRCode, PendingRegistration, DeletedMarker, FederatedServer, FederationChallenge
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from fastapi import Depends
@@ -164,6 +165,23 @@ except ImportError as e:
     logger.warning(f"Data server manager not available: {e}")
     DATA_SERVER_AVAILABLE = False
     DataServerManager = None
+
+# Import federation module
+try:
+    from federation import (
+        load_or_generate_server_keypair as _fed_load_keypair,
+        get_server_info as _fed_get_server_info,
+        sign_challenge as _fed_sign_challenge,
+        verify_signature as _fed_verify_signature,
+        generate_challenge as _fed_generate_challenge,
+        make_server_info_qr_png as _fed_make_qr_png,
+        compute_fingerprint_from_pem as _fed_fingerprint,
+        _CHALLENGE_EXPIRE_SECONDS as _FED_CHALLENGE_EXPIRE_SECONDS,
+    )
+    FEDERATION_AVAILABLE = True
+except Exception as _fed_err:
+    logger.warning("Federation module not available: %s", _fed_err)
+    FEDERATION_AVAILABLE = False
 
 # Helper function to detect local network IP
 def get_local_ip():
@@ -10367,6 +10385,472 @@ def catch_all(full_path: str, request: Request):
     if os.path.isfile(candidate_index):
         return FileResponse(candidate_index, media_type="text/html")
     raise HTTPException(status_code=404, detail=f"File {full_path} not found. Please use .html extension.")
+
+
+# ===========================================================================
+# Federation API  (/api/federation/*)
+# ===========================================================================
+# Implements ATAK-inspired server federation:
+#   1. Each server has an RSA key pair generated at startup.
+#   2. Servers exchange public keys via QR code or REST.
+#   3. A challenge/response handshake establishes mutual trust.
+#   4. Only *trusted* peers participate in data synchronisation.
+# ===========================================================================
+
+# Use the canonical constant from federation.py; fall back to 120 s if module unavailable
+_CHALLENGE_EXPIRE_SECONDS = _FED_CHALLENGE_EXPIRE_SECONDS if FEDERATION_AVAILABLE else 120
+
+
+def _require_federation(db: Session = None):
+    """Raise 503 if federation module is not available."""
+    if not FEDERATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Federation module not available")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/federation/info  – local server identity (public key + metadata)
+# ---------------------------------------------------------------------------
+@app.get("/api/federation/info", tags=["Federation"])
+def federation_info(current_user: dict = Depends(get_current_user)):
+    """
+    Return this server's public key and metadata.
+    Clients (and peer servers) use this to register this server in their registry.
+    """
+    _require_federation()
+    try:
+        info = _fed_get_server_info(base_path)
+        return JSONResponse(content=info)
+    except Exception as exc:
+        logger.error("federation_info error: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# GET /api/federation/qr  – QR code PNG encoding local server info
+# ---------------------------------------------------------------------------
+@app.get("/api/federation/qr", tags=["Federation"])
+def federation_qr(current_user: dict = Depends(get_current_user)):
+    """
+    Return a QR code PNG that encodes this server's federation info.
+    Scan this with another LPU5 server (or the admin UI) to onboard it.
+    """
+    _require_federation()
+    try:
+        info = _fed_get_server_info(base_path)
+        png_bytes = _fed_make_qr_png(info)
+        return Response(content=png_bytes, media_type="image/png")
+    except Exception as exc:
+        logger.error("federation_qr error: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# POST /api/federation/servers  – register a remote server
+# ---------------------------------------------------------------------------
+@app.post("/api/federation/servers", tags=["Federation"])
+def federation_register_server(
+    body: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Register a remote LPU5 server in the local registry.
+
+    Body fields
+    -----------
+    server_id   : str  – UUID of the remote server
+    name        : str  – human-readable label
+    public_key  : str  – PEM-encoded RSA public key
+    url         : str  – (optional) base URL of the remote server
+    meta        : dict – (optional) additional metadata
+    """
+    _require_federation()
+
+    server_id = body.get("server_id", "")
+    name = body.get("name", "")
+    public_key_pem = body.get("public_key", "")
+    url = body.get("url", "")
+    meta = body.get("meta", {})
+
+    if not server_id or not name or not public_key_pem:
+        raise HTTPException(status_code=422, detail="server_id, name, and public_key are required")
+
+    # Validate public key
+    try:
+        fingerprint = _fed_fingerprint(public_key_pem)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid public_key PEM")
+
+    # Check for duplicates (by server_id)
+    existing = db.query(FederatedServer).filter_by(server_id=server_id).first()
+    if existing:
+        # Update public key / metadata
+        existing.name = name
+        existing.public_key_pem = public_key_pem
+        existing.fingerprint = fingerprint
+        existing.url = url
+        existing.meta = meta
+        db.commit()
+        log_audit("federation_server_updated", current_user.get("username", "?"),
+                  {"server_id": server_id, "name": name})
+        return JSONResponse(content={
+            "status": "updated",
+            "id": existing.id,
+            "server_id": server_id,
+            "fingerprint": fingerprint,
+            "trusted": existing.trusted,
+        })
+
+    entry = FederatedServer(
+        name=name,
+        server_id=server_id,
+        public_key_pem=public_key_pem,
+        fingerprint=fingerprint,
+        url=url,
+        meta=meta,
+        trusted=False,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    log_audit("federation_server_registered", current_user.get("username", "?"),
+              {"server_id": server_id, "name": name})
+    return JSONResponse(status_code=201, content={
+        "status": "registered",
+        "id": entry.id,
+        "server_id": server_id,
+        "fingerprint": fingerprint,
+        "trusted": False,
+    })
+
+
+# ---------------------------------------------------------------------------
+# GET /api/federation/servers  – list registered servers
+# ---------------------------------------------------------------------------
+@app.get("/api/federation/servers", tags=["Federation"])
+def federation_list_servers(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """List all servers in the federation registry."""
+    _require_federation()
+    rows = db.query(FederatedServer).order_by(FederatedServer.registered_at.desc()).all()
+    return JSONResponse(content=[
+        {
+            "id": r.id,
+            "server_id": r.server_id,
+            "name": r.name,
+            "url": r.url,
+            "fingerprint": r.fingerprint,
+            "trusted": r.trusted,
+            "registered_at": r.registered_at.isoformat() if r.registered_at else None,
+            "last_seen": r.last_seen.isoformat() if r.last_seen else None,
+            "meta": r.meta,
+        }
+        for r in rows
+    ])
+
+
+# ---------------------------------------------------------------------------
+# GET /api/federation/servers/{server_id}  – single server details
+# ---------------------------------------------------------------------------
+@app.get("/api/federation/servers/{server_id}", tags=["Federation"])
+def federation_get_server(
+    server_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get details of a specific federated server (by its UUID server_id)."""
+    _require_federation()
+    row = db.query(FederatedServer).filter_by(server_id=server_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Server not found")
+    return JSONResponse(content={
+        "id": row.id,
+        "server_id": row.server_id,
+        "name": row.name,
+        "url": row.url,
+        "public_key": row.public_key_pem,
+        "fingerprint": row.fingerprint,
+        "trusted": row.trusted,
+        "registered_at": row.registered_at.isoformat() if row.registered_at else None,
+        "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+        "meta": row.meta,
+    })
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/federation/servers/{server_id}  – remove a server
+# ---------------------------------------------------------------------------
+@app.delete("/api/federation/servers/{server_id}", tags=["Federation"])
+def federation_delete_server(
+    server_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove a server from the federation registry."""
+    _require_federation()
+    row = db.query(FederatedServer).filter_by(server_id=server_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Server not found")
+    db.delete(row)
+    db.commit()
+    log_audit("federation_server_deleted", current_user.get("username", "?"),
+              {"server_id": server_id})
+    return JSONResponse(content={"status": "deleted", "server_id": server_id})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/federation/servers/{server_id}/challenge  – issue a challenge
+# ---------------------------------------------------------------------------
+@app.post("/api/federation/servers/{server_id}/challenge", tags=["Federation"])
+def federation_issue_challenge(
+    server_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Issue a cryptographic challenge to a registered peer server.
+
+    The peer must call POST /api/federation/handshake/respond (on *this*
+    server) – or the equivalent on the remote – with the signed challenge to
+    complete the handshake and become trusted.
+
+    Returns the challenge_id and base64-encoded challenge bytes.
+    """
+    _require_federation()
+    row = db.query(FederatedServer).filter_by(server_id=server_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    challenge_b64 = _fed_generate_challenge()
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=_CHALLENGE_EXPIRE_SECONDS)
+    ch = FederationChallenge(
+        federated_server_id=row.id,
+        challenge_b64=challenge_b64,
+        expires_at=expires_at,
+    )
+    db.add(ch)
+    db.commit()
+    db.refresh(ch)
+    return JSONResponse(content={
+        "challenge_id": ch.id,
+        "challenge": challenge_b64,
+        "expires_at": expires_at.isoformat(),
+    })
+
+
+# ---------------------------------------------------------------------------
+# POST /api/federation/servers/{server_id}/verify  – verify challenge response
+# ---------------------------------------------------------------------------
+@app.post("/api/federation/servers/{server_id}/verify", tags=["Federation"])
+def federation_verify_challenge(
+    server_id: str,
+    body: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Verify the peer's signed response to a challenge.
+
+    Body fields
+    -----------
+    challenge_id : str – ID returned by the /challenge endpoint
+    signature    : str – base64-encoded RSA-PKCS#1v1.5-SHA256 signature
+
+    On success the server's *trusted* flag is set to True.
+    """
+    _require_federation()
+    row = db.query(FederatedServer).filter_by(server_id=server_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    challenge_id = body.get("challenge_id", "")
+    signature_b64 = body.get("signature", "")
+    if not challenge_id or not signature_b64:
+        raise HTTPException(status_code=422, detail="challenge_id and signature are required")
+
+    ch = db.query(FederationChallenge).filter_by(id=challenge_id, federated_server_id=row.id).first()
+    if not ch:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    if ch.used:
+        raise HTTPException(status_code=409, detail="Challenge already used")
+    if datetime.now(timezone.utc) > ch.expires_at.replace(tzinfo=timezone.utc):
+        raise HTTPException(status_code=410, detail="Challenge expired")
+
+    valid = _fed_verify_signature(ch.challenge_b64, signature_b64, row.public_key_pem)
+    ch.used = True
+    db.commit()
+
+    if not valid:
+        log_audit("federation_handshake_failed", current_user.get("username", "?"),
+                  {"server_id": server_id})
+        raise HTTPException(status_code=403, detail="Signature verification failed")
+
+    row.trusted = True
+    row.last_seen = datetime.now(timezone.utc)
+    db.commit()
+    log_audit("federation_handshake_success", current_user.get("username", "?"),
+              {"server_id": server_id, "name": row.name})
+    return JSONResponse(content={
+        "status": "trusted",
+        "server_id": server_id,
+        "name": row.name,
+    })
+
+
+# ---------------------------------------------------------------------------
+# POST /api/federation/handshake/respond  – respond to a challenge from a peer
+# ---------------------------------------------------------------------------
+@app.post("/api/federation/handshake/respond", tags=["Federation"])
+def federation_respond_to_challenge(
+    body: Dict[str, Any] = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Sign a challenge received from a peer server using this server's private key.
+
+    Body fields
+    -----------
+    challenge : str – base64-encoded challenge bytes (from peer's /challenge endpoint)
+
+    Returns the base64-encoded signature that should be sent back to the peer.
+    """
+    _require_federation()
+    challenge_b64 = body.get("challenge", "")
+    if not challenge_b64:
+        raise HTTPException(status_code=422, detail="challenge is required")
+    try:
+        private_key, _ = _fed_load_keypair(base_path)
+        signature_b64 = _fed_sign_challenge(challenge_b64, private_key)
+    except Exception as exc:
+        logger.error("federation_respond_to_challenge error: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+    return JSONResponse(content={"signature": signature_b64})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/federation/sync  – push local data to all trusted peers
+# ---------------------------------------------------------------------------
+@app.post("/api/federation/sync", tags=["Federation"])
+def federation_sync(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Trigger synchronisation of local map markers to all trusted federated
+    servers.  Each trusted peer receives a signed payload containing the
+    current marker list.  Untrusted servers are skipped.
+
+    Returns a summary of sync results per peer.
+    """
+    _require_federation()
+
+    trusted_peers = db.query(FederatedServer).filter_by(trusted=True).all()
+    if not trusted_peers:
+        return JSONResponse(content={"status": "ok", "synced": 0, "results": []})
+
+    # Build local marker payload
+    markers = db.query(MapMarker).all()
+    marker_list = [
+        {
+            "id": m.id, "name": m.name, "lat": m.lat, "lng": m.lng,
+            "type": m.type, "color": m.color, "icon": m.icon,
+            "description": m.description,
+        }
+        for m in markers
+    ]
+
+    # Sign the payload with our private key
+    try:
+        private_key, _ = _fed_load_keypair(base_path)
+        local_info = _fed_get_server_info(base_path)
+        payload_str = json.dumps(marker_list, separators=(",", ":"), sort_keys=True)
+        payload_challenge = base64.b64encode(payload_str.encode()).decode()
+        signature_b64 = _fed_sign_challenge(payload_challenge, private_key)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Signing error: {exc}")
+
+    results = []
+    for peer in trusted_peers:
+        if not peer.url:
+            results.append({"server_id": peer.server_id, "name": peer.name, "status": "skipped", "reason": "no URL configured"})
+            continue
+        try:
+            resp = requests.post(
+                f"{peer.url.rstrip('/')}/api/federation/ingest",
+                json={
+                    "source_server_id": local_info["server_id"],
+                    "markers": marker_list,
+                    "signature": signature_b64,
+                    "payload_b64": payload_challenge,
+                },
+                timeout=10,
+            )
+            peer.last_seen = datetime.now(timezone.utc)
+            db.commit()
+            results.append({
+                "server_id": peer.server_id,
+                "name": peer.name,
+                "status": "ok" if resp.status_code < 300 else "error",
+                "http_status": resp.status_code,
+            })
+        except Exception as exc:
+            results.append({"server_id": peer.server_id, "name": peer.name, "status": "error", "reason": str(exc)})
+
+    log_audit("federation_sync", current_user.get("username", "?"),
+              {"synced_peers": len([r for r in results if r.get("status") == "ok"])})
+    return JSONResponse(content={"status": "ok", "synced": len(trusted_peers), "results": results})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/federation/ingest  – receive data from a trusted peer
+# ---------------------------------------------------------------------------
+@app.post("/api/federation/ingest", tags=["Federation"])
+def federation_ingest(
+    body: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Receive and validate a signed data payload from a trusted federated peer.
+    No user authentication is required here; trust is established via RSA
+    signature verification against the sender's registered public key.
+
+    Body fields
+    -----------
+    source_server_id : str  – sender's UUID
+    markers          : list – list of marker dicts
+    signature        : str  – base64-encoded RSA signature of payload_b64
+    payload_b64      : str  – base64-encoded JSON payload that was signed
+    """
+    _require_federation()
+    source_id = body.get("source_server_id", "")
+    signature_b64 = body.get("signature", "")
+    payload_b64 = body.get("payload_b64", "")
+    markers = body.get("markers", [])
+
+    if not source_id or not signature_b64 or not payload_b64:
+        raise HTTPException(status_code=422, detail="source_server_id, signature, and payload_b64 are required")
+
+    peer = db.query(FederatedServer).filter_by(server_id=source_id, trusted=True).first()
+    if not peer:
+        raise HTTPException(status_code=403, detail="Source server not registered or not trusted")
+
+    if not _fed_verify_signature(payload_b64, signature_b64, peer.public_key_pem):
+        log_audit("federation_ingest_rejected", "federation",
+                  {"source_server_id": source_id, "reason": "invalid signature"})
+        raise HTTPException(status_code=403, detail="Signature verification failed")
+
+    peer.last_seen = datetime.now(timezone.utc)
+    db.commit()
+    log_audit("federation_ingest_accepted", "federation",
+              {"source_server_id": source_id, "markers_received": len(markers)})
+    return JSONResponse(content={
+        "status": "accepted",
+        "source_server_id": source_id,
+        "markers_received": len(markers),
+    })
+
 
 # -------------------------
 # Run (development)
