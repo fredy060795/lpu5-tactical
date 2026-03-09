@@ -111,7 +111,7 @@ let _renderPending = false;
 let _renderRAF = null;        // requestAnimationFrame id for batched renders
 let _loadInFlight = false;    // true while loadData() is running
 let _loadQueued = false;      // true if another loadData was requested during flight
-let _saveTimer = null;        // debounce timer for server persistence
+let _loadTimer = null;        // debounce timer for loadData scheduling
 
 /** Coalesce multiple renderTable() calls into one frame */
 function scheduleRender(){
@@ -124,10 +124,9 @@ function scheduleRender(){
 
 /** Debounced loadData — prevents overlapping fetches */
 function scheduleLoadData(delayMs){
-    if (_loadInFlight){ _loadQueued = true; return; }
     const delay = typeof delayMs === 'number' ? delayMs : 300;
-    clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(async () => {
+    clearTimeout(_loadTimer);
+    _loadTimer = setTimeout(async () => {
         if (_loadInFlight){ _loadQueued = true; return; }
         _loadInFlight = true;
         try { await loadData(); }
@@ -625,7 +624,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     updateTimers();
     updateMissionHeader();
 
-    setInterval(()=>{ scheduleLoadData(0); }, REFRESH_MS);
+    setInterval(()=>{ scheduleLoadData(100); }, REFRESH_MS);
     setInterval(updateTimers, TIMER_INTERVAL_MS);
     setInterval(updateMissionHeader, 15000);
     
