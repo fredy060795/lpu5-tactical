@@ -10890,10 +10890,7 @@ def _federation_sync_worker(interval_seconds: int = 300):
     logger.info("Federation auto-sync worker started (interval=%s s)", interval_seconds)
     while not _FEDERATION_SYNC_STOP_EVENT.is_set():
         # Sleep first, then sync (gives server time to fully start)
-        for _ in range(max(1, int(interval_seconds))):
-            if _FEDERATION_SYNC_STOP_EVENT.is_set():
-                break
-            time.sleep(1)
+        _FEDERATION_SYNC_STOP_EVENT.wait(interval_seconds)
         if _FEDERATION_SYNC_STOP_EVENT.is_set():
             break
 
@@ -10940,7 +10937,6 @@ def _federation_sync_worker(interval_seconds: int = 300):
                             "payload_b64": payload_challenge,
                         },
                         timeout=10,
-                        verify=False,
                     )
                     peer.last_seen = datetime.now(timezone.utc)
                     db.commit()
