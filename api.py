@@ -402,6 +402,27 @@ async def lifespan(application):
     except Exception as e:
         logger.error("Error starting TAK receiver thread: %s", e)
 
+    # Start automatic federation sync worker if enabled
+    try:
+        cfg = load_json("config") or {}
+        fed_sync_enabled = cfg.get("federation_auto_sync", True)
+        fed_sync_interval = int(cfg.get("federation_sync_interval_seconds", 300))
+    except Exception:
+        fed_sync_enabled = True
+        fed_sync_interval = 300
+    if fed_sync_enabled and FEDERATION_AVAILABLE:
+        global _FEDERATION_SYNC_THREAD
+        if _FEDERATION_SYNC_THREAD is None or not _FEDERATION_SYNC_THREAD.is_alive():
+            _FEDERATION_SYNC_STOP_EVENT.clear()
+            _FEDERATION_SYNC_THREAD = threading.Thread(
+                target=_federation_sync_worker,
+                args=(fed_sync_interval,),
+                daemon=True,
+                name="federation-auto-sync",
+            )
+            _FEDERATION_SYNC_THREAD.start()
+            logger.info("✅ Federation auto-sync worker started (interval=%ss)", fed_sync_interval)
+
     logger.info("Startup complete. DB files ensured.")
 
     yield
@@ -446,6 +467,12 @@ async def lifespan(application):
     # Stop TAK periodic sync thread
     try:
         _TAK_PERIODIC_SYNC_STOP_EVENT.set()
+    except Exception:
+        pass
+
+    # Stop federation auto-sync thread
+    try:
+        _FEDERATION_SYNC_STOP_EVENT.set()
     except Exception:
         pass
 
@@ -10379,34 +10406,6 @@ async def sdr_audio_stream(
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content={"status": "error", "message": exc.detail})
 
-# -------------------------
-# Catch-all file fallback (after API routes)
-# -------------------------
-@app.get("/{full_path:path}", include_in_schema=False)
-def catch_all(full_path: str, request: Request):
-    """
-    Catch-all route for serving static HTML files.
-    
-    Note: This route does not interfere with WebSocket connections.
-    With uvicorn[standard] installed, the WebSocket endpoint at /ws is properly
-    handled by FastAPI's WebSocket route before this HTTP GET route is considered.
-    The 'ws' prefix in blocked_prefixes ensures file system lookups don't occur for it.
-    """
-    blocked_prefixes = ("api", "static", "assets", "uploads", "_", "favicon.ico", "ws")
-    if any(full_path == p or full_path.startswith(p + "/") for p in blocked_prefixes):
-        raise HTTPException(status_code=404, detail="Not found")
-    candidate = os.path.join(base_path, full_path)
-    if os.path.isfile(candidate):
-        ext = os.path.splitext(candidate)[1].lower()
-        if ext == ".html":
-            return FileResponse(candidate, media_type="text/html")
-        return FileResponse(candidate)
-    candidate_index = os.path.join(candidate, "index.html")
-    if os.path.isfile(candidate_index):
-        return FileResponse(candidate_index, media_type="text/html")
-    raise HTTPException(status_code=404, detail=f"File {full_path} not found. Please use .html extension.")
-
-
 # ===========================================================================
 # Federation API  (/api/federation/*)
 # ===========================================================================
@@ -10870,6 +10869,150 @@ def federation_ingest(
         "source_server_id": source_id,
         "markers_received": len(markers),
     })
+
+
+# ---------------------------------------------------------------------------
+# Automatic federation sync worker
+# ---------------------------------------------------------------------------
+_FEDERATION_SYNC_THREAD = None
+_FEDERATION_SYNC_STOP_EVENT = threading.Event()
+_FEDERATION_SYNC_LAST_RUN = None
+_FEDERATION_SYNC_LAST_RESULT = None
+
+
+def _federation_sync_worker(interval_seconds: int = 300):
+    """
+    Background worker that periodically pushes local map markers to all
+    trusted federated peers.  Mirrors the manual POST /api/federation/sync
+    logic but runs automatically in a daemon thread.
+    """
+    global _FEDERATION_SYNC_LAST_RUN, _FEDERATION_SYNC_LAST_RESULT
+    logger.info("Federation auto-sync worker started (interval=%s s)", interval_seconds)
+    while not _FEDERATION_SYNC_STOP_EVENT.is_set():
+        # Sleep first, then sync (gives server time to fully start)
+        _FEDERATION_SYNC_STOP_EVENT.wait(interval_seconds)
+        if _FEDERATION_SYNC_STOP_EVENT.is_set():
+            break
+
+        db = SessionLocal()
+        try:
+            if not FEDERATION_AVAILABLE:
+                continue
+
+            trusted_peers = db.query(FederatedServer).filter_by(trusted=True).all()
+            if not trusted_peers:
+                _FEDERATION_SYNC_LAST_RUN = datetime.now(timezone.utc).isoformat()
+                _FEDERATION_SYNC_LAST_RESULT = {"synced": 0, "results": []}
+                continue
+
+            markers = db.query(MapMarker).all()
+            marker_list = [
+                {
+                    "id": m.id, "name": m.name, "lat": m.lat, "lng": m.lng,
+                    "type": m.type, "color": m.color, "icon": m.icon,
+                    "description": m.description,
+                }
+                for m in markers
+            ]
+
+            private_key, _ = _fed_load_keypair(base_path)
+            local_info = _fed_get_server_info(base_path)
+            payload_str = json.dumps(marker_list, separators=(",", ":"), sort_keys=True)
+            payload_challenge = base64.b64encode(payload_str.encode()).decode()
+            signature_b64 = _fed_sign_challenge(payload_challenge, private_key)
+
+            results = []
+            for peer in trusted_peers:
+                if not peer.url:
+                    results.append({"server_id": peer.server_id, "name": peer.name,
+                                    "status": "skipped", "reason": "no URL configured"})
+                    continue
+                try:
+                    resp = requests.post(
+                        f"{peer.url.rstrip('/')}/api/federation/ingest",
+                        json={
+                            "source_server_id": local_info["server_id"],
+                            "markers": marker_list,
+                            "signature": signature_b64,
+                            "payload_b64": payload_challenge,
+                        },
+                        timeout=10,
+                    )
+                    peer.last_seen = datetime.now(timezone.utc)
+                    db.commit()
+                    results.append({
+                        "server_id": peer.server_id, "name": peer.name,
+                        "status": "ok" if resp.status_code < 300 else "error",
+                        "http_status": resp.status_code,
+                    })
+                except Exception as exc:
+                    results.append({"server_id": peer.server_id, "name": peer.name,
+                                    "status": "error", "reason": str(exc)})
+
+            _FEDERATION_SYNC_LAST_RUN = datetime.now(timezone.utc).isoformat()
+            _FEDERATION_SYNC_LAST_RESULT = {
+                "synced": len(trusted_peers),
+                "ok": len([r for r in results if r.get("status") == "ok"]),
+                "results": results,
+            }
+            logger.info("Federation auto-sync completed: %d peers, %d ok",
+                        _FEDERATION_SYNC_LAST_RESULT["synced"],
+                        _FEDERATION_SYNC_LAST_RESULT["ok"])
+        except Exception as exc:
+            logger.warning("Federation auto-sync error: %s", exc)
+            _FEDERATION_SYNC_LAST_RUN = datetime.now(timezone.utc).isoformat()
+            _FEDERATION_SYNC_LAST_RESULT = {"error": str(exc)}
+        finally:
+            db.close()
+    logger.info("Federation auto-sync worker stopped")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/federation/sync/status – auto-sync status
+# ---------------------------------------------------------------------------
+@app.get("/api/federation/sync/status", tags=["Federation"])
+def federation_sync_status(current_user: dict = Depends(get_current_user)):
+    """Return the current status of the automatic federation sync worker."""
+    running = _FEDERATION_SYNC_THREAD is not None and _FEDERATION_SYNC_THREAD.is_alive()
+    try:
+        cfg = load_json("config") or {}
+    except Exception:
+        cfg = {}
+    return JSONResponse(content={
+        "auto_sync_enabled": cfg.get("federation_auto_sync", True),
+        "interval_seconds": cfg.get("federation_sync_interval_seconds", 300),
+        "running": running,
+        "last_run": _FEDERATION_SYNC_LAST_RUN,
+        "last_result": _FEDERATION_SYNC_LAST_RESULT,
+    })
+
+
+# -------------------------
+# Catch-all file fallback (MUST be the last route registered)
+# -------------------------
+@app.get("/{full_path:path}", include_in_schema=False)
+def catch_all(full_path: str, request: Request):
+    """
+    Catch-all route for serving static HTML files.
+
+    Note: This route does not interfere with WebSocket connections.
+    With uvicorn[standard] installed, the WebSocket endpoint at /ws is properly
+    handled by FastAPI's WebSocket route before this HTTP GET route is considered.
+    The 'ws' prefix in blocked_prefixes ensures file system lookups don't occur for it.
+    """
+    blocked_prefixes = ("api", "static", "assets", "uploads", "_", "favicon.ico", "ws")
+    if any(full_path == p or full_path.startswith(p + "/") for p in blocked_prefixes):
+        raise HTTPException(status_code=404, detail="Not found")
+    candidate = os.path.join(base_path, full_path)
+    if os.path.isfile(candidate):
+        ext = os.path.splitext(candidate)[1].lower()
+        if ext == ".html":
+            return FileResponse(candidate, media_type="text/html")
+        return FileResponse(candidate)
+    candidate_index = os.path.join(candidate, "index.html")
+    if os.path.isfile(candidate_index):
+        return FileResponse(candidate_index, media_type="text/html")
+    raise HTTPException(status_code=404, detail=f"File {full_path} not found. Please use .html extension.")
 
 
 # -------------------------

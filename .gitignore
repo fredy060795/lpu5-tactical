@@ -42,6 +42,9 @@ cert.pem
 key.pem
 *.pem
 
+# Federation runtime files (generated locally)
+server_id.txt
+
 # Ionic/Capacitor – generated native projects and node_modules
 ionic/node_modules/
 ionic/android/
