@@ -11264,7 +11264,6 @@ def _federation_auto_handshake(peer_url: str, peer_server_id: str):
                 "challenge": challenge_b64,
             },
             timeout=15,
-            verify=False,       # self-signed certs common in tactical networks
         )
         if resp.status_code != 200:
             logger.warning(
@@ -11310,7 +11309,6 @@ def _federation_auto_handshake(peer_url: str, peer_server_id: str):
                 "signature": counter_sig,
             },
             timeout=15,
-            verify=False,
         )
         if resp2.status_code == 200:
             logger.info(
