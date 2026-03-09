@@ -1092,9 +1092,23 @@
             Sendet signierte lokale Karten-Marker an alle <strong>vertrauenswürdigen</strong>
             Föderations-Server. Nicht vertrauenswürdige Server werden übersprungen.
         </div>
+
+        <!-- Auto-Sync Status -->
+        <div id="fedAutoSyncSection" style="margin-bottom:12px; padding:10px; background:rgba(46,204,113,0.08); border:1px solid rgba(46,204,113,0.25); border-radius:6px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                <i class="fas fa-robot" style="color:var(--accent);"></i>
+                <strong>Automatische Synchronisierung</strong>
+                <span id="fedAutoSyncBadge" style="font-size:0.8em; padding:2px 8px; border-radius:10px; background:#555; color:#fff;">…</span>
+            </div>
+            <div id="fedAutoSyncInfo" style="font-size:0.9em; color:var(--text-dim);">Lade Status …</div>
+        </div>
+
         <div class="button-group" style="margin-top:0;">
             <button class="btn btn-primary" onclick="fedRunSync()">
-                <i class="fas fa-paper-plane"></i> Sync zu vertrauenswürdigen Servern starten
+                <i class="fas fa-paper-plane"></i> Manuelle Sync starten
+            </button>
+            <button class="btn" onclick="fedLoadAutoSyncStatus()">
+                <i class="fas fa-sync"></i> Status aktualisieren
             </button>
         </div>
         <div id="fedSyncStatus" style="margin-top:10px;"></div>
@@ -2036,6 +2050,50 @@ function fedHsClose() {
 
 // ── Daten-Synchronisierung ──────────────────────────────────────
 
+async function fedLoadAutoSyncStatus() {
+    const token = _getAuthToken();
+    const badge = document.getElementById('fedAutoSyncBadge');
+    const info  = document.getElementById('fedAutoSyncInfo');
+    try {
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/federation/sync/status', { headers });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        if (data.running) {
+            badge.textContent = 'Aktiv';
+            badge.style.background = '#2ecc71';
+        } else if (data.auto_sync_enabled) {
+            badge.textContent = 'Aktiviert (nicht gestartet)';
+            badge.style.background = '#e67e22';
+        } else {
+            badge.textContent = 'Deaktiviert';
+            badge.style.background = '#e74c3c';
+        }
+
+        let html = `Intervall: <strong>${data.interval_seconds}s</strong>`;
+        if (data.last_run) {
+            const d = new Date(data.last_run);
+            html += ` &nbsp;|&nbsp; Letzter Lauf: <strong>${d.toLocaleString()}</strong>`;
+        } else {
+            html += ' &nbsp;|&nbsp; Noch kein Sync-Lauf durchgeführt';
+        }
+        if (data.last_result) {
+            if (data.last_result.error) {
+                html += ` &nbsp;|&nbsp; <span style="color:#e74c3c;">Fehler: ${_escHtml(data.last_result.error)}</span>`;
+            } else if (typeof data.last_result.ok !== 'undefined') {
+                html += ` &nbsp;|&nbsp; Peers: ${data.last_result.synced}, OK: ${data.last_result.ok}`;
+            }
+        }
+        info.innerHTML = html;
+    } catch (e) {
+        badge.textContent = '?';
+        badge.style.background = '#555';
+        info.textContent = 'Status konnte nicht geladen werden: ' + e.message;
+    }
+}
+
 async function fedRunSync() {
     const token = _getAuthToken();
     _fedShowMsg('fedSyncStatus', '<i class="fas fa-spinner fa-spin"></i> Sync läuft …', 'info');
@@ -2063,6 +2121,7 @@ async function fedRunSync() {
             msg += `<br>${icon} ${_escHtml(r.name || r.server_id)}: ${_escHtml(r.message || '')}`;
         });
         _fedShowMsg('fedSyncStatus', msg, ok > 0 ? 'success' : 'error');
+        fedLoadAutoSyncStatus();
     } catch (e) {
         _fedShowMsg('fedSyncStatus', 'Sync fehlgeschlagen: ' + _escHtml(e.message), 'error');
     }
@@ -2075,6 +2134,7 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshCotListenerStatus();
     fedLoadServers();
     fedLoadOwnQR();
+    fedLoadAutoSyncStatus();
 });
 </script>
 
