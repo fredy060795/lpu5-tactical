@@ -1355,7 +1355,12 @@ def _forward_chat_to_atak(sender: str, text: str) -> bool:
     Forward a LPU5 chat message to ATAK/TAK clients as a GeoChat CoT event (type b-t-f).
 
     Uses *sender* as the callsign so ATAK users see who sent the message.
-    Returns True if the CoT was successfully forwarded to the TAK server.
+    The CoT event is delivered via all available paths independently:
+    1. Configured TAK server (TCP/UDP/SSL)
+    2. Directly connected TCP clients on port 8088
+    3. SA Multicast group (239.2.3.1:6969) for LAN ATAK devices
+
+    Returns True if at least one delivery path succeeded.
     """
     try:
         cot_xml = _build_atak_geochat_xml(
@@ -1363,11 +1368,20 @@ def _forward_chat_to_atak(sender: str, text: str) -> bool:
             sender_callsign=sender,
             text=text,
         )
-        result = forward_cot_to_tak(cot_xml)
-        if result:
-            _forward_cot_multicast(cot_xml)
+        delivered = False
+        # 1. Forward to configured TAK server
+        if forward_cot_to_tak(cot_xml):
+            delivered = True
+        # 2. Push to directly connected TCP clients (port 8088)
+        tcp_count = _forward_cot_to_tcp_clients(cot_xml)
+        if tcp_count > 0:
+            delivered = True
+        # 3. Send via SA Multicast for LAN ATAK devices
+        if _forward_cot_multicast(cot_xml):
+            delivered = True
+        if delivered:
             logger.info("Chat→ATAK bridge: %s: %s", sender, text[:80])
-        return result
+        return delivered
     except Exception as _chat_err:
         logger.warning("Chat→ATAK bridge error: %s", _chat_err)
         return False
@@ -8876,7 +8890,7 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
                     logger.warning(f"Chat→Mesh bridge error: {mesh_err}")
 
         # Forward to ATAK/TAK clients as GeoChat CoT (b-t-f)
-        if AUTONOMOUS_MODULES_AVAILABLE:
+        if channel_id == MESH_CHAT_CHANNEL and AUTONOMOUS_MODULES_AVAILABLE:
             _forward_chat_to_atak(username, text)
 
         return {"status": "success", "message": msg_dict}
