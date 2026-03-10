@@ -1713,7 +1713,7 @@ async function fedSaveOwnUrl() {
             body: JSON.stringify({ federation_own_url: urlVal })
         });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        _fedShowMsg('fedOwnUrlStatus', 'URL gespeichert. QR-Code neu laden um die Änderung zu übernehmen.', 'success');
+        _fedShowMsg('fedOwnUrlStatus', 'URL gespeichert. QR-Code neu laden, um die Änderung zu übernehmen.', 'success');
     } catch (e) {
         _fedShowMsg('fedOwnUrlStatus', 'Fehler beim Speichern: ' + _escHtml(e.message), 'error');
     }
