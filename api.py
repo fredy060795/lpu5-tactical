@@ -11404,7 +11404,9 @@ def catch_all(full_path: str, request: Request):
     if any(full_path == p or full_path.startswith(p + "/") for p in blocked_prefixes):
         raise HTTPException(status_code=404, detail="Not found")
 
-    # Map of old HTML filenames to SPA view IDs (merged into index.html)
+    # Map of old HTML filenames to SPA view IDs (merged into index.html).
+    # Keys use the original filenames on disk (casing preserved intentionally).
+    _SPA_STREAM_SLOTS = 15  # number of individual stream_share_N.html slots
     _SPA_VIEWS = {
         "landing.html": "landing", "admin.html": "admin",
         "admin_map.html": "admin_map", "mission.html": "mission",
@@ -11417,7 +11419,7 @@ def catch_all(full_path: str, request: Request):
         "cot_monitor_ui.html": "cot_monitor", "language.html": "language",
         "admin_map_toolbar_icons.html": "admin_map_toolbar",
     }
-    for _i in range(1, 16):
+    for _i in range(1, _SPA_STREAM_SLOTS + 1):
         _SPA_VIEWS[f"stream_share_{_i}.html"] = f"stream_share_{_i}"
 
     # Redirect merged pages to the SPA with the correct hash fragment
