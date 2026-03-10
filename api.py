@@ -9773,6 +9773,13 @@ _SDR_POWER_OFFSET_DB = -6.0
 _RTL_TCP_DEFAULT_HOST = "127.0.0.1"
 _RTL_TCP_DEFAULT_PORT = 1234
 
+# Lock that serialises all SDR hardware access.  rtl_tcp (and the USB dongle
+# itself) can only serve ONE client at a time.  Without this lock concurrent
+# /api/sdr/measure requests would each open a new TCP connection, causing
+# rtl_tcp to kill the previous session ("comm recv bye / Signal caught") and
+# eventually return incomplete data or connection-refused errors.
+_SDR_LOCK = threading.Lock()
+
 
 def _detect_rtlsdr_devices() -> list:
     """
@@ -9940,7 +9947,34 @@ def _get_spectrum_data(
     2. rtl_power subprocess — CLI-based sweeping
     3. rtl_tcp server — connect to a running rtl_tcp instance (real hardware via TCP)
     Raises HTTP 503 if no acquisition path succeeds.
+
+    All paths are serialised by _SDR_LOCK because rtl_tcp (and the USB dongle)
+    can only serve one client at a time.  Without the lock, concurrent requests
+    race to open connections, causing rtl_tcp to kill previous sessions and
+    produce "comm recv bye / Signal caught" restart loops.
     """
+    if not _SDR_LOCK.acquire(timeout=10):
+        raise HTTPException(
+            status_code=503,
+            detail="SDR hardware is busy – another measurement is in progress. Try again shortly.",
+        )
+    try:
+        return _get_spectrum_data_locked(
+            center_freq_hz, sample_rate_hz, gain, nfft, rtl_tcp_host, rtl_tcp_port
+        )
+    finally:
+        _SDR_LOCK.release()
+
+
+def _get_spectrum_data_locked(
+    center_freq_hz: float,
+    sample_rate_hz: float,
+    gain: float,
+    nfft: int,
+    rtl_tcp_host: str = _RTL_TCP_DEFAULT_HOST,
+    rtl_tcp_port: int = _RTL_TCP_DEFAULT_PORT,
+) -> dict:
+    """Inner acquisition – must only be called while holding _SDR_LOCK."""
     # 1. pyrtlsdr + numpy
     if _RTLSDR_LIB and _NUMPY_LIB:
         try:
@@ -9991,9 +10025,14 @@ def _get_spectrum_data(
 
     # 3. rtl_tcp server — real hardware accessed via TCP (no local driver required)
     try:
-        return _get_spectrum_rtl_tcp(
+        result = _get_spectrum_rtl_tcp(
             center_freq_hz, sample_rate_hz, gain, nfft, rtl_tcp_host, rtl_tcp_port
         )
+        # Small settling delay: give the dongle time to release before the next
+        # caller connects.  Without this, back-to-back connections may arrive
+        # before rtl_tcp has fully recycled, causing it to crash.
+        time.sleep(0.15)
+        return result
     except Exception as exc:
         logger.warning("rtl_tcp acquisition failed (%s:%s): %s", rtl_tcp_host, rtl_tcp_port, exc)
 
