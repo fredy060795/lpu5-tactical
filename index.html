@@ -20291,7 +20291,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Stop continuous scan and show the driver warning
                     if (continuousScan) {
                         continuousScan = false;
-                        if (scanTimer !== null) { clearInterval(scanTimer); scanTimer = null; }
+                        if (scanTimer !== null) { clearTimeout(scanTimer); scanTimer = null; }
                         var btn = document.getElementById('btnScan');
                         if (btn) { btn.innerHTML = '<i class="fas fa-play"></i> Scan'; btn.className = 'btn btn-warning'; }
                     }
@@ -20346,6 +20346,13 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function(e) {
             if (e && e.message) console.error('[SDR] measure error:', e.message);
+        })
+        .finally(function() {
+            // Schedule next measurement only after current one completes.
+            // This prevents overlapping requests that crash rtl_tcp (single-client).
+            if (continuousScan) {
+                scanTimer = setTimeout(_doMeasurement, 300);
+            }
         });
     }
 
@@ -20361,16 +20368,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (continuousScan) {
             // Stop
             continuousScan = false;
-            if (scanTimer !== null) { clearInterval(scanTimer); scanTimer = null; }
+            if (scanTimer !== null) { clearTimeout(scanTimer); scanTimer = null; }
             btn.innerHTML = '<i class="fas fa-play"></i> Scan';
             btn.className = 'btn btn-warning';
         } else {
-            // Start
+            // Start – fire the first measurement immediately; subsequent ones
+            // are scheduled from within _doMeasurement's .finally() handler so
+            // that only one request is in flight at a time (rtl_tcp is single-client).
             continuousScan = true;
             btn.innerHTML = '<i class="fas fa-stop"></i> Stop';
             btn.className = 'btn btn-danger';
             _doMeasurement();
-            scanTimer = setInterval(_doMeasurement, 600);
         }
     };
 
