@@ -11392,6 +11392,8 @@ def _federation_auto_handshake(peer_url: str, peer_server_id: str):
 def catch_all(full_path: str, request: Request):
     """
     Catch-all route for serving static HTML files.
+    Merged HTML pages redirect to the unified SPA (index.html#view).
+    Standalone pages (register.html, overview.html) are served directly.
 
     Note: This route does not interfere with WebSocket connections.
     With uvicorn[standard] installed, the WebSocket endpoint at /ws is properly
@@ -11401,6 +11403,27 @@ def catch_all(full_path: str, request: Request):
     blocked_prefixes = ("api", "static", "assets", "uploads", "_", "favicon.ico", "ws")
     if any(full_path == p or full_path.startswith(p + "/") for p in blocked_prefixes):
         raise HTTPException(status_code=404, detail="Not found")
+
+    # Map of old HTML filenames to SPA view IDs (merged into index.html)
+    _SPA_VIEWS = {
+        "landing.html": "landing", "admin.html": "admin",
+        "admin_map.html": "admin_map", "mission.html": "mission",
+        "mission_Overview.html": "mission_overview",
+        "statistics.html": "statistics", "meshtastic.html": "meshtastic",
+        "import_nodes.html": "import_nodes", "network.html": "network",
+        "SDR.html": "sdr", "stream.html": "stream",
+        "stream_share.html": "stream_share",
+        "global_Intel.html": "global_intel",
+        "cot_monitor_ui.html": "cot_monitor", "language.html": "language",
+        "admin_map_toolbar_icons.html": "admin_map_toolbar",
+    }
+    for _i in range(1, 16):
+        _SPA_VIEWS[f"stream_share_{_i}.html"] = f"stream_share_{_i}"
+
+    # Redirect merged pages to the SPA with the correct hash fragment
+    if full_path in _SPA_VIEWS:
+        return RedirectResponse(url=f"/#{_SPA_VIEWS[full_path]}", status_code=302)
+
     candidate = os.path.join(base_path, full_path)
     if os.path.isfile(candidate):
         ext = os.path.splitext(candidate)[1].lower()
