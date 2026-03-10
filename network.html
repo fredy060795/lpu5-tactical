@@ -903,6 +903,20 @@
             oder importieren, um diesen Server in ihrer Föderations-Registry zu registrieren.
         </div>
         <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:0.85rem;color:var(--text-dim);">
+                <i class="fas fa-globe"></i> Öffentliche Server-URL (für andere Server erreichbar):
+            </label>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <input type="text" id="fedOwnUrlInput"
+                       placeholder="https://mein-server.example.com:8101"
+                       style="flex:1;min-width:220px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input,#1a1a2e);color:var(--text-main,#eee);font-size:0.9rem;">
+                <button class="btn btn-success btn-sm" onclick="fedSaveOwnUrl()">
+                    <i class="fas fa-save"></i> URL speichern
+                </button>
+            </div>
+            <div id="fedOwnUrlStatus" style="margin-top:4px;font-size:0.82rem;"></div>
+        </div>
+        <div style="margin-bottom:12px;">
             <button class="btn btn-primary" onclick="fedLoadOwnQR()">
                 <i class="fas fa-qrcode"></i> QR-Code laden
             </button>
@@ -1669,6 +1683,45 @@ function _fedShowMsg(elemId, msg, type) {
 
 // ── Eigener Server QR-Code ──────────────────────────────────────
 
+async function fedLoadOwnUrl() {
+    const token = _getAuthToken();
+    try {
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/config', { headers });
+        if (resp.ok) {
+            const cfg = await resp.json();
+            const savedUrl = cfg.federation_own_url || '';
+            document.getElementById('fedOwnUrlInput').value = savedUrl;
+        }
+    } catch (_) { /* ignore */ }
+}
+
+async function fedSaveOwnUrl() {
+    const token = _getAuthToken();
+    const urlVal = (document.getElementById('fedOwnUrlInput').value || '').trim();
+    if (urlVal && !/^https?:\/\//i.test(urlVal)) {
+        _fedShowMsg('fedOwnUrlStatus', 'URL muss mit http:// oder https:// beginnen.', 'error');
+        return;
+    }
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/config', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ federation_own_url: urlVal })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        _fedShowMsg('fedOwnUrlStatus', 'URL gespeichert. QR-Code neu laden, um die Änderung zu übernehmen.', 'success');
+    } catch (e) {
+        _fedShowMsg('fedOwnUrlStatus', 'Fehler beim Speichern: ' + _escHtml(e.message), 'error');
+    }
+}
+
+// Load saved URL on page load
+fedLoadOwnUrl();
+
 async function fedLoadOwnQR() {
     const token = _getAuthToken();
     const statusEl = document.getElementById('fedOwnQrStatus');
@@ -1871,7 +1924,9 @@ async function fedLoadServers() {
             const urlDisplay = isSafeUrl
                 ? `<a href="${_escHtml(s.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);">${_escHtml(s.url)}</a>`
                 : (s.url ? _escHtml(s.url) : '–');
-            const peerUrlJson = JSON.stringify(s.url || '');
+            const sidAttr = _escHtml(JSON.stringify(s.server_id));
+            const nameAttr = _escHtml(JSON.stringify(s.name));
+            const urlAttr = _escHtml(JSON.stringify(s.url || ''));
             html += `<tr>
                 <td><strong>${_escHtml(s.name)}</strong><br><span style="font-size:0.75rem;color:var(--text-dim);">${_escHtml(_fedTruncate(s.fingerprint, 24))}</span></td>
                 <td title="${_escHtml(s.server_id)}">${_escHtml(serverIdShort)}</td>
@@ -1881,19 +1936,19 @@ async function fedLoadServers() {
                 <td>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
                         <button class="btn btn-sm btn-primary"
-                                onclick="fedStartHandshake(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)}, ${peerUrlJson})"
+                                onclick="fedStartHandshake(${sidAttr}, ${nameAttr}, ${urlAttr})"
                                 title="Manueller Handshake">
                             <i class="fas fa-handshake"></i>
                         </button>
                         <button class="btn btn-sm"
                                 style="background:var(--accent-blue);color:#fff;"
-                                onclick="fedAutoHandshake(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)})"
+                                onclick="fedAutoHandshake(${sidAttr}, ${nameAttr})"
                                 title="Automatischer gegenseitiger Handshake (TCP Connect-Back)"
                                 ${!isSafeUrl ? 'disabled' : ''}>
                             <i class="fas fa-sync-alt"></i> Auto
                         </button>
                         <button class="btn btn-sm btn-danger"
-                                onclick="fedDeleteServer(${JSON.stringify(s.server_id)}, ${JSON.stringify(s.name)})"
+                                onclick="fedDeleteServer(${sidAttr}, ${nameAttr})"
                                 title="Server entfernen">
                             <i class="fas fa-trash"></i>
                         </button>
