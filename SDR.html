@@ -756,7 +756,7 @@
         var el = document.getElementById('rtlTcpPort');
         return (el && parseInt(el.value)) ? parseInt(el.value) : 1234;
     }
-    /** Save current rtl_tcp host/port to localStorage so they persist across reloads. */
+    /** Save current rtl_tcp host/port to localStorage so they persist across reloads and scan results. */
     function _saveRtlTcpSettings() {
         try {
             localStorage.setItem('sdr_rtl_tcp_host', getRtlTcpHost());
@@ -830,7 +830,7 @@
             } else {
                 // Show which hosts/ports were tried
                 var probed = (data.results || []).map(function(r) {
-                    return r.host + ':' + r.port + (r.reachable ? ' (port open, no rtl_tcp)' : '');
+                    return r.host + ':' + r.port + (r.reachable ? ' (port open, no rtl_tcp)' : ' (unreachable)');
                 });
                 resultEl.style.background = '#2e1a1a';
                 resultEl.style.color      = 'var(--accent-red)';

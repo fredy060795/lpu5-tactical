@@ -10127,7 +10127,12 @@ def sdr_scan_rtl_tcp(data: dict = Body(default={})):
             try:
                 with _socket.create_connection((host, port), timeout=timeout) as sock:
                     entry["reachable"] = True
-                    header = sock.recv(12)
+                    header = b""
+                    while len(header) < 12:
+                        chunk = sock.recv(12 - len(header))
+                        if not chunk:
+                            break
+                        header += chunk
                     if len(header) >= 4 and header.startswith(b"RTL0"):
                         entry["magic_ok"] = True
                         found.append({"host": host, "port": port})
