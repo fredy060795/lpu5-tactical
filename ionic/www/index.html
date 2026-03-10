@@ -1794,8 +1794,11 @@
     // Unified sync handles both markers and symbols
 
     // Load symbols from server (placed by admin_map or other overview clients)
+    let _loadMapSymbolsBusy = false;
     async function loadMapSymbols() {
       if (!map || !isLoggedIn) return;
+      if (_loadMapSymbolsBusy) return;
+      _loadMapSymbolsBusy = true;
       try {
         const res = await fetch('/api/map/symbols');
         if (!res.ok) return;
@@ -1837,9 +1840,9 @@
           const symType = s.type || s.sym || 'hostile';
           let iconHtml;
           if (isGps) {
-            // Other users' GPS positions shown as GPS arrow icons.
+            // Other users' GPS positions shown as Meshtastic node icons.
             // Own GPS position is already excluded above and shown locally as a GPS arrow.
-            iconHtml = SYMBOLS.gps_position;
+            iconHtml = SYMBOLS.meshtastic_node;
             iconHtml = `<div style="width:40px;height:40px;">${iconHtml}</div>`;
           } else {
             iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.hostile;
@@ -1887,6 +1890,8 @@
         }
       } catch (e) {
         console.warn('loadMapSymbols error', e);
+      } finally {
+        _loadMapSymbolsBusy = false;
       }
     }
 

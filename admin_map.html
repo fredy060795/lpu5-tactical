@@ -2821,9 +2821,9 @@
             const isGps = (s.type === 'gps_position');
             let icon;
             if (isGps) {
-              // Other users' GPS positions shown as GPS arrow icons.
+              // Other users' GPS positions shown as Meshtastic node icons.
               // Own GPS is excluded above and shown as a live arrow by gpsFixedMarker.
-              const svgHtml = getSymbolSvg('gps_position');
+              const svgHtml = getSymbolSvg('meshtastic_node');
               icon = L.divIcon({
                 className: 'custom-sym',
                 html: svgHtml,
