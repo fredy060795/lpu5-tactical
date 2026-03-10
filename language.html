@@ -357,6 +357,16 @@
         async function setCurrentLanguage(langCode) {
             currentLanguage = langCode;
             sessionStorage.setItem('lpu5_session_language', langCode);
+
+            // Also update localStorage so language persists across sessions
+            try {
+                var raw = localStorage.getItem('lpu5_user');
+                if (raw) {
+                    var ud = JSON.parse(raw);
+                    ud.language = langCode;
+                    localStorage.setItem('lpu5_user', JSON.stringify(ud));
+                }
+            } catch (e) { /* ignore */ }
             
             // Update display
             updateCurrentLanguageDisplay();
