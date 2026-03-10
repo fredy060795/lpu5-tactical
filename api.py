@@ -10426,6 +10426,17 @@ def _require_federation(db: Session = None):
         raise HTTPException(status_code=503, detail="Federation module not available")
 
 
+def _fed_configured_url() -> str:
+    """Return the user-configured public federation URL, or empty string."""
+    cfg = load_json("config") or {}
+    return cfg.get("federation_own_url", "")
+
+
+def _fed_local_server_info() -> dict:
+    """Return this server's federation info with configured public URL."""
+    return _fed_get_server_info(base_path, url=_fed_configured_url())
+
+
 # ---------------------------------------------------------------------------
 # GET /api/federation/info  – local server identity (public key + metadata)
 # ---------------------------------------------------------------------------
@@ -10437,7 +10448,7 @@ def federation_info(current_user: dict = Depends(get_current_user)):
     """
     _require_federation()
     try:
-        info = _fed_get_server_info(base_path)
+        info = _fed_local_server_info()
         return JSONResponse(content=info)
     except Exception as exc:
         logger.error("federation_info error: %s", exc)
@@ -10455,7 +10466,7 @@ def federation_qr(current_user: dict = Depends(get_current_user)):
     """
     _require_federation()
     try:
-        info = _fed_get_server_info(base_path)
+        info = _fed_local_server_info()
         png_bytes = _fed_make_qr_png(info)
         return Response(content=png_bytes, media_type="image/png")
     except Exception as exc:
@@ -10830,7 +10841,7 @@ def federation_sync(
     # Sign the payload with our private key
     try:
         private_key, _ = _fed_load_keypair(base_path)
-        local_info = _fed_get_server_info(base_path)
+        local_info = _fed_local_server_info()
         payload_str = json.dumps(marker_list, separators=(",", ":"), sort_keys=True)
         payload_challenge = base64.b64encode(payload_str.encode()).decode()
         signature_b64 = _fed_sign_challenge(payload_challenge, private_key)
@@ -10963,7 +10974,7 @@ def _federation_sync_worker(interval_seconds: int = 300):
             ]
 
             private_key, _ = _fed_load_keypair(base_path)
-            local_info = _fed_get_server_info(base_path)
+            local_info = _fed_local_server_info()
             payload_str = json.dumps(marker_list, separators=(",", ":"), sort_keys=True)
             payload_challenge = base64.b64encode(payload_str.encode()).decode()
             signature_b64 = _fed_sign_challenge(payload_challenge, private_key)
@@ -11150,7 +11161,7 @@ def federation_handshake_init(
     db.commit()
     db.refresh(ch)
 
-    local_info = _fed_get_server_info(base_path)
+    local_info = _fed_local_server_info()
     log_audit("federation_handshake_init", "federation",
               {"remote_server_id": remote_sid, "remote_name": remote_name})
     return JSONResponse(content={
@@ -11251,7 +11262,7 @@ def _federation_auto_handshake(peer_url: str, peer_server_id: str):
             return
 
         private_key, _ = _fed_load_keypair(base_path)
-        local_info = _fed_get_server_info(base_path)
+        local_info = _fed_local_server_info()
         challenge_b64 = _fed_generate_challenge()
 
         # Phase 1 – call peer's /handshake/init --------------------------------
