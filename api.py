@@ -2544,6 +2544,7 @@ async def login_user(data: dict = Body(...), request: Request = None, db: Sessio
         "fullname": user.fullname,
         "callsign": user.callsign,
         "is_active": user.is_active,
+        "language": (user.data or {}).get("language", "en"),
         "data": user.data
     }
 
@@ -2603,6 +2604,7 @@ def api_me(authorization: Optional[str] = Header(None), db: Session = Depends(ge
         "fullname": user.fullname,
         "callsign": user.callsign,
         "is_active": user.is_active,
+        "language": (user.data or {}).get("language", "en"),
         "tak_team": user.tak_team or "Cyan",
         "tak_role": user.tak_role or "Team Member",
         "tak_display_type": user.tak_display_type or "General Ground Unit",
