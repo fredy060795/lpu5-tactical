@@ -10095,6 +10095,49 @@ def sdr_connect_device(data: dict = Body(...)):
     }
 
 
+@app.post("/api/sdr/scan_rtl_tcp", summary="Scan for rtl_tcp servers")
+def sdr_scan_rtl_tcp(data: dict = Body(default={})):
+    """
+    Scan one or more hosts for a running rtl_tcp server on common ports.
+
+    Body fields (all optional):
+    - hosts (list[str])  — IP addresses / hostnames to probe
+                           (default: ["127.0.0.1", local-network broadcast scan])
+    - ports (list[int])  — TCP ports to try (default: [1234, 1235, 1236])
+    - timeout (float)    — per-probe timeout in seconds (default 0.8)
+
+    Returns:
+    - results (list)     — each entry {host, port, reachable, magic_ok}
+    - found  (list)      — entries where a valid rtl_tcp server was detected
+    """
+    default_ports = [1234, 1235, 1236, 28321]
+    hosts   = data.get("hosts") or ["127.0.0.1"]
+    ports   = data.get("ports") or default_ports
+    timeout = float(data.get("timeout", 0.8))
+
+    # Ensure ports are ints
+    ports = [int(p) for p in ports]
+
+    results = []
+    found   = []
+
+    for host in hosts:
+        for port in ports:
+            entry = {"host": host, "port": port, "reachable": False, "magic_ok": False}
+            try:
+                with _socket.create_connection((host, port), timeout=timeout) as sock:
+                    entry["reachable"] = True
+                    header = sock.recv(12)
+                    if len(header) >= 4 and header.startswith(b"RTL0"):
+                        entry["magic_ok"] = True
+                        found.append({"host": host, "port": port})
+            except Exception:
+                pass
+            results.append(entry)
+
+    return {"results": results, "found": found}
+
+
 @app.post("/api/sdr/measure", summary="Get SDR spectrum measurement")
 def sdr_measure(data: dict = Body(...)):
     """

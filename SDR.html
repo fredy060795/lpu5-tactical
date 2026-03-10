@@ -543,7 +543,13 @@
                     <label>Port</label>
                     <input type="number" id="rtlTcpPort" value="1234" min="1" max="65535">
                 </div>
+                <div class="form-group" style="align-self:flex-end;">
+                    <button class="btn btn-primary" onclick="scanRtlTcp()" style="font-size:0.7rem; padding:4px 10px;">
+                        <i class="fas fa-search-location" id="scanRtlTcpIcon"></i> Scan rtl_tcp
+                    </button>
+                </div>
             </div>
+            <div id="rtlTcpScanResult" style="display:none; margin-bottom:12px; padding:6px 10px; border-radius:4px; font-size:0.8rem;"></div>
 
             <div class="btn-row">
                 <button class="btn btn-primary" onclick="connectSDR()"><i class="fas fa-plug"></i> Connect</button>
@@ -750,6 +756,24 @@
         var el = document.getElementById('rtlTcpPort');
         return (el && parseInt(el.value)) ? parseInt(el.value) : 1234;
     }
+    /** Save current rtl_tcp host/port to localStorage so they persist across reloads. */
+    function _saveRtlTcpSettings() {
+        try {
+            localStorage.setItem('sdr_rtl_tcp_host', getRtlTcpHost());
+            localStorage.setItem('sdr_rtl_tcp_port', String(getRtlTcpPort()));
+        } catch (e) { /* localStorage may be unavailable */ }
+    }
+    /** Restore rtl_tcp host/port from localStorage (called on page load). */
+    function _loadRtlTcpSettings() {
+        try {
+            var h = localStorage.getItem('sdr_rtl_tcp_host');
+            var p = localStorage.getItem('sdr_rtl_tcp_port');
+            if (h) document.getElementById('rtlTcpHost').value = h;
+            if (p) document.getElementById('rtlTcpPort').value = p;
+        } catch (e) { /* ignore */ }
+    }
+    _loadRtlTcpSettings();
+
     function showDriverWarning() {
         var el = document.getElementById('driverWarning');
         if (el) el.style.display = 'block';
@@ -758,6 +782,71 @@
         var el = document.getElementById('driverWarning');
         if (el) el.style.display = 'none';
     }
+
+    // =====================================================================
+    // Scan for rtl_tcp servers on the network
+    // =====================================================================
+    window.scanRtlTcp = function() {
+        var resultEl = document.getElementById('rtlTcpScanResult');
+        var iconEl   = document.getElementById('scanRtlTcpIcon');
+        resultEl.style.display    = 'block';
+        resultEl.style.background = 'var(--panel-input-bg)';
+        resultEl.style.color      = 'var(--text-dim)';
+        resultEl.innerHTML        = '<i class="fas fa-spinner fa-spin"></i> Scanning for rtl_tcp servers…';
+        if (iconEl) iconEl.className = 'fas fa-spinner fa-spin';
+
+        // Probe hosts: always include the host field value + localhost + the server's own IP
+        var hostInput = getRtlTcpHost();
+        var hosts = ['127.0.0.1'];
+        if (hostInput && hosts.indexOf(hostInput) === -1) hosts.unshift(hostInput);
+        // Also try to derive the server IP from window.location.hostname
+        var serverHost = window.location.hostname;
+        if (serverHost && serverHost !== 'localhost' && hosts.indexOf(serverHost) === -1) {
+            hosts.push(serverHost);
+        }
+
+        fetch('/api/sdr/scan_rtl_tcp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hosts: hosts })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (iconEl) iconEl.className = 'fas fa-search-location';
+            var found = data.found || [];
+            if (found.length > 0) {
+                // Auto-fill with the first found server
+                document.getElementById('rtlTcpHost').value = found[0].host;
+                document.getElementById('rtlTcpPort').value = found[0].port;
+                _saveRtlTcpSettings();
+
+                var lines = found.map(function(f) {
+                    return '<b>' + f.host + ':' + f.port + '</b>';
+                });
+                resultEl.style.background = '#1a2e1a';
+                resultEl.style.color      = 'var(--accent)';
+                resultEl.innerHTML        = '<i class="fas fa-check-circle"></i> rtl_tcp found: ' + lines.join(', ') +
+                    ' &mdash; host/port fields updated.';
+            } else {
+                // Show which hosts/ports were tried
+                var probed = (data.results || []).map(function(r) {
+                    return r.host + ':' + r.port + (r.reachable ? ' (port open, no rtl_tcp)' : '');
+                });
+                resultEl.style.background = '#2e1a1a';
+                resultEl.style.color      = 'var(--accent-red)';
+                resultEl.innerHTML        = '<i class="fas fa-times-circle"></i> No rtl_tcp server found.<br>' +
+                    '<span style="font-size:0.75rem;">Scanned: ' + probed.join(', ') + '</span><br>' +
+                    '<span style="font-size:0.75rem;">Ensure <code>rtl_tcp -a 0.0.0.0</code> is running on the device, ' +
+                    'then enter its IP above and scan again.</span>';
+            }
+        })
+        .catch(function(e) {
+            if (iconEl) iconEl.className = 'fas fa-search-location';
+            resultEl.style.background = '#2e1a1a';
+            resultEl.style.color      = 'var(--accent-red)';
+            resultEl.innerHTML        = '<i class="fas fa-times-circle"></i> Scan failed: ' + (e.message || e);
+        });
+    };
     let ws             = null;
 
     // =====================================================================
@@ -1176,10 +1265,19 @@
                 return r.json().then(function(err) {
                     var msg = (err && err.detail) ? err.detail : 'HTTP ' + r.status;
                     showDriverWarning();
-                    statusEl.textContent = 'Driver missing';
+                    statusEl.textContent = 'Connection failed';
                     statusEl.className   = 'status-badge status-offline';
                     mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Offline';
                     mainStatus.className = 'status-badge status-offline';
+                    var scanRes = document.getElementById('rtlTcpScanResult');
+                    if (scanRes) {
+                        scanRes.style.display    = 'block';
+                        scanRes.style.background = '#2e1a1a';
+                        scanRes.style.color      = 'var(--accent-red)';
+                        scanRes.innerHTML        = '<i class="fas fa-exclamation-triangle"></i> ' +
+                            'Connect failed &mdash; rtl_tcp target: <b>' + getRtlTcpHost() + ':' + getRtlTcpPort() + '</b><br>' +
+                            '<span style="font-size:0.75rem;">Use <em>Scan rtl_tcp</em> to auto-detect the correct host/port.</span>';
+                    }
                     throw new Error(msg);
                 });
             }
@@ -1188,6 +1286,7 @@
         .then(function(data) {
             sdrConnected = true;
             hideDriverWarning();
+            _saveRtlTcpSettings();
 
             var mode = data.mode || 'hardware';
             var modeLabel = mode === 'rtl_tcp' ? 'rtl_tcp' : 'HW';
@@ -1226,6 +1325,8 @@
         var gain = parseFloat(document.getElementById('sdrGain').value)       || 20;
         var mode = document.getElementById('sdrMode').value;
         var sq   = parseInt(document.getElementById('sdrSquelch').value) || 0;
+        var tcpH = getRtlTcpHost();
+        var tcpP = getRtlTcpPort();
 
         fetch('/api/sdr/measure', {
             method: 'POST',
@@ -1235,8 +1336,8 @@
                 sample_rate_mhz: sr,
                 gain:            gain,
                 nfft:            1024,
-                rtl_tcp_host:    getRtlTcpHost(),
-                rtl_tcp_port:    getRtlTcpPort()
+                rtl_tcp_host:    tcpH,
+                rtl_tcp_port:    tcpP
             })
         })
         .then(function(r) {
@@ -1251,7 +1352,18 @@
                         if (btn) { btn.innerHTML = '<i class="fas fa-play"></i> Scan'; btn.className = 'btn btn-warning'; }
                     }
                     showDriverWarning();
-                    console.error('[SDR] measure failed (503):', msg);
+                    // Show the rtl_tcp target in the scan result area for diagnostics
+                    var scanRes = document.getElementById('rtlTcpScanResult');
+                    if (scanRes) {
+                        scanRes.style.display    = 'block';
+                        scanRes.style.background = '#2e1a1a';
+                        scanRes.style.color      = 'var(--accent-red)';
+                        scanRes.innerHTML        = '<i class="fas fa-exclamation-triangle"></i> ' +
+                            'Measurement failed &mdash; rtl_tcp target: <b>' + tcpH + ':' + tcpP + '</b><br>' +
+                            '<span style="font-size:0.75rem;">Use <em>Scan rtl_tcp</em> to find the correct host/port, ' +
+                            'or verify that <code>rtl_tcp -a 0.0.0.0</code> is running on the device.</span>';
+                    }
+                    console.error('[SDR] measure failed (503) target=' + tcpH + ':' + tcpP + ':', msg);
                     throw new Error(msg);
                 });
             }
