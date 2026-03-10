@@ -9953,8 +9953,7 @@ def _get_spectrum_data(
     race to open connections, causing rtl_tcp to kill previous sessions and
     produce "comm recv bye / Signal caught" restart loops.
     """
-    acquired = _SDR_LOCK.acquire(timeout=10)
-    if not acquired:
+    if not _SDR_LOCK.acquire(timeout=10):
         raise HTTPException(
             status_code=503,
             detail="SDR hardware is busy – another measurement is in progress. Try again shortly.",
