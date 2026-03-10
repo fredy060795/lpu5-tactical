@@ -9048,12 +9048,10 @@ def get_map_symbols():
                 # Skip meshtastic-synced markers — rendered by updateMeshtasticNodes()
                 if s.type in ("node", "meshtastic_node", "gateway") or (s.created_by and s.created_by in _MESHTASTIC_CREATED_BY):
                     continue
-                # Skip ATAK-echoed meshtastic node markers (uid prefix "mesh-") —
-                # these originate from _forward_meshtastic_node_to_tak and are
-                # re-ingested as TAK units; they are already shown as blue rectangles
-                # by updateMeshtasticNodes() so we exclude them here to avoid a
-                # duplicate white-dot rendering.
-                if s.created_by == "tak_server" and s.id.startswith("mesh-"):
+                # Skip ALL ATAK/CoT-sourced markers (tak_server, cot_ingest) —
+                # those are rendered exclusively by sync() via /api/map_markers
+                # so they don't appear twice on the map.
+                if s.created_by and s.created_by in _TAK_INGEST_SOURCES:
                     continue
                 # Basic fields
                 s_dict = {
@@ -9065,11 +9063,16 @@ def get_map_symbols():
                     "description": s.description,
                     "color": s.color,
                     "icon": s.icon,
-                    "username": s.created_by
+                    "username": s.created_by,
+                    "created_by": s.created_by
                 }
                 # Add extra data if available
                 if s.data:
                     s_dict.update(s.data)
+                # Restore created_by / username so that client-side filters
+                # cannot be bypassed by a stray key inside s.data.
+                s_dict["created_by"] = s.created_by
+                s_dict["username"] = s.created_by
                 symbol_list.append(s_dict)
                 
             return {"status": "success", "symbols": symbol_list}

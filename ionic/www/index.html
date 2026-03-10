@@ -1836,7 +1836,8 @@
 
           // Skip ATAK-sourced markers (tak_server, cot_ingest) — those are rendered
           // exclusively by sync() / serverMarkerLayers so they don't appear twice on the map.
-          if (s.username === 'tak_server' || s.username === 'cot_ingest') continue;
+          if (s.username === 'tak_server' || s.username === 'cot_ingest' ||
+              s.created_by === 'tak_server' || s.created_by === 'cot_ingest') continue;
 
           // Skip duplicate GPS positions — only show the latest per user
           if (s.type === 'gps_position' && s.username && latestGpsPerUser.get(s.username) !== s) continue;
