@@ -410,6 +410,105 @@
             align-items: flex-end;
         }
         .rtltcp-row .form-group { flex: 1; margin-bottom: 0; }
+
+        /* Windows Setup Guide */
+        .setup-guide {
+            margin-top: 20px;
+        }
+        .setup-guide details {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .setup-guide summary {
+            padding: 16px 20px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-main);
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            user-select: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .setup-guide summary::-webkit-details-marker { display: none; }
+        .setup-guide summary .chevron {
+            margin-left: auto;
+            transition: transform 0.2s;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+        .setup-guide details[open] > summary {
+            border-bottom-color: var(--border-color);
+        }
+        .setup-guide details[open] > summary .chevron {
+            transform: rotate(90deg);
+        }
+        .setup-guide summary i.fa-windows { color: #0078d4; }
+        .setup-guide .guide-body {
+            padding: 20px;
+            font-size: 0.88rem;
+            line-height: 1.75;
+        }
+        .setup-guide .guide-step {
+            margin-bottom: 22px;
+        }
+        .setup-guide .guide-step:last-child {
+            margin-bottom: 0;
+        }
+        .setup-guide .guide-step h3 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+            color: var(--accent-blue);
+        }
+        .setup-guide .guide-step h3 i {
+            margin-right: 6px;
+        }
+        .setup-guide .guide-step ul,
+        .setup-guide .guide-step ol {
+            margin: 6px 0 6px 20px;
+            padding: 0;
+        }
+        .setup-guide .guide-step li {
+            margin-bottom: 6px;
+        }
+        .setup-guide code {
+            background: rgba(0,0,0,0.4);
+            border-radius: 3px;
+            padding: 1px 6px;
+            font-family: 'Courier New', monospace;
+            color: #f39c12;
+        }
+        .setup-guide pre {
+            background: #0a0a0a;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 12px 16px;
+            overflow-x: auto;
+            margin: 8px 0;
+            font-size: 0.82rem;
+            color: var(--accent);
+        }
+        .setup-guide .guide-result {
+            background: rgba(46,204,113,0.1);
+            border: 1px solid rgba(46,204,113,0.3);
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-top: 14px;
+            font-size: 0.85rem;
+        }
+        .setup-guide .guide-result i { color: var(--accent); margin-right: 6px; }
+        .setup-guide a {
+            color: var(--accent-blue);
+            text-decoration: underline;
+        }
+        .setup-guide a:hover {
+            color: #5dade2;
+        }
     </style>
 </head>
 <body>
@@ -722,6 +821,68 @@
         </div>
         <!-- Hidden audio element for hardware streaming -->
         <audio id="sdrAudioEl" preload="none" style="display:none;"></audio>
+    </div>
+
+    <!-- Windows Setup Guide -->
+    <div class="setup-guide">
+        <details>
+            <summary>
+                <i class="fab fa-windows"></i> Windows 10/11 &ndash; RTL-SDR Setup-Anleitung
+                <span class="chevron"><i class="fas fa-chevron-right"></i></span>
+            </summary>
+            <div class="guide-body">
+
+                <div class="guide-step">
+                    <h3><i class="fas fa-download"></i> 1. SDR-Software &amp; Binaries vorbereiten</h3>
+                    <ul>
+                        <li><strong>Download:</strong> Laden Sie die
+                            <a href="https://github.com/rtlsdrblog/rtl-sdr-blog/releases" target="_blank" rel="noopener">RTL-SDR Blog Windows Binaries</a>
+                            (<code>Release.zip</code>) herunter.</li>
+                        <li><strong>Entpacken:</strong> &Ouml;ffnen Sie die ZIP-Datei und navigieren Sie in den Ordner <code>x64</code>.</li>
+                        <li><strong>Speichern:</strong> Kopieren Sie alle Dateien aus dem <code>x64</code>-Ordner
+                            (<code>rtl_tcp.exe</code>, <code>rtlsdr.dll</code>, <code>libusb-1.0.dll</code>)
+                            direkt in Ihr Projektverzeichnis, z.&nbsp;B.:<br>
+                            <code>C:\Users\&lt;IhrName&gt;\Desktop\LPU_5_Systems\lpu5-tactical</code></li>
+                    </ul>
+                </div>
+
+                <div class="guide-step">
+                    <h3><i class="fab fa-usb"></i> 2. Zadig: USB-Treiber flashen (Wichtigster Schritt)</h3>
+                    <p>
+                        Windows erkennt den RTL-SDR-Stick oft als TV-Empf&auml;nger.
+                        F&uuml;r SDR-Zwecke muss der Treiber auf <strong>WinUSB</strong> ge&auml;ndert werden:
+                    </p>
+                    <ol>
+                        <li><strong>Zadig starten:</strong>
+                            <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">Zadig.exe</a> &ouml;ffnen.</li>
+                        <li><strong>Ger&auml;te auflisten:</strong> Men&uuml; <code>Options</code> &rarr; <code>List All Devices</code> aktivieren.</li>
+                        <li><strong>Ger&auml;t w&auml;hlen:</strong> Im Dropdown <strong>Bulk-In, Interface (Interface 0)</strong> ausw&auml;hlen.</li>
+                        <li><strong>Treiber setzen:</strong> Im rechten Dropdown-Feld (neben dem Pfeil-Symbol &rarr;) <strong>WinUSB</strong> ausw&auml;hlen.</li>
+                        <li><strong>Flashen:</strong> Auf <strong>Replace Driver</strong> (oder <em>Reinstall Driver</em>) klicken und den Vorgang best&auml;tigen.</li>
+                    </ol>
+                </div>
+
+                <div class="guide-step">
+                    <h3><i class="fas fa-terminal"></i> 3. Server starten &amp; Testen</h3>
+                    <p>
+                        &Ouml;ffnen Sie die <strong>PowerShell</strong> im Projektordner und starten Sie den TCP-Server,
+                        um die Hardware f&uuml;r Programme (oder Python) freizugeben:
+                    </p>
+                    <pre>cd C:\Users\&lt;IhrName&gt;\Desktop\LPU_5_Systems\lpu5-tactical
+.\rtl_tcp.exe -a 0.0.0.0</pre>
+                    <p>
+                        Tragen Sie anschlie&szlig;end im Feld <em>rtl_tcp Host</em> oben
+                        <code>127.0.0.1</code> (oder die IP des Ger&auml;ts) ein und klicken Sie auf <strong>Connect</strong>.
+                    </p>
+                </div>
+
+                <div class="guide-result">
+                    <i class="fas fa-check-circle"></i>
+                    <strong>Ergebnis:</strong> Wenn in der PowerShell <code>listening...</code> erscheint,
+                    ist der Stick korrekt geflasht und bereit f&uuml;r Messungen.
+                </div>
+            </div>
+        </details>
     </div>
 </div>
 
