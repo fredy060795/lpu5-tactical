@@ -1734,6 +1734,11 @@
           // Skip GPS position markers — those are rendered by loadMapSymbols() as blue arrows
           if (m.type === 'gps_position') return;
 
+          // Skip non-ATAK markers — those are rendered by loadMapSymbols() to avoid
+          // duplicate icons.  sync() only renders ATAK/CoT-sourced markers (tak_server,
+          // cot_ingest) which loadMapSymbols() explicitly skips.
+          if (m.created_by !== 'tak_server' && m.created_by !== 'cot_ingest') return;
+
           serverIds.add(m.id);
           // tak_maker markers use a personalised ATAK-style person icon with
           // the callsign short label and the configured team color.
