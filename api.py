@@ -476,6 +476,12 @@ async def lifespan(application):
     except Exception:
         pass
 
+    # Stop auto-started rtl_tcp process
+    try:
+        _stop_rtl_tcp_proc()
+    except Exception as e:
+        logger.error("Error stopping auto-started rtl_tcp: %s", e)
+
     # Stop data server process
     if DATA_SERVER_AVAILABLE and data_server_manager:
         try:
@@ -9785,6 +9791,114 @@ _RTL_TCP_DEFAULT_PORT = 1234
 # eventually return incomplete data or connection-refused errors.
 _SDR_LOCK = threading.Lock()
 
+# Directory where api.py lives — used to locate RTL-SDR binaries placed next
+# to the server (common on Windows setups per the setup guide).
+_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Auto-started rtl_tcp subprocess (managed by _ensure_rtl_tcp / shutdown).
+_RTL_TCP_PROC: Optional[_subprocess.Popen] = None
+
+
+def _find_rtl_tool(name: str) -> Optional[str]:
+    """Find an RTL-SDR executable by *name* (e.g. ``"rtl_tcp"``).
+
+    Search order:
+    1. System PATH  (``shutil.which``)
+    2. Project directory  (same folder as ``api.py``)
+    3. Current working directory
+
+    On Windows the ``.exe`` suffix is appended automatically when needed.
+    Returns the full path to the executable, or *None*.
+    """
+    # 1. System PATH
+    found = _shutil.which(name)
+    if found:
+        return found
+
+    # On Windows also try with .exe suffix explicitly
+    if sys.platform == "win32" and not name.endswith(".exe"):
+        found = _shutil.which(name + ".exe")
+        if found:
+            return found
+
+    # 2. Project directory (next to api.py)
+    for candidate in (name, name + ".exe") if sys.platform == "win32" else (name,):
+        p = os.path.join(_PROJECT_DIR, candidate)
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+
+    # 3. Current working directory (if different from project dir)
+    cwd = os.getcwd()
+    if os.path.abspath(cwd) != os.path.abspath(_PROJECT_DIR):
+        for candidate in (name, name + ".exe") if sys.platform == "win32" else (name,):
+            p = os.path.join(cwd, candidate)
+            if os.path.isfile(p) and os.access(p, os.X_OK):
+                return p
+
+    return None
+
+
+def _ensure_rtl_tcp(host: str = _RTL_TCP_DEFAULT_HOST,
+                    port: int = _RTL_TCP_DEFAULT_PORT) -> bool:
+    """Start a local ``rtl_tcp`` process if one is not already running.
+
+    Returns *True* when an rtl_tcp server is reachable at *host*:*port*
+    after this call (either it was already running, or we started it).
+    """
+    global _RTL_TCP_PROC
+
+    # Already reachable? Nothing to do.
+    if _check_rtl_tcp(host, port):
+        return True
+
+    # Only attempt auto-start on localhost — we cannot start remote servers.
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        return False
+
+    # If we previously started a process that died, clean up the reference.
+    if _RTL_TCP_PROC is not None and _RTL_TCP_PROC.poll() is not None:
+        _RTL_TCP_PROC = None
+
+    # Already have a managed process running.
+    if _RTL_TCP_PROC is not None:
+        return _check_rtl_tcp(host, port)
+
+    exe = _find_rtl_tool("rtl_tcp")
+    if not exe:
+        return False
+
+    try:
+        logger.info("Auto-starting rtl_tcp: %s -a %s -p %s", exe, host, port)
+        _RTL_TCP_PROC = _subprocess.Popen(
+            [exe, "-a", host, "-p", str(port)],
+            stdout=_subprocess.DEVNULL,
+            stderr=_subprocess.DEVNULL,
+        )
+        # Give the server a moment to bind its port.
+        for _ in range(10):
+            time.sleep(0.3)
+            if _check_rtl_tcp(host, port):
+                logger.info("rtl_tcp auto-started successfully (PID %s)", _RTL_TCP_PROC.pid)
+                return True
+        logger.warning("rtl_tcp started but not reachable within 3 s")
+    except Exception as exc:
+        logger.warning("Failed to auto-start rtl_tcp: %s", exc)
+
+    return _check_rtl_tcp(host, port)
+
+
+def _stop_rtl_tcp_proc():
+    """Terminate the auto-started rtl_tcp process (if any)."""
+    global _RTL_TCP_PROC
+    if _RTL_TCP_PROC is not None:
+        try:
+            _RTL_TCP_PROC.terminate()
+            _RTL_TCP_PROC.wait(timeout=5)
+            logger.info("rtl_tcp auto-started process terminated")
+        except Exception as exc:
+            logger.warning("Error stopping rtl_tcp: %s", exc)
+        _RTL_TCP_PROC = None
+
 
 def _detect_rtlsdr_devices() -> list:
     """
@@ -9840,15 +9954,12 @@ def _detect_rtlsdr_devices() -> list:
             pass
 
     # Method 4: CLI tools present (implies RTL-SDR library installed)
-    if not devices and _shutil.which("rtl_test"):
+    if not devices and _find_rtl_tool("rtl_test"):
         devices.append({"index": 0, "name": "RTL-SDR (rtl-sdr tools detected)", "source": "rtl_tools", "available": True})
 
     return devices
 
 
-# rtl_tcp defaults — rtl_tcp ships with the rtl-sdr package.
-# Start with: rtl_tcp -a 0.0.0.0   (Linux/Raspberry Pi)
-#         or: rtl_tcp.exe           (Windows)
 def _check_rtl_tcp(host: str = _RTL_TCP_DEFAULT_HOST, port: int = _RTL_TCP_DEFAULT_PORT) -> bool:
     """Return True if an rtl_tcp server is reachable and responds with the expected magic header."""
     try:
@@ -10002,14 +10113,15 @@ def _get_spectrum_data_locked(
             logger.warning("RTL-SDR hardware read failed: %s", exc)
 
     # 2. rtl_power subprocess
-    if _shutil.which("rtl_power"):
+    _rtl_power_exe = _find_rtl_tool("rtl_power")
+    if _rtl_power_exe:
         try:
             freq_start = int(center_freq_hz - sample_rate_hz / 2)
             freq_end = int(center_freq_hz + sample_rate_hz / 2)
             step = max(1, int(sample_rate_hz / nfft))
             result = _subprocess.run(
-                ["rtl_power", "-f", f"{freq_start}:{freq_end}:{step}",
-                 "-g", str(int(gain)), "-e", "1s", "/dev/null"],
+                [_rtl_power_exe, "-f", f"{freq_start}:{freq_end}:{step}",
+                 "-g", str(int(gain)), "-e", "1s", os.devnull],
                 capture_output=True, text=True, timeout=10,
             )
             powers: list = []
@@ -10029,6 +10141,8 @@ def _get_spectrum_data_locked(
             logger.warning("rtl_power subprocess failed: %s", exc)
 
     # 3. rtl_tcp server — real hardware accessed via TCP (no local driver required)
+    # Auto-start rtl_tcp if the executable exists locally but is not yet running.
+    _ensure_rtl_tcp(rtl_tcp_host, rtl_tcp_port)
     try:
         result = _get_spectrum_rtl_tcp(
             center_freq_hz, sample_rate_hz, gain, nfft, rtl_tcp_host, rtl_tcp_port
@@ -10065,8 +10179,8 @@ def sdr_get_devices():
         "capabilities": {
             "pyrtlsdr":  _RTLSDR_LIB,
             "numpy":     _NUMPY_LIB,
-            "rtl_power": bool(_shutil.which("rtl_power")),
-            "rtl_test":  bool(_shutil.which("rtl_test")),
+            "rtl_power": bool(_find_rtl_tool("rtl_power")),
+            "rtl_test":  bool(_find_rtl_tool("rtl_test")),
         },
     }
 
@@ -10081,8 +10195,8 @@ def sdr_status():
         "devices":         devices,
         "library_rtlsdr":  _RTLSDR_LIB,
         "library_numpy":   _NUMPY_LIB,
-        "cli_rtl_power":   bool(_shutil.which("rtl_power")),
-        "cli_rtl_test":    bool(_shutil.which("rtl_test")),
+        "cli_rtl_power":   bool(_find_rtl_tool("rtl_power")),
+        "cli_rtl_test":    bool(_find_rtl_tool("rtl_test")),
     }
 
 
@@ -10108,8 +10222,13 @@ def sdr_connect_device(data: dict = Body(...)):
 
     devices         = _detect_rtlsdr_devices()
     hw_available    = len(devices) > 0
-    has_local_driver = _RTLSDR_LIB or bool(_shutil.which("rtl_power")) or bool(_shutil.which("rtl_test"))
-    rtl_tcp_ok      = _check_rtl_tcp(tcp_host, tcp_port)
+    has_local_driver = _RTLSDR_LIB or bool(_find_rtl_tool("rtl_power")) or bool(_find_rtl_tool("rtl_test"))
+
+    # Try to reach an existing rtl_tcp, or auto-start one if the binary is
+    # available locally (common Windows setup: rtl_tcp.exe next to api.py).
+    rtl_tcp_ok = _check_rtl_tcp(tcp_host, tcp_port)
+    if not rtl_tcp_ok and (hw_available or _find_rtl_tool("rtl_tcp")):
+        rtl_tcp_ok = _ensure_rtl_tcp(tcp_host, tcp_port)
 
     if not hw_available and not rtl_tcp_ok:
         raise HTTPException(
@@ -10147,7 +10266,7 @@ def sdr_connect_device(data: dict = Body(...)):
         "capabilities": {
             "pyrtlsdr":  _RTLSDR_LIB,
             "numpy":     _NUMPY_LIB,
-            "rtl_power": bool(_shutil.which("rtl_power")),
+            "rtl_power": bool(_find_rtl_tool("rtl_power")),
             "rtl_tcp":   rtl_tcp_ok,
         },
     }
@@ -10321,12 +10440,13 @@ def check_dependencies():
     # --- System tool checks ---
     if is_windows:
         rtl_tcp_install = (
-            "Download rtl-sdr tools from https://osmocom.org/projects/rtl-sdr/wiki "
-            "and add rtl_tcp.exe to your PATH"
+            "Download rtl-sdr tools from https://github.com/rtlsdrblog/rtl-sdr-blog/releases "
+            "and place rtl_tcp.exe next to api.py (or add to PATH). "
+            "Use Zadig (https://zadig.akeo.ie/) to install the WinUSB driver for the RTL-SDR device."
         )
         rtl_sdr_install = (
-            "Download rtl-sdr tools from https://osmocom.org/projects/rtl-sdr/wiki "
-            "and add the executables to your PATH"
+            "Download rtl-sdr tools from https://github.com/rtlsdrblog/rtl-sdr-blog/releases "
+            "and place the executables next to api.py (or add to PATH)"
         )
     else:
         rtl_tcp_install = "sudo apt install rtl-sdr  (Debian/Ubuntu/Raspberry Pi)"
@@ -10335,7 +10455,7 @@ def check_dependencies():
     system_deps = [
         {
             "name": "rtl_tcp",
-            "present": bool(_shutil.which("rtl_tcp") or _shutil.which("rtl_tcp.exe")),
+            "present": bool(_find_rtl_tool("rtl_tcp")),
             "install": rtl_tcp_install,
             "description": (
                 "RTL-SDR TCP server — required to stream SDR data over TCP. "
@@ -10344,19 +10464,19 @@ def check_dependencies():
         },
         {
             "name": "rtl_power",
-            "present": bool(_shutil.which("rtl_power") or _shutil.which("rtl_power.exe")),
+            "present": bool(_find_rtl_tool("rtl_power")),
             "install": rtl_sdr_install,
             "description": "RTL-SDR power sweep tool (optional, used for spectrum scan)",
         },
         {
             "name": "rtl_test",
-            "present": bool(_shutil.which("rtl_test") or _shutil.which("rtl_test.exe")),
+            "present": bool(_find_rtl_tool("rtl_test")),
             "install": rtl_sdr_install,
             "description": "RTL-SDR test/detection tool (optional)",
         },
         {
             "name": "rtl_fm",
-            "present": bool(_shutil.which("rtl_fm") or _shutil.which("rtl_fm.exe")),
+            "present": bool(_find_rtl_tool("rtl_fm")),
             "install": rtl_sdr_install,
             "description": "RTL-SDR FM demodulator (optional, used for audio streaming)",
         },
@@ -10423,14 +10543,15 @@ async def sdr_audio_stream(
     mode_lower = mode.lower()
 
     # 1. rtl_fm CLI tool
-    if _shutil.which("rtl_fm"):
+    _rtl_fm_exe = _find_rtl_tool("rtl_fm")
+    if _rtl_fm_exe:
         _mode_map = {
             "fm": "fm", "am": "am",
             "ssb": "usb", "usb": "usb", "lsb": "lsb", "wbfm": "wbfm",
         }
         rtl_mode = _mode_map.get(mode_lower, "fm")
         cmd = [
-            "rtl_fm",
+            _rtl_fm_exe,
             "-f", str(int(frequency_mhz * 1e6)),
             "-M", rtl_mode,
             "-s", str(sample_rate),
