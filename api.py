@@ -9056,11 +9056,6 @@ def get_map_symbols():
                 # Skip meshtastic-synced markers — rendered by updateMeshtasticNodes()
                 if s.type in ("node", "meshtastic_node", "gateway") or (s.created_by and s.created_by in _MESHTASTIC_CREATED_BY):
                     continue
-                # Skip ALL ATAK/CoT-sourced markers (tak_server, cot_ingest) —
-                # those are rendered exclusively by sync() via /api/map_markers
-                # so they don't appear twice on the map.
-                if s.created_by and s.created_by in _TAK_INGEST_SOURCES:
-                    continue
                 # Basic fields
                 s_dict = {
                     "id": s.id,
