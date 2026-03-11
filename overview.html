@@ -642,6 +642,12 @@
     .nw-srv-btn-connect    { background:rgba(52,152,219,0.2);  border-color:#3498db; color:#3498db; }
     .nw-srv-btn-disconnect { background:rgba(231,76,60,0.2);   border-color:#e74c3c; color:#e74c3c; }
     .nw-input { width:100%; padding:10px; margin-bottom:8px; background:#000; border:1px solid #333; color:#fff; border-radius:4px; font-size:14px; font-family:'Courier New',monospace; box-sizing:border-box; }
+    .nw-srv-item { cursor:pointer; }
+    .nw-srv-proto { font-size:0.65em; padding:2px 6px; border-radius:3px; background:rgba(52,152,219,0.2); border:1px solid rgba(52,152,219,0.3); color:#3498db; font-family:'Courier New',monospace; white-space:nowrap; }
+    .nw-srv-btn-edit { background:rgba(243,156,18,0.2); border-color:#f39c12; color:#f39c12; }
+    .nw-input-row { display:flex; gap:8px; }
+    .nw-input-row .nw-input { flex:1; min-width:0; }
+    select.nw-input { appearance:auto; -webkit-appearance:auto; }
 
     /* ── Top Status Bar ── */
     #top-status-bar {
@@ -4974,6 +4980,7 @@
 
     // Logout: clear cached credentials and reload
     window.logoutOverview = function() {
+      _nwStopReconnect();
       stopDataSync();
       localStorage.removeItem('token');
       localStorage.removeItem('lpu5_cached_user');
@@ -4998,6 +5005,9 @@
     var _NW_API_LOGIN = '/api/login_user';
     var _NW_TEST_TIMEOUT = 5000;
     var _NW_LOGIN_TIMEOUT = 8000;
+    var _nwEditingId = null;
+    var _nwReconnectTimer = null;
+    var _NW_RECONNECT_INTERVAL = 60000;
 
     function _nwEsc(s) {
       var d = document.createElement('div');
@@ -5030,6 +5040,21 @@
       setTimeout(function() { if (el) el.style.display = 'none'; }, 5000);
     }
 
+    function _nwParseUrl(url) {
+      if (!url) return { host: '', port: '', protocol: 'https' };
+      try {
+        var u = new URL(url);
+        var proto = u.protocol.replace(':', '');
+        if (proto !== 'http' && proto !== 'https' && proto !== 'tcp' && proto !== 'udp') proto = 'https';
+        return { host: u.hostname, port: u.port || '', protocol: proto };
+      } catch(e) { return { host: url, port: '', protocol: 'https' }; }
+    }
+
+    function _nwBuildUrl(protocol, host, port) {
+      if (!host) return '';
+      return protocol + '://' + host + (port ? ':' + port : '');
+    }
+
     function _nwRenderPopup() {
       var body = document.getElementById('menu-popup-body');
       if (!body) return;
@@ -5060,16 +5085,21 @@
           var dotCls = s.status === 'ok' ? 'nw-dot-green' : (s.status === 'checking' ? 'nw-dot-yellow' : (s.status === 'error' ? 'nw-dot-red' : 'nw-dot-gray'));
           var border = (s.active && !!currentUserName) ? 'border-color:var(--accent-blue);' : '';
           var dispUrl = s.url || (window.location.protocol + '//' + window.location.host + ' (lokal)');
-          h += '<div class="nw-srv-item" style="' + border + '">';
+          var protoLabel = (s.protocol || 'https').toUpperCase();
+          var portLabel = s.port || '';
+          h += '<div class="nw-srv-item" style="' + border + '" onclick="event.stopPropagation();_nwEdit(\'' + s.id + '\')">';
           h += '<div class="nw-srv-header">';
           h += '<span class="nw-dot ' + dotCls + '"></span>';
           h += '<span class="nw-srv-name">' + _nwEsc(s.name) + '</span>';
+          if (protoLabel || portLabel) {
+            h += '<span class="nw-srv-proto">' + _nwEsc(protoLabel) + (portLabel ? ':' + _nwEsc(portLabel) : '') + '</span>';
+          }
           h += '<button class="nw-srv-del" onclick="event.stopPropagation();_nwRemove(\'' + s.id + '\')" title="Entfernen">&times;</button>';
           h += '</div>';
           h += '<div class="nw-srv-url">' + _nwEsc(dispUrl) + '</div>';
           h += '<div class="nw-srv-user"><i class="fas fa-user" style="font-size:0.7em;margin-right:4px;"></i>' + _nwEsc(s.user || '---') + '</div>';
           h += '<div class="nw-srv-actions">';
-          h += '<button class="nw-srv-btn" onclick="event.stopPropagation();_nwTest(\'' + s.id + '\')"><i class="fas fa-plug"></i> Test</button>';
+          h += '<button class="nw-srv-btn nw-srv-btn-edit" onclick="event.stopPropagation();_nwEdit(\'' + s.id + '\')"><i class="fas fa-pen"></i> Bearbeiten</button>';
           if (s.active && !!currentUserName) {
             h += '<button class="nw-srv-btn nw-srv-btn-disconnect" onclick="event.stopPropagation();_nwDisconnect(\'' + s.id + '\')"><i class="fas fa-sign-out-alt"></i> Trennen</button>';
           } else {
@@ -5089,13 +5119,26 @@
       h += '<i class="fas fa-plus"></i> Server hinzufügen';
       h += '</button>';
       h += '<div id="nw-add-form" style="display:none;margin-top:10px;padding:12px;background:#111;border:1px solid #333;border-radius:6px;">';
+      h += '<div id="nw-form-title" style="font-size:0.85em;font-weight:bold;color:#eee;margin-bottom:8px;">Neuer Server</div>';
       h += '<input type="text" id="nw-inp-name" placeholder="Server Name (z.B. HQ Alpha)" class="nw-input">';
-      h += '<input type="url" id="nw-inp-url" placeholder="Server URL (z.B. https://192.168.1.10:8101)" class="nw-input">';
+      h += '<input type="text" id="nw-inp-host" placeholder="Host / IP Adresse (z.B. 192.168.1.10)" class="nw-input">';
+      h += '<div class="nw-input-row">';
+      h += '<input type="number" id="nw-inp-port" placeholder="Port (z.B. 8101)" class="nw-input" min="1" max="65535">';
+      h += '<select id="nw-inp-proto" class="nw-input">';
+      h += '<option value="https">HTTPS (SSL)</option>';
+      h += '<option value="http">HTTP</option>';
+      h += '<option value="tcp">TCP</option>';
+      h += '<option value="udp">UDP</option>';
+      h += '</select></div>';
       h += '<input type="text" id="nw-inp-user" placeholder="Callsign / Benutzername" autocomplete="off" class="nw-input">';
       h += '<input type="password" id="nw-inp-pass" placeholder="Passwort" class="nw-input">';
-      h += '<div style="font-size:0.7em;color:#666;margin-bottom:8px;"><i class="fas fa-info-circle"></i> URL leer lassen für aktuellen Server</div>';
-      h += '<button class="menu-btn" style="background:#2ecc71;border-color:#2ecc71;justify-content:center;font-weight:bold;" onclick="event.stopPropagation();_nwSaveNew()">';
-      h += '<i class="fas fa-save"></i> Speichern</button></div>';
+      h += '<div style="font-size:0.7em;color:#666;margin-bottom:8px;"><i class="fas fa-info-circle"></i> Host leer lassen für aktuellen Server</div>';
+      h += '<div style="display:flex;gap:8px;">';
+      h += '<button class="menu-btn" style="flex:1;background:#2ecc71;border-color:#2ecc71;justify-content:center;font-weight:bold;" onclick="event.stopPropagation();_nwSaveForm()">';
+      h += '<i class="fas fa-save"></i> Speichern</button>';
+      h += '<button id="nw-btn-cancel-edit" class="menu-btn" style="flex:1;justify-content:center;display:none;" onclick="event.stopPropagation();_nwCancelEdit()">';
+      h += '<i class="fas fa-times"></i> Abbrechen</button>';
+      h += '</div></div>';
 
       // QR Code section
       h += '<button class="menu-btn" style="margin-top:8px;" onclick="event.stopPropagation();document.getElementById(\'nw-qr-file\').click()">';
@@ -5108,23 +5151,114 @@
       body.innerHTML = h;
     }
 
-    function _nwToggleForm() {
+    function _nwToggleForm(forceOpen) {
       var f = document.getElementById('nw-add-form');
-      if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+      if (!f) return;
+      if (forceOpen) { f.style.display = 'block'; return; }
+      _nwEditingId = null;
+      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+      if (f.style.display === 'block') {
+        _nwClearForm();
+        var title = document.getElementById('nw-form-title');
+        if (title) title.textContent = 'Neuer Server';
+        var cancelBtn = document.getElementById('nw-btn-cancel-edit');
+        if (cancelBtn) cancelBtn.style.display = 'none';
+      }
     }
 
-    function _nwSaveNew() {
+    function _nwClearForm() {
+      var fields = ['nw-inp-name', 'nw-inp-host', 'nw-inp-port', 'nw-inp-user', 'nw-inp-pass'];
+      for (var i = 0; i < fields.length; i++) {
+        var el = document.getElementById(fields[i]);
+        if (el) el.value = '';
+      }
+      var proto = document.getElementById('nw-inp-proto');
+      if (proto) proto.value = 'https';
+    }
+
+    function _nwEdit(id) {
+      var servers = _nwGetServers();
+      var srv = null;
+      for (var i = 0; i < servers.length; i++) { if (servers[i].id === id) { srv = servers[i]; break; } }
+      if (!srv) return;
+      _nwEditingId = id;
+      var f = document.getElementById('nw-add-form');
+      if (f) f.style.display = 'block';
+      var title = document.getElementById('nw-form-title');
+      if (title) title.textContent = 'Server bearbeiten: ' + (srv.name || '');
+      var cancelBtn = document.getElementById('nw-btn-cancel-edit');
+      if (cancelBtn) cancelBtn.style.display = '';
+      // Fill form fields
+      var nameEl = document.getElementById('nw-inp-name');
+      var hostEl = document.getElementById('nw-inp-host');
+      var portEl = document.getElementById('nw-inp-port');
+      var protoEl = document.getElementById('nw-inp-proto');
+      var userEl = document.getElementById('nw-inp-user');
+      var passEl = document.getElementById('nw-inp-pass');
+      if (nameEl) nameEl.value = srv.name || '';
+      // Parse host/port/protocol from existing data or URL
+      if (srv.host) {
+        if (hostEl) hostEl.value = srv.host;
+        if (portEl) portEl.value = srv.port || '';
+        if (protoEl) protoEl.value = srv.protocol || 'https';
+      } else if (srv.url) {
+        var parsed = _nwParseUrl(srv.url);
+        if (hostEl) hostEl.value = parsed.host;
+        if (portEl) portEl.value = parsed.port;
+        if (protoEl) protoEl.value = parsed.protocol;
+      } else {
+        if (hostEl) hostEl.value = '';
+        if (portEl) portEl.value = '';
+        if (protoEl) protoEl.value = 'https';
+      }
+      if (userEl) userEl.value = srv.user || '';
+      if (passEl) passEl.value = srv.pass || '';
+      // Scroll form into view
+      if (f) f.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function _nwCancelEdit() {
+      _nwEditingId = null;
+      var f = document.getElementById('nw-add-form');
+      if (f) f.style.display = 'none';
+      _nwClearForm();
+    }
+
+    function _nwSaveForm() {
       var name = (document.getElementById('nw-inp-name') || {}).value || '';
-      var url  = (document.getElementById('nw-inp-url')  || {}).value || '';
+      var host = (document.getElementById('nw-inp-host') || {}).value || '';
+      var port = (document.getElementById('nw-inp-port') || {}).value || '';
+      var proto = (document.getElementById('nw-inp-proto') || {}).value || 'https';
       var user = (document.getElementById('nw-inp-user') || {}).value || '';
       var pass = (document.getElementById('nw-inp-pass') || {}).value || '';
-      name = name.trim(); url = url.trim(); user = user.trim(); pass = pass.trim();
+      name = name.trim(); host = host.trim(); port = port.trim(); user = user.trim(); pass = pass.trim();
       if (!name) { _nwShowMsg('Bitte Server-Name eingeben.', 'error'); return; }
+      var url = _nwBuildUrl(proto, host, port);
       var servers = _nwGetServers();
-      servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), user: user, pass: pass, status: 'unknown', active: false });
-      _nwSaveServers(servers);
+      if (_nwEditingId) {
+        // Update existing server
+        for (var i = 0; i < servers.length; i++) {
+          if (servers[i].id === _nwEditingId) {
+            servers[i].name = name;
+            servers[i].url = url.replace(/\/+$/, '');
+            servers[i].host = host;
+            servers[i].port = port;
+            servers[i].protocol = proto;
+            servers[i].user = user;
+            if (pass) servers[i].pass = pass;
+            break;
+          }
+        }
+        _nwSaveServers(servers);
+        _nwShowMsg('Server "' + _nwEsc(name) + '" aktualisiert.', 'success');
+        _nwEditingId = null;
+      } else {
+        // Add new server
+        servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), host: host, port: port, protocol: proto, user: user, pass: pass, status: 'unknown', active: false });
+        _nwSaveServers(servers);
+        _nwShowMsg('Server "' + _nwEsc(name) + '" hinzugefügt.', 'success');
+      }
       _nwRenderPopup();
-      _nwShowMsg('Server "' + _nwEsc(name) + '" hinzugefügt.', 'success');
     }
 
     function _nwRemove(id) {
@@ -5164,17 +5298,17 @@
       });
     }
 
-    function _nwConnect(id) {
+    function _nwConnect(id, silent) {
       var servers = _nwGetServers();
       var srv = null;
       for (var i = 0; i < servers.length; i++) { if (servers[i].id === id) { srv = servers[i]; break; } }
       if (!srv) return;
-      if (!srv.user || !srv.pass) { _nwShowMsg('Bitte Benutzername und Passwort eingeben.', 'error'); return; }
+      if (!srv.user || !srv.pass) { if (!silent) _nwShowMsg('Bitte Benutzername und Passwort eingeben.', 'error'); return; }
 
       servers.forEach(function(s) { s.active = false; });
       srv.status = 'checking';
       _nwSaveServers(servers);
-      _nwRenderPopup();
+      if (!silent) _nwRenderPopup();
 
       var loginUrl = srv.url ? srv.url + _NW_API_LOGIN : _NW_API_LOGIN;
       var controller = new AbortController();
@@ -5198,27 +5332,27 @@
             srv.active = true;
             srv.status = 'ok';
             _nwSaveServers(servers);
-            closeMenuPopup();
+            if (!silent) closeMenuPopup();
             updateSidebarTiles();
             isLoggedIn = true;
             startDataSync();
+            _nwStartReconnect();
           });
         } else {
           srv.status = 'error';
           _nwSaveServers(servers);
-          _nwRenderPopup();
-          _nwShowMsg('Login fehlgeschlagen. Prüfen Sie die Anmeldedaten.', 'error');
+          if (!silent) { _nwRenderPopup(); _nwShowMsg('Login fehlgeschlagen. Prüfen Sie die Anmeldedaten.', 'error'); }
         }
       }).catch(function(e) {
         clearTimeout(timeout);
         srv.status = 'error';
         _nwSaveServers(servers);
-        _nwRenderPopup();
-        _nwShowMsg('Verbindungsfehler: ' + (e.message || 'Timeout'), 'error');
+        if (!silent) { _nwRenderPopup(); _nwShowMsg('Verbindungsfehler: ' + (e.message || 'Timeout'), 'error'); }
       });
     }
 
     function _nwDisconnect(id) {
+      _nwStopReconnect();
       stopDataSync();
       localStorage.removeItem('token');
       localStorage.removeItem('lpu5_cached_user');
@@ -5262,8 +5396,13 @@
             var url  = data.url  || data.server_url  || '';
             var user = data.user || data.username || data.callsign || '';
             var pass = data.pass || data.password || '';
+            var port = data.port || '';
+            var protocol = data.protocol || 'https';
+            var host = data.host || '';
+            if (!host && url) { var parsed = _nwParseUrl(url); host = parsed.host; if (!port) port = parsed.port; protocol = parsed.protocol; }
+            if (!url && host) { url = _nwBuildUrl(protocol, host, port); }
             var servers = _nwGetServers();
-            servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), user: user, pass: pass, status: 'unknown', active: false });
+            servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), host: host, port: String(port), protocol: protocol, user: user, pass: pass, status: 'unknown', active: false });
             _nwSaveServers(servers);
             _nwRenderPopup();
             _nwShowMsg('Server "' + _nwEsc(name) + '" via QR hinzugefügt.', 'success');
@@ -5276,6 +5415,36 @@
       reader.readAsDataURL(file);
       input.value = '';
     }
+
+    // ─── Auto-Reconnect ────────────────────────────────────────────
+    function _nwStartReconnect() {
+      _nwStopReconnect();
+      _nwReconnectTimer = setInterval(function() {
+        var servers = _nwGetServers();
+        var activeServer = null;
+        for (var i = 0; i < servers.length; i++) { if (servers[i].active) { activeServer = servers[i]; break; } }
+        if (!activeServer) { _nwStopReconnect(); return; }
+        var healthUrl = activeServer.url ? activeServer.url + '/api/health' : '/api/health';
+        var controller = new AbortController();
+        var timeout = setTimeout(function() { controller.abort(); }, _NW_TEST_TIMEOUT);
+        fetch(healthUrl, { signal: controller.signal }).then(function(r) {
+          clearTimeout(timeout);
+          if (!r.ok) throw new Error('not ok');
+        }).catch(function() {
+          clearTimeout(timeout);
+          console.log('[Netzwerk] Verbindung verloren – Neuverbindung wird versucht...');
+          _nwConnect(activeServer.id, true);
+        });
+      }, _NW_RECONNECT_INTERVAL);
+    }
+
+    function _nwStopReconnect() {
+      if (_nwReconnectTimer) {
+        clearInterval(_nwReconnectTimer);
+        _nwReconnectTimer = null;
+      }
+    }
+
     // ─── End Netzwerk ──────────────────────────────────────────────
 
     window.setGpsInterval = function(sec) {
