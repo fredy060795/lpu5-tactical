@@ -2780,10 +2780,9 @@
       function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); deleteSymbolFromServer(id); deactivateDeleteMode(); }
 
       // Rename a marker via PUT /api/map_markers/{id} and broadcast globally
-      async function _renameMarker(markerId, inputId) {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        const newName = input.value.trim();
+      async function _renameMarker(markerId, inputEl) {
+        if (!inputEl) return;
+        const newName = inputEl.value.trim();
         if (!newName) return;
         try {
           const token = localStorage.getItem('token');
@@ -2874,8 +2873,14 @@
               marker.bindPopup(`<strong>${displayName}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
             } else {
               const _sLabel = escapeHtml(s.label || s.type || 'Symbol');
-              const _sPopupId = 'rn-' + s.id;
-              marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${escapeHtml(s.username || 'unknown')}</span><br><input type="text" id="${_sPopupId}" value="${_sLabel}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button onclick="_renameMarker('${s.id}','${_sPopupId}')" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
+              marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${escapeHtml(s.username || 'unknown')}</span><br><input type="text" class="rename-input" value="${_sLabel}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
+              marker.on('popupopen', function() {
+                const pop = marker.getPopup().getElement();
+                if (!pop) return;
+                const btn = pop.querySelector('.rename-btn');
+                const inp = pop.querySelector('.rename-input');
+                if (btn && inp) btn.addEventListener('click', function() { _renameMarker(s.id, inp); });
+              });
             }
 
             if (!isGps) {
