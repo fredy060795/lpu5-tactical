@@ -27,6 +27,7 @@ from fastapi import FastAPI, Body, HTTPException, Request, Path, Header, WebSock
 from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from datetime import datetime, timedelta, timezone
 import os
 import json
@@ -35,7 +36,7 @@ import uuid
 import hashlib
 import jwt
 import base64
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Tuple
 import logging
 import pathlib
 import queue
@@ -503,6 +504,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# GZip compression for all responses > 500 bytes – dramatically reduces
+# bandwidth for JSON API payloads and HTML pages.
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+@app.middleware("http")
+async def _add_cache_headers(request: Request, call_next):
+    """Append Cache-Control headers for static assets so browsers reuse them
+    instead of re-downloading on every page load."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith(("/assets/", "/uploads/", "/static/")):
+        # 1 hour cache, revalidate after that
+        response.headers.setdefault("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400")
+    return response
+
 # Base path - define BEFORE using it
 base_path = os.path.dirname(os.path.abspath(__file__))
 logger.info(f"LPU5 API initialized. Base path: {base_path}")
@@ -577,13 +594,28 @@ DEFAULT_DB_CONTENTS: Dict[str, Any] = {
 # -------------------------
 # JSON DB helpers
 # -------------------------
+
+# In-memory cache for JSON files (especially config) to avoid repeated disk I/O.
+# _json_cache maps key -> (mtime, data).  On load we stat the file and skip
+# re-reading if mtime has not changed.
+_json_cache: Dict[str, Tuple[float, Any]] = {}
+_json_cache_lock = threading.Lock()
+
 def load_json(key: str) -> Any:
     path = DB_PATHS.get(key)
     if not path or not os.path.exists(path):
         return [] if key != "config" else {}
     try:
+        mtime = os.path.getmtime(path)
+        with _json_cache_lock:
+            cached = _json_cache.get(key)
+            if cached and cached[0] == mtime:
+                return cached[1]
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        with _json_cache_lock:
+            _json_cache[key] = (mtime, data)
+        return data
     except json.JSONDecodeError:
         logger.warning("Invalid JSON in %s at %s", key, path)
         return [] if key != "config" else {}
@@ -600,7 +632,10 @@ def save_json(key: str, data: Any) -> None:
         os.makedirs(dirpath, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
-    logger.info("Saved %s -> %s", key, path)
+    # Invalidate cache so the next load_json picks up the new data.
+    with _json_cache_lock:
+        _json_cache.pop(key, None)
+    logger.debug("Saved %s -> %s", key, path)
 
 # -------------------------
 # Utility
@@ -11696,7 +11731,7 @@ if __name__ == "__main__":
             app, 
             host="0.0.0.0", 
             port=8101, 
-            log_level="info",
+            log_level="warning",
             ssl_certfile=cert_file,
             ssl_keyfile=key_file,
             timeout_keep_alive=300,
@@ -11708,7 +11743,7 @@ if __name__ == "__main__":
             app,
             host="0.0.0.0",
             port=8101,
-            log_level="info",
+            log_level="warning",
             timeout_keep_alive=300,
             timeout_graceful_shutdown=60
         )
