@@ -14156,11 +14156,6 @@ window.addEventListener('storage', (e) => {
             if (s.type === 'node' || s.type === 'meshtastic_node' || s.type === 'gateway') return;
             if (s.created_by === 'import_meshtastic' || s.created_by === 'meshtastic_sync' || s.created_by === 'ingest_node') return;
 
-            // Skip ATAK-sourced markers (tak_server, cot_ingest) — those are rendered
-            // exclusively by sync() / serverMarkerLayers so they don't appear twice on the map.
-            if (s.username === 'tak_server' || s.username === 'cot_ingest' ||
-                s.created_by === 'tak_server' || s.created_by === 'cot_ingest') return;
-
             // Skip duplicate GPS positions — only show the latest per user
             if (s.type === 'gps_position' && s.username && latestGpsPerUser.get(s.username) !== s) return;
 
