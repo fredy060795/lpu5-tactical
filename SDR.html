@@ -550,7 +550,13 @@
                 <code>pip install pyrtlsdr numpy</code></li>
             <li><strong>rtl-sdr CLI tools (Linux/Raspberry Pi):</strong><br>
                 <code>sudo apt install rtl-sdr</code></li>
-            <li><strong>rtl_tcp (runs on the device, connects via network):</strong><br>
+            <li><strong>Windows:</strong> Download
+                <a href="https://github.com/rtlsdrblog/rtl-sdr-blog/releases" target="_blank" rel="noopener">RTL-SDR Blog Windows binaries</a>,
+                place <code>rtl_tcp.exe</code> + <code>rtlsdr.dll</code> next to <code>api.py</code>,
+                and install the <strong>WinUSB</strong> driver with
+                <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">Zadig</a>.
+                The server will auto-start <code>rtl_tcp</code> on next connect.</li>
+            <li><strong>rtl_tcp (manual / remote device):</strong><br>
                 <code>rtl_tcp -a 0.0.0.0</code><br>
                 Then set the <em>rtl_tcp Host</em> field below to the device IP and click <strong>Connect</strong>.
             </li>
