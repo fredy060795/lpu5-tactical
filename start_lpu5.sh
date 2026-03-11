@@ -40,28 +40,37 @@ if ! python3 -c 'import sys; exit(0 if sys.version_info >= (3,8) else 1)'; then
     exit 1
 fi
 
-# Check if skip update is set
-if [ "${SKIP_UPDATE}" = "1" ]; then
-    echo -e "${YELLOW}[*]${NC} Auto-update disabled via SKIP_UPDATE=1"
-else
-    # Create virtual environment if it doesn't exist
-    VENV_DIR=".venv"
-    if [ ! -d "$VENV_DIR" ]; then
-        echo -e "${BLUE}[*]${NC} Creating virtual environment '$VENV_DIR'..."
-        python3 -m venv "$VENV_DIR"
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}[ERROR]${NC} Failed to create virtual environment"
-            exit 1
-        fi
-        echo -e "${GREEN}[OK]${NC} Virtual environment created"
-    else
-        echo -e "${GREEN}[OK]${NC} Virtual environment exists: $VENV_DIR"
-    fi
+# ── Virtual environment setup ──────────────────────────────────────────────
+VENV_DIR=".venv"
 
-    # Activate virtual environment
+# Create virtual environment if it doesn't exist (always, regardless of SKIP_UPDATE)
+if [ ! -d "$VENV_DIR" ]; then
+    echo -e "${BLUE}[*]${NC} Creating virtual environment '$VENV_DIR'..."
+    python3 -m venv "$VENV_DIR"
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}[ERROR]${NC} Failed to create virtual environment."
+        echo -e "${RED}[ERROR]${NC} On Debian/Ubuntu you may need: sudo apt install python3-venv"
+        exit 1
+    fi
+    echo -e "${GREEN}[OK]${NC} Virtual environment created"
+else
+    echo -e "${GREEN}[OK]${NC} Virtual environment exists: $VENV_DIR"
+fi
+
+# Activate virtual environment (always – ensures the correct Python & packages are used)
+if [ -f "$VENV_DIR/bin/activate" ]; then
     echo -e "${BLUE}[*]${NC} Activating virtual environment..."
     source "$VENV_DIR/bin/activate"
+else
+    echo -e "${RED}[ERROR]${NC} Virtual environment is broken (no bin/activate found)."
+    echo -e "${RED}[ERROR]${NC} Delete '$VENV_DIR' and re-run this script."
+    exit 1
+fi
 
+# ── Dependency installation ────────────────────────────────────────────────
+if [ "${SKIP_UPDATE}" = "1" ]; then
+    echo -e "${YELLOW}[*]${NC} Dependency update disabled via SKIP_UPDATE=1"
+else
     # Upgrade pip
     echo -e "${BLUE}[*]${NC} Upgrading pip..."
     pip install --upgrade pip > /dev/null 2>&1
@@ -123,35 +132,29 @@ if [ "$SDR_TOOLS_MISSING" = "1" ]; then
 fi
 # ── End hardware dependency checks ────────────────────────────────────────
 
-# Check for SSL certificates
-if [ ! -f "key.pem" ] || [ ! -f "cert.pem" ]; then
-    echo -e "${YELLOW}[WARN]${NC} SSL certificates not found (key.pem / cert.pem)"
-    echo -e "${YELLOW}[WARN]${NC} Generate self-signed certificates with:"
-    echo -e "${YELLOW}[WARN]${NC}   openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365"
-    echo ""
-    echo -e "${BLUE}[*]${NC} Starting without SSL (HTTP only)..."
-    USE_SSL=""
-else
-    echo -e "${GREEN}[OK]${NC} SSL certificates found"
-    USE_SSL="--ssl-keyfile key.pem --ssl-certfile cert.pem"
-fi
-
 # Start the server
+# Using 'python3 api.py' instead of 'python3 -m uvicorn ...' so that the
+# __main__ block runs.  This auto-generates SSL certificates when missing,
+# prints the startup banner with access URLs, and handles all uvicorn
+# configuration (host, port, SSL, timeouts) in one place.
 echo ""
 echo -e "${GREEN}[*]${NC} Starting LPU5 Tactical Server..."
 echo -e "${BLUE}[*]${NC} Press CTRL+C to stop"
 echo ""
 
 # Check if port is already in use
-if lsof -Pi :8101 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo -e "${YELLOW}[WARN]${NC} Port 8101 is already in use"
-    echo -e "${YELLOW}[WARN]${NC} Use restart_lpu5.sh to restart the server"
-    exit 1
+if command -v lsof &> /dev/null; then
+    if lsof -Pi :8101 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo -e "${YELLOW}[WARN]${NC} Port 8101 is already in use"
+        echo -e "${YELLOW}[WARN]${NC} Use restart_lpu5.sh to restart the server"
+        exit 1
+    fi
+elif command -v ss &> /dev/null; then
+    if ss -tlnp 2>/dev/null | grep -q ':8101 '; then
+        echo -e "${YELLOW}[WARN]${NC} Port 8101 is already in use"
+        echo -e "${YELLOW}[WARN]${NC} Use restart_lpu5.sh to restart the server"
+        exit 1
+    fi
 fi
 
-# Start uvicorn server
-if [ -n "$USE_SSL" ]; then
-    python3 -m uvicorn api:app --host 0.0.0.0 --port 8101 $USE_SSL
-else
-    python3 -m uvicorn api:app --host 0.0.0.0 --port 8101
-fi
+python3 api.py
