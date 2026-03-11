@@ -1147,6 +1147,9 @@ def _build_cot_pong_xml() -> str:
 # Fixed UID used for LPU5's SA beacon so the TAK server recognises the gateway
 # as a persistent entity across reconnects.
 _LPU5_COT_UID = "LPU5-GW"
+# UID prefix used by _forward_chat_to_atak when building GeoChat CoT events.
+# Events whose UID starts with this prefix are LPU5-originated echo-backs.
+_LPU5_GEOCHAT_UID_PREFIX = "GeoChat.LPU5-"
 
 
 def _get_cot_listener_endpoint() -> str:
@@ -1447,7 +1450,7 @@ def _ingest_atak_geochat(root) -> None:
         # a multicast/TCP echo sends this back, we must not save it again
         # because the original message is already in the DB.
         event_uid = root.get("uid", "")
-        if event_uid.startswith("GeoChat.LPU5-"):
+        if event_uid.startswith(_LPU5_GEOCHAT_UID_PREFIX):
             logger.debug("ATAK GeoChat: skipping LPU5 echo-back (uid=%s)", event_uid)
             return
 
