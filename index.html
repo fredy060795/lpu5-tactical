@@ -26,43 +26,77 @@
 
         .spa-login-overlay {
             position: fixed; inset: 0; z-index: 9999;
-            background: #0a0a0a;
+            background: rgba(0, 0, 0, 0.95);
             display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
         }
         .spa-login-box {
-            background: #1a1a1a; border: 1px solid #333; padding: 40px;
-            width: 380px; max-width: 90vw;
+            background: #1a1a1a; border: 2px solid #fff; border-radius: 8px;
+            padding: 40px; max-width: 400px; width: 100%;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.03);
+            animation: spaSlideUp 0.5s ease;
+        }
+        @keyframes spaSlideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .spa-login-box .login-logo {
+            width: 80px; height: 80px; margin: 0 auto 20px;
+            background: rgba(255, 255, 255, 0.01); border-radius: 8px;
+            display: block; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.04));
         }
         .spa-login-box .login-title {
-            font-family: 'Courier New', monospace; font-size: 2em;
-            color: #fff; text-align: center; margin-bottom: 30px;
-            letter-spacing: 4px;
+            font-family: 'Courier New', monospace; font-size: 1.8em;
+            color: #fff; text-align: center; margin-bottom: 10px;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.03); font-weight: bold;
         }
-        .spa-login-box .form-group { margin-bottom: 20px; }
+        .spa-login-box .login-subtitle {
+            text-align: center; color: #888; font-size: 0.9em; margin-bottom: 30px;
+        }
+        .spa-login-box .login-form {
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        .spa-login-box .form-group {
+            display: flex; flex-direction: column; gap: 5px;
+        }
         .spa-login-box label {
             display: block; color: #888; font-family: 'Courier New', monospace;
-            font-size: 0.85em; margin-bottom: 5px; text-transform: uppercase;
+            font-size: 0.9em; font-weight: bold; text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         .spa-login-box input {
-            width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid #333;
-            color: #d0d0d0; font-family: 'Courier New', monospace; font-size: 1em;
+            width: 100%; padding: 12px; background: #000; border: 1px solid #333;
+            color: #fff; font-family: 'Courier New', monospace; font-size: 1em;
+            border-radius: 4px; transition: all 0.2s ease; box-sizing: border-box;
         }
-        .spa-login-box input:focus { border-color: #28a745; outline: none; }
+        .spa-login-box input:focus { border-color: #666; outline: none; box-shadow: 0 0 6px rgba(0, 0, 0, 0.45); }
         .spa-login-box .login-btn {
-            width: 100%; padding: 14px; background: #28a745; border: none;
-            color: #fff; font-family: 'Courier New', monospace; font-size: 1.1em;
-            cursor: pointer; text-transform: uppercase; letter-spacing: 2px;
+            width: 100%; padding: 12px; background: #1a1a1a; border: 1px solid #333;
+            color: #d0d0d0; font-family: 'Courier New', monospace; font-size: 1em;
+            cursor: pointer; text-transform: uppercase; font-weight: bold;
+            border-radius: 4px; transition: all 0.2s ease;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
         }
-        .spa-login-box .login-btn:hover { background: #218838; }
+        .spa-login-box .login-btn:hover {
+            background: #252525; transform: translateY(-2px);
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+        }
         .spa-login-box .error-msg {
-            color: #dc3545; font-size: 0.85em; margin-top: 10px;
-            text-align: center; display: none;
+            background: rgba(220, 53, 69, 0.2); border: 1px solid #dc3545;
+            color: #ff6b6b; padding: 12px; border-radius: 4px;
+            font-size: 0.9em; display: none;
         }
-        .spa-login-box .error-msg.show { display: block; }
+        .spa-login-box .error-msg.show { display: block; animation: spaShake 0.3s ease; }
+        @keyframes spaShake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
         .spa-login-box .register-link {
             text-align: center; margin-top: 15px; font-size: 0.85em;
         }
-        .spa-login-box .register-link a { color: #28a745; text-decoration: none; }
+        .spa-login-box .register-link a { color: #888; text-decoration: none; }
+        .spa-login-box .register-link a:hover { color: #d0d0d0; }
     </style>
     <!-- Navigation Styles (from _global_nav.html) -->
     <style id="nav-styles">
@@ -6921,17 +6955,28 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
          ═══════════════════════════════════════════════════════════════ -->
     <div class="spa-login-overlay" id="spaLoginOverlay">
         <div class="spa-login-box">
-            <div class="login-title">&#9670; LPU5 &#9670;</div>
-            <div class="form-group">
-                <label>Username</label>
-                <input type="text" id="spaLoginUser" placeholder="username">
+            <div class="login-logo" aria-hidden="true"></div>
+            <div class="login-title">LPU5</div>
+            <div class="login-subtitle">Tactical Network Management</div>
+
+            <div class="login-form">
+                <div class="error-msg" id="spaLoginError"></div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> Username</label>
+                    <input type="text" id="spaLoginUser" placeholder="username" autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="spaLoginPass" placeholder="Password">
+                </div>
+
+                <button class="login-btn" onclick="spaLogin()">
+                    <i class="fas fa-sign-in-alt"></i> LOGIN
+                </button>
             </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="spaLoginPass" placeholder="Password">
-            </div>
-            <button class="login-btn" onclick="spaLogin()">LOGIN</button>
-            <div class="error-msg" id="spaLoginError"></div>
+
             <div class="register-link">
                 <a href="/register.html">Registrieren / Register</a>
             </div>
@@ -9119,7 +9164,13 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
                 <code>pip install pyrtlsdr numpy</code></li>
             <li><strong>rtl-sdr CLI tools (Linux/Raspberry Pi):</strong><br>
                 <code>sudo apt install rtl-sdr</code></li>
-            <li><strong>rtl_tcp (runs on the device, connects via network):</strong><br>
+            <li><strong>Windows:</strong> Download
+                <a href="https://github.com/rtlsdrblog/rtl-sdr-blog/releases" target="_blank" rel="noopener">RTL-SDR Blog Windows binaries</a>,
+                place <code>rtl_tcp.exe</code> + <code>rtlsdr.dll</code> next to <code>api.py</code>,
+                and install the <strong>WinUSB</strong> driver with
+                <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">Zadig</a>.
+                The server will auto-start <code>rtl_tcp</code> on next connect.</li>
+            <li><strong>rtl_tcp (manual / remote device):</strong><br>
                 <code>rtl_tcp -a 0.0.0.0</code><br>
                 Then set the <em>rtl_tcp Host</em> field below to the device IP and click <strong>Connect</strong>.
             </li>
@@ -10327,6 +10378,12 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             var errEl = document.getElementById('spaLoginError');
             errEl.classList.remove('show');
 
+            if (!user || !pass) {
+                errEl.textContent = 'Username and password required';
+                errEl.classList.add('show');
+                return;
+            }
+
             try {
                 var res = await fetch('/api/login_user', {
                     method: 'POST',
@@ -10340,11 +10397,11 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
                     if (data.token) localStorage.setItem('token', data.token);
                     spaShowApp();
                 } else {
-                    errEl.textContent = data.message || data.detail || 'Login failed';
+                    errEl.textContent = '⌧ ' + (data.message || data.detail || 'Login failed');
                     errEl.classList.add('show');
                 }
             } catch(e) {
-                errEl.textContent = 'Connection error';
+                errEl.textContent = 'Login error: ' + e.message;
                 errEl.classList.add('show');
             }
         };

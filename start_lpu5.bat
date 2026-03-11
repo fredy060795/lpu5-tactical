@@ -37,7 +37,7 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
 )
 
 echo [*] Activating virtual environment...
-call "%VENV_DIR%\Scriptsctivate.bat"
+call "%VENV_DIR%\Scripts\activate.bat"
 
 echo [*] Installing/updating dependencies...
 pip install --upgrade pip >nul 2>&1
@@ -51,8 +51,12 @@ set SDR_TOOLS_MISSING=0
 for %%T in (rtl_tcp.exe rtl_power.exe rtl_test.exe rtl_fm.exe) do (
     where %%T >nul 2>&1
     if errorlevel 1 (
-        echo [WARN] %%T not found in PATH
-        set SDR_TOOLS_MISSING=1
+        if exist "%~dp0%%T" (
+            echo [OK] %%T found in project directory
+        ) else (
+            echo [WARN] %%T not found in PATH or project directory
+            set SDR_TOOLS_MISSING=1
+        )
     ) else (
         echo [OK] %%T found
     )
@@ -61,12 +65,14 @@ for %%T in (rtl_tcp.exe rtl_power.exe rtl_test.exe rtl_fm.exe) do (
 if "%SDR_TOOLS_MISSING%"=="1" (
     echo.
     echo [WARN] One or more RTL-SDR system tools are missing.
-    echo [WARN] SDR features (spectrum view, audio streaming) will not be available until these tools are installed.
+    echo [WARN] SDR features (spectrum view, audio streaming) may be limited until these tools are installed.
     echo.
     echo [INFO] Install RTL-SDR tools for Windows:
-    echo [INFO]   Download from: https://osmocom.org/projects/rtl-sdr/wiki
-    echo [INFO]   Extract and add the folder to your PATH.
-    echo [INFO]   Then start: rtl_tcp.exe
+    echo [INFO]   Download from: https://github.com/rtlsdrblog/rtl-sdr-blog/releases
+    echo [INFO]   Extract the x64 folder and copy rtl_tcp.exe, rtlsdr.dll, libusb-1.0.dll
+    echo [INFO]   into this project directory (%~dp0)
+    echo [INFO]   Then install the WinUSB driver with Zadig: https://zadig.akeo.ie/
+    echo [INFO]   The server will auto-start rtl_tcp when needed.
     echo.
     echo [INFO] Check dependency status at runtime via:
     echo [INFO]   GET /api/dependencies/check
