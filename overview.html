@@ -942,9 +942,10 @@
       <span id="tsb-battery-level"></span>
     </div>
     <div class="tsb-sep"></div>
-    <div class="tsb-info">
+    <div class="tsb-info" id="tsb-conn-block">
       <i class="fas fa-signal" id="tsb-network-icon"></i>
       <span id="tsb-network-type"></span>
+      <span id="tsb-conn-status" style="margin-left:4px;font-weight:bold;font-size:0.75rem;">OFFLINE</span>
     </div>
     <div class="tsb-sep"></div>
     <div id="tsb-user-block">
@@ -4156,6 +4157,89 @@
       window.addEventListener('offline', updateNetworkStatus);
       const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
       if (conn) conn.addEventListener('change', updateNetworkStatus);
+
+      // ─── Server Connection Status (Online / COT / Offline) ────────
+      // Tracks whether ANY server is reachable via internet.
+      // Green "Online"  = server reachable via HTTP(S)
+      // Orange "COT"    = COT/mesh only (server not reachable via internet but COT active)
+      // Red "Offline"   = no connection at all
+      var _connStatus = 'offline'; // 'online' | 'cot' | 'offline'
+
+      function _updateConnStatusUI() {
+        var el = document.getElementById('tsb-conn-status');
+        var iconEl = document.getElementById('tsb-network-icon');
+        if (!el) return;
+        if (_connStatus === 'online') {
+          el.textContent = 'Online';
+          el.style.color = '#2ecc71';
+          if (iconEl) { iconEl.className = 'fas fa-signal'; iconEl.style.color = '#2ecc71'; }
+        } else if (_connStatus === 'cot') {
+          el.textContent = 'COT';
+          el.style.color = '#f39c12';
+          if (iconEl) { iconEl.className = 'fas fa-satellite-dish'; iconEl.style.color = '#f39c12'; }
+        } else {
+          el.textContent = 'Offline';
+          el.style.color = '#e74c3c';
+          if (iconEl) { iconEl.className = 'fas fa-times-circle'; iconEl.style.color = '#e74c3c'; }
+        }
+      }
+
+      function _checkServerConnStatus() {
+        // Check all known servers for internet reachability
+        var servers = [];
+        try { servers = JSON.parse(localStorage.getItem('lpu5_nw_servers') || '[]'); } catch(e) {}
+        // Also check the current page's server (local)
+        var urls = [window.location.protocol + '//' + window.location.host + '/api/health'];
+        for (var i = 0; i < servers.length; i++) {
+          if (servers[i].url) urls.push(servers[i].url + '/api/health');
+        }
+        // Deduplicate
+        var seen = {};
+        var uniqueUrls = [];
+        for (var j = 0; j < urls.length; j++) {
+          if (!seen[urls[j]]) { seen[urls[j]] = true; uniqueUrls.push(urls[j]); }
+        }
+
+        var anyOnline = false;
+        var pending = uniqueUrls.length;
+        if (pending === 0) {
+          _connStatus = 'offline';
+          _updateConnStatusUI();
+          return;
+        }
+        for (var k = 0; k < uniqueUrls.length; k++) {
+          (function(url) {
+            var ctrl = new AbortController();
+            var to = setTimeout(function() { ctrl.abort(); }, 5000);
+            fetch(url, { signal: ctrl.signal }).then(function(r) {
+              clearTimeout(to);
+              if (r.ok) anyOnline = true;
+            }).catch(function() {
+              clearTimeout(to);
+            }).finally(function() {
+              pending--;
+              if (pending <= 0) {
+                if (anyOnline) {
+                  _connStatus = 'online';
+                } else if (typeof meshtasticClient !== 'undefined' && meshtasticClient && meshtasticClient.isConnected) {
+                  _connStatus = 'cot';
+                } else if (localStorage.getItem('lpu5_cot_mesh_key')) {
+                  _connStatus = 'cot';
+                } else {
+                  _connStatus = 'offline';
+                }
+                _updateConnStatusUI();
+              }
+            });
+          })(uniqueUrls[k]);
+        }
+      }
+
+      // Run check immediately and every 30 seconds
+      _checkServerConnStatus();
+      setInterval(_checkServerConnStatus, 30000);
+      window.addEventListener('online', function() { setTimeout(_checkServerConnStatus, 1000); });
+      window.addEventListener('offline', function() { _connStatus = 'offline'; _updateConnStatusUI(); });
     })();
 
     /* ----------------- STATUS BROADCAST (overview) -----------------
@@ -5062,13 +5146,19 @@
       var activeServer = null;
       for (var i = 0; i < servers.length; i++) { if (servers[i].active) { activeServer = servers[i]; break; } }
       var connected = !!currentUserName && !!activeServer;
+      var isCotOnly = connected && activeServer && activeServer.cot_only;
       var h = '';
 
       // Connection status banner
-      if (connected) {
+      if (connected && !isCotOnly) {
         h += '<div class="nw-status-banner nw-status-ok">';
         h += '<span class="nw-dot nw-dot-green"></span>';
         h += '<span>Verbunden: ' + _nwEsc(activeServer.name) + '</span>';
+        h += '</div>';
+      } else if (connected && isCotOnly) {
+        h += '<div class="nw-status-banner" style="background:rgba(243,156,18,0.15);border:1px solid rgba(243,156,18,0.3);color:#f39c12;">';
+        h += '<span class="nw-dot nw-dot-yellow"></span>';
+        h += '<span><i class="fas fa-satellite-dish"></i> COT-Only: ' + _nwEsc(activeServer.name) + '</span>';
         h += '</div>';
       } else {
         h += '<div class="nw-status-banner nw-status-off">';
@@ -5082,7 +5172,7 @@
         h += '<div style="margin-top:12px;">';
         for (var j = 0; j < servers.length; j++) {
           var s = servers[j];
-          var dotCls = s.status === 'ok' ? 'nw-dot-green' : (s.status === 'checking' ? 'nw-dot-yellow' : (s.status === 'error' ? 'nw-dot-red' : 'nw-dot-gray'));
+          var dotCls = s.status === 'ok' ? 'nw-dot-green' : (s.status === 'cot' ? 'nw-dot-yellow' : (s.status === 'checking' ? 'nw-dot-yellow' : (s.status === 'error' ? 'nw-dot-red' : 'nw-dot-gray')));
           var border = (s.active && !!currentUserName) ? 'border-color:var(--accent-blue);' : '';
           var dispUrl = s.url || (window.location.protocol + '//' + window.location.host + ' (lokal)');
           var protoLabel = (s.protocol || 'https').toUpperCase();
@@ -5091,6 +5181,9 @@
           h += '<div class="nw-srv-header">';
           h += '<span class="nw-dot ' + dotCls + '"></span>';
           h += '<span class="nw-srv-name">' + _nwEsc(s.name) + '</span>';
+          if (s.cot_mesh) {
+            h += '<span style="font-size:0.65em;background:rgba(243,156,18,0.2);color:#f39c12;padding:1px 5px;border-radius:3px;border:1px solid rgba(243,156,18,0.4);margin-left:4px;">COT MESH</span>';
+          }
           if (protoLabel || portLabel) {
             h += '<span class="nw-srv-proto">' + _nwEsc(protoLabel) + (portLabel ? ':' + _nwEsc(portLabel) : '') + '</span>';
           }
@@ -5098,6 +5191,9 @@
           h += '</div>';
           h += '<div class="nw-srv-url">' + _nwEsc(dispUrl) + '</div>';
           h += '<div class="nw-srv-user"><i class="fas fa-user" style="font-size:0.7em;margin-right:4px;"></i>' + _nwEsc(s.user || '---') + '</div>';
+          if (s.cot_only) {
+            h += '<div style="font-size:0.7em;color:#f39c12;margin-bottom:4px;"><i class="fas fa-satellite-dish"></i> COT-Only Modus – Zugangsdaten werden bei Internetverbindung geprüft</div>';
+          }
           h += '<div class="nw-srv-actions">';
           h += '<button class="nw-srv-btn nw-srv-btn-edit" onclick="event.stopPropagation();_nwEdit(\'' + s.id + '\')"><i class="fas fa-pen"></i> Bearbeiten</button>';
           if (s.active && !!currentUserName) {
@@ -5331,24 +5427,55 @@
             document.getElementById('out-name').innerText = currentUserName.toUpperCase();
             srv.active = true;
             srv.status = 'ok';
+            srv.cot_only = false;
             _nwSaveServers(servers);
             if (!silent) closeMenuPopup();
             updateSidebarTiles();
             isLoggedIn = true;
             startDataSync();
             _nwStartReconnect();
+            if (typeof _checkServerConnStatus === 'function') _checkServerConnStatus();
           });
         } else {
-          srv.status = 'error';
-          _nwSaveServers(servers);
-          if (!silent) { _nwRenderPopup(); _nwShowMsg('Login fehlgeschlagen. Prüfen Sie die Anmeldedaten.', 'error'); }
+          // Login failed – fall back to COT if master_key present
+          if (srv.cot_mesh && srv.master_key) {
+            _nwCotFallback(srv, servers, silent, 'Login fehlgeschlagen – COT-Only Modus aktiv.');
+          } else {
+            srv.status = 'error';
+            _nwSaveServers(servers);
+            if (!silent) { _nwRenderPopup(); _nwShowMsg('Login fehlgeschlagen. Prüfen Sie die Anmeldedaten.', 'error'); }
+          }
         }
       }).catch(function(e) {
         clearTimeout(timeout);
-        srv.status = 'error';
-        _nwSaveServers(servers);
-        if (!silent) { _nwRenderPopup(); _nwShowMsg('Verbindungsfehler: ' + (e.message || 'Timeout'), 'error'); }
+        // Network error – fall back to COT if master_key present
+        if (srv.cot_mesh && srv.master_key) {
+          _nwCotFallback(srv, servers, silent, 'Server nicht erreichbar – COT-Only Modus aktiv.');
+        } else {
+          srv.status = 'error';
+          _nwSaveServers(servers);
+          if (!silent) { _nwRenderPopup(); _nwShowMsg('Verbindungsfehler: ' + (e.message || 'Timeout'), 'error'); }
+        }
       });
+    }
+
+    // COT-Only fallback: activate server in COT mode without internet verification
+    function _nwCotFallback(srv, servers, silent, msg) {
+      currentUserName = srv.user;
+      localStorage.setItem('lpu5_cached_user', srv.user);
+      localStorage.setItem('lpu5_cached_pass', srv.pass);
+      localStorage.setItem('lpu5_username', srv.user);
+      sessionStorage.setItem('currentUser', srv.user);
+      document.getElementById('out-name').innerText = srv.user.toUpperCase();
+      srv.active = true;
+      srv.status = 'cot';
+      srv.cot_only = true;
+      _nwSaveServers(servers);
+      if (!silent) { _nwRenderPopup(); _nwShowMsg(msg, 'success'); }
+      updateSidebarTiles();
+      isLoggedIn = true;
+      _nwStartReconnect();
+      if (typeof _checkServerConnStatus === 'function') _checkServerConnStatus();
     }
 
     function _nwDisconnect(id) {
@@ -5392,6 +5519,44 @@
           if (!code) { _nwShowMsg('Kein QR-Code erkannt. Bitte deutlicheres Bild verwenden.', 'error'); return; }
           try {
             var data = JSON.parse(code.data);
+
+            // ── COT Mesh Login QR Code ──
+            if (data.type === 'cot_mesh_login') {
+              var host = data.host || '';
+              var port = data.port ? String(data.port) : '8101';
+              var protocol = data.protocol || 'https';
+              var name = data.name || 'COT Mesh Server';
+              var masterKey = data.master_key || '';
+              var cotTcpPort = data.cot_tcp_port || 8088;
+              var cotUdpPort = data.cot_udp_port || 4242;
+              var url = _nwBuildUrl(protocol, host, port);
+
+              // Store master key for COT fallback authorization
+              if (masterKey) {
+                localStorage.setItem('lpu5_cot_mesh_key', masterKey);
+              }
+              localStorage.setItem('lpu5_cot_tcp_port', String(cotTcpPort));
+              localStorage.setItem('lpu5_cot_udp_port', String(cotUdpPort));
+
+              var servers = _nwGetServers();
+              servers.push({
+                id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''),
+                host: host, port: port, protocol: protocol,
+                user: '', pass: '',
+                status: 'unknown', active: false,
+                cot_mesh: true, master_key: masterKey,
+                cot_tcp_port: cotTcpPort, cot_udp_port: cotUdpPort
+              });
+              _nwSaveServers(servers);
+              _nwRenderPopup();
+              _nwShowMsg('COT Mesh Server "' + _nwEsc(name) + '" hinzugefügt. Bitte Benutzerdaten eingeben.', 'success');
+              // Auto-open edit form so user can enter credentials
+              var lastSrv = servers[servers.length - 1];
+              setTimeout(function() { _nwEdit(lastSrv.id); }, 200);
+              return;
+            }
+
+            // ── Standard server QR Code ──
             var name = data.name || data.server_name || data.hostname || 'Server';
             var url  = data.url  || data.server_url  || '';
             var user = data.user || data.username || data.callsign || '';
@@ -5430,6 +5595,11 @@
         fetch(healthUrl, { signal: controller.signal }).then(function(r) {
           clearTimeout(timeout);
           if (!r.ok) throw new Error('not ok');
+          // Server reachable – if currently in COT-only mode, try full login
+          if (activeServer.cot_only) {
+            console.log('[Netzwerk] Internet verfügbar – versuche Login für COT-Only Server...');
+            _nwConnect(activeServer.id, true);
+          }
         }).catch(function() {
           clearTimeout(timeout);
           console.log('[Netzwerk] Verbindung verloren – Neuverbindung wird versucht...');

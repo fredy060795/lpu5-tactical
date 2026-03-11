@@ -6201,6 +6201,98 @@ def api_qr_create(data: dict = Body(...), request: Request = None, db: Session =
         "png_base64": png_b64
     }
 
+@app.post("/api/qr/cot_mesh")
+def api_qr_cot_mesh(data: dict = Body(...), request: Request = None, db: Session = Depends(get_db)):
+    """Create a COT Mesh Login QR code.
+
+    The QR encodes server connection details (host, port, SSL) plus a
+    master_key that authorises COT-only access when no internet is
+    available.  User credentials are NOT embedded – the user must enter
+    them manually after scanning.
+    """
+    expires_days = int(data.get("expires_days", 365))
+    label = data.get("label") or "cot_mesh_login"
+    max_uses = int(data.get("max_uses", 999))
+
+    local_ip, all_ips = get_local_ip()
+    cert_file = os.path.join(base_path, "cert.pem")
+    key_file = os.path.join(base_path, "key.pem")
+    use_ssl = os.path.exists(cert_file) and os.path.exists(key_file)
+    protocol = "https" if use_ssl else "http"
+    server_port = 8101
+
+    # Read COT listener ports from config
+    cfg = load_json("config") or {}
+    cot_tcp_port = int(cfg.get("cot_listener_tcp_port", 8088))
+    cot_udp_port = int(cfg.get("cot_listener_udp_port", 4242))
+
+    master_key = str(uuid.uuid4())
+    qr_id = str(uuid.uuid4())
+    expires_at_dt = datetime.now(timezone.utc) + timedelta(days=expires_days)
+
+    # JSON payload that will be encoded into the QR image
+    qr_payload = {
+        "type": "cot_mesh_login",
+        "master_key": master_key,
+        "name": cfg.get("server_name") or "LPU5 Server",
+        "host": local_ip,
+        "port": server_port,
+        "protocol": protocol,
+        "ssl": use_ssl,
+        "cot_tcp_port": cot_tcp_port,
+        "cot_udp_port": cot_udp_port,
+        "all_ips": all_ips,
+    }
+
+    png_b64 = None
+    if qrcode:
+        try:
+            import json as _json
+            qr_img = qrcode.make(_json.dumps(qr_payload))
+            from io import BytesIO
+            buf = BytesIO()
+            qr_img.save(buf, format="PNG")
+            png_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        except Exception:
+            logger.exception("COT Mesh QR PNG generation failed")
+
+    new_qr = QRCode(
+        id=qr_id,
+        token=master_key,
+        type="cot_mesh_login",
+        created_by="system",
+        expires_at=expires_at_dt,
+        max_uses=max_uses,
+        uses=0,
+        allowed_ips=[],
+        data={
+            "label": label,
+            "qr_payload": qr_payload,
+            "png_base64": png_b64,
+        },
+    )
+    db.add(new_qr)
+    db.commit()
+
+    log_audit(
+        "create_cot_mesh_qr",
+        "system",
+        {"master_key": master_key, "created_by_ip": _get_client_ip(request) if request else None},
+    )
+    return {
+        "status": "success",
+        "qr": {
+            "id": qr_id,
+            "master_key": master_key,
+            "label": label,
+            "max_uses": max_uses,
+            "uses": 0,
+            "payload": qr_payload,
+        },
+        "png_base64": png_b64,
+    }
+
+
 @app.get("/api/qr/list")
 def api_qr_list(db: Session = Depends(get_db)):
     qrs = db.query(QRCode).all()
