@@ -20,5 +20,7 @@ httpx>=0.27.0
 # System tool 'rtl_tcp' is also required for TCP-based SDR streaming:
 #   Linux/Raspberry Pi: sudo apt install rtl-sdr
 #   Windows: download from https://osmocom.org/projects/rtl-sdr/wiki
-pyrtlsdr>=0.3.0
-numpy>=1.24.0
+# These are installed separately by the start scripts with error tolerance.
+# To install manually:  pip install pyrtlsdr numpy
+# pyrtlsdr>=0.3.0
+# numpy>=1.24.0
