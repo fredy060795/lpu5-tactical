@@ -49,7 +49,7 @@ if errorlevel 1 (
 )
 echo [OK] Core dependencies installed
 
-echo [*] Installing optional SDR dependencies (pyrtlsdr, numpy^)...
+echo [*] Installing optional SDR dependencies: pyrtlsdr, numpy ...
 pip install "pyrtlsdr>=0.3.0" "numpy>=1.24.0" >nul 2>&1
 if errorlevel 1 (
     echo [WARN] Optional SDR packages could not be installed.

@@ -81,7 +81,7 @@ else
 
     # Install optional SDR dependencies (failure is non-fatal)
     echo -e "${BLUE}[*]${NC} Installing optional SDR dependencies (pyrtlsdr, numpy)..."
-    if pip install "pyrtlsdr>=0.3.0" "numpy>=1.24.0" 2>&1; then
+    if pip install "pyrtlsdr>=0.3.0" "numpy>=1.24.0"; then
         echo -e "${GREEN}[OK]${NC} Optional SDR dependencies installed"
     else
         echo -e "${YELLOW}[WARN]${NC} Optional SDR packages could not be installed."
