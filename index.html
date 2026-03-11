@@ -8831,7 +8831,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
         </button>
     </div>
 
-    <div id="saveStatus" style="margin-top: 15px; display: none;"></div>
+    <div id="networkSaveStatus" style="margin-top: 15px; display: none;"></div>
 
     <!-- ================================================================ -->
     <!-- SERVER-FÖDERATION VERWALTUNG                                      -->
@@ -19031,7 +19031,7 @@ function _escHtml(str) {
 
 // Show status message
 function showStatus(message, type) {
-    const statusDiv = document.getElementById('saveStatus');
+    const statusDiv = document.getElementById('networkSaveStatus');
     statusDiv.style.display = 'block';
     
     let className = 'info-box';
