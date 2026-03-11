@@ -2779,6 +2779,33 @@
 
       function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); deleteSymbolFromServer(id); deactivateDeleteMode(); }
 
+      // Rename a marker via PUT /api/map_markers/{id} and broadcast globally
+      async function _renameMarker(markerId, inputId) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const newName = input.value.trim();
+        if (!newName) return;
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch('/api/map_markers/' + encodeURIComponent(markerId), {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+            },
+            body: JSON.stringify({ name: newName })
+          });
+          if (res.ok) {
+            map.closePopup();
+          } else {
+            alert('Rename failed');
+          }
+        } catch (e) {
+          console.error('Rename marker error:', e);
+          alert('Network error');
+        }
+      }
+
       async function loadMapSymbols() {
         try {
           const res = await fetch('/api/map/symbols');
@@ -2846,7 +2873,9 @@
               const displayName = s.label || s.username || 'GPS';
               marker.bindPopup(`<strong>${displayName}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
             } else {
-              marker.bindPopup(`<strong>${s.label || s.type || 'Symbol'}</strong><div style="font-size:.8rem;color:#999">by ${s.username || 'unknown'}</div>`);
+              const _sLabel = escapeHtml(s.label || s.type || 'Symbol');
+              const _sPopupId = 'rn-' + s.id;
+              marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${escapeHtml(s.username || 'unknown')}</span><br><input type="text" id="${_sPopupId}" value="${_sLabel}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button onclick="_renameMarker('${s.id}','${_sPopupId}')" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
             }
 
             if (!isGps) {
