@@ -1,0 +1,5 @@
+# LPU5 Tactical – GUI-spezifische Abhängigkeiten
+# Installieren mit:  pip install -r requirements_gui.txt
+
+pywebview>=4.4.1
+pyinstaller>=6.6.0

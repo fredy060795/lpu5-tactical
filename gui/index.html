@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LPU5 Tactical – Verbinden</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      width: 420px;
+      max-width: 95vw;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .logo h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #58a6ff;
+    }
+
+    .logo p {
+      font-size: 0.85rem;
+      color: #8b949e;
+      margin-top: 0.3rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: #8b949e;
+      margin-bottom: 0.4rem;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e6edf3;
+      font-size: 1rem;
+      padding: 0.55rem 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #58a6ff;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #6e7681;
+      margin-top: 0.35rem;
+    }
+
+    button {
+      margin-top: 1.4rem;
+      width: 100%;
+      padding: 0.7rem;
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #2ea043; }
+    button:active { background: #1a7f37; }
+
+    #status {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      text-align: center;
+      min-height: 1.2em;
+    }
+
+    .status-error   { color: #f85149; }
+    .status-info    { color: #8b949e; }
+    .status-success { color: #3fb950; }
+
+    .presets {
+      margin-top: 1.2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .presets span {
+      font-size: 0.78rem;
+      color: #8b949e;
+      margin-right: 0.3rem;
+      align-self: center;
+    }
+
+    .preset-btn {
+      margin-top: 0;
+      width: auto;
+      padding: 0.25rem 0.7rem;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: #58a6ff;
+    }
+
+    .preset-btn:hover { background: #30363d; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>⚡ LPU5 Tactical</h1>
+    <p>Desktop GUI – Server-Verbindung</p>
+  </div>
+
+  <label for="serverUrl">Server-URL</label>
+  <input
+    type="text"
+    id="serverUrl"
+    placeholder="https://192.168.8.1:8101"
+    autocomplete="off"
+    spellcheck="false"
+  />
+  <p class="hint">
+    Protokoll + IP/Hostname + Port des laufenden LPU5-Backends eingeben.
+  </p>
+
+  <div class="presets">
+    <span>Schnellwahl:</span>
+    <button class="preset-btn" onclick="setPreset('https://127.0.0.1:8101')">Localhost HTTPS</button>
+    <button class="preset-btn" onclick="setPreset('http://127.0.0.1:8101')">Localhost HTTP</button>
+  </div>
+
+  <button onclick="connect()">Verbinden</button>
+
+  <div id="status"></div>
+</div>
+
+<script>
+  const KEY = 'lpu5_server_url';
+
+  // Letzte URL aus localStorage wiederherstellen
+  const saved = localStorage.getItem(KEY);
+  if (saved) document.getElementById('serverUrl').value = saved;
+
+  function setPreset(url) {
+    document.getElementById('serverUrl').value = url;
+  }
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = cls || '';
+  }
+
+  function connect() {
+    let url = document.getElementById('serverUrl').value.trim();
+    if (!url) {
+      setStatus('Bitte eine Server-URL eingeben.', 'status-error');
+      return;
+    }
+    // Protokoll ergänzen, falls fehlt
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+      document.getElementById('serverUrl').value = url;
+    }
+
+    localStorage.setItem(KEY, url);
+    setStatus('Navigiere zum Server …', 'status-info');
+
+    // Vollständige SPA direkt vom Server laden
+    window.location.href = url + '/';
+  }
+
+  // Enter-Taste
+  document.getElementById('serverUrl').addEventListener('keydown', e => {
+    if (e.key === 'Enter') connect();
+  });
+</script>
+</body>
+</html>
