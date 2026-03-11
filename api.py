@@ -9824,7 +9824,7 @@ def _find_rtl_tool(name: str) -> Optional[str]:
     # 2. Project directory (next to api.py)
     for candidate in (name, name + ".exe") if sys.platform == "win32" else (name,):
         p = os.path.join(_PROJECT_DIR, candidate)
-        if os.path.isfile(p) and os.access(p, os.X_OK):
+        if os.path.isfile(p) and (sys.platform == "win32" or os.access(p, os.X_OK)):
             return p
 
     # 3. Current working directory (if different from project dir)
@@ -9832,7 +9832,7 @@ def _find_rtl_tool(name: str) -> Optional[str]:
     if os.path.abspath(cwd) != os.path.abspath(_PROJECT_DIR):
         for candidate in (name, name + ".exe") if sys.platform == "win32" else (name,):
             p = os.path.join(cwd, candidate)
-            if os.path.isfile(p) and os.access(p, os.X_OK):
+            if os.path.isfile(p) and (sys.platform == "win32" or os.access(p, os.X_OK)):
                 return p
 
     return None
