@@ -35,7 +35,7 @@ class DataServerManager:
         self._broadcast_session = requests.Session()
         self._executor_shutdown = False
         # Per-channel timeout tracking: channel -> (last_warning_time, suppressed_count)
-        self._timeout_warn_state: dict = {}
+        self._timeout_warn_state: dict[str, tuple[float, int]] = {}
         self._timeout_warn_lock = threading.Lock()
         
     def start(self, timeout: int = 10) -> bool:
