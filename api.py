@@ -11601,9 +11601,11 @@ def catch_all(full_path: str, request: Request):
     for _i in range(1, _SPA_STREAM_SLOTS + 1):
         _SPA_VIEWS[f"stream_share_{_i}.html"] = f"stream_share_{_i}"
 
-    # Redirect merged pages to the SPA with the correct hash fragment
+    # Redirect merged pages to the SPA with the correct hash fragment.
+    # Target must be /index.html#view (not /#view) because the root URL /
+    # serves the standalone landing.html – the hash would be meaningless there.
     if full_path in _SPA_VIEWS:
-        return RedirectResponse(url=f"/#{_SPA_VIEWS[full_path]}", status_code=302)
+        return RedirectResponse(url=f"/index.html#{_SPA_VIEWS[full_path]}", status_code=302)
 
     candidate = os.path.join(base_path, full_path)
     if os.path.isfile(candidate):

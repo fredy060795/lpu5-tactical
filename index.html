@@ -8876,7 +8876,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
         </button>
     </div>
 
-    <div id="saveStatus" style="margin-top: 15px; display: none;"></div>
+    <div id="networkSaveStatus" style="margin-top: 15px; display: none;"></div>
 
     <!-- ================================================================ -->
     <!-- SERVER-FÖDERATION VERWALTUNG                                      -->
@@ -19088,7 +19088,7 @@ function _escHtml(str) {
 
 // Show status message
 function showStatus(message, type) {
-    const statusDiv = document.getElementById('saveStatus');
+    const statusDiv = document.getElementById('networkSaveStatus');
     statusDiv.style.display = 'block';
     
     let className = 'info-box';
@@ -19721,6 +19721,34 @@ async function fedRunSync() {
         _fedShowMsg('fedSyncStatus', 'Sync fehlgeschlagen: ' + _escHtml(e.message), 'error');
     }
 }
+
+// Promote functions to global scope so inline onclick handlers can reach them.
+window.loadServerInfo = loadServerInfo;
+window.loadNetworkSettings = loadNetworkSettings;
+window.saveNetworkSettings = saveNetworkSettings;
+window.testConnection = testConnection;
+window.testTakConnection = testTakConnection;
+window.refreshCotListenerStatus = refreshCotListenerStatus;
+window.startCotListener = startCotListener;
+window.stopCotListener = stopCotListener;
+window.checkMarkerDiff = checkMarkerDiff;
+window.pushMissingToAtak = pushMissingToAtak;
+window.fedSaveOwnUrl = fedSaveOwnUrl;
+window.fedLoadOwnQR = fedLoadOwnQR;
+window.fedCopyServerInfo = fedCopyServerInfo;
+window.fedImportServer = fedImportServer;
+window.fedClearImport = fedClearImport;
+window.fedLoadServers = fedLoadServers;
+window.fedDeleteServer = fedDeleteServer;
+window.fedAutoHandshake = fedAutoHandshake;
+window.fedStartHandshake = fedStartHandshake;
+window.fedHsIssueChallenge = fedHsIssueChallenge;
+window.fedHsCopyChallenge = fedHsCopyChallenge;
+window.fedHsAutoSign = fedHsAutoSign;
+window.fedHsVerify = fedHsVerify;
+window.fedHsClose = fedHsClose;
+window.fedLoadAutoSyncStatus = fedLoadAutoSyncStatus;
+window.fedRunSync = fedRunSync;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
