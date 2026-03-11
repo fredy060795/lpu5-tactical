@@ -36,7 +36,7 @@ import uuid
 import hashlib
 import jwt
 import base64
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Tuple
 import logging
 import pathlib
 import queue
@@ -598,7 +598,7 @@ DEFAULT_DB_CONTENTS: Dict[str, Any] = {
 # In-memory cache for JSON files (especially config) to avoid repeated disk I/O.
 # _json_cache maps key -> (mtime, data).  On load we stat the file and skip
 # re-reading if mtime has not changed.
-_json_cache: Dict[str, tuple] = {}
+_json_cache: Dict[str, Tuple[float, Any]] = {}
 _json_cache_lock = threading.Lock()
 
 def load_json(key: str) -> Any:
