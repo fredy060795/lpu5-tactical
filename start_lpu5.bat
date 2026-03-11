@@ -39,9 +39,25 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
 echo [*] Activating virtual environment...
 call "%VENV_DIR%\Scripts\activate.bat"
 
-echo [*] Installing/updating dependencies...
+echo [*] Installing/updating core dependencies...
 pip install --upgrade pip >nul 2>&1
 pip install -r requirements.txt
+if errorlevel 1 (
+    echo [ERROR] Failed to install core dependencies.
+    pause
+    exit /b 1
+)
+echo [OK] Core dependencies installed
+
+echo [*] Installing optional SDR dependencies (pyrtlsdr, numpy^)...
+pip install "pyrtlsdr>=0.3.0" "numpy>=1.24.0" >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] Optional SDR packages could not be installed.
+    echo [WARN] SDR features will not be available. The server will still start.
+    echo [WARN] To install manually later: pip install pyrtlsdr numpy
+) else (
+    echo [OK] Optional SDR dependencies installed
+)
 
 REM ── Hardware dependency checks ───────────────────────────────────────────
 echo.

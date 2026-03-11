@@ -3,7 +3,9 @@
 # LPU5 Tactical Tracker - Linux/Unix Startup Script
 # This script sets up the environment and starts the LPU5 Tactical server
 
-set -e  # Exit on error
+# NOTE: We intentionally do NOT use 'set -e' here.
+# pip install may fail for optional packages (e.g. pyrtlsdr, numpy)
+# and that must not abort the whole startup.
 
 # Color codes for output
 RED='\033[0;31m'
@@ -64,16 +66,27 @@ else
     echo -e "${BLUE}[*]${NC} Upgrading pip..."
     pip install --upgrade pip > /dev/null 2>&1
 
-    # Install/update dependencies
-    echo -e "${BLUE}[*]${NC} Installing/updating dependencies..."
+    # Install/update core dependencies
+    echo -e "${BLUE}[*]${NC} Installing/updating core dependencies..."
     if [ -f "requirements.txt" ]; then
         pip install -r requirements.txt
         if [ $? -ne 0 ]; then
-            echo -e "${RED}[ERROR]${NC} Failed to install dependencies"
+            echo -e "${RED}[ERROR]${NC} Failed to install core dependencies"
             exit 1
         fi
+        echo -e "${GREEN}[OK]${NC} Core dependencies installed"
     else
         echo -e "${YELLOW}[WARN]${NC} requirements.txt not found"
+    fi
+
+    # Install optional SDR dependencies (failure is non-fatal)
+    echo -e "${BLUE}[*]${NC} Installing optional SDR dependencies (pyrtlsdr, numpy)..."
+    if pip install "pyrtlsdr>=0.3.0" "numpy>=1.24.0" 2>&1; then
+        echo -e "${GREEN}[OK]${NC} Optional SDR dependencies installed"
+    else
+        echo -e "${YELLOW}[WARN]${NC} Optional SDR packages could not be installed."
+        echo -e "${YELLOW}[WARN]${NC} SDR features will not be available. The server will still start."
+        echo -e "${YELLOW}[WARN]${NC} To install manually later: pip install pyrtlsdr numpy"
     fi
 fi
 
