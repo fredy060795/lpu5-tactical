@@ -37,7 +37,7 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
 )
 
 echo [*] Activating virtual environment...
-call "%VENV_DIR%\Scriptsctivate.bat"
+call "%VENV_DIR%\Scripts\activate.bat"
 
 echo [*] Installing/updating dependencies...
 pip install --upgrade pip >nul 2>&1
