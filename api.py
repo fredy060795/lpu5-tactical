@@ -290,11 +290,11 @@ async def lifespan(application):
     global _MAIN_EVENT_LOOP
     try:
         _MAIN_EVENT_LOOP = asyncio.get_running_loop()
-        logger.info(f"Captured main event loop: {_MAIN_EVENT_LOOP}")
+        logger.info("✅ Main event loop captured for thread-safe broadcasts")
     except RuntimeError:
         try:
             _MAIN_EVENT_LOOP = asyncio.get_event_loop()
-            logger.info(f"Captured event loop: {_MAIN_EVENT_LOOP}")
+            logger.info("✅ Fallback event loop captured for thread-safe broadcasts")
         except Exception as e:
             logger.warning(f"Could not capture event loop: {e}")
 
@@ -334,6 +334,7 @@ async def lifespan(application):
         _MESHTASTIC_SYNC_STOP_EVENT.clear()
         _MESHTASTIC_SYNC_THREAD = threading.Thread(target=_meshtastic_sync_worker, args=(interval,), daemon=True, name="meshtastic-sync")
         _MESHTASTIC_SYNC_THREAD.start()
+        logger.info("✅ Meshtastic sync worker started (interval=%ss)", interval)
 
     # Start periodic marker broadcast thread for real-time sync
     try:
@@ -919,7 +920,7 @@ def ensure_default_admin():
                 )
                 db.add(default_user)
                 db.commit()
-                logger.warning("Default admin created in database: username='administrator' password='password' - change immediately!")
+                logger.warning("Default admin created: username='administrator' — change the default password immediately!")
         
         # Create test users for each role if they don't exist
         test_users = [
@@ -2305,7 +2306,6 @@ def sync_meshtastic_nodes_to_map_markers_once():
         db.close()
 
 def _meshtastic_sync_worker(interval_seconds: int = 60):
-    logger.info("Meshtastic sync worker started (interval=%s s)", interval_seconds)
     while not _MESHTASTIC_SYNC_STOP_EVENT.is_set():
         try:
             sync_meshtastic_nodes_to_map_markers_once()
@@ -2338,7 +2338,6 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
     payload (all current markers) is still sent once when the worker first starts so
     that clients which connect while the server is idle receive the complete picture.
     """
-    logger.info("Marker broadcast worker started (interval=%s s)", interval_seconds)
     first_run = True
     while not _MARKER_BROADCAST_STOP_EVENT.is_set():
         db = SessionLocal()
@@ -11167,7 +11166,6 @@ def _federation_sync_worker(interval_seconds: int = 300):
     logic but runs automatically in a daemon thread.
     """
     global _FEDERATION_SYNC_LAST_RUN, _FEDERATION_SYNC_LAST_RESULT
-    logger.info("Federation auto-sync worker started (interval=%s s)", interval_seconds)
     while not _FEDERATION_SYNC_STOP_EVENT.is_set():
         # Sleep first, then sync (gives server time to fully start)
         _FEDERATION_SYNC_STOP_EVENT.wait(interval_seconds)
