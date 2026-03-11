@@ -19665,6 +19665,34 @@ async function fedRunSync() {
     }
 }
 
+// Promote functions to global scope so inline onclick handlers can reach them.
+window.loadServerInfo = loadServerInfo;
+window.loadNetworkSettings = loadNetworkSettings;
+window.saveNetworkSettings = saveNetworkSettings;
+window.testConnection = testConnection;
+window.testTakConnection = testTakConnection;
+window.refreshCotListenerStatus = refreshCotListenerStatus;
+window.startCotListener = startCotListener;
+window.stopCotListener = stopCotListener;
+window.checkMarkerDiff = checkMarkerDiff;
+window.pushMissingToAtak = pushMissingToAtak;
+window.fedSaveOwnUrl = fedSaveOwnUrl;
+window.fedLoadOwnQR = fedLoadOwnQR;
+window.fedCopyServerInfo = fedCopyServerInfo;
+window.fedImportServer = fedImportServer;
+window.fedClearImport = fedClearImport;
+window.fedLoadServers = fedLoadServers;
+window.fedDeleteServer = fedDeleteServer;
+window.fedAutoHandshake = fedAutoHandshake;
+window.fedStartHandshake = fedStartHandshake;
+window.fedHsIssueChallenge = fedHsIssueChallenge;
+window.fedHsCopyChallenge = fedHsCopyChallenge;
+window.fedHsAutoSign = fedHsAutoSign;
+window.fedHsVerify = fedHsVerify;
+window.fedHsClose = fedHsClose;
+window.fedLoadAutoSyncStatus = fedLoadAutoSyncStatus;
+window.fedRunSync = fedRunSync;
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadServerInfo();

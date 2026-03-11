@@ -12,11 +12,16 @@ import logging
 import time
 import sys
 import os
+import threading
 import requests
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger("lpu5-data-server-manager")
+
+# Minimum interval (seconds) between identical timeout warnings per channel.
+# Prevents log-flooding when the data server is persistently slow/busy.
+_TIMEOUT_LOG_INTERVAL = 30
 
 class DataServerManager:
     """Manages the data server subprocess"""
@@ -29,6 +34,9 @@ class DataServerManager:
         self._broadcast_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="broadcast")
         self._broadcast_session = requests.Session()
         self._executor_shutdown = False
+        # Per-channel timeout tracking: channel -> (last_warning_time, suppressed_count)
+        self._timeout_warn_state: dict = {}
+        self._timeout_warn_lock = threading.Lock()
         
     def start(self, timeout: int = 10) -> bool:
         """
@@ -50,6 +58,7 @@ class DataServerManager:
             self._broadcast_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="broadcast")
             self._broadcast_session = requests.Session()
             self._executor_shutdown = False
+            self._timeout_warn_state.clear()
 
         try:
             # Get the path to data_server.py
@@ -245,10 +254,21 @@ class DataServerManager:
             except requests.exceptions.Timeout:
                 # The data server did not respond in time.  Retrying a timed-out
                 # server only makes congestion worse, so we bail out immediately.
-                logger.warning(
-                    f"Broadcast to channel '{(payload or {}).get('channel', 'unknown')}' timed out – "
-                    "data server may be busy; skipping retry"
-                )
+                # Rate-limit the warning so a busy server doesn't flood the log.
+                channel = (payload or {}).get('channel', 'unknown')
+                now = time.monotonic()
+                with self._timeout_warn_lock:
+                    last_time, suppressed = self._timeout_warn_state.get(channel, (0.0, 0))
+                    if now - last_time >= _TIMEOUT_LOG_INTERVAL:
+                        extra = f" (suppressed {suppressed} similar)" if suppressed else ""
+                        logger.warning(
+                            "Broadcast to channel '%s' timed out – "
+                            "data server may be busy; skipping retry%s",
+                            channel, extra,
+                        )
+                        self._timeout_warn_state[channel] = (now, 0)
+                    else:
+                        self._timeout_warn_state[channel] = (last_time, suppressed + 1)
                 return
             except Exception as e:
                 if attempt < _retries:
