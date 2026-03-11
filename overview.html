@@ -4994,6 +4994,10 @@
 
     // ─── Netzwerk: Server Connection Manager ───────────────────────
     var _NW_KEY = 'lpu5_nw_servers';
+    var _NW_API_INFO = '/api/federation/info';
+    var _NW_API_LOGIN = '/api/login_user';
+    var _NW_TEST_TIMEOUT = 5000;
+    var _NW_LOGIN_TIMEOUT = 8000;
 
     function _nwEsc(s) {
       var d = document.createElement('div');
@@ -5142,9 +5146,9 @@
       _nwSaveServers(servers);
       _nwRenderPopup();
 
-      var testUrl = srv.url ? srv.url + '/api/federation/info' : '/api/federation/info';
+      var testUrl = srv.url ? srv.url + _NW_API_INFO : _NW_API_INFO;
       var controller = new AbortController();
-      var timeout = setTimeout(function() { controller.abort(); }, 5000);
+      var timeout = setTimeout(function() { controller.abort(); }, _NW_TEST_TIMEOUT);
       fetch(testUrl, { signal: controller.signal }).then(function(resp) {
         clearTimeout(timeout);
         srv.status = resp.ok ? 'ok' : 'error';
@@ -5172,9 +5176,9 @@
       _nwSaveServers(servers);
       _nwRenderPopup();
 
-      var loginUrl = srv.url ? srv.url + '/api/login_user' : '/api/login_user';
+      var loginUrl = srv.url ? srv.url + _NW_API_LOGIN : _NW_API_LOGIN;
       var controller = new AbortController();
-      var timeout = setTimeout(function() { controller.abort(); }, 8000);
+      var timeout = setTimeout(function() { controller.abort(); }, _NW_LOGIN_TIMEOUT);
       fetch(loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
