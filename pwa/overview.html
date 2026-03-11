@@ -760,11 +760,10 @@
       unknown: getMilSymbolSvg('SUGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
       marker: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>',
       pending: getMilSymbolSvg('SPGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>',
-      cbt_hostile: getMilSymbolSvg('SHGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      // cbt_friendly: Meshtastic-style circle with shortName (default cyan)
-      cbt_friendly: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#00ffff" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>',
-      cbt_neutral: getMilSymbolSvg('SNGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
-      cbt_unknown: getMilSymbolSvg('SUGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
+      cbt_hostile: '<img src="/assets/symbols/cbt_hostile.svg" width="35" height="35" alt="cbt_hostile" style="display:block">',
+      cbt_friendly: '<img src="/assets/symbols/cbt_friendly.svg" width="35" height="35" alt="cbt_friendly" style="display:block">',
+      cbt_neutral: '<img src="/assets/symbols/cbt_neutral.svg" width="35" height="35" alt="cbt_neutral" style="display:block">',
+      cbt_unknown: '<img src="/assets/symbols/cbt_unknown.svg" width="35" height="35" alt="cbt_unknown" style="display:block">',
       // tak_maker: ATAK SA / GPS position markers rendered as CBT-designated friendly
       tak_maker: getMilSymbolSvg('SFGPU----------', 35, { uniqueDesignation: 'CBT' }) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/><text x="50" y="57" font-size="22" fill="black" text-anchor="middle" font-weight="bold" font-family="sans-serif">CBT</text></svg>',
       // Meshtastic node types rendered as cyan circle with shortName
@@ -1859,15 +1858,6 @@
           if (m.type === 'tak_maker') {
             const makerTeam = (m.data && m.data.team) || null;
             iconHtml = getTakMakerSvg(m.name, makerTeam);
-          } else if (m.type === 'cbt_friendly') {
-            // cbt_friendly renders as a Meshtastic-style circle with shortName
-            const shortName = (m.data && (m.data.shortName || m.data.short_name)) || '';
-            const teamName = (m.data && m.data.team) || null;
-            const teamColor = (teamName && TAK_TEAM_COLORS[teamName]) || '#00ffff';
-            const iconLabel = _escapeHtml(shortName) || 'M';
-            const lightColors = new Set(['#00ffff', '#ffff00', '#ffffff', '#00c800']);
-            const textColor = lightColors.has(teamColor) ? '#1a1a1a' : '#ffffff';
-            iconHtml = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="${teamColor}" stroke="black" stroke-width="5"/><text x="50" y="57" font-size="22" fill="${textColor}" text-anchor="middle" font-weight="bold" font-family="sans-serif">${iconLabel}</text></svg>`;
           } else {
             // Robust icon selection: check m.type, then m.name, then fallback to hostile
             const iconType = m.type || m.name || 'hostile';
