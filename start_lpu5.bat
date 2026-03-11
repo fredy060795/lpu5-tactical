@@ -43,7 +43,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-for /f "delims=" %%V in ('!PYTHON_CMD! -c "import sys; print('.'.join(map(str,sys.version_info[:2])))"') do set "PY_VER=%%V"
+for /f "tokens=2 delims= " %%V in ('!PYTHON_CMD! --version 2^>^&1') do set "PY_VER=%%V"
 echo [INFO] Python version: !PY_VER!  (command: !PYTHON_CMD!)
 
 REM Warning if local meshtastic.py shadows package imports
