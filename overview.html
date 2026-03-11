@@ -4221,9 +4221,7 @@
               if (pending <= 0) {
                 if (anyOnline) {
                   _connStatus = 'online';
-                } else if (typeof meshtasticClient !== 'undefined' && meshtasticClient && meshtasticClient.isConnected) {
-                  _connStatus = 'cot';
-                } else if (localStorage.getItem('lpu5_cot_mesh_key')) {
+                } else if ((typeof meshtasticClient !== 'undefined' && meshtasticClient && meshtasticClient.isConnected) || localStorage.getItem('lpu5_cot_mesh_key')) {
                   _connStatus = 'cot';
                 } else {
                   _connStatus = 'offline';
@@ -5172,7 +5170,10 @@
         h += '<div style="margin-top:12px;">';
         for (var j = 0; j < servers.length; j++) {
           var s = servers[j];
-          var dotCls = s.status === 'ok' ? 'nw-dot-green' : (s.status === 'cot' ? 'nw-dot-yellow' : (s.status === 'checking' ? 'nw-dot-yellow' : (s.status === 'error' ? 'nw-dot-red' : 'nw-dot-gray')));
+          var dotCls = 'nw-dot-gray';
+          if (s.status === 'ok') dotCls = 'nw-dot-green';
+          else if (s.status === 'cot' || s.status === 'checking') dotCls = 'nw-dot-yellow';
+          else if (s.status === 'error') dotCls = 'nw-dot-red';
           var border = (s.active && !!currentUserName) ? 'border-color:var(--accent-blue);' : '';
           var dispUrl = s.url || (window.location.protocol + '//' + window.location.host + ' (lokal)');
           var protoLabel = (s.protocol || 'https').toUpperCase();
@@ -5523,10 +5524,14 @@
             // ── COT Mesh Login QR Code ──
             if (data.type === 'cot_mesh_login') {
               var host = data.host || '';
+              var masterKey = data.master_key || '';
+              if (!host || !masterKey) {
+                _nwShowMsg('Ungültiger COT Mesh QR-Code: Host oder Master-Key fehlt.', 'error');
+                return;
+              }
               var port = data.port ? String(data.port) : '8101';
               var protocol = data.protocol || 'https';
               var name = data.name || 'COT Mesh Server';
-              var masterKey = data.master_key || '';
               var cotTcpPort = data.cot_tcp_port || 8088;
               var cotUdpPort = data.cot_udp_port || 4242;
               var url = _nwBuildUrl(protocol, host, port);
