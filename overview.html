@@ -5402,7 +5402,7 @@
             if (!host && url) { var parsed = _nwParseUrl(url); host = parsed.host; if (!port) port = parsed.port; protocol = parsed.protocol; }
             if (!url && host) { url = _nwBuildUrl(protocol, host, port); }
             var servers = _nwGetServers();
-            servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), host: host, port: String(port), protocol: protocol, user: user, pass: pass, status: 'unknown', active: false });
+            servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), host: host, port: port ? String(port) : '', protocol: protocol, user: user, pass: pass, status: 'unknown', active: false });
             _nwSaveServers(servers);
             _nwRenderPopup();
             _nwShowMsg('Server "' + _nwEsc(name) + '" via QR hinzugefügt.', 'success');
