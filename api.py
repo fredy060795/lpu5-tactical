@@ -10229,10 +10229,12 @@ def _ensure_rtl_tcp(host: str = _RTL_TCP_DEFAULT_HOST,
 
         # Process started but never became reachable — capture stderr.
         stderr_text = ""
-        if _RTL_TCP_PROC.poll() is not None and _RTL_TCP_PROC.stderr:
-            # Process has exited — safe to read all remaining stderr.
+        if _RTL_TCP_PROC.poll() is not None:
+            # Process has exited — use communicate() which is safe against
+            # pipe-buffer deadlocks and handles cleanup correctly.
             try:
-                stderr_text = _RTL_TCP_PROC.stderr.read().decode("utf-8", errors="replace").strip()
+                _, stderr_bytes = _RTL_TCP_PROC.communicate(timeout=2)
+                stderr_text = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
             except Exception:
                 pass
         if stderr_text:
@@ -10627,8 +10629,10 @@ def sdr_connect_device(data: dict = Body(...)):
             )
         raise HTTPException(status_code=503, detail=detail)
 
-    # Detect USB permission error even when hardware was found by other means
-    # (e.g. device visible via lsusb but rtl_tcp could not open it).
+    # Detect USB permission error when rtl_tcp failed to start — e.g. hardware
+    # visible via lsusb/pyserial (hw_available=True) but rtl_tcp could not open
+    # it due to a missing WinUSB driver.  When rtl_tcp is connected successfully
+    # there is no USB error to report.
     usb_permission_error = _is_usb_permission_error() if not rtl_tcp_ok else False
 
     if rtl_tcp_ok:
