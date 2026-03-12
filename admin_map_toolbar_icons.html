@@ -628,6 +628,14 @@
   line-height: 1.4;
 }
 
+.chat-message-image {
+  max-width: 100%;
+  border-radius: 6px;
+  margin-top: 6px;
+  cursor: pointer;
+  display: block;
+}
+
 .chat-window-footer {
   background: #0a0a0a;
   border-top: 1px solid #333;
@@ -936,6 +944,12 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+  function renderChatMsgContent(msg) {
+    if (msg.type === 'image' && msg.text) {
+      return '<img src="' + escapeHtml(msg.text) + '" class="chat-message-image" alt="Bild">';
+    }
+    return '<div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>';
   }
 
   // Check for incoming messages periodically
@@ -1298,7 +1312,7 @@
           else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
           statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
         }
-        messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + escapeHtml(time) + '</span></div><div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>' + statusHtml;
+        messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + escapeHtml(time) + '</span></div>' + renderChatMsgContent(msg) + statusHtml;
         messagesContainer.appendChild(messageEl);
       });
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
