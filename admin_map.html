@@ -928,6 +928,7 @@
     <div class="icon-btn" data-flyout="fly-draw" title="Draw"><i class="fas fa-pen-nib"></i></div>
     <div class="icon-btn" data-flyout="fly-symbols" title="Symbols"><i class="fas fa-map-marker-alt"></i></div>
     <div class="icon-btn" data-flyout="fly-layer-toggle" title="Overlays"><i class="fas fa-layer-group"></i></div>
+    <div class="icon-btn" data-flyout="fly-contacts" title="Contacts"><i class="fas fa-address-book"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
     <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
     <!-- <div class="icon-btn" id="intelLayerToggleBtn" data-flyout="fly-intel" title="Intel Filter"><i class="fas fa-satellite-dish"></i></div> -->
@@ -1067,6 +1068,18 @@
 
     <div id="layer-toggle-list">
       <!-- Items rendered by initLayerToggleFlyout() -->
+    </div>
+  </div>
+
+  <!-- Flyout: Contacts -->
+  <div id="fly-contacts" class="icon-flyout" role="dialog" aria-hidden="true" style="max-height:70vh;overflow-y:auto;">
+    <h4>Contacts</h4>
+    <div style="font-size:.82rem;color:#888;margin-bottom:10px;"><i class="fas fa-info-circle"></i> Alle gesehenen/gehörten Kontakte</div>
+    <div id="contacts-list">
+      <!-- Items rendered by renderContactsFlyout() -->
+    </div>
+    <div style="margin-top:8px;text-align:right;">
+      <button class="btn ghost" style="font-size:.8rem;color:#e74c3c;border-color:#e74c3c;" onclick="contactsDeleteAll()"><i class="fas fa-trash"></i> Alle löschen</button>
     </div>
   </div>
 
@@ -2182,6 +2195,141 @@
         if (!was) { fly.classList.add('open'); fly.setAttribute('aria-hidden', 'false'); }
       }));
       document.addEventListener('click', (ev) => { if (!ev.target.closest('.icon-flyout') && !ev.target.closest('.icon-btn')) closeAllFlyouts(); });
+
+      // ─── Contacts Flyout: Known Contacts List ─────────────────────
+      var _CONTACTS_KEY = 'lpu5_contacts_admin';
+
+      function _contactsGetStored() {
+        try { return JSON.parse(localStorage.getItem(_CONTACTS_KEY) || '{}'); } catch (e) { return {}; }
+      }
+      function _contactsSaveStored(obj) {
+        try { localStorage.setItem(_CONTACTS_KEY, JSON.stringify(obj)); } catch (e) { }
+      }
+
+      function _contactsBuildList() {
+        var stored = _contactsGetStored();
+        var contacts = {};
+
+        // 1) Symbols from loadMapSymbols() → symbols array
+        for (var i = 0; i < symbols.length; i++) {
+          var s = symbols[i];
+          var ll = s.marker.getLatLng();
+          if (!ll) continue;
+          var sPop = '';
+          try { sPop = s.marker.getPopup() ? s.marker.getPopup().getContent() : ''; } catch (ex) { }
+          var sNameMatch = sPop.match(/<strong>([^<]+)<\/strong>/);
+          var sName = sNameMatch ? sNameMatch[1] : (s.sym || 'Symbol');
+          var sType = sPop.indexOf('GPS Position') !== -1 ? 'gps' : 'symbol';
+          contacts['sym_' + s.id] = {
+            id: 'sym_' + s.id,
+            name: escapeHtml(sName),
+            type: sType,
+            lat: ll.lat,
+            lng: ll.lng,
+            lastSeen: Date.now()
+          };
+        }
+
+        // 2) Meshtastic nodes → meshtasticMarkers
+        for (var meshEntry of meshtasticMarkers) {
+          var meshId = meshEntry[0], entry = meshEntry[1];
+          var mll = entry.marker.getLatLng();
+          if (!mll) continue;
+          var nd = entry.data || {};
+          var sn = nd.shortName || nd.short_name || (nd.user && nd.user.shortName) || '';
+          var ln = nd.longName || nd.long_name || nd.name || (nd.user && nd.user.longName) || nd.callsign || meshId;
+          contacts['mesh_' + meshId] = {
+            id: 'mesh_' + meshId,
+            name: escapeHtml(ln),
+            shortName: escapeHtml(sn),
+            type: 'meshtastic',
+            lat: mll.lat,
+            lng: mll.lng,
+            lastSeen: Date.now()
+          };
+        }
+
+        // Merge with stored contacts (keep stored ones that are no longer live)
+        for (var k in stored) {
+          if (!contacts[k]) {
+            stored[k]._offline = true;
+            contacts[k] = stored[k];
+          }
+        }
+
+        _contactsSaveStored(contacts);
+        return contacts;
+      }
+
+      function contactsZoomTo(lat, lng) {
+        closeAllFlyouts();
+        if (map) map.setView([lat, lng], 17, { animate: true });
+      }
+
+      function contactsDelete(cid) {
+        var stored = _contactsGetStored();
+        delete stored[cid];
+        _contactsSaveStored(stored);
+        renderContactsFlyout();
+      }
+
+      function contactsDeleteAll() {
+        _contactsSaveStored({});
+        renderContactsFlyout();
+      }
+
+      function renderContactsFlyout() {
+        var listEl = document.getElementById('contacts-list');
+        if (!listEl) return;
+        var contacts = _contactsBuildList();
+        var keys = Object.keys(contacts);
+        var h = '';
+
+        if (keys.length === 0) {
+          h = '<div style="color:#666;text-align:center;padding:15px;">Keine Kontakte gefunden</div>';
+        } else {
+          keys.sort(function(a, b) {
+            var ca = contacts[a], cb = contacts[b];
+            if (ca._offline && !cb._offline) return 1;
+            if (!ca._offline && cb._offline) return -1;
+            return (ca.name || '').localeCompare(cb.name || '');
+          });
+
+          for (var i = 0; i < keys.length; i++) {
+            var c = contacts[keys[i]];
+            var typeIcon = 'fas fa-question-circle';
+            var typeColor = '#888';
+            var typeLabel = 'Unknown';
+            if (c.type === 'meshtastic') { typeIcon = 'fab fa-bluetooth-b'; typeColor = '#00ffff'; typeLabel = 'Mesh'; }
+            else if (c.type === 'gps') { typeIcon = 'fas fa-location-arrow'; typeColor = '#007bff'; typeLabel = 'GPS'; }
+            else if (c.type === 'symbol') { typeIcon = 'fas fa-map-marker-alt'; typeColor = '#e67e22'; typeLabel = 'Symbol'; }
+
+            var offlineStyle = c._offline ? 'opacity:0.5;' : '';
+            var offlineBadge = c._offline ? ' <span style="font-size:0.7em;color:#e74c3c;">(offline)</span>' : '';
+
+            h += '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid #333;border-radius:5px;' + offlineStyle + '">';
+            h += '<i class="' + typeIcon + '" style="color:' + typeColor + ';font-size:1em;width:18px;text-align:center;flex-shrink:0"></i>';
+            h += '<div style="flex:1;min-width:0;overflow:hidden;">';
+            h += '<div style="font-weight:bold;font-size:0.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (c.name || 'Unknown') + offlineBadge + '</div>';
+            h += '<div style="font-size:0.7em;color:#888;">' + typeLabel;
+            if (c.shortName) h += ' · ' + c.shortName;
+            h += '</div></div>';
+            h += '<button onclick="contactsZoomTo(' + c.lat + ',' + c.lng + ')" style="background:none;border:1px solid #007bff;color:#007bff;border-radius:3px;padding:3px 6px;cursor:pointer;font-size:0.75em;flex-shrink:0" title="Zoom"><i class="fas fa-search-location"></i></button>';
+            h += '<button onclick="contactsDelete(\'' + c.id + '\')" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:3px;padding:3px 6px;cursor:pointer;font-size:0.75em;flex-shrink:0" title="Delete"><i class="fas fa-trash-alt"></i></button>';
+            h += '</div>';
+          }
+        }
+
+        listEl.innerHTML = h;
+      }
+
+      // Refresh contacts list whenever the flyout opens
+      var _contactsFlyout = document.getElementById('fly-contacts');
+      if (_contactsFlyout) {
+        new MutationObserver(function(muts) {
+          if (_contactsFlyout.classList.contains('open')) renderContactsFlyout();
+        }).observe(_contactsFlyout, { attributes: true, attributeFilter: ['class'] });
+      }
 
       // SETTINGS UI
       const settingsList = document.getElementById('settingsList');

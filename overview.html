@@ -5254,6 +5254,7 @@
       html += sidebarTile('tile-video',  'fas fa-video',       'Video', "openMenuPopup('video')");
       html += sidebarTile('tile-mesh',   'fab fa-bluetooth-b', 'Mesh',  "openMenuPopup('mesh')");
       html += sidebarTile('tile-team',   'fas fa-users',       'Team',  "openMenuPopup('team')");
+      html += sidebarTile('tile-contacts','fas fa-address-book','Contacts',"openMenuPopup('contacts')");
       html += sidebarTile('tile-sync',   'fas fa-sync-alt',    'Sync',  'closeHamburgerMenu();refreshAllData()');
       html += sidebarTile('tile-night', 'fas fa-moon', 'Nacht', 'closeHamburgerMenu();toggleNightMode()');
       grid.innerHTML = html;
@@ -5374,6 +5375,10 @@
         netzwerk: {
           title: 'NETZWERK',
           html: ''
+        },
+        contacts: {
+          title: 'CONTACTS',
+          html: ''
         }
       };
 
@@ -5396,7 +5401,178 @@
       if (section === 'netzwerk') { _nwRenderPopup(); }
       // Team popup: render dynamic team content
       if (section === 'team') { _teamRenderPopup(); }
+      // Contacts popup: render dynamic contacts list
+      if (section === 'contacts') { _contactsRenderPopup(); }
     };
+
+    // ─── Contacts: Known Contacts List ───────────────────────────────
+    // Collects all seen/heard contacts from serverMarkerLayers (ATAK/CoT),
+    // meshtasticMarkers (mesh nodes), and symbolLayers (GPS positions).
+    // Persisted in localStorage so contacts survive page reloads.
+    var _CONTACTS_KEY = 'lpu5_contacts_seen';
+
+    function _contactsGetStored() {
+      try { return JSON.parse(localStorage.getItem(_CONTACTS_KEY) || '{}'); } catch (e) { return {}; }
+    }
+    function _contactsSaveStored(obj) {
+      try { localStorage.setItem(_CONTACTS_KEY, JSON.stringify(obj)); } catch (e) { }
+    }
+
+    // Build a snapshot of all currently visible contacts from live map data
+    function _contactsBuildList() {
+      var stored = _contactsGetStored();
+      var contacts = {}; // keyed by unique id
+
+      // 1) ATAK / CoT markers from sync() → serverMarkerLayers
+      for (var serverEntry of serverMarkerLayers) {
+        var id = serverEntry[0], layer = serverEntry[1];
+        var ll = layer.getLatLng();
+        if (!ll) continue;
+        var name = layer._serverId || id;
+        // Try to extract name from popup content
+        var popContent = '';
+        try { popContent = layer.getPopup() ? layer.getPopup().getContent() : ''; } catch (ex) { }
+        var nameMatch = popContent.match(/<strong>([^<]+)<\/strong>/);
+        var displayName = nameMatch ? nameMatch[1] : (name || 'Unknown');
+        contacts['srv_' + id] = {
+          id: 'srv_' + id,
+          name: _escapeHtml(displayName),
+          type: 'atak',
+          lat: ll.lat,
+          lng: ll.lng,
+          lastSeen: Date.now()
+        };
+      }
+
+      // 2) Meshtastic nodes from updateMeshtasticNodes() → meshtasticMarkers
+      for (var meshEntry of meshtasticMarkers) {
+        var meshId = meshEntry[0], entry = meshEntry[1];
+        var mll = entry.marker.getLatLng();
+        if (!mll) continue;
+        var nd = entry.data || {};
+        var sn = nd.shortName || nd.short_name || (nd.user && nd.user.shortName) || '';
+        var ln = nd.longName || nd.long_name || nd.name || (nd.user && nd.user.longName) || nd.callsign || meshId;
+        contacts['mesh_' + meshId] = {
+          id: 'mesh_' + meshId,
+          name: _escapeHtml(ln),
+          shortName: _escapeHtml(sn),
+          type: 'meshtastic',
+          lat: mll.lat,
+          lng: mll.lng,
+          lastSeen: Date.now()
+        };
+      }
+
+      // 3) GPS position symbols from loadMapSymbols() → symbolLayers
+      for (var symbolEntry of symbolLayers) {
+        var sid = symbolEntry[0], slayer = symbolEntry[1];
+        var sll = slayer.getLatLng();
+        if (!sll) continue;
+        var sPop = '';
+        try { sPop = slayer.getPopup() ? slayer.getPopup().getContent() : ''; } catch (ex) { }
+        var sNameMatch = sPop.match(/<strong>([^<]+)<\/strong>/);
+        var sName = sNameMatch ? sNameMatch[1] : ('Symbol ' + sid);
+        var sType = sPop.indexOf('GPS Position') !== -1 ? 'gps' : 'symbol';
+        contacts['sym_' + sid] = {
+          id: 'sym_' + sid,
+          name: _escapeHtml(sName),
+          type: sType,
+          lat: sll.lat,
+          lng: sll.lng,
+          lastSeen: Date.now()
+        };
+      }
+
+      // Merge with stored contacts (keep stored ones that are no longer live)
+      for (var k in stored) {
+        if (!contacts[k]) {
+          stored[k]._offline = true;
+          contacts[k] = stored[k];
+        }
+      }
+
+      // Save updated contacts
+      _contactsSaveStored(contacts);
+      return contacts;
+    }
+
+    function _contactsZoomTo(lat, lng) {
+      closeMenuPopup();
+      if (map) map.setView([lat, lng], 17, { animate: true });
+    }
+
+    function _contactsDelete(cid) {
+      var stored = _contactsGetStored();
+      delete stored[cid];
+      _contactsSaveStored(stored);
+      _contactsRenderPopup();
+    }
+
+    function _contactsDeleteAll() {
+      _contactsSaveStored({});
+      _contactsRenderPopup();
+    }
+
+    function _contactsRenderPopup() {
+      var body = document.getElementById('menu-popup-body');
+      if (!body) return;
+      var contacts = _contactsBuildList();
+      var keys = Object.keys(contacts);
+      var h = '';
+
+      h += '<div style="font-size:0.8em;color:#888;margin-bottom:8px;">';
+      h += '<i class="fas fa-info-circle"></i> Alle gesehenen/gehörten Kontakte';
+      h += '</div>';
+
+      if (keys.length === 0) {
+        h += '<div style="color:#666;text-align:center;padding:20px;">Keine Kontakte gefunden</div>';
+      } else {
+        h += '<div style="margin-bottom:8px;text-align:right;">';
+        h += '<button class="menu-btn" style="display:inline-flex;width:auto;padding:4px 10px;font-size:0.8em;background:rgba(231,76,60,0.15);border-color:#e74c3c;color:#e74c3c;" onclick="event.stopPropagation();_contactsDeleteAll()">';
+        h += '<i class="fas fa-trash"></i> Alle löschen</button></div>';
+
+        // Sort: online first, then alphabetically
+        keys.sort(function(a, b) {
+          var ca = contacts[a], cb = contacts[b];
+          if (ca._offline && !cb._offline) return 1;
+          if (!ca._offline && cb._offline) return -1;
+          return (ca.name || '').localeCompare(cb.name || '');
+        });
+
+        for (var i = 0; i < keys.length; i++) {
+          var c = contacts[keys[i]];
+          var typeIcon = 'fas fa-question-circle';
+          var typeColor = '#888';
+          var typeLabel = 'Unknown';
+          if (c.type === 'atak') { typeIcon = 'fas fa-crosshairs'; typeColor = '#0088ff'; typeLabel = 'ATAK'; }
+          else if (c.type === 'meshtastic') { typeIcon = 'fab fa-bluetooth-b'; typeColor = '#00ffff'; typeLabel = 'Mesh'; }
+          else if (c.type === 'gps') { typeIcon = 'fas fa-location-arrow'; typeColor = '#007bff'; typeLabel = 'GPS'; }
+          else if (c.type === 'symbol') { typeIcon = 'fas fa-map-marker-alt'; typeColor = '#e67e22'; typeLabel = 'Symbol'; }
+
+          var offlineStyle = c._offline ? 'opacity:0.5;' : '';
+          var offlineBadge = c._offline ? ' <span style="font-size:0.7em;color:#e74c3c;">(offline)</span>' : '';
+
+          h += '<div class="contact-item" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid #333;border-radius:6px;' + offlineStyle + '">';
+          h += '<i class="' + typeIcon + '" style="color:' + typeColor + ';font-size:1.1em;width:20px;text-align:center;flex-shrink:0"></i>';
+          h += '<div style="flex:1;min-width:0;overflow:hidden;">';
+          h += '<div style="font-weight:bold;font-size:0.9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (c.name || 'Unknown') + offlineBadge + '</div>';
+          h += '<div style="font-size:0.7em;color:#888;">' + typeLabel;
+          if (c.shortName) h += ' · ' + c.shortName;
+          h += '</div>';
+          h += '</div>';
+          h += '<button onclick="event.stopPropagation();_contactsZoomTo(' + c.lat + ',' + c.lng + ')" style="background:none;border:1px solid #007bff;color:#007bff;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:0.8em;flex-shrink:0" title="Zoom zur Position"><i class="fas fa-search-location"></i></button>';
+          h += '<button onclick="event.stopPropagation();_contactsDelete(\'' + c.id + '\')" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:0.8em;flex-shrink:0" title="Aus Liste entfernen"><i class="fas fa-trash-alt"></i></button>';
+          h += '</div>';
+        }
+      }
+
+      body.innerHTML = h;
+    }
+
+    // Expose contacts functions for inline onclick handlers
+    window._contactsZoomTo = _contactsZoomTo;
+    window._contactsDelete = _contactsDelete;
+    window._contactsDeleteAll = _contactsDeleteAll;
 
     // ─── Netzwerk: Server Connection Manager ───────────────────────
     var _NW_KEY = 'lpu5_nw_servers';
