@@ -1522,7 +1522,7 @@ def _ingest_atak_geochat(root) -> bool:
         # delivers a second copy).  The key is sender+text; if the
         # identical text from the same sender was already ingested
         # within the last _GEOCHAT_SEEN_CONTENT_TTL seconds, skip it.
-        content_key = hashlib.md5(
+        content_key = hashlib.sha256(
             f"{sender_callsign}\n{text}".encode("utf-8", errors="replace")
         ).hexdigest()
         now_content = time.time()
