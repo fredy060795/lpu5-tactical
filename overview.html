@@ -5508,17 +5508,26 @@
 
           // ── Team entry ──
           if (s.is_team) {
+            var teamHasServer = !!(s.host);
+            var teamDotCls = teamHasServer ? (s.status === 'ok' || s.active ? 'nw-dot-green' : s.status === 'error' ? 'nw-dot-red' : 'nw-dot-yellow') : 'nw-dot-green';
             h += '<div class="nw-srv-item" style="border-color:rgba(46,204,113,0.4);">';
             h += '<div class="nw-srv-header">';
-            h += '<span class="nw-dot nw-dot-green"></span>';
+            h += '<span class="nw-dot ' + teamDotCls + '"></span>';
             h += '<span class="nw-srv-name"><i class="fas fa-users" style="margin-right:5px;color:#2ecc71;"></i>' + _nwEsc(s.name) + '</span>';
             h += '<span class="nw-srv-proto" style="background:rgba(46,204,113,0.2);border-color:rgba(46,204,113,0.4);color:#2ecc71;">TEAM</span>';
             h += '<button class="nw-srv-del" onclick="event.stopPropagation();_nwRemoveTeam(\'' + _nwEsc(s.id) + '\')" title="Team verlassen">&times;</button>';
             h += '</div>';
-            h += '<div class="nw-srv-url" style="color:#2ecc71;">COT Only – kein Server nötig</div>';
+            if (teamHasServer) {
+              h += '<div class="nw-srv-url" style="color:#3498db;"><i class="fas fa-server" style="font-size:0.7em;margin-right:4px;"></i>' + _nwEsc(s.url || (s.protocol + '://' + s.host + ':' + s.port)) + '</div>';
+            } else {
+              h += '<div class="nw-srv-url" style="color:#f39c12;">COT Only – kein Server</div>';
+            }
             h += '<div class="nw-srv-user"><i class="fas fa-user" style="font-size:0.7em;margin-right:4px;"></i>' + _nwEsc(s.user || '---') + '</div>';
             h += '<div class="nw-srv-actions">';
             h += '<button class="nw-srv-btn" style="background:rgba(46,204,113,0.15);border-color:#2ecc71;color:#2ecc71;" onclick="event.stopPropagation();_teamShowQrInNetzwerk(\'' + _nwEsc(s.id) + '\')"><i class="fas fa-qrcode"></i> QR-Code</button>';
+            if (teamHasServer && !s.active) {
+              h += '<button class="nw-srv-btn" style="background:rgba(52,152,219,0.15);border-color:#3498db;color:#3498db;" onclick="event.stopPropagation();_nwConnect(\'' + _nwEsc(s.id) + '\')"><i class="fas fa-plug"></i> Verbinden</button>';
+            }
             h += '<button class="nw-srv-btn" style="background:rgba(52,152,219,0.15);border-color:#3498db;color:#3498db;" onclick="event.stopPropagation();closeMenuPopup();setTimeout(function(){openMenuPopup(\'team\');},150)"><i class="fas fa-info-circle"></i> Team Info</button>';
             h += '</div>';
             h += '<div id="nw-team-qr-' + _nwEsc(s.id) + '" style="display:none;margin-top:8px;"></div>';
@@ -5903,45 +5912,106 @@
       try {
         var data = JSON.parse(qrString);
 
-        // ── Handle Team QR codes ──
+        // ── Handle Team QR codes (with server connection info) ──
         if (data.type === 'cot_team' && data.team_id && data.team_name) {
-          _teamEnsureCallsign(function(callsign) {
-            var teamData = {
-              type: 'cot_team',
-              team_name: data.team_name,
-              team_id: data.team_id,
-              created_by: data.created_by || '',
-              members: [callsign],
-              joined_at: new Date().toISOString()
-            };
-            _teamSaveData(teamData);
-            // Add team entry to server list
-            var existingServers = _nwGetServers();
-            var alreadyExists = false;
-            for (var t = 0; t < existingServers.length; t++) {
-              if (existingServers[t].team_id === data.team_id) { alreadyExists = true; break; }
-            }
-            if (!alreadyExists) {
-              existingServers.push({
-                id: data.team_id,
-                name: data.team_name,
-                url: '',
-                host: '',
-                port: '',
-                protocol: 'cot',
-                user: callsign,
-                pass: '',
-                status: 'ok',
-                active: false,
-                is_team: true,
+          var hasServerInfo = !!(data.host);
+          if (hasServerInfo) {
+            // Server info present – prompt for Callsign + Password (self-certification)
+            _teamEnsureCredentials(function(callsign, password) {
+              var host = data.host || '';
+              var port = data.port ? String(data.port) : '8101';
+              var protocol = data.protocol || 'https';
+              var url = _nwBuildUrl(protocol, host, port);
+
+              var teamData = {
+                type: 'cot_team',
+                team_name: data.team_name,
                 team_id: data.team_id,
-                team_data: teamData
-              });
-              _nwSaveServers(existingServers);
-            }
-            _nwRenderPopup();
-            _nwShowMsg('Team "' + _nwEsc(data.team_name) + '" beigetreten!', 'success');
-          });
+                created_by: data.created_by || '',
+                members: [callsign],
+                joined_at: new Date().toISOString(),
+                host: host,
+                port: data.port || 8101,
+                protocol: protocol,
+                ssl: !!data.ssl
+              };
+              if (data.cot_tcp_port) teamData.cot_tcp_port = data.cot_tcp_port;
+              if (data.cot_udp_port) teamData.cot_udp_port = data.cot_udp_port;
+              if (data.all_ips) teamData.all_ips = data.all_ips;
+              _teamSaveData(teamData);
+
+              // Store COT ports if provided
+              if (data.cot_tcp_port) localStorage.setItem('lpu5_cot_tcp_port', String(data.cot_tcp_port));
+              if (data.cot_udp_port) localStorage.setItem('lpu5_cot_udp_port', String(data.cot_udp_port));
+
+              // Add team server entry to Netzwerk list (with real connection data)
+              var existingServers = _nwGetServers();
+              var alreadyExists = false;
+              for (var t = 0; t < existingServers.length; t++) {
+                if (existingServers[t].team_id === data.team_id) { alreadyExists = true; break; }
+              }
+              if (!alreadyExists) {
+                existingServers.push({
+                  id: data.team_id,
+                  name: data.team_name,
+                  url: url.replace(/\/+$/, ''),
+                  host: host,
+                  port: port,
+                  protocol: protocol,
+                  user: callsign,
+                  pass: password,
+                  status: 'unknown',
+                  active: false,
+                  is_team: true,
+                  team_id: data.team_id,
+                  team_data: teamData
+                });
+                _nwSaveServers(existingServers);
+              }
+              _nwRenderPopup();
+              _nwShowMsg('Team "' + _nwEsc(data.team_name) + '" beigetreten! Verbinde mit Server...', 'success');
+              // Auto-connect to the team host server
+              setTimeout(function() { _nwConnect(data.team_id); }, 300);
+            });
+          } else {
+            // Legacy / no server info – fallback to COT-only join with callsign only
+            _teamEnsureCallsign(function(callsign) {
+              var teamData = {
+                type: 'cot_team',
+                team_name: data.team_name,
+                team_id: data.team_id,
+                created_by: data.created_by || '',
+                members: [callsign],
+                joined_at: new Date().toISOString()
+              };
+              _teamSaveData(teamData);
+              var existingServers = _nwGetServers();
+              var alreadyExists = false;
+              for (var t = 0; t < existingServers.length; t++) {
+                if (existingServers[t].team_id === data.team_id) { alreadyExists = true; break; }
+              }
+              if (!alreadyExists) {
+                existingServers.push({
+                  id: data.team_id,
+                  name: data.team_name,
+                  url: '',
+                  host: '',
+                  port: '',
+                  protocol: 'cot',
+                  user: callsign,
+                  pass: '',
+                  status: 'ok',
+                  active: false,
+                  is_team: true,
+                  team_id: data.team_id,
+                  team_data: teamData
+                });
+                _nwSaveServers(existingServers);
+              }
+              _nwRenderPopup();
+              _nwShowMsg('Team "' + _nwEsc(data.team_name) + '" beigetreten (COT-Only).', 'success');
+            });
+          }
           return;
         }
 
@@ -6272,6 +6342,63 @@
       };
     }
 
+    /**
+     * Prompts user for Callsign AND Password (self-certification for team join).
+     * Calls `onDone(callsign, password)` when user confirms.
+     */
+    function _teamEnsureCredentials(onDone) {
+      var body = document.getElementById('menu-popup-body') || document.getElementById('nw-popup-body');
+      if (!body) {
+        var callsign = prompt('Callsign eingeben:');
+        if (!callsign || !callsign.trim()) { alert('Callsign ist erforderlich.'); return; }
+        var pass = prompt('Passwort eingeben:');
+        if (!pass || !pass.trim()) { alert('Passwort ist erforderlich.'); return; }
+        onDone(callsign.trim(), pass.trim());
+        return;
+      }
+
+      var prevHtml = body.innerHTML;
+      var h = '';
+      h += '<div style="text-align:center;margin-bottom:14px;">';
+      h += '<i class="fas fa-user-shield" style="font-size:2rem;color:#2ecc71;margin-bottom:6px;display:block;"></i>';
+      h += '<div style="color:#ccc;font-size:0.95em;font-weight:bold;">Team Login – Selbstzertifizierung</div>';
+      h += '<div style="color:#888;font-size:0.78em;margin-top:4px;">Bitte Callsign und Passwort eingeben um dem Team beizutreten.</div>';
+      h += '</div>';
+      h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Name</label>';
+      h += '<input type="text" id="team-cred-name" placeholder="Dein Name" class="nw-input" maxlength="40" style="margin-bottom:8px;">';
+      h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Callsign / Rufzeichen</label>';
+      h += '<input type="text" id="team-cred-callsign" placeholder="z.B. ALPHA-1" class="nw-input" maxlength="30" style="margin-bottom:8px;">';
+      h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Passwort</label>';
+      h += '<input type="password" id="team-cred-password" placeholder="Passwort eingeben" class="nw-input" maxlength="60" style="margin-bottom:12px;">';
+      h += '<button id="team-cred-confirm-btn" class="menu-btn" style="background:rgba(46,204,113,0.2);border-color:#2ecc71;color:#2ecc71;font-weight:bold;justify-content:center;">';
+      h += '<i class="fas fa-sign-in-alt"></i> Beitreten</button>';
+      h += '<button id="team-cred-cancel-btn" class="menu-btn" style="margin-top:6px;justify-content:center;">';
+      h += '<i class="fas fa-times"></i> Abbrechen</button>';
+      body.innerHTML = h;
+
+      document.getElementById('team-cred-confirm-btn').onclick = function(e) {
+        e.stopPropagation();
+        var nameVal = (document.getElementById('team-cred-name').value || '').trim();
+        var csVal   = (document.getElementById('team-cred-callsign').value || '').trim();
+        var pwVal   = (document.getElementById('team-cred-password').value || '').trim();
+        if (!csVal) { alert('Callsign ist erforderlich.'); return; }
+        if (!pwVal) { alert('Passwort ist erforderlich.'); return; }
+        if (!nameVal) nameVal = csVal;
+        localStorage.setItem(_TEAM_LOCAL_CALLSIGN_KEY, csVal);
+        localStorage.setItem(_TEAM_LOCAL_NAME_KEY, nameVal);
+        localStorage.setItem('lpu5_username', csVal);
+        currentUserName = csVal;
+        var outName = document.getElementById('out-name');
+        if (outName) outName.innerText = csVal.toUpperCase();
+        updateSidebarTiles();
+        onDone(csVal, pwVal);
+      };
+      document.getElementById('team-cred-cancel-btn').onclick = function(e) {
+        e.stopPropagation();
+        body.innerHTML = prevHtml;
+      };
+    }
+
     function _teamRenderPopup() {
       var body = document.getElementById('menu-popup-body');
       if (!body) return;
@@ -6304,8 +6431,19 @@
         }
         h += '<div class="team-info-box">';
         h += '<div class="team-info-label">Modus</div>';
-        h += '<div class="team-info-value" style="color:#2ecc71;"><i class="fas fa-broadcast-tower" style="margin-right:6px;"></i>COT Only</div>';
-        h += '</div>';
+        if (team.host) {
+          h += '<div class="team-info-value" style="color:#2ecc71;"><i class="fas fa-server" style="margin-right:6px;"></i>Server-Verbindung</div>';
+          h += '</div>';
+          h += '<div class="team-info-box">';
+          h += '<div class="team-info-label">Host / IP</div>';
+          h += '<div class="team-info-value" style="font-size:0.82em;color:#3498db;word-break:break-all;">';
+          h += '<i class="fas fa-network-wired" style="margin-right:6px;"></i>';
+          h += _teamEsc((team.protocol || 'https') + '://' + team.host + ':' + (team.port || 8101));
+          h += '</div></div>';
+        } else {
+          h += '<div class="team-info-value" style="color:#f39c12;"><i class="fas fa-broadcast-tower" style="margin-right:6px;"></i>COT Only (kein Server)</div>';
+          h += '</div>';
+        }
 
         // Members list
         var members = team.members || [];
@@ -6352,12 +6490,12 @@
         h += '<div style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Team beitreten</div>';
         h += '<div style="font-size:0.82em;color:#666;margin-bottom:8px;">';
         h += '<i class="fas fa-info-circle" style="color:var(--accent-blue);"></i> ';
-        h += 'Um einem Team beizutreten, öffne <b style="color:#ccc;">Netzwerk</b> und scanne den Team-QR-Code über <b style="color:#ccc;">\"Server via QR-Code hinzufügen\"</b>.</div>';
+        h += 'Um einem Team beizutreten, öffne <b style="color:#ccc;">Netzwerk</b> und scanne den Team-QR-Code über <b style="color:#ccc;">\"Server via QR-Code hinzufügen\"</b>. Nach dem Scan Callsign und Passwort eingeben.</div>';
         h += '<button class="menu-btn" style="background:rgba(52,152,219,0.2);border-color:#3498db;color:#3498db;justify-content:center;" onclick="event.stopPropagation();closeMenuPopup();setTimeout(function(){openMenuPopup(\'netzwerk\');},150)">';
         h += '<i class="fas fa-network-wired"></i> Netzwerk öffnen</button>';
 
         h += '<div style="margin-top:10px;text-align:center;font-size:0.72em;color:#555;">';
-        h += '<i class="fas fa-info-circle"></i> Keine IP oder Port nötig – Daten werden nur via COT übertragen.';
+        h += '<i class="fas fa-info-circle"></i> Der Team-QR-Code enthält die Server-IP und Port des Hosts. Callsign und Passwort werden nach dem Scan eingegeben (Selbstzertifizierung).';
         h += '</div>';
       }
 
@@ -6379,31 +6517,58 @@
           members: [callsign],
           created_at: new Date().toISOString()
         };
-        _teamSaveData(teamData);
 
-        // Also add as entry in Netzwerk server list
-        var servers = _nwGetServers();
-        servers.push({
-          id: teamId,
-          name: name,
-          url: '',
-          host: '',
-          port: '',
-          protocol: 'cot',
-          user: callsign,
-          pass: '',
-          status: 'ok',
-          active: false,
-          is_team: true,
-          team_id: teamId,
-          team_data: teamData
+        // Fetch server connection info so QR code contains host IP/port
+        fetch('/api/server_info').then(function(r) {
+          if (!r.ok) throw new Error('server_info request failed');
+          return r.json();
+        }).then(function(info) {
+          teamData.host = info.local_ip || '';
+          teamData.port = info.port || 8101;
+          teamData.protocol = info.protocol || 'https';
+          teamData.ssl = !!info.ssl;
+          teamData.cot_tcp_port = info.cot_tcp_port || 8088;
+          teamData.cot_udp_port = info.cot_udp_port || 4242;
+          teamData.all_ips = info.all_detected_ips || [];
+          _teamFinishCreate(teamData, teamId, name, callsign);
+        }).catch(function() {
+          // Fallback: create team without server info (COT-only mode)
+          _teamFinishCreate(teamData, teamId, name, callsign);
         });
-        _nwSaveServers(servers);
-
-        _teamRenderPopup();
-        // Auto-show QR after creation
-        setTimeout(function() { _teamShowQr(); }, 100);
       });
+    }
+
+    function _teamFinishCreate(teamData, teamId, name, callsign) {
+      _teamSaveData(teamData);
+
+      var url = '';
+      var host = teamData.host || '';
+      var port = teamData.port ? String(teamData.port) : '';
+      var protocol = teamData.protocol || 'https';
+      if (host) { url = _nwBuildUrl(protocol, host, port); }
+
+      // Also add as entry in Netzwerk server list
+      var servers = _nwGetServers();
+      servers.push({
+        id: teamId,
+        name: name,
+        url: url,
+        host: host,
+        port: port,
+        protocol: host ? protocol : 'cot',
+        user: callsign,
+        pass: '',
+        status: host ? 'ok' : 'ok',
+        active: false,
+        is_team: true,
+        team_id: teamId,
+        team_data: teamData
+      });
+      _nwSaveServers(servers);
+
+      _teamRenderPopup();
+      // Auto-show QR after creation
+      setTimeout(function() { _teamShowQr(); }, 100);
     }
 
     function _teamShowQr() {
@@ -6412,12 +6577,23 @@
       var container = document.getElementById('team-qr-display');
       if (!container) return;
 
-      // QR payload: only data needed for joining (no user identity)
-      var payload = JSON.stringify({
+      // QR payload: team info + server connection details for joining
+      var qrData = {
         type: 'cot_team',
         team_name: team.team_name,
         team_id: team.team_id
-      });
+      };
+      // Include server connection info so scanners can find this host
+      if (team.host) {
+        qrData.host = team.host;
+        qrData.port = team.port || 8101;
+        qrData.protocol = team.protocol || 'https';
+        qrData.ssl = !!team.ssl;
+        if (team.cot_tcp_port) qrData.cot_tcp_port = team.cot_tcp_port;
+        if (team.cot_udp_port) qrData.cot_udp_port = team.cot_udp_port;
+        if (team.all_ips && team.all_ips.length > 0) qrData.all_ips = team.all_ips;
+      }
+      var payload = JSON.stringify(qrData);
 
       container.style.display = 'block';
       container.innerHTML = '<div style="text-align:center;color:#888;font-size:0.8em;">QR-Code wird generiert...</div>';
@@ -6456,11 +6632,22 @@
       if (!container) return;
       if (container.style.display === 'block') { container.style.display = 'none'; return; }
 
-      var payload = JSON.stringify({
+      var qrData = {
         type: 'cot_team',
         team_name: srv.team_data.team_name,
         team_id: srv.team_data.team_id
-      });
+      };
+      // Include server connection info so scanners can find this host
+      if (srv.team_data.host) {
+        qrData.host = srv.team_data.host;
+        qrData.port = srv.team_data.port || 8101;
+        qrData.protocol = srv.team_data.protocol || 'https';
+        qrData.ssl = !!srv.team_data.ssl;
+        if (srv.team_data.cot_tcp_port) qrData.cot_tcp_port = srv.team_data.cot_tcp_port;
+        if (srv.team_data.cot_udp_port) qrData.cot_udp_port = srv.team_data.cot_udp_port;
+        if (srv.team_data.all_ips && srv.team_data.all_ips.length > 0) qrData.all_ips = srv.team_data.all_ips;
+      }
+      var payload = JSON.stringify(qrData);
 
       container.style.display = 'block';
       if (typeof _teamGenerateQrCanvas === 'function') {

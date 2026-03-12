@@ -6158,12 +6158,21 @@ def get_server_info():
     key_file = os.path.join(base_path, "key.pem")
     use_ssl = os.path.exists(cert_file) and os.path.exists(key_file)
     protocol = "https" if use_ssl else "http"
+
+    # Read COT listener ports from config
+    cfg = load_json("config") or {}
+    cot_tcp_port = int(cfg.get("cot_listener_tcp_port", 8088))
+    cot_udp_port = int(cfg.get("cot_listener_udp_port", 4242))
     
     return {
         "status": "ok",
         "local_ip": local_ip,
         "all_detected_ips": all_ips,
         "port": 8101,
+        "protocol": protocol,
+        "ssl": use_ssl,
+        "cot_tcp_port": cot_tcp_port,
+        "cot_udp_port": cot_udp_port,
         "base_url": f"{protocol}://{local_ip}:8101",
         "timestamp": datetime.now().isoformat()
     }
