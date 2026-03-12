@@ -501,9 +501,6 @@
             <button class="btn" onclick="createCOTMeshQR()" data-permission="users.create" style="background:rgba(243,156,18,0.2); border-color:#f39c12; color:#f39c12;">
                 <i class="fas fa-satellite-dish"></i> Create COT Mesh QR
             </button>
-            <button class="btn" id="copyCotMeshBtn" onclick="copyCOTMeshData()" disabled data-permission="users.create">
-                <i class="fas fa-copy"></i> Copy Data
-            </button>
         </div>
 
         <div id="cotMeshPreviewArea" style="display:none; margin-top:12px; text-align:center;">
@@ -1035,34 +1032,14 @@
           if (png) {
             area.innerHTML =
               '<div style="color:#f39c12;font-weight:bold;margin-bottom:8px;"><i class="fas fa-satellite-dish"></i> COT Mesh Login QR</div>' +
-              '<img src="data:image/png;base64,' + png + '" alt="COT Mesh QR" width="260" height="260" style="border:2px solid #f39c12;border-radius:8px;">' +
-              '<div style="margin-top:8px;color:#888;font-size:0.8em;">Master-Key: <code>' + (body.qr.master_key || '---') + '</code></div>';
+              '<img src="data:image/png;base64,' + png + '" alt="COT Mesh QR" width="260" height="260" style="border:2px solid #f39c12;border-radius:8px;">';
           } else {
             area.innerHTML = '<div class="small">QR created (PNG not available)</div>';
           }
         }
-        window._lastCotMeshQR = body;
-        const copyBtn = document.getElementById('copyCotMeshBtn');
-        if (copyBtn) copyBtn.disabled = false;
       } catch (e) {
         console.error('createCOTMeshQR', e);
         alert('COT Mesh QR creation failed: ' + (e.message || e));
-      }
-    }
-
-    function copyCOTMeshData() {
-      try {
-        if (!window._lastCotMeshQR) return alert('No COT Mesh QR data to copy');
-        const payload = window._lastCotMeshQR.qr && window._lastCotMeshQR.qr.payload
-          ? window._lastCotMeshQR.qr.payload : {};
-        const text = JSON.stringify(payload, null, 2);
-        navigator.clipboard.writeText(text).then(
-          function() { alert('COT Mesh data copied to clipboard'); },
-          function(err) { alert('Copy failed: ' + err); }
-        );
-      } catch (e) {
-        console.error('copyCOTMeshData', e);
-        alert('Error copying: ' + (e.message || e));
       }
     }
 </script>
