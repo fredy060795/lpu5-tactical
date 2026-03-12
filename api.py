@@ -1472,16 +1472,21 @@ def _ingest_atak_geochat(root) -> bool:
         # The same GeoChat event can arrive via multiple paths (TAK server
         # echo, multicast, TCP relay).  We track recently-seen UIDs so we
         # ingest and relay each event only once.
-        now_ts = time.time()
-        with _GEOCHAT_SEEN_UIDS_LOCK:
-            if event_uid in _GEOCHAT_SEEN_UIDS:
-                logger.debug("ATAK GeoChat: duplicate uid=%s, skipping", event_uid)
-                return False
-            _GEOCHAT_SEEN_UIDS[event_uid] = now_ts
-            # Lazy purge – remove entries older than TTL
-            stale = [k for k, v in _GEOCHAT_SEEN_UIDS.items() if now_ts - v > _GEOCHAT_SEEN_TTL]
-            for k in stale:
-                del _GEOCHAT_SEEN_UIDS[k]
+        # Events without a UID are let through (they will likely fail later
+        # validation anyway) to avoid polluting the cache with empty keys.
+        if event_uid:
+            now_ts = time.time()
+            with _GEOCHAT_SEEN_UIDS_LOCK:
+                if event_uid in _GEOCHAT_SEEN_UIDS:
+                    logger.debug("ATAK GeoChat: duplicate uid=%s, skipping", event_uid)
+                    return False
+                _GEOCHAT_SEEN_UIDS[event_uid] = now_ts
+                # Lazy purge – only when the cache has grown large enough to
+                # justify the iteration cost.
+                if len(_GEOCHAT_SEEN_UIDS) > 200:
+                    stale = [k for k, v in _GEOCHAT_SEEN_UIDS.items() if now_ts - v > _GEOCHAT_SEEN_TTL]
+                    for k in stale:
+                        del _GEOCHAT_SEEN_UIDS[k]
 
         detail = root.find("detail")
         if detail is None:
