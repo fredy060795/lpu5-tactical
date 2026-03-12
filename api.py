@@ -106,10 +106,16 @@ if "units" in _inspector.get_table_names() and "users" in _inspector.get_table_n
 
 # Import new autonomous modules
 try:
+    from websocket_manager import ConnectionManager, WebSocketEventHandler, Channels
+    WEBSOCKET_AVAILABLE = True
+except ImportError as _ws_import_err:
+    logger.warning(f"WebSocket manager not available: {_ws_import_err}")
+    WEBSOCKET_AVAILABLE = False
+
+try:
     from cot_protocol import CoTEvent, CoTProtocolHandler
     from geofencing import GeofencingManager, GeoFence, haversine_distance
     from autonomous_engine import AutonomousEngine, Rule
-    from websocket_manager import ConnectionManager, WebSocketEventHandler, Channels
     AUTONOMOUS_MODULES_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Autonomous modules not available: {e}")
@@ -531,10 +537,21 @@ geofencing_manager = None
 autonomous_engine = None
 data_server_manager = None
 
-if AUTONOMOUS_MODULES_AVAILABLE:
+# Initialize WebSocket manager independently – chat & real-time updates must
+# work even when heavier autonomous modules (cot_protocol, geofencing,
+# autonomous_engine) failed to import.
+if WEBSOCKET_AVAILABLE:
     try:
         websocket_manager = ConnectionManager()
         websocket_event_handler = WebSocketEventHandler(websocket_manager)
+        logger.info("WebSocket manager initialized")
+    except Exception as _ws_init_err:
+        logger.error(f"Failed to initialize WebSocket manager: {_ws_init_err}")
+        websocket_manager = None
+        websocket_event_handler = None
+
+if AUTONOMOUS_MODULES_AVAILABLE:
+    try:
         # Managers are now DB-backed and don't strictly need a JSON path
         geofencing_manager = GeofencingManager()
         autonomous_engine = AutonomousEngine()
@@ -721,7 +738,7 @@ def broadcast_websocket_update(channel: str, event_type: str, data: Dict) -> Non
             logger.warning(f"Failed to broadcast via data server: {e}")
     
     # Always broadcast via direct WebSocket (clients connect to main API server)
-    if not AUTONOMOUS_MODULES_AVAILABLE or not websocket_manager:
+    if not websocket_manager:
         logger.debug("WebSocket manager not available")
         return
     
@@ -7798,7 +7815,7 @@ async def cot_geochat_push(payload: Dict = Body(...), authorization: Optional[st
         raise HTTPException(status_code=500, detail=str(exc))
 
     # Broadcast to WebSocket clients
-    if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager and _MAIN_EVENT_LOOP:
+    if websocket_manager and _MAIN_EVENT_LOOP:
         try:
             asyncio.run_coroutine_threadsafe(
                 websocket_manager.publish_to_channel(
@@ -7810,11 +7827,10 @@ async def cot_geochat_push(payload: Dict = Body(...), authorization: Optional[st
             logger.warning("cot_geochat_push WebSocket broadcast failed: %s", ws_exc)
 
     # Echo to ATAK/TAK clients as b-t-f CoT
-    if AUTONOMOUS_MODULES_AVAILABLE:
-        try:
-            _forward_chat_to_atak(callsign, text)
-        except Exception as atak_exc:
-            logger.warning("cot_geochat_push ATAK forward failed: %s", atak_exc)
+    try:
+        _forward_chat_to_atak(callsign, text)
+    except Exception as atak_exc:
+        logger.warning("cot_geochat_push ATAK forward failed: %s", atak_exc)
 
     logger.info("GeoChat push: [%s/%s] %s (len=%d)", uid, callsign, text[:80], len(text))
     return {"status": "ok", "message": msg_dict}
@@ -8966,7 +8982,7 @@ async def create_chat_channel(data: Dict = Body(...), authorization: str = Heade
             "members": new_channel.members if new_channel.members else [],
             "is_default": False, "created_by": new_channel.created_by or "",
         }
-        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+        if websocket_manager:
             await websocket_manager.publish_to_channel('chat', {"type": "channel_created", "data": ch_dict})
         return {"status": "success", "channel": ch_dict}
     except HTTPException:
@@ -8991,7 +9007,7 @@ async def delete_chat_channel(channel_id: str, authorization: str = Header(None)
             raise HTTPException(status_code=403, detail="Cannot delete default channel")
         db.delete(channel)
         db.commit()
-        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+        if websocket_manager:
             await websocket_manager.publish_to_channel('chat', {"type": "channel_deleted", "data": {"id": channel_id, "deleted_by": username}})
         return {"status": "success", "detail": f"Channel {channel_id} deleted"}
     except HTTPException:
@@ -9124,7 +9140,7 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
         msg_dict = _chat_message_to_dict(new_msg)
 
         # Broadcast to WebSocket clients
-        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+        if websocket_manager:
             await websocket_manager.publish_to_channel('chat', {"type": "new_message", "data": msg_dict})
 
         # Forward to Meshtastic mesh when the message is on the bridged channel
@@ -9143,7 +9159,7 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
                     logger.warning(f"Chat→Mesh bridge error: {mesh_err}")
 
         # Forward to ATAK/TAK clients as GeoChat CoT (b-t-f)
-        if channel_id == MESH_CHAT_CHANNEL and AUTONOMOUS_MODULES_AVAILABLE:
+        if channel_id == MESH_CHAT_CHANNEL:
             _forward_chat_to_atak(username, text)
 
         return {"status": "success", "message": msg_dict}
@@ -9247,7 +9263,7 @@ async def send_chat_image(
         msg_dict = _chat_message_to_dict(new_msg)
 
         # Broadcast to WebSocket clients
-        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+        if websocket_manager:
             await websocket_manager.publish_to_channel('chat', {"type": "new_message", "data": msg_dict})
 
         return {"status": "success", "message": msg_dict}
@@ -9276,7 +9292,7 @@ async def mark_message_delivered(message_id: str, authorization: str = Header(No
             delivered.append(username)
             msg.delivered_to = delivered
             db.commit()
-            if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+            if websocket_manager:
                 await websocket_manager.publish_to_channel('chat', {"type": "message_delivered", "data": {"message_id": message_id, "delivered_to": delivered}})
         return {"status": "success", "message_id": message_id, "delivered_to": delivered}
     except HTTPException:
@@ -9309,7 +9325,7 @@ async def mark_message_read(message_id: str, authorization: str = Header(None)):
                 delivered.append(username)
                 msg.delivered_to = delivered
             db.commit()
-            if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+            if websocket_manager:
                 await websocket_manager.publish_to_channel('chat', {"type": "message_read", "data": {"message_id": message_id, "read_by": read_list, "delivered_to": delivered}})
         return {"status": "success", "message_id": message_id, "read_by": read_list}
     except HTTPException:
@@ -9348,7 +9364,7 @@ async def mark_messages_read_bulk(data: Dict = Body(...), authorization: str = H
                 if changed:
                     updated.append(mid)
         db.commit()
-        if updated and AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+        if updated and websocket_manager:
             await websocket_manager.publish_to_channel('chat', {"type": "messages_read", "data": {"message_ids": updated, "read_by_user": username}})
         return {"status": "success", "updated": updated}
     except HTTPException:
@@ -9801,7 +9817,7 @@ async def websocket_endpoint(websocket: WebSocket):
     WebSocket endpoint for real-time updates.
     Implements server-side relay for video streaming and map data synchronization.
     """
-    if not AUTONOMOUS_MODULES_AVAILABLE or not websocket_manager or not websocket_event_handler:
+    if not websocket_manager or not websocket_event_handler:
         await websocket.close(code=1011, reason="WebSocket not available")
         return
     
@@ -10008,7 +10024,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/api/websocket/status", summary="Get WebSocket status")
 def get_websocket_status():
     """Get WebSocket connection status with health metrics"""
-    if not AUTONOMOUS_MODULES_AVAILABLE or not websocket_manager:
+    if not websocket_manager:
         raise HTTPException(status_code=501, detail="WebSocket not available")
     
     stats = websocket_manager.get_all_connection_stats()
