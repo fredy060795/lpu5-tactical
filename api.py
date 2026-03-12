@@ -9068,6 +9068,110 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
     finally:
         db.close()
 
+@app.post("/api/chat/image", summary="Upload image and send as chat message")
+async def send_chat_image(
+    file: UploadFile = File(...),
+    channel_id: str = Form("all"),
+    authorization: str = Header(None),
+):
+    """Upload an image and create a chat message with the image URL."""
+    _MAX_CHAT_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+    db = SessionLocal()
+    try:
+        username = _extract_username_from_auth(authorization)
+
+        # Validate file type
+        original_name = file.filename or "photo.jpg"
+        _, ext = os.path.splitext(os.path.basename(original_name))
+        ext_lower = ext.lower().strip()
+        if not ext_lower:
+            ext_lower = ".jpg"
+
+        # Sanitize: only allow alphanumeric ext chars (no null bytes, path separators)
+        if not all(c.isalnum() or c == '.' for c in ext_lower):
+            raise HTTPException(status_code=400, detail="Invalid file extension")
+
+        allowed_img_ext = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+        allowed_img_mime = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
+
+        if ext_lower not in allowed_img_ext:
+            raise HTTPException(status_code=400, detail=f"File type '{ext_lower}' is not allowed. Allowed: {', '.join(sorted(allowed_img_ext))}")
+
+        content_type = file.content_type or ""
+        if content_type and content_type not in allowed_img_mime:
+            raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+
+        # Read file content with size limit
+        content = await file.read()
+        if len(content) > _MAX_CHAT_IMAGE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {_MAX_CHAT_IMAGE_SIZE // (1024*1024)} MB.")
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        # Verify it is a valid image using Pillow
+        try:
+            from PIL import Image as PILImage
+            import io
+            img = PILImage.open(io.BytesIO(content))
+            img.verify()
+        except Exception:
+            raise HTTPException(status_code=400, detail="File is not a valid image")
+
+        # Verify channel exists
+        _ensure_default_channels(db)
+        channel_exists = db.query(ChatChannel).filter(ChatChannel.id == channel_id).first()
+        if not channel_exists:
+            raise HTTPException(status_code=404, detail="Channel not found")
+
+        # Enforce channel access
+        sender_user = db.query(User).filter(User.username == username).first()
+        if sender_user and sender_user.role not in ("admin", "operator"):
+            user_chat_channels = sender_user.chat_channels or []
+            allowed = set(user_chat_channels) | {"all"}
+            if channel_id not in allowed:
+                raise HTTPException(status_code=403, detail="You are not a member of this channel")
+
+        # Save file to uploads/chat/
+        chat_uploads = os.path.join(uploads_dir, "chat")
+        os.makedirs(chat_uploads, exist_ok=True)
+        safe_name = f"{uuid.uuid4().hex}{ext_lower}"
+        dest_path = os.path.join(chat_uploads, safe_name)
+        with open(dest_path, "wb") as fh:
+            fh.write(content)
+
+        file_url = f"/uploads/chat/{safe_name}"
+
+        # Create chat message with type=image and content=URL
+        new_msg = ChatMessage(
+            channel=channel_id,
+            sender=username,
+            content=file_url,
+            timestamp=datetime.now(timezone.utc),
+            type="image",
+            delivered_to=[],
+            read_by=[],
+        )
+        db.add(new_msg)
+        db.commit()
+        db.refresh(new_msg)
+
+        msg_dict = _chat_message_to_dict(new_msg)
+
+        # Broadcast to WebSocket clients
+        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+            await websocket_manager.publish_to_channel('chat', {"type": "new_message", "data": msg_dict})
+
+        return {"status": "success", "message": msg_dict}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("send_chat_image failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
 @app.post("/api/chat/message/{message_id}/delivered", summary="Mark message as delivered")
 async def mark_message_delivered(message_id: str, authorization: str = Header(None)):
     """Mark a chat message as delivered to the current user (single checkmark)"""

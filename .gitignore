@@ -42,6 +42,9 @@ cert.pem
 key.pem
 *.pem
 
+# Uploads (user-generated content)
+uploads/
+
 # Federation runtime files (generated locally)
 server_id.txt
 
@@ -73,3 +76,5 @@ map_markers_db.json
 meshtastic_messages_db.json
 meshtastic_nodes_db.json
 tactical.db
+tactical.db-shm
+tactical.db-wal
