@@ -705,20 +705,19 @@ class CoTProtocolHandler:
         # the correct icon rather than the generic blue-rectangle ("friendly"):
         #   • Meshtastic SA beacons forwarded by an ATAK Meshtastic plugin carry a
         #     <meshtastic> element in their <detail> block.  These are checked first
-        #     because ATAK Meshtastic SA beacons use how="h-*" just like regular ATAK
-        #     SA beacons; the <meshtastic> element is the authoritative signal that
-        #     this is a Meshtastic node, not a human ATAK user.
-        #   • ATAK SA position updates without a <meshtastic> element use a
-        #     "h-*" how code.  Human-originated positions (h-e, h-g-i-g-o, h-t,
-        #     etc.) → tak_maker (ATAK user SA beacon).  Machine-generated
-        #     friendly CoT events ("m-g" from ATAK Meshtastic plugins) are
-        #     treated as meshtastic_node so relayed Meshtastic nodes render
-        #     with the correct icon.
+        #     because ATAK Meshtastic SA beacons use how="h-g-*" just like regular
+        #     ATAK GPS SA beacons; the <meshtastic> element is the authoritative
+        #     signal that this is a Meshtastic node, not a human ATAK user.
+        #   • ATAK SA position updates without a <meshtastic> element that use a
+        #     GPS-derived how code ("h-g-*") → tak_maker (ATAK user SA beacon).
+        #   • All other friendly CoT events (h-e, h-t, m-g, etc.) are treated as
+        #     meshtastic_node so relayed Meshtastic nodes render with the correct
+        #     icon.
         #     LPU5's own GPS positions are created directly via /api/map/symbols
         #     and never pass through CoT type detection.
         if cot_event.has_meshtastic_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly" and cot_event.how.startswith("h-"):
+        elif lpu5_type == "friendly" and cot_event.how.startswith("h-g"):
             lpu5_type = "tak_maker"
         elif lpu5_type == "friendly":
             lpu5_type = "meshtastic_node"
