@@ -649,6 +649,16 @@
     .nw-input-row .nw-input { flex:1; min-width:0; }
     select.nw-input { appearance:auto; -webkit-appearance:auto; }
 
+    /* ── Team Section ── */
+    .team-info-box { background:rgba(52,152,219,0.12); border:1px solid rgba(52,152,219,0.3); border-radius:6px; padding:12px; margin-bottom:10px; }
+    .team-info-label { font-size:0.7em; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; }
+    .team-info-value { font-size:0.95em; color:#eee; font-weight:bold; }
+    .team-qr-box { display:flex; justify-content:center; align-items:center; margin:14px 0; }
+    .team-qr-box canvas { border:4px solid #fff; border-radius:8px; }
+    .team-member-list { margin-top:8px; }
+    .team-member-item { display:flex; align-items:center; gap:8px; padding:6px 10px; background:#111; border:1px solid #2a2a2a; border-radius:4px; margin-bottom:4px; font-size:0.85em; color:#ccc; }
+    .team-member-item i { color:#2ecc71; }
+
     /* ── Top Status Bar ── */
     #top-status-bar {
       position: fixed;
@@ -4842,6 +4852,7 @@
         html += sidebarTile('tile-overlays','fas fa-layer-group',  'Overlays', "openMenuPopup('overlays')");
         html += sidebarTile('tile-video',  'fas fa-video',       'Video', "openMenuPopup('video')");
         html += sidebarTile('tile-mesh',   'fab fa-bluetooth-b', 'Mesh',  "openMenuPopup('mesh')");
+        html += sidebarTile('tile-team',   'fas fa-users',       'Team',  "openMenuPopup('team')");
         html += sidebarTile('tile-sync',   'fas fa-sync-alt',    'Sync',  'closeHamburgerMenu();refreshAllData()');
       }
       html += sidebarTile('tile-night', 'fas fa-moon', 'Nacht', 'closeHamburgerMenu();toggleNightMode()');
@@ -4955,6 +4966,10 @@
               <span id="ov-lbl-symbols" style="margin-left:auto;font-size:0.85em;color:${_ovVis.symbols?'#2ecc71':'#e74c3c'}">${_ovVis.symbols?'AN':'AUS'}</span>
             </button>`
         },
+        team: {
+          title: 'TEAM',
+          html: ''
+        },
         netzwerk: {
           title: 'NETZWERK',
           html: ''
@@ -4976,6 +4991,8 @@
       }
       // Netzwerk popup: render dynamic server list
       if (section === 'netzwerk') { _nwRenderPopup(); }
+      // Team popup: render dynamic team content
+      if (section === 'team') { _teamRenderPopup(); }
     };
 
     // Logout: clear cached credentials and reload
@@ -5082,6 +5099,28 @@
         h += '<div style="margin-top:12px;">';
         for (var j = 0; j < servers.length; j++) {
           var s = servers[j];
+
+          // ── Team entry ──
+          if (s.is_team) {
+            h += '<div class="nw-srv-item" style="border-color:rgba(46,204,113,0.4);">';
+            h += '<div class="nw-srv-header">';
+            h += '<span class="nw-dot nw-dot-green"></span>';
+            h += '<span class="nw-srv-name"><i class="fas fa-users" style="margin-right:5px;color:#2ecc71;"></i>' + _nwEsc(s.name) + '</span>';
+            h += '<span class="nw-srv-proto" style="background:rgba(46,204,113,0.2);border-color:rgba(46,204,113,0.4);color:#2ecc71;">TEAM</span>';
+            h += '<button class="nw-srv-del" onclick="event.stopPropagation();_nwRemoveTeam(\'' + _nwEsc(s.id) + '\')" title="Team verlassen">&times;</button>';
+            h += '</div>';
+            h += '<div class="nw-srv-url" style="color:#2ecc71;">COT Only – kein Server nötig</div>';
+            h += '<div class="nw-srv-user"><i class="fas fa-user" style="font-size:0.7em;margin-right:4px;"></i>' + _nwEsc(s.user || '---') + '</div>';
+            h += '<div class="nw-srv-actions">';
+            h += '<button class="nw-srv-btn" style="background:rgba(46,204,113,0.15);border-color:#2ecc71;color:#2ecc71;" onclick="event.stopPropagation();_teamShowQrInNetzwerk(\'' + _nwEsc(s.id) + '\')"><i class="fas fa-qrcode"></i> QR-Code</button>';
+            h += '<button class="nw-srv-btn" style="background:rgba(52,152,219,0.15);border-color:#3498db;color:#3498db;" onclick="event.stopPropagation();closeMenuPopup();setTimeout(function(){openMenuPopup(\'team\');},150)"><i class="fas fa-info-circle"></i> Team Info</button>';
+            h += '</div>';
+            h += '<div id="nw-team-qr-' + _nwEsc(s.id) + '" style="display:none;margin-top:8px;"></div>';
+            h += '</div>';
+            continue;
+          }
+
+          // ── Normal server entry ──
           var dotCls = s.status === 'ok' ? 'nw-dot-green' : (s.status === 'checking' ? 'nw-dot-yellow' : (s.status === 'error' ? 'nw-dot-red' : 'nw-dot-gray'));
           var border = (s.active && !!currentUserName) ? 'border-color:var(--accent-blue);' : '';
           var dispUrl = s.url || (window.location.protocol + '//' + window.location.host + ' (lokal)');
@@ -5271,6 +5310,19 @@
       _nwRenderPopup();
     }
 
+    function _nwRemoveTeam(id) {
+      if (!confirm('Team wirklich verlassen?')) return;
+      var servers = _nwGetServers();
+      var srv = null;
+      for (var i = 0; i < servers.length; i++) { if (servers[i].id === id) { srv = servers[i]; break; } }
+      // Clear team data if this is the active team
+      var team = _teamGetData();
+      if (team && srv && team.team_id === srv.team_id) { _teamSaveData(null); }
+      servers = servers.filter(function(s) { return s.id !== id; });
+      _nwSaveServers(servers);
+      _nwRenderPopup();
+    }
+
     function _nwTest(id) {
       var servers = _nwGetServers();
       var srv = null;
@@ -5392,6 +5444,49 @@
           if (!code) { _nwShowMsg('Kein QR-Code erkannt. Bitte deutlicheres Bild verwenden.', 'error'); return; }
           try {
             var data = JSON.parse(code.data);
+
+            // ── Handle Team QR codes ──
+            if (data.type === 'cot_team' && data.team_id && data.team_name) {
+              var callsign = currentUserName || 'Unknown';
+              var teamData = {
+                type: 'cot_team',
+                team_name: data.team_name,
+                team_id: data.team_id,
+                created_by: data.created_by || '',
+                members: [callsign],
+                joined_at: new Date().toISOString()
+              };
+              _teamSaveData(teamData);
+              // Add team entry to server list
+              var existingServers = _nwGetServers();
+              var alreadyExists = false;
+              for (var t = 0; t < existingServers.length; t++) {
+                if (existingServers[t].team_id === data.team_id) { alreadyExists = true; break; }
+              }
+              if (!alreadyExists) {
+                existingServers.push({
+                  id: data.team_id,
+                  name: data.team_name,
+                  url: '',
+                  host: '',
+                  port: '',
+                  protocol: 'cot',
+                  user: callsign,
+                  pass: '',
+                  status: 'ok',
+                  active: false,
+                  is_team: true,
+                  team_id: data.team_id,
+                  team_data: teamData
+                });
+                _nwSaveServers(existingServers);
+              }
+              _nwRenderPopup();
+              _nwShowMsg('Team "' + _nwEsc(data.team_name) + '" beigetreten!', 'success');
+              return;
+            }
+
+            // ── Normal server QR code ──
             var name = data.name || data.server_name || data.hostname || 'Server';
             var url  = data.url  || data.server_url  || '';
             var user = data.user || data.username || data.callsign || '';
@@ -5446,6 +5541,279 @@
     }
 
     // ─── End Netzwerk ──────────────────────────────────────────────
+
+    // ─── Team: COT-only Team Manager ────────────────────────────────
+    var _TEAM_KEY = 'lpu5_team';
+
+    function _teamGetData() {
+      try { return JSON.parse(localStorage.getItem(_TEAM_KEY) || 'null'); } catch(e) { return null; }
+    }
+    function _teamSaveData(data) {
+      if (data) localStorage.setItem(_TEAM_KEY, JSON.stringify(data));
+      else localStorage.removeItem(_TEAM_KEY);
+    }
+    function _teamGenId() {
+      return 'team-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 8);
+    }
+    function _teamEsc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function _teamRenderPopup() {
+      var body = document.getElementById('menu-popup-body');
+      if (!body) return;
+      var team = _teamGetData();
+      var h = '';
+
+      if (team) {
+        // ── Currently in a team ──
+        h += '<div class="team-info-box">';
+        h += '<div class="team-info-label">Team Name</div>';
+        h += '<div class="team-info-value"><i class="fas fa-shield-alt" style="color:var(--accent-blue);margin-right:6px;"></i>' + _teamEsc(team.team_name) + '</div>';
+        h += '</div>';
+        h += '<div class="team-info-box">';
+        h += '<div class="team-info-label">Team ID</div>';
+        h += '<div class="team-info-value" style="font-size:0.75em;color:#888;word-break:break-all;">' + _teamEsc(team.team_id) + '</div>';
+        h += '</div>';
+        h += '<div class="team-info-box">';
+        h += '<div class="team-info-label">Erstellt von</div>';
+        h += '<div class="team-info-value">' + _teamEsc(team.created_by || '---') + '</div>';
+        h += '</div>';
+        h += '<div class="team-info-box">';
+        h += '<div class="team-info-label">Modus</div>';
+        h += '<div class="team-info-value" style="color:#2ecc71;"><i class="fas fa-broadcast-tower" style="margin-right:6px;"></i>COT Only</div>';
+        h += '</div>';
+
+        // Members list
+        var members = team.members || [];
+        if (members.length > 0) {
+          h += '<div style="margin-top:10px;font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Mitglieder (' + members.length + ')</div>';
+          h += '<div class="team-member-list">';
+          for (var i = 0; i < members.length; i++) {
+            h += '<div class="team-member-item"><i class="fas fa-user"></i> ' + _teamEsc(members[i]) + '</div>';
+          }
+          h += '</div>';
+        }
+
+        // Show QR code button
+        h += '<button class="menu-btn" style="margin-top:12px;" onclick="event.stopPropagation();_teamShowQr()">';
+        h += '<i class="fas fa-qrcode"></i> QR-Code anzeigen</button>';
+
+        // QR display area
+        h += '<div id="team-qr-display" style="display:none;margin-top:10px;"></div>';
+
+        // Open in Netzwerk
+        h += '<button class="menu-btn" style="margin-top:8px;" onclick="event.stopPropagation();closeMenuPopup();setTimeout(function(){openMenuPopup(\'netzwerk\');},150)">';
+        h += '<i class="fas fa-network-wired"></i> Im Netzwerk anzeigen</button>';
+
+        // Leave team
+        h += '<button class="menu-btn" style="margin-top:8px;background:rgba(231,76,60,0.2);border-color:#e74c3c;color:#e74c3c;" onclick="event.stopPropagation();_teamLeave()">';
+        h += '<i class="fas fa-sign-out-alt"></i> Team verlassen</button>';
+
+      } else {
+        // ── Not in a team ──
+        h += '<div style="text-align:center;margin-bottom:16px;">';
+        h += '<i class="fas fa-users" style="font-size:2.5rem;color:#444;margin-bottom:8px;display:block;"></i>';
+        h += '<div style="color:#888;font-size:0.85em;">Kein Team aktiv</div>';
+        h += '</div>';
+
+        // CREATE TEAM
+        h += '<div style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Neues Team erstellen</div>';
+        h += '<input type="text" id="team-create-name" placeholder="Team Name eingeben" class="nw-input" maxlength="40">';
+        h += '<button class="menu-btn" style="background:rgba(46,204,113,0.2);border-color:#2ecc71;color:#2ecc71;font-weight:bold;justify-content:center;" onclick="event.stopPropagation();_teamCreate()">';
+        h += '<i class="fas fa-plus-circle"></i> CREATE TEAM</button>';
+
+        h += '<div style="margin:16px 0;border-top:1px solid #333;"></div>';
+
+        // JOIN hint – use existing Netzwerk QR scanner
+        h += '<div style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Team beitreten</div>';
+        h += '<div style="font-size:0.82em;color:#666;margin-bottom:8px;">';
+        h += '<i class="fas fa-info-circle" style="color:var(--accent-blue);"></i> ';
+        h += 'Um einem Team beizutreten, öffne <b style="color:#ccc;">Netzwerk</b> und scanne den Team-QR-Code über <b style="color:#ccc;">\"Server via QR-Code hinzufügen\"</b>.</div>';
+        h += '<button class="menu-btn" style="background:rgba(52,152,219,0.2);border-color:#3498db;color:#3498db;justify-content:center;" onclick="event.stopPropagation();closeMenuPopup();setTimeout(function(){openMenuPopup(\'netzwerk\');},150)">';
+        h += '<i class="fas fa-network-wired"></i> Netzwerk öffnen</button>';
+
+        h += '<div style="margin-top:10px;text-align:center;font-size:0.72em;color:#555;">';
+        h += '<i class="fas fa-info-circle"></i> Keine IP oder Port nötig – Daten werden nur via COT übertragen.';
+        h += '</div>';
+      }
+
+      body.innerHTML = h;
+    }
+
+    function _teamCreate() {
+      var nameInput = document.getElementById('team-create-name');
+      var name = nameInput ? nameInput.value.trim() : '';
+      if (!name) { alert('Bitte Team-Name eingeben.'); return; }
+      var callsign = currentUserName || 'Unknown';
+      var teamId = _teamGenId();
+      var teamData = {
+        type: 'cot_team',
+        team_name: name,
+        team_id: teamId,
+        created_by: callsign,
+        members: [callsign],
+        created_at: new Date().toISOString()
+      };
+      _teamSaveData(teamData);
+
+      // Also add as entry in Netzwerk server list
+      var servers = _nwGetServers();
+      servers.push({
+        id: teamId,
+        name: name,
+        url: '',
+        host: '',
+        port: '',
+        protocol: 'cot',
+        user: callsign,
+        pass: '',
+        status: 'ok',
+        active: false,
+        is_team: true,
+        team_id: teamId,
+        team_data: teamData
+      });
+      _nwSaveServers(servers);
+
+      _teamRenderPopup();
+      // Auto-show QR after creation
+      setTimeout(function() { _teamShowQr(); }, 100);
+    }
+
+    function _teamShowQr() {
+      var team = _teamGetData();
+      if (!team) return;
+      var container = document.getElementById('team-qr-display');
+      if (!container) return;
+
+      // QR payload: only data needed for joining
+      var payload = JSON.stringify({
+        type: 'cot_team',
+        team_name: team.team_name,
+        team_id: team.team_id,
+        created_by: team.created_by
+      });
+
+      container.style.display = 'block';
+      container.innerHTML = '<div style="text-align:center;color:#888;font-size:0.8em;">QR-Code wird generiert...</div>';
+
+      // Use QR code generation
+      if (typeof _teamGenerateQrCanvas === 'function') {
+        try {
+          var canvas = _teamGenerateQrCanvas(payload);
+          container.innerHTML = '';
+          container.style.textAlign = 'center';
+          canvas.style.border = '4px solid #fff';
+          canvas.style.borderRadius = '8px';
+          canvas.style.maxWidth = '220px';
+          canvas.style.width = '100%';
+          canvas.style.height = 'auto';
+          container.appendChild(canvas);
+          var lbl = document.createElement('div');
+          lbl.style.cssText = 'margin-top:8px;font-size:0.75em;color:#888;';
+          lbl.textContent = 'Mitglieder scannen diesen Code unter Netzwerk → QR-Code hinzufügen';
+          container.appendChild(lbl);
+        } catch(e) {
+          container.innerHTML = '<div style="color:#e74c3c;font-size:0.8em;">QR-Erzeugung fehlgeschlagen.</div>';
+        }
+      } else {
+        container.innerHTML = '<div style="color:#e74c3c;font-size:0.8em;">QR-Bibliothek nicht geladen.</div>';
+      }
+    }
+
+    /** Show QR code for a team entry directly in the Netzwerk popup */
+    function _teamShowQrInNetzwerk(teamId) {
+      var servers = _nwGetServers();
+      var srv = null;
+      for (var i = 0; i < servers.length; i++) { if (servers[i].id === teamId) { srv = servers[i]; break; } }
+      if (!srv || !srv.team_data) return;
+      var container = document.getElementById('nw-team-qr-' + teamId);
+      if (!container) return;
+      if (container.style.display === 'block') { container.style.display = 'none'; return; }
+
+      var payload = JSON.stringify({
+        type: 'cot_team',
+        team_name: srv.team_data.team_name,
+        team_id: srv.team_data.team_id,
+        created_by: srv.team_data.created_by
+      });
+
+      container.style.display = 'block';
+      if (typeof _teamGenerateQrCanvas === 'function') {
+        try {
+          var canvas = _teamGenerateQrCanvas(payload);
+          container.innerHTML = '';
+          container.style.textAlign = 'center';
+          canvas.style.border = '4px solid #fff';
+          canvas.style.borderRadius = '8px';
+          canvas.style.maxWidth = '200px';
+          canvas.style.width = '100%';
+          canvas.style.height = 'auto';
+          container.appendChild(canvas);
+          var lbl = document.createElement('div');
+          lbl.style.cssText = 'margin-top:6px;font-size:0.7em;color:#888;';
+          lbl.textContent = 'Mitglieder scannen diesen Code mit QR-Code hinzufügen';
+          container.appendChild(lbl);
+        } catch(e) {
+          container.innerHTML = '<div style="color:#e74c3c;font-size:0.8em;">QR-Erzeugung fehlgeschlagen.</div>';
+        }
+      } else {
+        container.innerHTML = '<div style="color:#e74c3c;font-size:0.8em;">QR-Bibliothek nicht geladen.</div>';
+      }
+    }
+
+    /* Minimal QR Code generator (alphanumeric, version 1-10, ECC-L)
+       Produces a canvas element.  Uses no external library. */
+    var _teamGenerateQrCanvas = (function() {
+      // Lightweight QR generation using the qrcode-generator micro-lib
+      // We embed a tiny generator so that overview.html stays fully offline-capable.
+      // If qrcodegen global is provided by a CDN script, we prefer that.
+      function makeQr(text) {
+        // Use the CDN-loaded qrcode-generator if available
+        if (typeof qrcode !== 'undefined' && typeof qrcode === 'function') {
+          var qr = qrcode(0, 'L');
+          qr.addData(text);
+          qr.make();
+          return qr;
+        }
+        return null;
+      }
+
+      return function(text) {
+        var qr = makeQr(text);
+        if (!qr) throw new Error('QR library not loaded');
+        var modules = qr.getModuleCount();
+        var cellSize = Math.max(4, Math.floor(220 / modules));
+        var size = modules * cellSize;
+        var canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = '#000000';
+        for (var r = 0; r < modules; r++) {
+          for (var c = 0; c < modules; c++) {
+            if (qr.isDark(r, c)) {
+              ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+            }
+          }
+        }
+        return canvas;
+      };
+    })();
+
+    function _teamLeave() {
+      var team = _teamGetData();
+      if (!team) return;
+      if (!confirm('Team "' + team.team_name + '" wirklich verlassen?')) return;
+      // Remove from Netzwerk server list
+      var servers = _nwGetServers();
+      servers = servers.filter(function(s) { return s.team_id !== team.team_id; });
+      _nwSaveServers(servers);
+      _teamSaveData(null);
+      _teamRenderPopup();
+    }
+    // ─── End Team ───────────────────────────────────────────────────
 
     window.setGpsInterval = function(sec) {
       gpsUpdateInterval = sec * 1000;
@@ -6351,6 +6719,10 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"
           integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"
+          crossorigin="anonymous"></script>
+
+  <!-- QR Code Generator (for Team QR codes) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"
           crossorigin="anonymous"></script>
 
 </body>
