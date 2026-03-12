@@ -2163,6 +2163,10 @@
           localStorage.setItem('lpu5_cached_pass', p);
           localStorage.setItem('lpu5_username', currentUserName);
           sessionStorage.setItem('currentUser', currentUserName);
+          // Auto-update callsign from server
+          if (r.user.callsign) {
+            localStorage.setItem('lpu5_local_callsign', r.user.callsign);
+          }
 
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
           // Close popup and update sidebar tiles after login
@@ -2203,6 +2207,10 @@
           if (r.token) localStorage.setItem('token', r.token);
           localStorage.setItem('lpu5_username', currentUserName);
           sessionStorage.setItem('currentUser', currentUserName);
+          // Auto-update callsign from server
+          if (r.user.callsign) {
+            localStorage.setItem('lpu5_local_callsign', r.user.callsign);
+          }
           document.getElementById('out-name').innerText = currentUserName.toUpperCase();
           isLoggedIn = true;
           startDataSync();
@@ -5593,7 +5601,7 @@
       h += '<option value="tcp">TCP</option>';
       h += '<option value="udp">UDP</option>';
       h += '</select></div>';
-      h += '<input type="text" id="nw-inp-user" placeholder="Callsign / Benutzername" autocomplete="off" class="nw-input">';
+      h += '<input type="text" id="nw-inp-user" placeholder="Benutzername" autocomplete="off" class="nw-input">';
       h += '<input type="password" id="nw-inp-pass" placeholder="Passwort" class="nw-input">';
       h += '<div style="font-size:0.7em;color:#666;margin-bottom:8px;"><i class="fas fa-info-circle"></i> Host leer lassen für aktuellen Server</div>';
       h += '<div style="display:flex;gap:8px;">';
@@ -5806,6 +5814,10 @@
             localStorage.setItem('lpu5_cached_pass', srv.pass);
             localStorage.setItem('lpu5_username', currentUserName);
             sessionStorage.setItem('currentUser', currentUserName);
+            // Auto-update callsign from server
+            if (r.user.callsign) {
+              localStorage.setItem('lpu5_local_callsign', r.user.callsign);
+            }
             document.getElementById('out-name').innerText = currentUserName.toUpperCase();
             srv.active = true;
             srv.status = 'ok';
@@ -6237,6 +6249,18 @@
         if (!nameVal) nameVal = csVal;
         localStorage.setItem('lpu5_local_callsign', csVal);
         localStorage.setItem('lpu5_local_name', nameVal);
+        // Sync callsign to server if connected
+        var _csToken = localStorage.getItem('token');
+        if (_csToken) {
+          var _csUser = localStorage.getItem('lpu5_cached_user') || localStorage.getItem('lpu5_username') || currentUserName;
+          if (_csUser) {
+            fetch('/api/users/' + encodeURIComponent(_csUser), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _csToken },
+              body: JSON.stringify({ callsign: csVal })
+            }).catch(function(err) { console.warn('[Callsign] Server-Sync fehlgeschlagen:', err); });
+          }
+        }
         localStorage.setItem('lpu5_username', csVal);
         currentUserName = csVal;
         var outName = document.getElementById('out-name');
@@ -6343,14 +6367,14 @@
     }
 
     /**
-     * Prompts user for Callsign AND Password (self-certification for team join).
-     * Calls `onDone(callsign, password)` when user confirms.
+     * Prompts user for Benutzername AND Password (self-certification for team join).
+     * Calls `onDone(username, password)` when user confirms.
      */
     function _teamEnsureCredentials(onDone) {
       var body = document.getElementById('menu-popup-body') || document.getElementById('nw-popup-body');
       if (!body) {
-        var callsign = prompt('Callsign eingeben:');
-        if (!callsign || !callsign.trim()) { alert('Callsign ist erforderlich.'); return; }
+        var callsign = prompt('Benutzername eingeben:');
+        if (!callsign || !callsign.trim()) { alert('Benutzername ist erforderlich.'); return; }
         var pass = prompt('Passwort eingeben:');
         if (!pass || !pass.trim()) { alert('Passwort ist erforderlich.'); return; }
         onDone(callsign.trim(), pass.trim());
@@ -6362,12 +6386,12 @@
       h += '<div style="text-align:center;margin-bottom:14px;">';
       h += '<i class="fas fa-user-shield" style="font-size:2rem;color:#2ecc71;margin-bottom:6px;display:block;"></i>';
       h += '<div style="color:#ccc;font-size:0.95em;font-weight:bold;">Team Login – Selbstzertifizierung</div>';
-      h += '<div style="color:#888;font-size:0.78em;margin-top:4px;">Bitte Callsign und Passwort eingeben um dem Team beizutreten.</div>';
+      h += '<div style="color:#888;font-size:0.78em;margin-top:4px;">Bitte Benutzername und Passwort eingeben um dem Team beizutreten.</div>';
       h += '</div>';
       h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Name</label>';
       h += '<input type="text" id="team-cred-name" placeholder="Dein Name" class="nw-input" maxlength="40" style="margin-bottom:8px;">';
-      h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Callsign / Rufzeichen</label>';
-      h += '<input type="text" id="team-cred-callsign" placeholder="z.B. ALPHA-1" class="nw-input" maxlength="30" style="margin-bottom:8px;">';
+      h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Benutzername</label>';
+      h += '<input type="text" id="team-cred-callsign" placeholder="Benutzername eingeben" class="nw-input" maxlength="30" style="margin-bottom:8px;">';
       h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Passwort</label>';
       h += '<input type="password" id="team-cred-password" placeholder="Passwort eingeben" class="nw-input" maxlength="60" style="margin-bottom:12px;">';
       h += '<button id="team-cred-confirm-btn" class="menu-btn" style="background:rgba(46,204,113,0.2);border-color:#2ecc71;color:#2ecc71;font-weight:bold;justify-content:center;">';
@@ -6381,7 +6405,7 @@
         var nameVal = (document.getElementById('team-cred-name').value || '').trim();
         var csVal   = (document.getElementById('team-cred-callsign').value || '').trim();
         var pwVal   = (document.getElementById('team-cred-password').value || '').trim();
-        if (!csVal) { alert('Callsign ist erforderlich.'); return; }
+        if (!csVal) { alert('Benutzername ist erforderlich.'); return; }
         if (!pwVal) { alert('Passwort ist erforderlich.'); return; }
         if (!nameVal) nameVal = csVal;
         localStorage.setItem(_TEAM_LOCAL_CALLSIGN_KEY, csVal);
