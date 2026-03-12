@@ -1393,10 +1393,22 @@ function _onTakConnectionTypeChange(type) {
 }
 
 // Test TAK server connectivity
+var _TAK_TEST_TIMEOUT_MS = 15000;
 async function testTakConnection() {
     showStatus('Testing TAK server connection...', 'info');
     try {
-        const response = await fetch('/api/tak/test');
+        const token = _getAuthToken();
+        const headers = {};
+        if (token) { headers['Authorization'] = 'Bearer ' + token; }
+        const controller = new AbortController();
+        const timeout = setTimeout(function() { controller.abort(); }, _TAK_TEST_TIMEOUT_MS);
+        const response = await fetch('/api/tak/test', { headers: headers, signal: controller.signal });
+        clearTimeout(timeout);
+        if (!response.ok) {
+            const errBody = await response.json().catch(function() { return {}; });
+            showStatus('TAK test failed (HTTP ' + response.status + '): ' + (errBody.detail || errBody.message || 'Server error'), 'error');
+            return;
+        }
         const result = await response.json();
         if (result.reachable) {
             const exchanged = result.data_exchanged ? ' ✓ Data exchanged.' : '';
@@ -1406,7 +1418,11 @@ async function testTakConnection() {
         }
     } catch (error) {
         console.error('TAK connection test failed:', error);
-        showStatus('TAK connection test failed: ' + error.message, 'error');
+        if (error.name === 'AbortError') {
+            showStatus('TAK connection test timed out — the server did not respond within ' + (_TAK_TEST_TIMEOUT_MS / 1000) + ' seconds.', 'error');
+        } else {
+            showStatus('TAK connection test failed: server not reachable. Check that the LPU5 server is running and accessible.', 'error');
+        }
     }
 }
 
