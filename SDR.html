@@ -563,6 +563,21 @@
         </ol>
     </div>
 
+    <!-- USB permission / driver error (shown when rtl_tcp reports usb_open error) -->
+    <div class="driver-warning" id="usbPermissionWarning" style="display:none; border-color:#e53935;">
+        <i class="fab fa-usb" style="font-size:1.3rem;"></i>
+        <strong>USB device permission error &mdash; RTL-SDR cannot be opened</strong><br>
+        The RTL-SDR dongle was detected, but the operating system denied access (<code id="usbErrorDetail">usb_open error -3</code>).<br>
+        <strong>Most common fix (Windows):</strong>
+        <ol style="margin:8px 0 4px 18px; padding:0;">
+            <li>Download and open <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener"><strong>Zadig</strong></a>.</li>
+            <li>Menu <code>Options</code> &rarr; <code>List All Devices</code>.</li>
+            <li>Select <strong>Bulk-In, Interface (Interface 0)</strong> from the dropdown.</li>
+            <li>Set the target driver to <strong>WinUSB</strong> and click <strong>Replace Driver</strong>.</li>
+        </ol>
+        <strong>Linux:</strong> Install udev rules: <code>sudo apt install rtl-sdr</code>, then re-plug the dongle or run <code>sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</code>.
+    </div>
+
     <!-- Top panels -->
     <div class="panel-grid">
         <!-- SDR Configuration -->
@@ -947,6 +962,24 @@
     }
     function hideDriverWarning() {
         var el = document.getElementById('driverWarning');
+        if (el) el.style.display = 'none';
+    }
+    function showUsbPermissionWarning(errorText) {
+        var el = document.getElementById('usbPermissionWarning');
+        if (el) {
+            el.style.display = 'block';
+            var detail = document.getElementById('usbErrorDetail');
+            if (detail && errorText) {
+                // Show first meaningful line of the error
+                var lines = errorText.split('\n').filter(function(l) { return l.trim(); });
+                var short = lines.length > 2 ? lines.slice(0, 2).join(' / ') : errorText;
+                if (short.length > 200) short = short.substring(0, 200) + '…';
+                detail.textContent = short;
+            }
+        }
+    }
+    function hideUsbPermissionWarning() {
+        var el = document.getElementById('usbPermissionWarning');
         if (el) el.style.display = 'none';
     }
 
@@ -1431,8 +1464,17 @@
             if (!r.ok) {
                 return r.json().then(function(err) {
                     var msg = (err && err.detail) ? err.detail : 'HTTP ' + r.status;
-                    showDriverWarning();
-                    statusEl.textContent = 'Connection failed';
+                    var isUsbErr = msg.toLowerCase().indexOf('usb_open error') !== -1 ||
+                                   msg.toLowerCase().indexOf('device permission') !== -1 ||
+                                   msg.toLowerCase().indexOf('failed to open rtlsdr') !== -1;
+                    if (isUsbErr) {
+                        hideDriverWarning();
+                        showUsbPermissionWarning(msg);
+                    } else {
+                        hideUsbPermissionWarning();
+                        showDriverWarning();
+                    }
+                    statusEl.textContent = isUsbErr ? 'USB driver error' : 'Connection failed';
                     statusEl.className   = 'status-badge status-offline';
                     mainStatus.innerHTML = '<i class="fas fa-circle"></i> SDR Offline';
                     mainStatus.className = 'status-badge status-offline';
@@ -1441,9 +1483,12 @@
                         scanRes.style.display    = 'block';
                         scanRes.style.background = '#2e1a1a';
                         scanRes.style.color      = 'var(--accent-red)';
-                        scanRes.innerHTML        = '<i class="fas fa-exclamation-triangle"></i> ' +
-                            'Connect failed &mdash; rtl_tcp target: <b>' + getRtlTcpHost() + ':' + getRtlTcpPort() + '</b><br>' +
-                            '<span style="font-size:0.75rem;">Use <em>Scan rtl_tcp</em> to auto-detect the correct host/port.</span>';
+                        scanRes.innerHTML        = isUsbErr
+                            ? '<i class="fab fa-usb"></i> ' +
+                              'USB permission error &mdash; install <b>WinUSB</b> driver via <a href="https://zadig.akeo.ie/" target="_blank">Zadig</a>.'
+                            : '<i class="fas fa-exclamation-triangle"></i> ' +
+                              'Connect failed &mdash; rtl_tcp target: <b>' + getRtlTcpHost() + ':' + getRtlTcpPort() + '</b><br>' +
+                              '<span style="font-size:0.75rem;">Use <em>Scan rtl_tcp</em> to auto-detect the correct host/port.</span>';
                     }
                     throw new Error(msg);
                 });
@@ -1453,6 +1498,7 @@
         .then(function(data) {
             sdrConnected = true;
             hideDriverWarning();
+            hideUsbPermissionWarning();
             _saveRtlTcpSettings();
 
             var mode = data.mode || 'hardware';
@@ -1465,8 +1511,12 @@
             setModeBadge(mode);
             console.log('[SDR] Connected mode=' + mode, data);
 
+            // Show USB permission warning if backend detected usb_open error
+            if (data.usb_permission_error) {
+                showUsbPermissionWarning(data.rtl_tcp_error);
+            }
             // Warn if hardware detected but no driver available (rtl_tcp also not connected)
-            if (!data.driver_available) {
+            else if (!data.driver_available) {
                 showDriverWarning();
             }
         })

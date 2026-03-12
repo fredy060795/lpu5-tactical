@@ -10130,6 +10130,11 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Auto-started rtl_tcp subprocess (managed by _ensure_rtl_tcp / shutdown).
 _RTL_TCP_PROC: Optional[_subprocess.Popen] = None
 
+# Last stderr output captured from a failed rtl_tcp auto-start attempt.
+# Surfaced by /api/sdr/connect so the UI can show actionable diagnostics
+# (e.g. "usb_open error -3 → install WinUSB driver via Zadig").
+_RTL_TCP_LAST_ERROR: Optional[str] = None
+
 
 def _find_rtl_tool(name: str) -> Optional[str]:
     """Find an RTL-SDR executable by *name* (e.g. ``"rtl_tcp"``).
@@ -10176,11 +10181,16 @@ def _ensure_rtl_tcp(host: str = _RTL_TCP_DEFAULT_HOST,
 
     Returns *True* when an rtl_tcp server is reachable at *host*:*port*
     after this call (either it was already running, or we started it).
+
+    On failure the global ``_RTL_TCP_LAST_ERROR`` is populated with stderr
+    output from the process so callers can surface actionable diagnostics
+    (e.g. USB driver / permission errors).
     """
-    global _RTL_TCP_PROC
+    global _RTL_TCP_PROC, _RTL_TCP_LAST_ERROR
 
     # Already reachable? Nothing to do.
     if _check_rtl_tcp(host, port):
+        _RTL_TCP_LAST_ERROR = None
         return True
 
     # Only attempt auto-start on localhost — we cannot start remote servers.
@@ -10204,19 +10214,52 @@ def _ensure_rtl_tcp(host: str = _RTL_TCP_DEFAULT_HOST,
         _RTL_TCP_PROC = _subprocess.Popen(
             [exe, "-a", host, "-p", str(port)],
             stdout=_subprocess.DEVNULL,
-            stderr=_subprocess.DEVNULL,
+            stderr=_subprocess.PIPE,
         )
         # Give the server a moment to bind its port.
         for _ in range(10):
             time.sleep(0.3)
             if _check_rtl_tcp(host, port):
                 logger.info("rtl_tcp auto-started successfully (PID %s)", _RTL_TCP_PROC.pid)
+                _RTL_TCP_LAST_ERROR = None
                 return True
-        logger.warning("rtl_tcp started but not reachable within 3 s")
+            # If the process already exited, read stderr and stop waiting.
+            if _RTL_TCP_PROC.poll() is not None:
+                break
+
+        # Process started but never became reachable — capture stderr.
+        stderr_text = ""
+        if _RTL_TCP_PROC.poll() is not None and _RTL_TCP_PROC.stderr:
+            # Process has exited — safe to read all remaining stderr.
+            try:
+                stderr_text = _RTL_TCP_PROC.stderr.read().decode("utf-8", errors="replace").strip()
+            except Exception:
+                pass
+        if stderr_text:
+            _RTL_TCP_LAST_ERROR = stderr_text
+            logger.warning("rtl_tcp exited with error output:\n%s", stderr_text)
+        else:
+            _RTL_TCP_LAST_ERROR = "rtl_tcp started but not reachable within 3 s"
+            logger.warning(_RTL_TCP_LAST_ERROR)
     except Exception as exc:
+        _RTL_TCP_LAST_ERROR = str(exc)
         logger.warning("Failed to auto-start rtl_tcp: %s", exc)
 
     return _check_rtl_tcp(host, port)
+
+
+def _is_usb_permission_error(error_text: Optional[str] = None) -> bool:
+    """Return *True* if *error_text* (or ``_RTL_TCP_LAST_ERROR``) indicates a
+    USB driver / permission problem (e.g. ``usb_open error -3``)."""
+    text = (error_text or _RTL_TCP_LAST_ERROR or "").lower()
+    return any(marker in text for marker in (
+        "usb_open error",
+        "failed to open rtlsdr",
+        "device permissions",
+        "udev rules",
+        "libusb_open",
+        "access denied",
+    ))
 
 
 def _stop_rtl_tcp_proc():
@@ -10563,16 +10606,30 @@ def sdr_connect_device(data: dict = Body(...)):
         rtl_tcp_ok = _ensure_rtl_tcp(tcp_host, tcp_port)
 
     if not hw_available and not rtl_tcp_ok:
-        raise HTTPException(
-            status_code=503,
-            detail=(
+        # Surface the underlying USB/driver error when available.
+        usb_err = _is_usb_permission_error()
+        if usb_err and _RTL_TCP_LAST_ERROR:
+            detail = (
+                "RTL-SDR USB device found but cannot be opened (driver/permission issue).\n"
+                "rtl_tcp error: " + _RTL_TCP_LAST_ERROR + "\n\n"
+                "Fix:\n"
+                "  Windows → install WinUSB driver with Zadig (https://zadig.akeo.ie/)\n"
+                "  Linux   → install udev rules:  sudo apt install rtl-sdr\n"
+                "See the 'Windows Setup Guide' section on the SDR page for step-by-step instructions."
+            )
+        else:
+            detail = (
                 "No RTL-SDR hardware detected and rtl_tcp is not reachable.\n"
                 "Options:\n"
                 "  1. Install driver:  pip install pyrtlsdr numpy\n"
                 "  2. Install rtl-sdr: sudo apt install rtl-sdr\n"
                 "  3. Start rtl_tcp:   rtl_tcp -a 0.0.0.0  (then set host/port in the UI)"
-            ),
-        )
+            )
+        raise HTTPException(status_code=503, detail=detail)
+
+    # Detect USB permission error even when hardware was found by other means
+    # (e.g. device visible via lsusb but rtl_tcp could not open it).
+    usb_permission_error = _is_usb_permission_error() if not rtl_tcp_ok else False
 
     if rtl_tcp_ok:
         mode = "rtl_tcp"
@@ -10595,6 +10652,8 @@ def sdr_connect_device(data: dict = Body(...)):
         "rtl_tcp":           rtl_tcp_ok,
         "rtl_tcp_host":      tcp_host,
         "rtl_tcp_port":      tcp_port,
+        "usb_permission_error": usb_permission_error,
+        "rtl_tcp_error":     _RTL_TCP_LAST_ERROR if not rtl_tcp_ok else None,
         "capabilities": {
             "pyrtlsdr":  _RTLSDR_LIB,
             "numpy":     _NUMPY_LIB,
