@@ -90,13 +90,25 @@ channel, and send a message.  The message appears in the LPU5 web app's
 2. `CoTListenerService` (TCP 8088 / UDP 4242 / Multicast 239.2.3.1:6969) receives
    the raw XML and calls `_cot_listener_ingest_callback(xml_string)`.
 3. The callback detects `type="b-t-f"` and calls `_ingest_atak_geochat(root)`.
-4. The function extracts:
+4. The function applies three layers of deduplication:
+   - **Echo-back detection** – UIDs starting with `GeoChat.LPU5-` are LPU5-originated
+     messages echoed back by the TAK server; they are skipped immediately.
+   - **UID-based dedup** – recently seen event UIDs are tracked in
+     `_GEOCHAT_SEEN_UIDS` (5-minute TTL) so the same CoT event arriving via
+     multiple paths (TAK echo, multicast, TCP) is only processed once.
+   - **Content-based dedup** – a hash of `(sender, text)` is tracked in
+     `_GEOCHAT_SEEN_CONTENT` (60-second TTL) to catch the same message arriving
+     with a *different* UID (e.g. TAK server re-wraps the event or ATAK resends).
+5. The function extracts:
    - **sender** – `__chat/@senderCallsign`, falls back to event `uid`.
    - **text**   – `detail/remarks` element text.
-5. A `ChatMessage` row is inserted into the `chat_messages` table with
+6. A `ChatMessage` row is inserted into the `chat_messages` table with
    `channel='all'`.
-6. A WebSocket event `{"type": "new_message", "data": {...}}` is published to the
+7. A WebSocket event `{"type": "new_message", "data": {...}}` is published to the
    `chat` channel so every open browser tab updates in real time.
+8. If the message is genuinely new, `_cot_listener_ingest_callback` forwards it
+   **only to the TAK server** (not back to TCP clients or multicast) to avoid
+   echo-back loops with the sending ATAK device.
 
 ### Outgoing: LPU5 → ATAK
 
@@ -195,6 +207,7 @@ GeoChat events.
 | Symptom | Check |
 |---------|-------|
 | Messages not appearing in LPU5 chat | Verify `cot_listener_enabled: true` in `config.json` and that the service is running (`GET /api/cot/listener/status`). |
+| Duplicate messages or relay loop | Check the logs for `"duplicate content"` or `"duplicate uid"` entries.  Content-based dedup suppresses identical sender+text pairs for 60 s; UID-based dedup covers 5 min. |
 | ATAK cannot connect on TCP 8088 | Check firewall rules.  On Linux: `sudo ufw allow 8088/tcp`. |
 | Multicast not working on Windows | Ensure the network adapter is on the same subnet as the ATAK device and that Windows Firewall allows UDP 6969 inbound. |
 | Listener starts but no messages received | Use `GET /api/cot/monitor/ui` to verify raw CoT events arrive.  Also check that ATAK is configured to use the correct server IP and port. |

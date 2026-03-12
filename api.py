@@ -1160,6 +1160,16 @@ _GEOCHAT_SEEN_UIDS: Dict[str, float] = {}
 _GEOCHAT_SEEN_UIDS_LOCK = threading.Lock()
 _GEOCHAT_SEEN_TTL = 300  # seconds – keep UIDs for 5 minutes
 
+# Content-based deduplication for GeoChat messages.
+# Maps hash(sender + text) → ingestion timestamp.  Catches duplicate
+# messages that arrive with *different* UIDs (e.g. TAK server re-wraps
+# the event, or ATAK resends after receiving its own echo).  Uses a
+# shorter TTL than the UID cache because legitimate repeated messages
+# (same sender, same text) should still be accepted after the window.
+_GEOCHAT_SEEN_CONTENT: Dict[str, float] = {}
+_GEOCHAT_SEEN_CONTENT_LOCK = threading.Lock()
+_GEOCHAT_SEEN_CONTENT_TTL = 60  # seconds – 1-minute content dedup window
+
 
 def _get_cot_listener_endpoint() -> str:
     """Return the CoT TCP endpoint string for the LPU5 SA beacon's <contact> element.
@@ -1505,6 +1515,36 @@ def _ingest_atak_geochat(root) -> bool:
             logger.debug("ATAK GeoChat: no remarks text in event uid=%s, skipping", event_uid)
             return False
         text = remarks_elem.text.strip()
+
+        # --- Content-based deduplication ---
+        # Catches the same message arriving with *different* UIDs (e.g.
+        # TAK server re-wraps, ATAK resends after echo, or multicast
+        # delivers a second copy).  The key is sender+text; if the
+        # identical text from the same sender was already ingested
+        # within the last _GEOCHAT_SEEN_CONTENT_TTL seconds, skip it.
+        content_key = hashlib.sha256(
+            f"{sender_callsign}\n{text}".encode("utf-8", errors="replace")
+        ).hexdigest()
+        now_content = time.time()
+        with _GEOCHAT_SEEN_CONTENT_LOCK:
+            prev_ts = _GEOCHAT_SEEN_CONTENT.get(content_key)
+            if prev_ts is not None and (now_content - prev_ts) < _GEOCHAT_SEEN_CONTENT_TTL:
+                logger.debug(
+                    "ATAK GeoChat: duplicate content from %s (uid=%s), "
+                    "already ingested %.1fs ago – skipping",
+                    sender_callsign, event_uid, now_content - prev_ts,
+                )
+                return False
+            _GEOCHAT_SEEN_CONTENT[content_key] = now_content
+            # Lazy purge stale entries
+            if len(_GEOCHAT_SEEN_CONTENT) > 200:
+                stale_c = [
+                    k for k, v in _GEOCHAT_SEEN_CONTENT.items()
+                    if now_content - v > _GEOCHAT_SEEN_CONTENT_TTL
+                ]
+                for k in stale_c:
+                    del _GEOCHAT_SEEN_CONTENT[k]
+
         db = SessionLocal()
         try:
             _ensure_default_channels(db)
@@ -7458,13 +7498,13 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
             _root = _ET.fromstring(xml_string)
             if _root.get("type", "").startswith("b-t-f"):
                 is_new = _ingest_atak_geochat(_root)
-                # Only relay when the message was genuinely new.
-                # Duplicates (same UID arriving via multiple paths) are
-                # suppressed to prevent an infinite relay loop.
+                # Only relay to the TAK server when the message was genuinely
+                # new.  We intentionally do NOT echo back to TCP clients or
+                # multicast here – the message already arrived from one of
+                # those transports and relaying it back would send it to the
+                # same ATAK device that sent it, risking an infinite loop.
                 if is_new:
                     forward_cot_to_tak(xml_string)
-                    _forward_cot_to_tcp_clients(xml_string)
-                    _forward_cot_multicast(xml_string)
                 return
         except Exception:
             pass
