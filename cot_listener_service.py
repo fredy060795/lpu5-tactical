@@ -676,9 +676,9 @@ def _parse_cot_event(xml_str: str) -> Optional[Dict[str, Any]]:
             "<meshtastic> detail present" if has_meshtastic
             else f"CoT type '{cot_type}' prefix-matches meshtastic_node"
         )
-    elif base_lpu5_type == "friendly" and how.startswith("h-g"):
+    elif base_lpu5_type == "friendly" and how.startswith("h-"):
         detected_type = "tak_maker"
-        detection_reason = f"friendly + how='{how}' starts with 'h-g' → tak_maker (ATAK GPS SA)"
+        detection_reason = f"friendly + how='{how}' starts with 'h-' → tak_maker (ATAK human SA)"
     elif base_lpu5_type == "friendly":
         detected_type = "meshtastic_node"
         detection_reason = f"friendly + how='{how}' → meshtastic_node (Meshtastic node relayed by ATAK)"
