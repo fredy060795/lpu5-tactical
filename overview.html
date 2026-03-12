@@ -482,6 +482,102 @@
       opacity: 0.7;
     }
 
+    .chat-message-image {
+      max-width: 100%;
+      border-radius: 6px;
+      margin-top: 6px;
+      cursor: pointer;
+      display: block;
+    }
+
+    /* Camera / Image Picker Modal */
+    .chat-image-picker-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+    }
+    .chat-image-picker-overlay.open { display: flex; }
+    .chat-image-picker-modal {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 20px;
+      width: 90vw;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      color: #eee;
+      font-family: 'Courier New', monospace;
+    }
+    .chat-image-picker-modal h3 {
+      margin: 0 0 16px 0;
+      color: #ff9800;
+      text-transform: uppercase;
+      font-size: 1.1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-img-pick-actions {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .chat-img-pick-btn {
+      flex: 1;
+      padding: 14px 10px;
+      border: 2px dashed #555;
+      border-radius: 8px;
+      background: #1a1a1a;
+      color: #ccc;
+      cursor: pointer;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .chat-img-pick-btn:hover, .chat-img-pick-btn:active {
+      border-color: #ff9800;
+      background: #222;
+    }
+    .chat-img-pick-btn i {
+      display: block;
+      font-size: 1.5rem;
+      margin-bottom: 6px;
+      color: #ff9800;
+    }
+    .chat-img-preview-area {
+      display: none;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .chat-img-preview-area img {
+      max-width: 100%;
+      max-height: 40vh;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    .chat-img-send-btn {
+      width: 100%;
+      padding: 12px;
+      background: #2a5c3a;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      text-transform: uppercase;
+      display: none;
+    }
+    .chat-img-send-btn:hover { background: #1e3d28; }
+    .chat-img-send-btn:disabled { background: #444; cursor: not-allowed; color: #888; }
+
     #map {
       position: fixed;
       top: 50%;
@@ -969,6 +1065,12 @@
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
       </button>
+      <button class="tsb-btn" id="s-camera-chat" ontouchstart="handleToolInteraction(() => openChatImagePicker(), event)" onclick="handleToolInteraction(() => openChatImagePicker(), event)" title="Kamera – Bild an Chat senden">
+        <svg viewBox="0 0 24 24" fill="#ff9800" stroke="white" stroke-width="1.5">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+          <circle cx="12" cy="13" r="4" />
+        </svg>
+      </button>
       <button class="tsb-btn" id="s-video" ontouchstart="handleToolInteraction(() => toggleVideoStream(), event)" onclick="handleToolInteraction(() => toggleVideoStream(), event)" title="Open Video Stream">
         <svg viewBox="0 0 24 24" fill="#007bff" stroke="white" stroke-width="1.5">
           <path d="M23 7l-7 5 7 5V7z" />
@@ -1058,6 +1160,35 @@
           <i class="fas fa-paper-plane"></i> Send
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Camera / Image Picker Modal for Chat -->
+  <div class="chat-image-picker-overlay" id="chatImagePickerOverlay">
+    <div class="chat-image-picker-modal">
+      <h3>
+        <span><i class="fas fa-camera"></i> Bild an Chat senden</span>
+        <button onclick="closeChatImagePicker()" style="background:none;border:none;color:#ff4444;font-size:1.3rem;cursor:pointer;padding:0;"><i class="fas fa-times"></i></button>
+      </h3>
+      <div class="chat-img-pick-actions">
+        <div class="chat-img-pick-btn" onclick="chatImageCapture()">
+          <i class="fas fa-camera"></i>
+          Foto aufnehmen
+        </div>
+        <div class="chat-img-pick-btn" onclick="chatImageSelect()">
+          <i class="fas fa-images"></i>
+          Bild auswählen
+        </div>
+      </div>
+      <input type="file" id="chatImageFileInput" accept="image/*" style="display:none;" onchange="chatImageSelected(event)">
+      <input type="file" id="chatImageCaptureInput" accept="image/*" capture="environment" style="display:none;" onchange="chatImageSelected(event)">
+      <div class="chat-img-preview-area" id="chatImagePreviewArea">
+        <img id="chatImagePreview" alt="Preview">
+        <p style="color:#888;font-size:0.8rem;margin:8px 0 0 0;"><i class="fas fa-info-circle"></i> Vorschau</p>
+      </div>
+      <button class="chat-img-send-btn" id="chatImageSendBtn" onclick="sendChatImage()">
+        <i class="fas fa-paper-plane"></i> Bild senden
+      </button>
     </div>
   </div>
 
@@ -1779,7 +1910,7 @@
               messageEl.className = 'chat-message incoming';
               messageEl.setAttribute('data-msg-id', msg.id || '');
               const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
-              messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || msg.message || '') + '</div>';
+              messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div>' + _renderChatMsgContent(msg);
               messagesDiv.appendChild(messageEl);
               messagesDiv.scrollTop = messagesDiv.scrollHeight;
               // Update unread badge if chat window is not open
@@ -3741,6 +3872,126 @@
       });
     }
 
+    // ── Chat Image Picker Functions ──────────────────────────────
+    let _chatImageFile = null;
+
+    function openChatImagePicker() {
+      _chatImageFile = null;
+      const overlay = document.getElementById('chatImagePickerOverlay');
+      const preview = document.getElementById('chatImagePreviewArea');
+      const sendBtn = document.getElementById('chatImageSendBtn');
+      if (overlay) overlay.classList.add('open');
+      if (preview) preview.style.display = 'none';
+      if (sendBtn) sendBtn.style.display = 'none';
+      // Also ensure chat window is open so the user can see the sent image
+      const chatWin = document.getElementById('chat-window');
+      if (chatWin && !chatWin.classList.contains('open')) toggleChatWindow();
+    }
+
+    function closeChatImagePicker() {
+      const overlay = document.getElementById('chatImagePickerOverlay');
+      if (overlay) overlay.classList.remove('open');
+      _chatImageFile = null;
+      // Reset file inputs
+      const fi = document.getElementById('chatImageFileInput');
+      const ci = document.getElementById('chatImageCaptureInput');
+      if (fi) fi.value = '';
+      if (ci) ci.value = '';
+    }
+
+    function chatImageCapture() {
+      const inp = document.getElementById('chatImageCaptureInput');
+      if (inp) inp.click();
+    }
+
+    function chatImageSelect() {
+      const inp = document.getElementById('chatImageFileInput');
+      if (inp) inp.click();
+    }
+
+    function chatImageSelected(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        alert('Bitte nur Bilddateien auswählen.');
+        return;
+      }
+      _chatImageFile = file;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const preview = document.getElementById('chatImagePreviewArea');
+        const img = document.getElementById('chatImagePreview');
+        const sendBtn = document.getElementById('chatImageSendBtn');
+        if (img) img.src = e.target.result;
+        if (preview) preview.style.display = 'block';
+        if (sendBtn) sendBtn.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function sendChatImage() {
+      if (!_chatImageFile) return;
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) { alert('Bitte zuerst einloggen.'); return; }
+
+      const sendBtn = document.getElementById('chatImageSendBtn');
+      if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sende...'; }
+
+      const channelId = (document.getElementById('chat-recipient') || {}).value || 'all';
+      const formData = new FormData();
+      formData.append('file', _chatImageFile);
+      formData.append('channel_id', channelId);
+
+      fetch('/api/chat/image', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('Upload failed: ' + r.status);
+        return r.json();
+      })
+      .then(result => {
+        if (result.status === 'success' && result.message) {
+          // Show image in chat locally
+          const messagesDiv = document.getElementById('chat-messages');
+          if (messagesDiv) {
+            const ph = messagesDiv.querySelector('.chat-placeholder');
+            if (ph) ph.remove();
+            const senderName = currentUserName || sessionStorage.getItem('currentUser') || 'Me';
+            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const messageEl = document.createElement('div');
+            messageEl.className = 'chat-message outgoing';
+            messageEl.setAttribute('data-msg-id', result.message.id || '');
+            _sentChatMessageIds.add(String(result.message.id));
+            setTimeout(() => _sentChatMessageIds.delete(String(result.message.id)), 30000);
+            messageEl.innerHTML =
+              '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(senderName) + '</span><span class="chat-message-time">' + time + '</span></div>' +
+              '<img src="' + _escapeHtml(result.message.text) + '" class="chat-message-image" onclick="window.open(this.src,\'_blank\')" alt="Bild">' +
+              '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:#888;">&#10003;</div>';
+            messagesDiv.appendChild(messageEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          }
+        }
+        closeChatImagePicker();
+      })
+      .catch(e => {
+        console.error('Failed to send chat image:', e);
+        alert('Bild konnte nicht gesendet werden: ' + e.message);
+      })
+      .finally(() => {
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Bild senden'; }
+      });
+    }
+
+    // Helper: render chat message content (text or image)
+    function _renderChatMsgContent(msg) {
+      if (msg.type === 'image' && msg.text) {
+        return '<img src="' + _escapeHtml(msg.text) + '" class="chat-message-image" onclick="window.open(this.src,\'_blank\')" alt="Bild">';
+      }
+      return '<div class="chat-message-text">' + _escapeHtml(msg.text || '') + '</div>';
+    }
+
     function loadChatUsers() {
       // Load channels from API for chat recipient dropdown
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -3833,7 +4084,7 @@
               else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
               statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
             }
-            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + _escapeHtml(msg.text || '') + '</div>' + statusHtml;
+            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + time + '</span></div>' + _renderChatMsgContent(msg) + statusHtml;
             messagesDiv.appendChild(messageEl);
           });
           messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -5910,8 +6161,13 @@
           <span class="chat-message-sender">${_escapeHtml(message.from)}</span>
           <span class="chat-message-time">${_escapeHtml(time)}</span>
         </div>
-        <div class="chat-message-text">${_escapeHtml(message.text)}</div>
       `;
+
+      if (message.type === 'image' && message.text) {
+        contentHTML += '<img src="' + _escapeHtml(message.text) + '" class="chat-message-image" onclick="window.open(this.src,\'_blank\')" alt="Bild">';
+      } else {
+        contentHTML += '<div class="chat-message-text">' + _escapeHtml(message.text) + '</div>';
+      }
 
       if (message.type === 'cot') {
         contentHTML += '<div style="color: #28a745; font-size: 0.75em; margin-top: 4px;">📡 COT Message</div>';
