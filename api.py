@@ -7488,27 +7488,30 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
     """
     # Capture for the CoT data monitor (best-effort, never blocks the main flow)
     _cot_monitor_record(xml_string, "<<<", "cot_listener")
+
+    # Handle ATAK GeoChat (b-t-f) events BEFORE the AUTONOMOUS_MODULES_AVAILABLE
+    # guard because GeoChat ingestion only needs stdlib xml.etree and the local
+    # _ingest_atak_geochat helper – it must work even when the heavier autonomous
+    # modules (cot_protocol, geofencing, autonomous_engine) failed to load.
+    try:
+        import xml.etree.ElementTree as _ET
+        _root = _ET.fromstring(xml_string)
+        if _root.get("type", "").startswith("b-t-f"):
+            is_new = _ingest_atak_geochat(_root)
+            # Only relay to the TAK server when the message was genuinely
+            # new.  We intentionally do NOT echo back to TCP clients or
+            # multicast here – the message already arrived from one of
+            # those transports and relaying it back would send it to the
+            # same ATAK device that sent it, risking an infinite loop.
+            if is_new:
+                forward_cot_to_tak(xml_string)
+            return
+    except Exception:
+        pass
+
     if not AUTONOMOUS_MODULES_AVAILABLE:
         return
     try:
-        import xml.etree.ElementTree as _ET
-        # Handle ATAK GeoChat (b-t-f) events before full CoT validation so
-        # that chat messages without a valid point element are still ingested.
-        try:
-            _root = _ET.fromstring(xml_string)
-            if _root.get("type", "").startswith("b-t-f"):
-                is_new = _ingest_atak_geochat(_root)
-                # Only relay to the TAK server when the message was genuinely
-                # new.  We intentionally do NOT echo back to TCP clients or
-                # multicast here – the message already arrived from one of
-                # those transports and relaying it back would send it to the
-                # same ATAK device that sent it, risking an infinite loop.
-                if is_new:
-                    forward_cot_to_tak(xml_string)
-                return
-        except Exception:
-            pass
-
         if not CoTProtocolHandler.validate_cot_xml(xml_string):
             logger.debug("CoT listener: invalid CoT XML ignored")
             return
