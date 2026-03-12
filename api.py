@@ -1151,6 +1151,15 @@ _LPU5_COT_UID = "LPU5-GW"
 # Events whose UID starts with this prefix are LPU5-originated echo-backs.
 _LPU5_GEOCHAT_UID_PREFIX = "GeoChat.LPU5-"
 
+# Deduplication cache for incoming ATAK GeoChat (b-t-f) events.
+# Maps event UID → ingestion timestamp.  Entries older than
+# _GEOCHAT_SEEN_TTL are lazily purged.  This prevents the same chat
+# message from being saved and relayed multiple times when it arrives
+# via several paths (TAK server echo, multicast, TCP relay).
+_GEOCHAT_SEEN_UIDS: Dict[str, float] = {}
+_GEOCHAT_SEEN_UIDS_LOCK = threading.Lock()
+_GEOCHAT_SEEN_TTL = 300  # seconds – keep UIDs for 5 minutes
+
 
 def _get_cot_listener_endpoint() -> str:
     """Return the CoT TCP endpoint string for the LPU5 SA beacon's <contact> element.
@@ -1432,7 +1441,7 @@ def _forward_chat_to_atak(sender: str, text: str) -> bool:
         return False
 
 
-def _ingest_atak_geochat(root) -> None:
+def _ingest_atak_geochat(root) -> bool:
     """
     Parse an ATAK GeoChat CoT element (type b-t-f) and save it as a LPU5 chat message.
 
@@ -1441,22 +1450,47 @@ def _ingest_atak_geochat(root) -> None:
     Echo-backs of LPU5-originated GeoChat messages (UID prefix ``GeoChat.LPU5-``)
     are detected and skipped to prevent duplicate entries – the original message
     was already persisted by :func:`send_chat_message`.
+
+    Returns ``True`` when the message was actually ingested (new), ``False`` when
+    it was skipped (echo-back, duplicate, or missing data).  Callers use the
+    return value to decide whether to relay the event to other connections.
     """
     try:
+        event_uid = root.get("uid", "")
+
         # --- Echo-back detection ---
         # When LPU5 sends a chat message, _forward_chat_to_atak builds the CoT
         # with sender_uid="LPU5-<username>", producing a UID of the form
         # "GeoChat.LPU5-<username>.<chatroom>.<uuid>".  If the TAK server or
         # a multicast/TCP echo sends this back, we must not save it again
         # because the original message is already in the DB.
-        event_uid = root.get("uid", "")
         if event_uid.startswith(_LPU5_GEOCHAT_UID_PREFIX):
             logger.debug("ATAK GeoChat: skipping LPU5 echo-back (uid=%s)", event_uid)
-            return
+            return False
+
+        # --- UID-based deduplication ---
+        # The same GeoChat event can arrive via multiple paths (TAK server
+        # echo, multicast, TCP relay).  We track recently-seen UIDs so we
+        # ingest and relay each event only once.
+        # Events without a UID are let through (they will likely fail later
+        # validation anyway) to avoid polluting the cache with empty keys.
+        if event_uid:
+            now_ts = time.time()
+            with _GEOCHAT_SEEN_UIDS_LOCK:
+                if event_uid in _GEOCHAT_SEEN_UIDS:
+                    logger.debug("ATAK GeoChat: duplicate uid=%s, skipping", event_uid)
+                    return False
+                _GEOCHAT_SEEN_UIDS[event_uid] = now_ts
+                # Lazy purge – only when the cache has grown large enough to
+                # justify the iteration cost.
+                if len(_GEOCHAT_SEEN_UIDS) > 200:
+                    stale = [k for k, v in _GEOCHAT_SEEN_UIDS.items() if now_ts - v > _GEOCHAT_SEEN_TTL]
+                    for k in stale:
+                        del _GEOCHAT_SEEN_UIDS[k]
 
         detail = root.find("detail")
         if detail is None:
-            return
+            return False
         # Extract sender callsign from __chat element
         chat_elem = detail.find("__chat")
         sender_callsign = None
@@ -1469,7 +1503,7 @@ def _ingest_atak_geochat(root) -> None:
         remarks_elem = detail.find("remarks")
         if remarks_elem is None or not (remarks_elem.text or "").strip():
             logger.debug("ATAK GeoChat: no remarks text in event uid=%s, skipping", event_uid)
-            return
+            return False
         text = remarks_elem.text.strip()
         db = SessionLocal()
         try:
@@ -1495,10 +1529,12 @@ def _ingest_atak_geochat(root) -> None:
                     _MAIN_EVENT_LOOP,
                 )
             logger.info("ATAK→Chat bridge: %s: %s", sender_callsign, text[:80])
+            return True
         finally:
             db.close()
     except Exception as _geo_err:
         logger.warning("ATAK GeoChat ingest error: %s", _geo_err)
+        return False
 
 
 _TAK_RECEIVER_THREAD: Optional[threading.Thread] = None
@@ -1651,13 +1687,13 @@ def _process_incoming_cot(cot_xml: str) -> None:
 
         # --- ATAK GeoChat (b-t-f) → LPU5 chat bridge ---
         if event_type.startswith("b-t-f"):
-            _ingest_atak_geochat(root)
-            # Relay GeoChat from the TAK server to directly connected TCP
-            # clients (port 8088) and via SA Multicast so all local
-            # WinTAK/ATAK instances also receive chat messages that were
-            # sent by *other* ATAK users through the TAK server.
-            _forward_cot_to_tcp_clients(cot_xml)
-            _forward_cot_multicast(cot_xml)
+            is_new = _ingest_atak_geochat(root)
+            # Only relay when the message was genuinely new.  Duplicates
+            # (same UID arriving via TAK-server echo, multicast, or TCP
+            # relay) are suppressed to prevent an infinite relay loop.
+            if is_new:
+                _forward_cot_to_tcp_clients(cot_xml)
+                _forward_cot_multicast(cot_xml)
             with _TAK_RECEIVER_STATS_LOCK:
                 _TAK_RECEIVER_STATS["packets_received"] += 1
             return
@@ -7421,14 +7457,14 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
         try:
             _root = _ET.fromstring(xml_string)
             if _root.get("type", "").startswith("b-t-f"):
-                _ingest_atak_geochat(_root)
-                # Relay GeoChat from a directly connected client to the TAK
-                # server, other TCP clients, and multicast so ALL connected
-                # ATAK/WinTAK instances (whether local or remote via TAK
-                # server) receive messages from every user.
-                forward_cot_to_tak(xml_string)
-                _forward_cot_to_tcp_clients(xml_string)
-                _forward_cot_multicast(xml_string)
+                is_new = _ingest_atak_geochat(_root)
+                # Only relay when the message was genuinely new.
+                # Duplicates (same UID arriving via multiple paths) are
+                # suppressed to prevent an infinite relay loop.
+                if is_new:
+                    forward_cot_to_tak(xml_string)
+                    _forward_cot_to_tcp_clients(xml_string)
+                    _forward_cot_multicast(xml_string)
                 return
         except Exception:
             pass
