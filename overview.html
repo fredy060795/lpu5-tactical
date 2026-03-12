@@ -2656,6 +2656,32 @@
       return false;
     }
 
+    // Rename a marker via PUT /api/map_markers/{id} and broadcast globally
+    async function _renameMarker(markerId, inputEl) {
+      if (!inputEl) return;
+      const newName = inputEl.value.trim();
+      if (!newName) return;
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/map_markers/' + encodeURIComponent(markerId), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+          },
+          body: JSON.stringify({ name: newName })
+        });
+        if (res.ok) {
+          map.closePopup();
+        } else {
+          alert('Rename failed');
+        }
+      } catch (e) {
+        console.error('Rename marker error:', e);
+        alert('Network error');
+      }
+    }
+
     // Debounced wrapper for sync() — coalesces rapid WebSocket-triggered sync
     // requests (e.g. from a busy ATAK stream) into a single call.
     const SYNC_DEBOUNCE_MS = 500;
@@ -2726,6 +2752,16 @@
           const layer = L.marker([m.lat, m.lng], { icon, pane: 'drawPane' }).addTo(map);
           layer._serverId = m.id;
           serverMarkerLayers.set(m.id, layer);
+          // Popup with editable name
+          const _mName = _escapeHtml(m.name || m.callsign || m.type || 'Marker');
+          layer.bindPopup(`<div style="min-width:150px"><strong>${_mName}</strong><br><input type="text" class="rename-input" value="${_mName}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
+          layer.on('popupopen', function() {
+            const pop = layer.getPopup().getElement();
+            if (!pop) return;
+            const btn = pop.querySelector('.rename-btn');
+            const inp = pop.querySelector('.rename-input');
+            if (btn && inp) btn.addEventListener('click', function() { _renameMarker(m.id, inp); });
+          });
           layer.on('click touchstart', async (ev) => {
             ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
             if (currentTool === 'trash') {
@@ -2820,16 +2856,19 @@
           });
           const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
 
-          // Show username label for GPS positions on click, symbol type for others
-          const tooltipText = isGps ? (s.username || s.label || 'GPS') : (s.label || s.type || 'Symbol');
+          // Show username label for GPS positions on click, editable name for others
           if (isGps) {
+            const tooltipText = s.username || s.label || 'GPS';
             marker.bindPopup(`<strong>${tooltipText}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
           } else {
-            marker.bindTooltip(tooltipText, {
-              permanent: false,
-              direction: 'right',
-              offset: [10, 0],
-              className: 'symbol-label'
+            const _sLabel = _escapeHtml(s.label || s.type || 'Symbol');
+            marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${_escapeHtml(s.username || 'unknown')}</span><br><input type="text" class="rename-input" value="${_sLabel}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
+            marker.on('popupopen', function() {
+              const pop = marker.getPopup().getElement();
+              if (!pop) return;
+              const btn = pop.querySelector('.rename-btn');
+              const inp = pop.querySelector('.rename-input');
+              if (btn && inp) btn.addEventListener('click', function() { _renameMarker(s.id, inp); });
             });
           }
 
