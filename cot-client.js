@@ -433,7 +433,7 @@ class COTProtocolHandler {
         };
         if (cotEvent.hasMeshtasticDetail || lpu5Type === 'node' || cotEvent.type === 'a-f-G-E-S-U-M') {
             lpu5Type = 'node';
-        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
+        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-')) {
             lpu5Type = 'tak_maker';
         } else if (lpu5Type === 'friendly') {
             lpu5Type = 'node';

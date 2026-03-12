@@ -544,12 +544,12 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "meshtastic_node")
 
     def test_cot_to_marker_tak_maker_type_human_how(self):
-        # "h-e" (human-entered) → meshtastic_node (round circle with short name)
-        # Only GPS-derived how="h-g*" produces tak_maker.
+        # "h-e" (human-entered) → tak_maker (ATAK user with human-entered position)
+        # All human-originated how codes ("h-*") produce tak_maker.
         xml = self._make_cot_xml(how="h-e")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "meshtastic_node")
+        self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_gps_position_type_gps_how(self):
         # "h-g-i-g-o" (GPS-derived) → tak_maker (ATAK user SA beacon)
