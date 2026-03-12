@@ -1147,6 +1147,9 @@ def _build_cot_pong_xml() -> str:
 # Fixed UID used for LPU5's SA beacon so the TAK server recognises the gateway
 # as a persistent entity across reconnects.
 _LPU5_COT_UID = "LPU5-GW"
+# UID prefix used by _forward_chat_to_atak when building GeoChat CoT events.
+# Events whose UID starts with this prefix are LPU5-originated echo-backs.
+_LPU5_GEOCHAT_UID_PREFIX = "GeoChat.LPU5-"
 
 
 def _get_cot_listener_endpoint() -> str:
@@ -1435,8 +1438,22 @@ def _ingest_atak_geochat(root) -> None:
 
     *root* must be the already-parsed ``<event>`` XML element.
     Silently skips events without a recognisable message body.
+    Echo-backs of LPU5-originated GeoChat messages (UID prefix ``GeoChat.LPU5-``)
+    are detected and skipped to prevent duplicate entries – the original message
+    was already persisted by :func:`send_chat_message`.
     """
     try:
+        # --- Echo-back detection ---
+        # When LPU5 sends a chat message, _forward_chat_to_atak builds the CoT
+        # with sender_uid="LPU5-<username>", producing a UID of the form
+        # "GeoChat.LPU5-<username>.<chatroom>.<uuid>".  If the TAK server or
+        # a multicast/TCP echo sends this back, we must not save it again
+        # because the original message is already in the DB.
+        event_uid = root.get("uid", "")
+        if event_uid.startswith(_LPU5_GEOCHAT_UID_PREFIX):
+            logger.debug("ATAK GeoChat: skipping LPU5 echo-back (uid=%s)", event_uid)
+            return
+
         detail = root.find("detail")
         if detail is None:
             return
@@ -1451,6 +1468,7 @@ def _ingest_atak_geochat(root) -> None:
         # Extract message text from <remarks>
         remarks_elem = detail.find("remarks")
         if remarks_elem is None or not (remarks_elem.text or "").strip():
+            logger.debug("ATAK GeoChat: no remarks text in event uid=%s, skipping", event_uid)
             return
         text = remarks_elem.text.strip()
         db = SessionLocal()
@@ -1634,6 +1652,12 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # --- ATAK GeoChat (b-t-f) → LPU5 chat bridge ---
         if event_type.startswith("b-t-f"):
             _ingest_atak_geochat(root)
+            # Relay GeoChat from the TAK server to directly connected TCP
+            # clients (port 8088) and via SA Multicast so all local
+            # WinTAK/ATAK instances also receive chat messages that were
+            # sent by *other* ATAK users through the TAK server.
+            _forward_cot_to_tcp_clients(cot_xml)
+            _forward_cot_multicast(cot_xml)
             with _TAK_RECEIVER_STATS_LOCK:
                 _TAK_RECEIVER_STATS["packets_received"] += 1
             return
@@ -6201,6 +6225,98 @@ def api_qr_create(data: dict = Body(...), request: Request = None, db: Session =
         "png_base64": png_b64
     }
 
+@app.post("/api/qr/cot_mesh")
+def api_qr_cot_mesh(data: dict = Body(...), request: Request = None, db: Session = Depends(get_db)):
+    """Create a COT Mesh Login QR code.
+
+    The QR encodes server connection details (host, port, SSL) plus a
+    master_key that authorises COT-only access when no internet is
+    available.  User credentials are NOT embedded – the user must enter
+    them manually after scanning.
+    """
+    expires_days = int(data.get("expires_days", 365))
+    label = data.get("label") or "cot_mesh_login"
+    max_uses = int(data.get("max_uses", 999))
+
+    local_ip, all_ips = get_local_ip()
+    cert_file = os.path.join(base_path, "cert.pem")
+    key_file = os.path.join(base_path, "key.pem")
+    use_ssl = os.path.exists(cert_file) and os.path.exists(key_file)
+    protocol = "https" if use_ssl else "http"
+    server_port = 8101
+
+    # Read COT listener ports from config
+    cfg = load_json("config") or {}
+    cot_tcp_port = int(cfg.get("cot_listener_tcp_port", 8088))
+    cot_udp_port = int(cfg.get("cot_listener_udp_port", 4242))
+
+    master_key = str(uuid.uuid4())
+    qr_id = str(uuid.uuid4())
+    expires_at_dt = datetime.now(timezone.utc) + timedelta(days=expires_days)
+
+    # JSON payload that will be encoded into the QR image
+    qr_payload = {
+        "type": "cot_mesh_login",
+        "master_key": master_key,
+        "name": cfg.get("server_name") or "LPU5 Server",
+        "host": local_ip,
+        "port": server_port,
+        "protocol": protocol,
+        "ssl": use_ssl,
+        "cot_tcp_port": cot_tcp_port,
+        "cot_udp_port": cot_udp_port,
+        "all_ips": all_ips,
+    }
+
+    png_b64 = None
+    if qrcode:
+        try:
+            import json as _json
+            qr_img = qrcode.make(_json.dumps(qr_payload))
+            from io import BytesIO
+            buf = BytesIO()
+            qr_img.save(buf, format="PNG")
+            png_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        except Exception:
+            logger.exception("COT Mesh QR PNG generation failed")
+
+    new_qr = QRCode(
+        id=qr_id,
+        token=master_key,
+        type="cot_mesh_login",
+        created_by="system",
+        expires_at=expires_at_dt,
+        max_uses=max_uses,
+        uses=0,
+        allowed_ips=[],
+        data={
+            "label": label,
+            "qr_payload": qr_payload,
+            "png_base64": png_b64,
+        },
+    )
+    db.add(new_qr)
+    db.commit()
+
+    log_audit(
+        "create_cot_mesh_qr",
+        "system",
+        {"master_key": master_key, "created_by_ip": _get_client_ip(request) if request else None},
+    )
+    return {
+        "status": "success",
+        "qr": {
+            "id": qr_id,
+            "master_key": master_key,
+            "label": label,
+            "max_uses": max_uses,
+            "uses": 0,
+            "payload": qr_payload,
+        },
+        "png_base64": png_b64,
+    }
+
+
 @app.get("/api/qr/list")
 def api_qr_list(db: Session = Depends(get_db)):
     qrs = db.query(QRCode).all()
@@ -7306,6 +7422,13 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
             _root = _ET.fromstring(xml_string)
             if _root.get("type", "").startswith("b-t-f"):
                 _ingest_atak_geochat(_root)
+                # Relay GeoChat from a directly connected client to the TAK
+                # server, other TCP clients, and multicast so ALL connected
+                # ATAK/WinTAK instances (whether local or remote via TAK
+                # server) receive messages from every user.
+                forward_cot_to_tak(xml_string)
+                _forward_cot_to_tcp_clients(xml_string)
+                _forward_cot_multicast(xml_string)
                 return
         except Exception:
             pass
@@ -8941,6 +9064,110 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
     except Exception as e:
         db.rollback()
         logger.exception("send_chat_message failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.post("/api/chat/image", summary="Upload image and send as chat message")
+async def send_chat_image(
+    file: UploadFile = File(...),
+    channel_id: str = Form("all"),
+    authorization: str = Header(None),
+):
+    """Upload an image and create a chat message with the image URL."""
+    _MAX_CHAT_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+    db = SessionLocal()
+    try:
+        username = _extract_username_from_auth(authorization)
+
+        # Validate file type
+        original_name = file.filename or "photo.jpg"
+        _, ext = os.path.splitext(os.path.basename(original_name))
+        ext_lower = ext.lower().strip()
+        if not ext_lower:
+            ext_lower = ".jpg"
+
+        # Sanitize: only allow alphanumeric ext chars (no null bytes, path separators)
+        if not all(c.isalnum() or c == '.' for c in ext_lower):
+            raise HTTPException(status_code=400, detail="Invalid file extension")
+
+        allowed_img_ext = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+        allowed_img_mime = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
+
+        if ext_lower not in allowed_img_ext:
+            raise HTTPException(status_code=400, detail=f"File type '{ext_lower}' is not allowed. Allowed: {', '.join(sorted(allowed_img_ext))}")
+
+        content_type = file.content_type or ""
+        if content_type and content_type not in allowed_img_mime:
+            raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+
+        # Read file content with size limit
+        content = await file.read()
+        if len(content) > _MAX_CHAT_IMAGE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {_MAX_CHAT_IMAGE_SIZE // (1024*1024)} MB.")
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        # Verify it is a valid image using Pillow
+        try:
+            from PIL import Image as PILImage
+            import io
+            img = PILImage.open(io.BytesIO(content))
+            img.verify()
+        except Exception:
+            raise HTTPException(status_code=400, detail="File is not a valid image")
+
+        # Verify channel exists
+        _ensure_default_channels(db)
+        channel_exists = db.query(ChatChannel).filter(ChatChannel.id == channel_id).first()
+        if not channel_exists:
+            raise HTTPException(status_code=404, detail="Channel not found")
+
+        # Enforce channel access
+        sender_user = db.query(User).filter(User.username == username).first()
+        if sender_user and sender_user.role not in ("admin", "operator"):
+            user_chat_channels = sender_user.chat_channels or []
+            allowed = set(user_chat_channels) | {"all"}
+            if channel_id not in allowed:
+                raise HTTPException(status_code=403, detail="You are not a member of this channel")
+
+        # Save file to uploads/chat/
+        chat_uploads = os.path.join(uploads_dir, "chat")
+        os.makedirs(chat_uploads, exist_ok=True)
+        safe_name = f"{uuid.uuid4().hex}{ext_lower}"
+        dest_path = os.path.join(chat_uploads, safe_name)
+        with open(dest_path, "wb") as fh:
+            fh.write(content)
+
+        file_url = f"/uploads/chat/{safe_name}"
+
+        # Create chat message with type=image and content=URL
+        new_msg = ChatMessage(
+            channel=channel_id,
+            sender=username,
+            content=file_url,
+            timestamp=datetime.now(timezone.utc),
+            type="image",
+            delivered_to=[],
+            read_by=[],
+        )
+        db.add(new_msg)
+        db.commit()
+        db.refresh(new_msg)
+
+        msg_dict = _chat_message_to_dict(new_msg)
+
+        # Broadcast to WebSocket clients
+        if AUTONOMOUS_MODULES_AVAILABLE and websocket_manager:
+            await websocket_manager.publish_to_channel('chat', {"type": "new_message", "data": msg_dict})
+
+        return {"status": "success", "message": msg_dict}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("send_chat_image failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
