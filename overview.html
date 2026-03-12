@@ -5227,7 +5227,7 @@
       const popup = document.getElementById('menu-popup');
       if (popup) popup.classList.remove('open');
       // Stop QR camera scanner if active
-      if (typeof _nwStopQrCamera === 'function') _nwStopQrCamera();
+      _nwStopQrCamera();
     }
 
     function sidebarTile(id, icon, label, action) {
@@ -6158,7 +6158,8 @@
       }
       body.innerHTML = h;
 
-      document.getElementById('cs-save-btn').onclick = function(e) {
+      var csBtn = document.getElementById('cs-save-btn');
+      if (csBtn) csBtn.onclick = function(e) {
         e.stopPropagation();
         var nameVal = (document.getElementById('cs-edit-name').value || '').trim();
         var csVal   = (document.getElementById('cs-edit-callsign').value || '').trim();
