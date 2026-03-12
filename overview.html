@@ -5424,8 +5424,8 @@
       var contacts = {}; // keyed by unique id
 
       // 1) ATAK / CoT markers from sync() → serverMarkerLayers
-      for (var _e of serverMarkerLayers) {
-        var id = _e[0], layer = _e[1];
+      for (var serverEntry of serverMarkerLayers) {
+        var id = serverEntry[0], layer = serverEntry[1];
         var ll = layer.getLatLng();
         if (!ll) continue;
         var name = layer._serverId || id;
@@ -5445,8 +5445,8 @@
       }
 
       // 2) Meshtastic nodes from updateMeshtasticNodes() → meshtasticMarkers
-      for (var _m of meshtasticMarkers) {
-        var meshId = _m[0], entry = _m[1];
+      for (var meshEntry of meshtasticMarkers) {
+        var meshId = meshEntry[0], entry = meshEntry[1];
         var mll = entry.marker.getLatLng();
         if (!mll) continue;
         var nd = entry.data || {};
@@ -5464,8 +5464,8 @@
       }
 
       // 3) GPS position symbols from loadMapSymbols() → symbolLayers
-      for (var _s of symbolLayers) {
-        var sid = _s[0], slayer = _s[1];
+      for (var symbolEntry of symbolLayers) {
+        var sid = symbolEntry[0], slayer = symbolEntry[1];
         var sll = slayer.getLatLng();
         if (!sll) continue;
         var sPop = '';

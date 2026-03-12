@@ -2231,8 +2231,8 @@
         }
 
         // 2) Meshtastic nodes → meshtasticMarkers
-        for (var _m of meshtasticMarkers) {
-          var meshId = _m[0], entry = _m[1];
+        for (var meshEntry of meshtasticMarkers) {
+          var meshId = meshEntry[0], entry = meshEntry[1];
           var mll = entry.marker.getLatLng();
           if (!mll) continue;
           var nd = entry.data || {};
