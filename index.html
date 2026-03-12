@@ -7460,19 +7460,9 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             <label class="small">Select Page</label>
             <div class="select-wrapper">
                 <select id="pageSelect">
-                    <option value="register.html">register.html</option>
-                    <option value="landing.html">landing.html</option>
                     <option value="index.html">index.html</option>
                     <option value="overview.html">overview.html</option>
-                    <option value="admin.html">admin.html</option>
-                    <option value="admin_map.html">admin_map.html</option>
-                    <option value="mission.html">mission.html</option>
-                    <option value="meshtastic.html">meshtastic.html</option>
-                    <option value="stream.html">stream.html</option>
-                    <option value="import_nodes.html">import_nodes.html</option>
-                    <option value="statistics.html">statistics.html</option>
-                    <option value="network.html">network.html</option>
-                    <option value="language.html">language.html</option>
+                    <option value="register.html">register.html</option>
                 </select>
             </div>
         </div>
@@ -7537,6 +7527,49 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
 
         <div style="margin-top:12px;color:var(--muted);font-size:0.85em;">
             The QR code contains encoded JSON data (Base64). If needed, this can be switched to a server-side token method.
+        </div>
+    </div>
+
+    <!-- COT Mesh Login QR Code Section -->
+    <div class="section" data-permission="users.create">
+        <h3><i class="fas fa-satellite-dish"></i> COT MESH LOGIN QR CODE</h3>
+
+        <div style="margin-bottom:10px; padding:10px; background:rgba(243,156,18,0.1); border:1px solid rgba(243,156,18,0.3); border-radius:4px; font-size:0.85em;">
+            <i class="fas fa-info-circle" style="color:#f39c12;"></i>
+            <strong>COT Mesh Login:</strong> Dieser QR-Code ermöglicht es Benutzern, den Server über Mesh/COT zu erreichen,
+            wenn kein Internet verfügbar ist. Der QR-Code enthält einen Master-Key, Server-IP, Port und SSL-Informationen.
+            Benutzer müssen ihre Zugangsdaten selbst eingeben. Bei vorhandener Internetverbindung werden die Zugangsdaten
+            geprüft &ndash; bei ungültigen Daten fällt die Verbindung auf COT-Only zurück.
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label for="cotMeshMaxUses" class="small">Maximum Uses</label>
+            <input id="cotMeshMaxUses" type="number" min="1" value="999" placeholder="Default: 999" style="width:150px;">
+        </div>
+
+        <div id="cotMeshServerInfo" style="margin-top:10px; margin-bottom:10px; padding:10px; background:rgba(52,152,219,0.1); border:1px solid rgba(52,152,219,0.3); border-radius:4px; font-size:0.85em; display:none;">
+            <i class="fas fa-network-wired" style="color:#3498db;"></i>
+            <strong>Server:</strong> <span id="cotMeshServerUrl">Loading...</span><br>
+            <i class="fas fa-satellite-dish" style="color:#f39c12;"></i>
+            <strong>COT Ports:</strong> TCP <span id="cotMeshTcpPort">--</span> / UDP <span id="cotMeshUdpPort">--</span>
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+            <button class="btn" onclick="createCOTMeshQR()" data-permission="users.create" style="background:rgba(243,156,18,0.2); border-color:#f39c12; color:#f39c12;">
+                <i class="fas fa-satellite-dish"></i> Create COT Mesh QR
+            </button>
+            <button class="btn" id="copyCotMeshBtn" onclick="copyCOTMeshData()" disabled data-permission="users.create">
+                <i class="fas fa-copy"></i> Copy Data
+            </button>
+        </div>
+
+        <div id="cotMeshPreviewArea" style="display:none; margin-top:12px; text-align:center;">
+        </div>
+
+        <div style="margin-top:12px;color:var(--muted);font-size:0.85em;">
+            <i class="fas fa-shield-alt" style="color:#f39c12;"></i>
+            Der QR-Code enthält <strong>keine</strong> Benutzerdaten. Benutzer müssen Callsign und Passwort selbst eingeben.
+            Der enthaltene Master-Key autorisiert den COT-Mesh-Zugang.
         </div>
     </div>
 </div>
@@ -12529,6 +12562,82 @@ window.addEventListener('storage', (e) => {
         alert('Error copying: ' + (e.message || e)); 
       }
     }
+
+    // ─── COT Mesh Login QR Code ──────────────────────────────────────
+    async function createCOTMeshQR() {
+      const maxUsesInput = document.getElementById('cotMeshMaxUses');
+      const maxUses = maxUsesInput ? parseInt(maxUsesInput.value, 10) || 999 : 999;
+      try {
+        const res = await fetch('/api/qr/cot_mesh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ max_uses: maxUses, label: 'cot_mesh_login' })
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          const errorDetail = body && (body.message || body.detail);
+          alert('COT Mesh QR creation failed: ' + (errorDetail || 'Status ' + res.status));
+          return;
+        }
+        // Show server info
+        const payload = body.qr && body.qr.payload ? body.qr.payload : {};
+        const infoEl = document.getElementById('cotMeshServerInfo');
+        if (infoEl) {
+          document.getElementById('cotMeshServerUrl').textContent =
+            (payload.protocol || 'https') + '://' + (payload.host || '?') + ':' + (payload.port || 8101);
+          document.getElementById('cotMeshTcpPort').textContent = payload.cot_tcp_port || '8088';
+          document.getElementById('cotMeshUdpPort').textContent = payload.cot_udp_port || '4242';
+          infoEl.style.display = '';
+        }
+        // Show preview
+        const png = body.png_base64;
+        const area = document.getElementById('cotMeshPreviewArea');
+        if (area) {
+          area.style.display = '';
+          if (png) {
+            area.innerHTML =
+              '<div style="color:#f39c12;font-weight:bold;margin-bottom:8px;"><i class="fas fa-satellite-dish"></i> COT Mesh Login QR</div>' +
+              '<img src="data:image/png;base64,' + png + '" alt="COT Mesh QR" width="260" height="260" style="border:2px solid #f39c12;border-radius:8px;">' +
+              '<div style="margin-top:8px;color:#888;font-size:0.8em;">Master-Key: <code>' + (body.qr.master_key || '---') + '</code></div>';
+          } else {
+            area.innerHTML = '<div class="small">QR created (PNG not available)</div>';
+          }
+        }
+        window._lastCotMeshQR = body;
+        const copyBtn = document.getElementById('copyCotMeshBtn');
+        if (copyBtn) copyBtn.disabled = false;
+      } catch (e) {
+        console.error('createCOTMeshQR', e);
+        alert('COT Mesh QR creation failed: ' + (e.message || e));
+      }
+    }
+
+    function copyCOTMeshData() {
+      try {
+        if (!window._lastCotMeshQR) return alert('No COT Mesh QR data to copy');
+        const payload = window._lastCotMeshQR.qr && window._lastCotMeshQR.qr.payload ? window._lastCotMeshQR.qr.payload : window._lastCotMeshQR;
+        const text = JSON.stringify(payload, null, 2);
+        navigator.clipboard.writeText(text).then(
+          () => { alert('COT Mesh data copied to clipboard'); },
+          (err) => { alert('Copy failed: ' + err); }
+        );
+      } catch (e) {
+        console.error('copyCOTMeshData', e);
+        alert('Error copying: ' + (e.message || e));
+      }
+    }
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.switchTab = switchTab;
+    window.createQRCode = createQRCode;
+    window.copyQRData = copyQRData;
+    window.createCOTMeshQR = createCOTMeshQR;
+    window.copyCOTMeshData = copyCOTMeshData;
+    window.loadQRUsers = loadQRUsers;
+    window.onQRUserChange = onQRUserChange;
+    window.loadPendingRegistrations = loadPendingRegistrations;
+    window.approveSelected = approveSelected;
+    window.rejectSelected = rejectSelected;
     };
     </script>
     <!-- Ende JS admin.html -->
