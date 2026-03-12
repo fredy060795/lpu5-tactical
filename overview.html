@@ -5553,7 +5553,7 @@
       else localStorage.removeItem(_TEAM_KEY);
     }
     function _teamGenId() {
-      return 'team-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 8);
+      return 'team-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
     }
     function _teamEsc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
@@ -5769,6 +5769,7 @@
       // If qrcodegen global is provided by a CDN script, we prefer that.
       function makeQr(text) {
         // Use the CDN-loaded qrcode-generator if available
+        // qrcode(typeNumber, errorCorrectionLevel): 0 = auto-detect version, 'L' = Low ECC (~7% recovery)
         if (typeof qrcode !== 'undefined' && typeof qrcode === 'function') {
           var qr = qrcode(0, 'L');
           qr.addData(text);
@@ -6723,6 +6724,7 @@
 
   <!-- QR Code Generator (for Team QR codes) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"
+          integrity="sha384-Qk6U033XHjKb14FHH7eWCFKU97YBWr13hes1sWpVwbFTnoWzVn/U3JOeXkmuX4Wy"
           crossorigin="anonymous"></script>
 
 </body>
