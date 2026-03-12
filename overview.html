@@ -5226,6 +5226,8 @@
     function closeMenuPopup() {
       const popup = document.getElementById('menu-popup');
       if (popup) popup.classList.remove('open');
+      // Stop QR camera scanner if active
+      if (typeof _nwStopQrCamera === 'function') _nwStopQrCamera();
     }
 
     function sidebarTile(id, icon, label, action) {
@@ -5237,6 +5239,7 @@
       if (!grid) return;
       const isLoggedIn = !!currentUserName;
       let html = '';
+      html += sidebarTile('tile-callsign','fas fa-id-badge',     'Callsign', "openMenuPopup('callsign')");
       html += sidebarTile('tile-netzwerk', 'fas fa-network-wired', 'Netzwerk', "openMenuPopup('netzwerk')");
       html += sidebarTile('tile-status', 'fas fa-user', 'Status',    "openMenuPopup('status')");
       html += sidebarTile('tile-gps',    'fas fa-location-arrow', 'GPS', "openMenuPopup('gps')");
@@ -5357,6 +5360,10 @@
               <span id="ov-lbl-symbols" style="margin-left:auto;font-size:0.85em;color:${_ovVis.symbols?'#2ecc71':'#e74c3c'}">${_ovVis.symbols?'AN':'AUS'}</span>
             </button>`
         },
+        callsign: {
+          title: 'CALLSIGN / BENUTZERNAME',
+          html: ''
+        },
         team: {
           title: 'TEAM',
           html: ''
@@ -5380,6 +5387,8 @@
         if (pc) pc.style.display = 'block';
         if (pv) pv.srcObject = window.overviewMediaStream;
       }
+      // Callsign popup: render dynamic content
+      if (section === 'callsign') { _callsignRenderPopup(); }
       // Netzwerk popup: render dynamic server list
       if (section === 'netzwerk') { _nwRenderPopup(); }
       // Team popup: render dynamic team content
@@ -5585,10 +5594,12 @@
       h += '<i class="fas fa-times"></i> Abbrechen</button>';
       h += '</div></div>';
 
-      // QR Code section
-      h += '<button class="menu-btn" style="margin-top:8px;" onclick="event.stopPropagation();document.getElementById(\'nw-qr-file\').click()">';
-      h += '<i class="fas fa-qrcode"></i> Server via QR-Code hinzufügen</button>';
-      h += '<input type="file" id="nw-qr-file" accept="image/*" style="display:none;" onchange="_nwDecodeQr(this)">';
+      // QR Code section – Camera scanner (primary) + file upload (fallback)
+      h += '<button class="menu-btn" style="margin-top:8px;background:rgba(52,152,219,0.2);border-color:#3498db;color:#3498db;font-weight:bold;justify-content:center;" onclick="event.stopPropagation();_nwScanQrCamera()">';
+      h += '<i class="fas fa-camera"></i> QR-Code scannen</button>';
+      h += '<button class="menu-btn" style="margin-top:4px;justify-content:center;" onclick="event.stopPropagation();document.getElementById(\'nw-qr-file\').click()">';
+      h += '<i class="fas fa-image"></i> QR-Code aus Bild laden</button>';
+      h += '<input type="file" id="nw-qr-file" accept="image/*" capture="environment" style="display:none;" onchange="_nwDecodeQr(this)">';
       h += '<canvas id="nw-qr-canvas" style="display:none;"></canvas>';
 
       // Status message area
@@ -5879,114 +5890,202 @@
           }
           var code = jsQR(imageData.data, canvas.width, canvas.height);
           if (!code) { _nwShowMsg('Kein QR-Code erkannt. Bitte deutlicheres Bild verwenden.', 'error'); return; }
-          try {
-            var data = JSON.parse(code.data);
-
-            // ── Handle Team QR codes ──
-            if (data.type === 'cot_team' && data.team_id && data.team_name) {
-              _teamEnsureCallsign(function(callsign) {
-                var teamData = {
-                  type: 'cot_team',
-                  team_name: data.team_name,
-                  team_id: data.team_id,
-                  created_by: data.created_by || '',
-                  members: [callsign],
-                  joined_at: new Date().toISOString()
-                };
-                _teamSaveData(teamData);
-                // Add team entry to server list
-                var existingServers = _nwGetServers();
-                var alreadyExists = false;
-                for (var t = 0; t < existingServers.length; t++) {
-                  if (existingServers[t].team_id === data.team_id) { alreadyExists = true; break; }
-                }
-                if (!alreadyExists) {
-                  existingServers.push({
-                    id: data.team_id,
-                    name: data.team_name,
-                    url: '',
-                    host: '',
-                    port: '',
-                    protocol: 'cot',
-                    user: callsign,
-                    pass: '',
-                    status: 'ok',
-                    active: false,
-                    is_team: true,
-                    team_id: data.team_id,
-                    team_data: teamData
-                  });
-                  _nwSaveServers(existingServers);
-                }
-                _nwRenderPopup();
-                _nwShowMsg('Team "' + _nwEsc(data.team_name) + '" beigetreten!', 'success');
-              });
-              return;
-            }
-
-            // ── COT Mesh Login QR Code ──
-            if (data.type === 'cot_mesh_login') {
-              var host = data.host || '';
-              var masterKey = data.master_key || '';
-              if (!host || !masterKey) {
-                _nwShowMsg('Ungültiger COT Mesh QR-Code: Host oder Master-Key fehlt.', 'error');
-                return;
-              }
-              var port = data.port ? String(data.port) : '8101';
-              var protocol = data.protocol || 'https';
-              var name = data.name || 'COT Mesh Server';
-              var cotTcpPort = data.cot_tcp_port || 8088;
-              var cotUdpPort = data.cot_udp_port || 4242;
-              var url = _nwBuildUrl(protocol, host, port);
-
-              // Store master key for COT fallback authorization
-              if (masterKey) {
-                localStorage.setItem('lpu5_cot_mesh_key', masterKey);
-              }
-              localStorage.setItem('lpu5_cot_tcp_port', String(cotTcpPort));
-              localStorage.setItem('lpu5_cot_udp_port', String(cotUdpPort));
-
-              var servers = _nwGetServers();
-              servers.push({
-                id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''),
-                host: host, port: port, protocol: protocol,
-                user: '', pass: '',
-                status: 'unknown', active: false,
-                cot_mesh: true, master_key: masterKey,
-                cot_tcp_port: cotTcpPort, cot_udp_port: cotUdpPort
-              });
-              _nwSaveServers(servers);
-              _nwRenderPopup();
-              _nwShowMsg('COT Mesh Server "' + _nwEsc(name) + '" hinzugefügt. Bitte Benutzerdaten eingeben.', 'success');
-              // Auto-open edit form so user can enter credentials
-              var lastSrv = servers[servers.length - 1];
-              setTimeout(function() { _nwEdit(lastSrv.id); }, 200);
-              return;
-            }
-
-            // ── Standard server QR Code ──
-            var name = data.name || data.server_name || data.hostname || 'Server';
-            var url  = data.url  || data.server_url  || '';
-            var user = data.user || data.username || data.callsign || '';
-            var pass = data.pass || data.password || '';
-            var port = data.port || '';
-            var protocol = data.protocol || 'https';
-            var host = data.host || '';
-            if (!host && url) { var parsed = _nwParseUrl(url); host = parsed.host; if (!port) port = parsed.port; protocol = parsed.protocol; }
-            if (!url && host) { url = _nwBuildUrl(protocol, host, port); }
-            var servers = _nwGetServers();
-            servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), host: host, port: port ? String(port) : '', protocol: protocol, user: user, pass: pass, status: 'unknown', active: false });
-            _nwSaveServers(servers);
-            _nwRenderPopup();
-            _nwShowMsg('Server "' + _nwEsc(name) + '" via QR hinzugefügt.', 'success');
-          } catch(ex) {
-            _nwShowMsg('QR-Code konnte nicht gelesen werden. Ungültiges Format.', 'error');
-          }
+          _nwProcessQrString(code.data);
         };
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
       input.value = '';
+    }
+
+    /** Process a decoded QR string (shared by file upload and camera scanner) */
+    function _nwProcessQrString(qrString) {
+      try {
+        var data = JSON.parse(qrString);
+
+        // ── Handle Team QR codes ──
+        if (data.type === 'cot_team' && data.team_id && data.team_name) {
+          _teamEnsureCallsign(function(callsign) {
+            var teamData = {
+              type: 'cot_team',
+              team_name: data.team_name,
+              team_id: data.team_id,
+              created_by: data.created_by || '',
+              members: [callsign],
+              joined_at: new Date().toISOString()
+            };
+            _teamSaveData(teamData);
+            // Add team entry to server list
+            var existingServers = _nwGetServers();
+            var alreadyExists = false;
+            for (var t = 0; t < existingServers.length; t++) {
+              if (existingServers[t].team_id === data.team_id) { alreadyExists = true; break; }
+            }
+            if (!alreadyExists) {
+              existingServers.push({
+                id: data.team_id,
+                name: data.team_name,
+                url: '',
+                host: '',
+                port: '',
+                protocol: 'cot',
+                user: callsign,
+                pass: '',
+                status: 'ok',
+                active: false,
+                is_team: true,
+                team_id: data.team_id,
+                team_data: teamData
+              });
+              _nwSaveServers(existingServers);
+            }
+            _nwRenderPopup();
+            _nwShowMsg('Team "' + _nwEsc(data.team_name) + '" beigetreten!', 'success');
+          });
+          return;
+        }
+
+        // ── COT Mesh Login QR Code ──
+        if (data.type === 'cot_mesh_login') {
+          var host = data.host || '';
+          var masterKey = data.master_key || '';
+          if (!host || !masterKey) {
+            _nwShowMsg('Ungültiger COT Mesh QR-Code: Host oder Master-Key fehlt.', 'error');
+            return;
+          }
+          var port = data.port ? String(data.port) : '8101';
+          var protocol = data.protocol || 'https';
+          var name = data.name || 'COT Mesh Server';
+          var cotTcpPort = data.cot_tcp_port || 8088;
+          var cotUdpPort = data.cot_udp_port || 4242;
+          var url = _nwBuildUrl(protocol, host, port);
+
+          // Store master key for COT fallback authorization
+          if (masterKey) {
+            localStorage.setItem('lpu5_cot_mesh_key', masterKey);
+          }
+          localStorage.setItem('lpu5_cot_tcp_port', String(cotTcpPort));
+          localStorage.setItem('lpu5_cot_udp_port', String(cotUdpPort));
+
+          var servers = _nwGetServers();
+          servers.push({
+            id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''),
+            host: host, port: port, protocol: protocol,
+            user: '', pass: '',
+            status: 'unknown', active: false,
+            cot_mesh: true, master_key: masterKey,
+            cot_tcp_port: cotTcpPort, cot_udp_port: cotUdpPort
+          });
+          _nwSaveServers(servers);
+          _nwRenderPopup();
+          _nwShowMsg('COT Mesh Server "' + _nwEsc(name) + '" hinzugefügt. Bitte Benutzerdaten eingeben.', 'success');
+          // Auto-open edit form so user can enter credentials
+          var lastSrv = servers[servers.length - 1];
+          setTimeout(function() { _nwEdit(lastSrv.id); }, 200);
+          return;
+        }
+
+        // ── Standard server QR Code ──
+        var name = data.name || data.server_name || data.hostname || 'Server';
+        var url  = data.url  || data.server_url  || '';
+        var user = data.user || data.username || data.callsign || '';
+        var pass = data.pass || data.password || '';
+        var port = data.port || '';
+        var protocol = data.protocol || 'https';
+        var host = data.host || '';
+        if (!host && url) { var parsed = _nwParseUrl(url); host = parsed.host; if (!port) port = parsed.port; protocol = parsed.protocol; }
+        if (!url && host) { url = _nwBuildUrl(protocol, host, port); }
+        var servers = _nwGetServers();
+        servers.push({ id: _nwGenId(), name: name, url: url.replace(/\/+$/, ''), host: host, port: port ? String(port) : '', protocol: protocol, user: user, pass: pass, status: 'unknown', active: false });
+        _nwSaveServers(servers);
+        _nwRenderPopup();
+        _nwShowMsg('Server "' + _nwEsc(name) + '" via QR hinzugefügt.', 'success');
+      } catch(ex) {
+        _nwShowMsg('QR-Code konnte nicht gelesen werden. Ungültiges Format.', 'error');
+      }
+    }
+
+    // ─── Live Camera QR Scanner ────────────────────────────────────
+    var _nwQrCameraStream = null;
+    var _nwQrScanTimer = null;
+
+    function _nwScanQrCamera() {
+      var body = document.getElementById('menu-popup-body');
+      if (!body) return;
+
+      // If already scanning, stop
+      if (_nwQrCameraStream) { _nwStopQrCamera(); _nwRenderPopup(); return; }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        _nwShowMsg('Kamera nicht verfügbar. Bitte QR-Bild-Datei verwenden.', 'error');
+        return;
+      }
+
+      // Save popup content and show scanner UI
+      var prevHtml = body.innerHTML;
+
+      var h = '';
+      h += '<div style="text-align:center;margin-bottom:10px;">';
+      h += '<i class="fas fa-camera" style="font-size:1.5rem;color:var(--accent-blue);margin-bottom:4px;display:block;"></i>';
+      h += '<div style="color:#ccc;font-size:0.9em;font-weight:bold;">QR-Code Scanner</div>';
+      h += '<div style="color:#888;font-size:0.75em;margin-top:2px;">Halte den QR-Code vor die Kamera</div>';
+      h += '</div>';
+      h += '<div style="position:relative;width:100%;max-width:320px;margin:0 auto;border-radius:10px;overflow:hidden;border:2px solid var(--accent-blue);">';
+      h += '<video id="nw-qr-video" autoplay playsinline muted style="width:100%;display:block;background:#000;min-height:240px;"></video>';
+      h += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60%;height:60%;border:2px solid rgba(46,204,113,0.6);border-radius:8px;pointer-events:none;"></div>';
+      h += '</div>';
+      h += '<canvas id="nw-qr-scan-canvas" style="display:none;"></canvas>';
+      h += '<div id="nw-qr-scan-status" style="text-align:center;margin-top:8px;font-size:0.78em;color:#888;">';
+      h += '<i class="fas fa-spinner fa-spin"></i> Scanne...</div>';
+      h += '<button class="menu-btn" style="margin-top:10px;justify-content:center;" onclick="event.stopPropagation();_nwStopQrCamera();_nwRenderPopup()">';
+      h += '<i class="fas fa-times"></i> Scanner schließen</button>';
+      body.innerHTML = h;
+
+      var video = document.getElementById('nw-qr-video');
+      if (!video) return;
+
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+        .then(function(stream) {
+          _nwQrCameraStream = stream;
+          video.srcObject = stream;
+          video.play();
+          // Start scanning frames
+          _nwQrScanTimer = setInterval(function() {
+            _nwScanQrFrame(video);
+          }, 300);
+        })
+        .catch(function(err) {
+          _nwStopQrCamera();
+          _nwRenderPopup();
+          _nwShowMsg('Kamera-Zugriff verweigert: ' + (err.message || err) + '. Bitte QR-Bild verwenden.', 'error');
+        });
+    }
+
+    function _nwScanQrFrame(video) {
+      if (!video || video.readyState < 2) return;
+      var canvas = document.getElementById('nw-qr-scan-canvas');
+      if (!canvas) return;
+      var ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      if (typeof jsQR === 'undefined') return;
+      var code = jsQR(imageData.data, canvas.width, canvas.height);
+      if (code && code.data) {
+        // QR code found! Stop scanning and process
+        _nwStopQrCamera();
+        _nwRenderPopup();
+        _nwProcessQrString(code.data);
+      }
+    }
+
+    function _nwStopQrCamera() {
+      if (_nwQrScanTimer) { clearInterval(_nwQrScanTimer); _nwQrScanTimer = null; }
+      if (_nwQrCameraStream) {
+        _nwQrCameraStream.getTracks().forEach(function(t) { t.stop(); });
+        _nwQrCameraStream = null;
+      }
     }
 
     // ─── Auto-Reconnect ────────────────────────────────────────────
@@ -6024,6 +6123,58 @@
     }
 
     // ─── End Netzwerk ──────────────────────────────────────────────
+
+    // ─── Callsign / Benutzername Popup ─────────────────────────────
+    function _callsignRenderPopup() {
+      var body = document.getElementById('menu-popup-body');
+      if (!body) return;
+      var cs = currentUserName
+        || localStorage.getItem('lpu5_username')
+        || localStorage.getItem('lpu5_cached_user')
+        || localStorage.getItem('lpu5_local_callsign')
+        || '';
+      var nm = localStorage.getItem('lpu5_local_name') || cs;
+      var h = '';
+      h += '<div style="text-align:center;margin-bottom:14px;">';
+      h += '<i class="fas fa-id-badge" style="font-size:2.2rem;color:var(--accent-blue);margin-bottom:6px;display:block;"></i>';
+      if (cs) {
+        h += '<div style="color:#2ecc71;font-size:1.1em;font-weight:bold;letter-spacing:1px;">' + _nwEsc(cs.toUpperCase()) + '</div>';
+        h += '<div style="color:#888;font-size:0.78em;margin-top:2px;">Aktueller Callsign</div>';
+      } else {
+        h += '<div style="color:#e74c3c;font-size:0.95em;font-weight:bold;">Kein Callsign gesetzt</div>';
+        h += '<div style="color:#888;font-size:0.78em;margin-top:4px;">Bitte Callsign eingeben – wird für Team-Beitritt und COT benötigt.</div>';
+      }
+      h += '</div>';
+      h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Name</label>';
+      h += '<input type="text" id="cs-edit-name" placeholder="Dein Name" class="nw-input" maxlength="40" style="margin-bottom:8px;" value="' + _nwEsc(nm) + '">';
+      h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Callsign / Rufzeichen</label>';
+      h += '<input type="text" id="cs-edit-callsign" placeholder="z.B. ALPHA-1" class="nw-input" maxlength="30" style="margin-bottom:12px;" value="' + _nwEsc(cs) + '">';
+      h += '<button id="cs-save-btn" class="menu-btn" style="background:rgba(46,204,113,0.2);border-color:#2ecc71;color:#2ecc71;font-weight:bold;justify-content:center;">';
+      h += '<i class="fas fa-save"></i> Speichern</button>';
+      if (cs) {
+        h += '<div style="margin-top:14px;border-top:1px solid #333;padding-top:10px;font-size:0.72em;color:#555;text-align:center;">';
+        h += '<i class="fas fa-info-circle"></i> Dein Callsign wird für Team-Beitritt und COT-Kommunikation verwendet.';
+        h += '</div>';
+      }
+      body.innerHTML = h;
+
+      document.getElementById('cs-save-btn').onclick = function(e) {
+        e.stopPropagation();
+        var nameVal = (document.getElementById('cs-edit-name').value || '').trim();
+        var csVal   = (document.getElementById('cs-edit-callsign').value || '').trim();
+        if (!csVal) { alert('Callsign ist erforderlich.'); return; }
+        if (!nameVal) nameVal = csVal;
+        localStorage.setItem('lpu5_local_callsign', csVal);
+        localStorage.setItem('lpu5_local_name', nameVal);
+        localStorage.setItem('lpu5_username', csVal);
+        currentUserName = csVal;
+        var outName = document.getElementById('out-name');
+        if (outName) outName.innerText = csVal.toUpperCase();
+        updateSidebarTiles();
+        _callsignRenderPopup(); // re-render to show updated value
+      };
+    }
+    // ─── End Callsign ──────────────────────────────────────────────
 
     // ─── Team: COT-only Team Manager ────────────────────────────────
     var _TEAM_KEY = 'lpu5_team';
@@ -6128,6 +6279,14 @@
 
       if (team) {
         // ── Currently in a team ──
+        // Show user's own callsign prominently
+        var myCallsign = _teamGetCallsign();
+        if (myCallsign) {
+          h += '<div class="team-info-box" style="border-color:rgba(46,204,113,0.4);">';
+          h += '<div class="team-info-label">Dein Callsign</div>';
+          h += '<div class="team-info-value" style="color:#2ecc71;font-weight:bold;"><i class="fas fa-id-badge" style="margin-right:6px;"></i>' + _teamEsc(myCallsign) + '</div>';
+          h += '</div>';
+        }
         h += '<div class="team-info-box">';
         h += '<div class="team-info-label">Team Name</div>';
         h += '<div class="team-info-value"><i class="fas fa-shield-alt" style="color:var(--accent-blue);margin-right:6px;"></i>' + _teamEsc(team.team_name) + '</div>';
@@ -6136,10 +6295,12 @@
         h += '<div class="team-info-label">Team ID</div>';
         h += '<div class="team-info-value" style="font-size:0.75em;color:#888;word-break:break-all;">' + _teamEsc(team.team_id) + '</div>';
         h += '</div>';
-        h += '<div class="team-info-box">';
-        h += '<div class="team-info-label">Erstellt von</div>';
-        h += '<div class="team-info-value">' + _teamEsc(team.created_by || '---') + '</div>';
-        h += '</div>';
+        if (team.created_by) {
+          h += '<div class="team-info-box">';
+          h += '<div class="team-info-label">Team erstellt von</div>';
+          h += '<div class="team-info-value" style="font-size:0.85em;color:#888;">' + _teamEsc(team.created_by) + '</div>';
+          h += '</div>';
+        }
         h += '<div class="team-info-box">';
         h += '<div class="team-info-label">Modus</div>';
         h += '<div class="team-info-value" style="color:#2ecc71;"><i class="fas fa-broadcast-tower" style="margin-right:6px;"></i>COT Only</div>';
@@ -6250,12 +6411,11 @@
       var container = document.getElementById('team-qr-display');
       if (!container) return;
 
-      // QR payload: only data needed for joining
+      // QR payload: only data needed for joining (no user identity)
       var payload = JSON.stringify({
         type: 'cot_team',
         team_name: team.team_name,
-        team_id: team.team_id,
-        created_by: team.created_by
+        team_id: team.team_id
       });
 
       container.style.display = 'block';
@@ -6298,8 +6458,7 @@
       var payload = JSON.stringify({
         type: 'cot_team',
         team_name: srv.team_data.team_name,
-        team_id: srv.team_data.team_id,
-        created_by: srv.team_data.created_by
+        team_id: srv.team_data.team_id
       });
 
       container.style.display = 'block';
