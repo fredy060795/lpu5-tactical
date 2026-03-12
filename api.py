@@ -8315,106 +8315,110 @@ def test_tak_connection():
 
     Returns reachable, data_exchanged, and a descriptive message.
     """
-    tak_cfg = _get_tak_config()
-    host = tak_cfg.get("tak_server_host", "").strip()
-    port = tak_cfg.get("tak_server_port", 8089)
-    conn_type = tak_cfg.get("tak_connection_type", "udp")
-    username = tak_cfg.get("tak_username", "")
-    password = tak_cfg.get("tak_password", "")
-    auth_data = _build_tak_auth_xml(username, password) if (username and password) else None
+    try:
+        tak_cfg = _get_tak_config()
+        host = tak_cfg.get("tak_server_host", "").strip()
+        port = tak_cfg.get("tak_server_port", 8089)
+        conn_type = tak_cfg.get("tak_connection_type", "udp")
+        username = tak_cfg.get("tak_username", "")
+        password = tak_cfg.get("tak_password", "")
+        auth_data = _build_tak_auth_xml(username, password) if (username and password) else None
 
-    if not host:
-        return {"reachable": False, "data_exchanged": False, "message": "No TAK server host configured"}
+        if not host:
+            return {"reachable": False, "data_exchanged": False, "message": "No TAK server host configured"}
 
-    ping_data = _build_cot_ping_xml().encode("utf-8")
+        ping_data = _build_cot_ping_xml().encode("utf-8")
 
-    if conn_type == "udp":
-        # UDP is connectionless: send a CoT ping packet to verify the data path.
-        # A response is not expected because TAK servers do not send UDP acks.
-        try:
-            addrs = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
-            if not addrs:
-                raise socket.gaierror(f"No address found for {host}")
-            af, _, _, _, addr = addrs[0]
-            sock = socket.socket(af, socket.SOCK_DGRAM)
+        if conn_type == "udp":
+            # UDP is connectionless: send a CoT ping packet to verify the data path.
+            # A response is not expected because TAK servers do not send UDP acks.
             try:
-                sock.settimeout(_TAK_SOCKET_TIMEOUT)
-                sock.sendto(ping_data, addr)
-            finally:
-                sock.close()
-            return {
-                "reachable": True,
-                "data_exchanged": True,
-                "message": f"CoT ping sent to {host}:{port} (UDP – no response expected)",
-            }
-        except socket.gaierror as e:
-            return {"reachable": False, "data_exchanged": False, "message": f"DNS resolution failed for {host}: {e}"}
-        except (socket.timeout, OSError) as e:
-            return {"reachable": False, "data_exchanged": False, "message": f"UDP send to {host}:{port} failed: {e}"}
-    else:
-        # TCP / SSL: connect, send a CoT ping, then attempt to read the server response.
-        data_exchanged = False
-        response_data = b""
-        try:
-            if conn_type == "ssl":
-                addrs = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+                addrs = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
                 if not addrs:
                     raise socket.gaierror(f"No address found for {host}")
                 af, _, _, _, addr = addrs[0]
-                ctx = _build_tak_ssl_context(tak_cfg)
-                raw = socket.socket(af, socket.SOCK_STREAM)
-                raw.settimeout(_TAK_SOCKET_TIMEOUT)
-                sock = ctx.wrap_socket(raw, server_hostname=host)
-                sock.connect(addr)
-            else:
-                # create_connection handles both IPv4 and IPv6
-                sock = socket.create_connection((host, port), timeout=_TAK_SOCKET_TIMEOUT)
-            try:
-                if auth_data:
-                    sock.sendall(auth_data)
-                sock.sendall(ping_data)
-                data_exchanged = True
-                # Try to read a server response (t-x-c-t-r ping-ack or any CoT reply).
-                # Use a shorter timeout so the endpoint returns promptly if no ack comes.
-                sock.settimeout(_TAK_PING_RESPONSE_TIMEOUT)
+                sock = socket.socket(af, socket.SOCK_DGRAM)
                 try:
-                    response_data = sock.recv(_TAK_RECV_BUFFER)
-                except socket.timeout:
-                    pass  # server did not respond within timeout – still counts as connected
-            finally:
-                sock.close()
-
-            if response_data:
+                    sock.settimeout(_TAK_SOCKET_TIMEOUT)
+                    sock.sendto(ping_data, addr)
+                finally:
+                    sock.close()
                 return {
                     "reachable": True,
                     "data_exchanged": True,
+                    "message": f"CoT ping sent to {host}:{port} (UDP – no response expected)",
+                }
+            except socket.gaierror as e:
+                return {"reachable": False, "data_exchanged": False, "message": f"DNS resolution failed for {host}: {e}"}
+            except (socket.timeout, OSError) as e:
+                return {"reachable": False, "data_exchanged": False, "message": f"UDP send to {host}:{port} failed: {e}"}
+        else:
+            # TCP / SSL: connect, send a CoT ping, then attempt to read the server response.
+            data_exchanged = False
+            response_data = b""
+            try:
+                if conn_type == "ssl":
+                    addrs = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+                    if not addrs:
+                        raise socket.gaierror(f"No address found for {host}")
+                    af, _, _, _, addr = addrs[0]
+                    ctx = _build_tak_ssl_context(tak_cfg)
+                    raw = socket.socket(af, socket.SOCK_STREAM)
+                    raw.settimeout(_TAK_SOCKET_TIMEOUT)
+                    sock = ctx.wrap_socket(raw, server_hostname=host)
+                    sock.connect(addr)
+                else:
+                    # create_connection handles both IPv4 and IPv6
+                    sock = socket.create_connection((host, port), timeout=_TAK_SOCKET_TIMEOUT)
+                try:
+                    if auth_data:
+                        sock.sendall(auth_data)
+                    sock.sendall(ping_data)
+                    data_exchanged = True
+                    # Try to read a server response (t-x-c-t-r ping-ack or any CoT reply).
+                    # Use a shorter timeout so the endpoint returns promptly if no ack comes.
+                    sock.settimeout(_TAK_PING_RESPONSE_TIMEOUT)
+                    try:
+                        response_data = sock.recv(_TAK_RECV_BUFFER)
+                    except socket.timeout:
+                        pass  # server did not respond within timeout – still counts as connected
+                finally:
+                    sock.close()
+
+                if response_data:
+                    return {
+                        "reachable": True,
+                        "data_exchanged": True,
+                        "message": (
+                            f"TAK server at {host}:{port} ({conn_type.upper()}) "
+                            f"responded ({len(response_data)} bytes)"
+                        ),
+                    }
+                return {
+                    "reachable": True,
+                    "data_exchanged": data_exchanged,
                     "message": (
-                        f"TAK server at {host}:{port} ({conn_type.upper()}) "
-                        f"responded ({len(response_data)} bytes)"
+                        f"Connected and sent CoT ping to {host}:{port} ({conn_type.upper()}); "
+                        "no response received"
                     ),
                 }
-            return {
-                "reachable": True,
-                "data_exchanged": data_exchanged,
-                "message": (
-                    f"Connected and sent CoT ping to {host}:{port} ({conn_type.upper()}); "
-                    "no response received"
-                ),
-            }
-        except socket.timeout:
-            return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} timed out"}
-        except (socket.gaierror, ConnectionRefusedError, ssl.SSLError, OSError) as e:
-            if isinstance(e, ssl.SSLError) and "CERTIFICATE_REQUIRED" in str(e).upper():
-                msg = (
-                    f"Connection to {host}:{port} failed: {e} — "
-                    "The server requires a client certificate (mutual TLS / mTLS). "
-                    "If WinTAK or ATAK is running on the same machine, switch the connection type "
-                    "to 'TCP' and set the port to 8087 — no certificate is needed for local "
-                    "connections. For remote SSL servers, set the Client Certificate Path and "
-                    "Client Key Path fields in the TAK Server settings."
-                )
-                return {"reachable": False, "data_exchanged": False, "message": msg}
-            return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} failed: {e}"}
+            except socket.timeout:
+                return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} timed out"}
+            except (socket.gaierror, ConnectionRefusedError, ssl.SSLError, OSError) as e:
+                if isinstance(e, ssl.SSLError) and "CERTIFICATE_REQUIRED" in str(e).upper():
+                    msg = (
+                        f"Connection to {host}:{port} failed: {e} — "
+                        "The server requires a client certificate (mutual TLS / mTLS). "
+                        "If WinTAK or ATAK is running on the same machine, switch the connection type "
+                        "to 'TCP' and set the port to 8087 — no certificate is needed for local "
+                        "connections. For remote SSL servers, set the Client Certificate Path and "
+                        "Client Key Path fields in the TAK Server settings."
+                    )
+                    return {"reachable": False, "data_exchanged": False, "message": msg}
+                return {"reachable": False, "data_exchanged": False, "message": f"Connection to {host}:{port} failed: {e}"}
+    except Exception as e:
+        logger.exception("Unhandled error in test_tak_connection: %s", e)
+        return {"reachable": False, "data_exchanged": False, "message": f"Internal error: {e}"}
 
 
 @app.get("/api/tak/status", summary="Get TAK receiver connection status")
