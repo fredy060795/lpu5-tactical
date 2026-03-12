@@ -1835,19 +1835,19 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # Override with more specific types for ATAK-sourced events.
         # Meshtastic SA beacons forwarded by an ATAK Meshtastic plugin carry a
         # <meshtastic> element in their <detail> block.  These are checked first
-        # because ATAK Meshtastic SA beacons use how="h-*" just like regular ATAK
-        # SA beacons; the <meshtastic> element is the authoritative signal that
-        # this is a Meshtastic node, not a human ATAK user.
+        # because ATAK Meshtastic SA beacons use how="h-g-*" just like regular
+        # ATAK GPS SA beacons; the <meshtastic> element is the authoritative
+        # signal that this is a Meshtastic node, not a human ATAK user.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
-        #   • how starts with "h-" (human-originated: GPS, estimated, transcribed
-        #     etc.) → tak_maker (ATAK user SA beacon; LPU5's own GPS positions
-        #     use UIDs "GPS-*" and are filtered above)
-        #   • Machine-generated friendly CoT events ("m-g" from ATAK Meshtastic
-        #     plugins) → meshtastic_node so relayed Meshtastic nodes render
-        #     with the correct icon.
+        #   • how starts with "h-g" (GPS-derived) → tak_maker (ATAK user SA
+        #     beacon; LPU5's own GPS positions use UIDs "GPS-*" and are filtered
+        #     above)
+        #   • All other friendly CoT events (h-e, h-t, m-g, etc.) →
+        #     meshtastic_node so relayed Meshtastic nodes render with the
+        #     correct icon.
         if _has_mesh_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly" and how.startswith("h-"):
+        elif lpu5_type == "friendly" and how.startswith("h-g"):
             lpu5_type = "tak_maker"
         elif lpu5_type == "friendly":
             lpu5_type = "meshtastic_node"
@@ -7387,7 +7387,7 @@ def _cot_monitor_record(cot_xml: str, direction: str, source: str) -> None:
             detected_type = "meshtastic_node"
             detection_reason = f"CoT type {event_type} (equipment)"
         elif event_type.startswith("a-f"):
-            if how.startswith("h-"):
+            if how.startswith("h-g"):
                 detected_type = "tak_maker"
                 detection_reason = f"friendly + how={how} (human-originated)"
             else:
