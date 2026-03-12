@@ -1147,6 +1147,9 @@ def _build_cot_pong_xml() -> str:
 # Fixed UID used for LPU5's SA beacon so the TAK server recognises the gateway
 # as a persistent entity across reconnects.
 _LPU5_COT_UID = "LPU5-GW"
+# UID prefix used by _forward_chat_to_atak when building GeoChat CoT events.
+# Events whose UID starts with this prefix are LPU5-originated echo-backs.
+_LPU5_GEOCHAT_UID_PREFIX = "GeoChat.LPU5-"
 
 
 def _get_cot_listener_endpoint() -> str:
@@ -1435,8 +1438,22 @@ def _ingest_atak_geochat(root) -> None:
 
     *root* must be the already-parsed ``<event>`` XML element.
     Silently skips events without a recognisable message body.
+    Echo-backs of LPU5-originated GeoChat messages (UID prefix ``GeoChat.LPU5-``)
+    are detected and skipped to prevent duplicate entries – the original message
+    was already persisted by :func:`send_chat_message`.
     """
     try:
+        # --- Echo-back detection ---
+        # When LPU5 sends a chat message, _forward_chat_to_atak builds the CoT
+        # with sender_uid="LPU5-<username>", producing a UID of the form
+        # "GeoChat.LPU5-<username>.<chatroom>.<uuid>".  If the TAK server or
+        # a multicast/TCP echo sends this back, we must not save it again
+        # because the original message is already in the DB.
+        event_uid = root.get("uid", "")
+        if event_uid.startswith(_LPU5_GEOCHAT_UID_PREFIX):
+            logger.debug("ATAK GeoChat: skipping LPU5 echo-back (uid=%s)", event_uid)
+            return
+
         detail = root.find("detail")
         if detail is None:
             return
@@ -1451,6 +1468,7 @@ def _ingest_atak_geochat(root) -> None:
         # Extract message text from <remarks>
         remarks_elem = detail.find("remarks")
         if remarks_elem is None or not (remarks_elem.text or "").strip():
+            logger.debug("ATAK GeoChat: no remarks text in event uid=%s, skipping", event_uid)
             return
         text = remarks_elem.text.strip()
         db = SessionLocal()
@@ -1634,6 +1652,12 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # --- ATAK GeoChat (b-t-f) → LPU5 chat bridge ---
         if event_type.startswith("b-t-f"):
             _ingest_atak_geochat(root)
+            # Relay GeoChat from the TAK server to directly connected TCP
+            # clients (port 8088) and via SA Multicast so all local
+            # WinTAK/ATAK instances also receive chat messages that were
+            # sent by *other* ATAK users through the TAK server.
+            _forward_cot_to_tcp_clients(cot_xml)
+            _forward_cot_multicast(cot_xml)
             with _TAK_RECEIVER_STATS_LOCK:
                 _TAK_RECEIVER_STATS["packets_received"] += 1
             return
@@ -7398,6 +7422,13 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
             _root = _ET.fromstring(xml_string)
             if _root.get("type", "").startswith("b-t-f"):
                 _ingest_atak_geochat(_root)
+                # Relay GeoChat from a directly connected client to the TAK
+                # server, other TCP clients, and multicast so ALL connected
+                # ATAK/WinTAK instances (whether local or remote via TAK
+                # server) receive messages from every user.
+                forward_cot_to_tak(xml_string)
+                _forward_cot_to_tcp_clients(xml_string)
+                _forward_cot_multicast(xml_string)
                 return
         except Exception:
             pass
