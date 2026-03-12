@@ -547,6 +547,8 @@ if WEBSOCKET_AVAILABLE:
         logger.info("WebSocket manager initialized")
     except Exception as _ws_init_err:
         logger.error(f"Failed to initialize WebSocket manager: {_ws_init_err}")
+        websocket_manager = None
+        websocket_event_handler = None
 
 if AUTONOMOUS_MODULES_AVAILABLE:
     try:
