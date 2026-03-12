@@ -6343,10 +6343,13 @@
     }
 
     /**
-     * Prompts user for Callsign AND Password (self-certification for team join).
+     * Prompts user for Callsign AND Password (self-certification for team join/create).
      * Calls `onDone(callsign, password)` when user confirms.
+     * Optional `opts` object can customize UI text:
+     *   opts.title, opts.subtitle, opts.confirmHtml, opts.iconClass
      */
-    function _teamEnsureCredentials(onDone) {
+    function _teamEnsureCredentials(onDone, opts) {
+      opts = opts || {};
       var body = document.getElementById('menu-popup-body') || document.getElementById('nw-popup-body');
       if (!body) {
         var callsign = prompt('Callsign eingeben:');
@@ -6357,12 +6360,17 @@
         return;
       }
 
+      var titleText = opts.title || 'Team Login – Selbstzertifizierung';
+      var subtitleText = opts.subtitle || 'Bitte Callsign und Passwort eingeben um dem Team beizutreten.';
+      var confirmHtml = opts.confirmHtml || '<i class="fas fa-sign-in-alt"></i> Beitreten';
+      var iconClass = opts.iconClass || 'fas fa-user-shield';
+
       var prevHtml = body.innerHTML;
       var h = '';
       h += '<div style="text-align:center;margin-bottom:14px;">';
-      h += '<i class="fas fa-user-shield" style="font-size:2rem;color:#2ecc71;margin-bottom:6px;display:block;"></i>';
-      h += '<div style="color:#ccc;font-size:0.95em;font-weight:bold;">Team Login – Selbstzertifizierung</div>';
-      h += '<div style="color:#888;font-size:0.78em;margin-top:4px;">Bitte Callsign und Passwort eingeben um dem Team beizutreten.</div>';
+      h += '<i class="' + iconClass + '" style="font-size:2rem;color:#2ecc71;margin-bottom:6px;display:block;"></i>';
+      h += '<div style="color:#ccc;font-size:0.95em;font-weight:bold;">' + titleText + '</div>';
+      h += '<div style="color:#888;font-size:0.78em;margin-top:4px;">' + subtitleText + '</div>';
       h += '</div>';
       h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Name</label>';
       h += '<input type="text" id="team-cred-name" placeholder="Dein Name" class="nw-input" maxlength="40" style="margin-bottom:8px;">';
@@ -6371,10 +6379,16 @@
       h += '<label style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Passwort</label>';
       h += '<input type="password" id="team-cred-password" placeholder="Passwort eingeben" class="nw-input" maxlength="60" style="margin-bottom:12px;">';
       h += '<button id="team-cred-confirm-btn" class="menu-btn" style="background:rgba(46,204,113,0.2);border-color:#2ecc71;color:#2ecc71;font-weight:bold;justify-content:center;">';
-      h += '<i class="fas fa-sign-in-alt"></i> Beitreten</button>';
+      h += confirmHtml + '</button>';
       h += '<button id="team-cred-cancel-btn" class="menu-btn" style="margin-top:6px;justify-content:center;">';
       h += '<i class="fas fa-times"></i> Abbrechen</button>';
       body.innerHTML = h;
+
+      // Pre-fill existing callsign and name if available
+      var existingCs = _teamGetCallsign();
+      var existingName = localStorage.getItem(_TEAM_LOCAL_NAME_KEY) || '';
+      if (existingCs) document.getElementById('team-cred-callsign').value = existingCs;
+      if (existingName) document.getElementById('team-cred-name').value = existingName;
 
       document.getElementById('team-cred-confirm-btn').onclick = function(e) {
         e.stopPropagation();
@@ -6507,7 +6521,7 @@
       var name = nameInput ? nameInput.value.trim() : '';
       if (!name) { alert('Bitte Team-Name eingeben.'); return; }
 
-      _teamEnsureCallsign(function(callsign) {
+      _teamEnsureCredentials(function(callsign, password) {
         var teamId = _teamGenId();
         var teamData = {
           type: 'cot_team',
@@ -6530,15 +6544,20 @@
           teamData.cot_tcp_port = info.cot_tcp_port || 8088;
           teamData.cot_udp_port = info.cot_udp_port || 4242;
           teamData.all_ips = info.all_detected_ips || [];
-          _teamFinishCreate(teamData, teamId, name, callsign);
+          _teamFinishCreate(teamData, teamId, name, callsign, password);
         }).catch(function() {
           // Fallback: create team without server info (COT-only mode)
-          _teamFinishCreate(teamData, teamId, name, callsign);
+          _teamFinishCreate(teamData, teamId, name, callsign, password);
         });
+      }, {
+        title: 'Team erstellen – Zugangsdaten',
+        subtitle: 'Bitte Callsign und Passwort für den Team-Server eingeben.',
+        confirmHtml: '<i class="fas fa-plus-circle"></i> Team erstellen',
+        iconClass: 'fas fa-user-plus'
       });
     }
 
-    function _teamFinishCreate(teamData, teamId, name, callsign) {
+    function _teamFinishCreate(teamData, teamId, name, callsign, password) {
       _teamSaveData(teamData);
 
       var url = '';
@@ -6557,7 +6576,7 @@
         port: port,
         protocol: host ? protocol : 'cot',
         user: callsign,
-        pass: '',
+        pass: password || '',
         status: host ? 'ok' : 'ok',
         active: false,
         is_team: true,
