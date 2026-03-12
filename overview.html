@@ -2185,12 +2185,12 @@
       const cachedPass = localStorage.getItem('lpu5_cached_pass');
       if (!cachedUser || !cachedPass) {
         // No server credentials – check for local-only callsign (Team / offline mode)
-        var localCs = localStorage.getItem('lpu5_local_callsign');
-        if (localCs) {
-          currentUserName = localCs;
-          localStorage.setItem('lpu5_username', localCs);
-          sessionStorage.setItem('currentUser', localCs);
-          document.getElementById('out-name').innerText = localCs.toUpperCase();
+        var localCallsign = localStorage.getItem('lpu5_local_callsign');
+        if (localCallsign) {
+          currentUserName = localCallsign;
+          localStorage.setItem('lpu5_username', localCallsign);
+          sessionStorage.setItem('currentUser', localCallsign);
+          document.getElementById('out-name').innerText = localCallsign.toUpperCase();
           updateSidebarTiles();
         }
         return false;
@@ -6069,16 +6069,16 @@
       var body = document.getElementById('menu-popup-body') || document.getElementById('nw-popup-body');
       if (!body) {
         // Fallback: simple prompt
-        var cs = prompt('Bitte Callsign / Rufzeichen eingeben (wird für COT benötigt):');
-        if (!cs || !cs.trim()) { alert('Callsign ist erforderlich.'); return; }
-        cs = cs.trim();
-        localStorage.setItem(_TEAM_LOCAL_CALLSIGN_KEY, cs);
-        localStorage.setItem(_TEAM_LOCAL_NAME_KEY, cs);
-        localStorage.setItem('lpu5_username', cs);
-        currentUserName = cs;
-        document.getElementById('out-name').innerText = cs.toUpperCase();
+        var callsign = prompt('Bitte Callsign / Rufzeichen eingeben (wird für COT benötigt):');
+        if (!callsign || !callsign.trim()) { alert('Callsign ist erforderlich.'); return; }
+        callsign = callsign.trim();
+        localStorage.setItem(_TEAM_LOCAL_CALLSIGN_KEY, callsign);
+        localStorage.setItem(_TEAM_LOCAL_NAME_KEY, callsign);
+        localStorage.setItem('lpu5_username', callsign);
+        currentUserName = callsign;
+        document.getElementById('out-name').innerText = callsign.toUpperCase();
         updateSidebarTiles();
-        onDone(cs);
+        onDone(callsign);
         return;
       }
 
