@@ -3967,7 +3967,7 @@
             setTimeout(() => _sentChatMessageIds.delete(String(result.message.id)), 30000);
             messageEl.innerHTML =
               '<div class="chat-message-header"><span class="chat-message-sender">' + _escapeHtml(senderName) + '</span><span class="chat-message-time">' + time + '</span></div>' +
-              '<img src="' + _escapeHtml(result.message.text) + '" class="chat-message-image" onclick="window.open(this.src,\'_blank\')" alt="Bild">' +
+              '<img src="' + _escapeHtml(result.message.text) + '" class="chat-message-image" data-chat-img="1" alt="Bild">' +
               '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:#888;">&#10003;</div>';
             messagesDiv.appendChild(messageEl);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -3987,10 +3987,18 @@
     // Helper: render chat message content (text or image)
     function _renderChatMsgContent(msg) {
       if (msg.type === 'image' && msg.text) {
-        return '<img src="' + _escapeHtml(msg.text) + '" class="chat-message-image" onclick="window.open(this.src,\'_blank\')" alt="Bild">';
+        return '<img src="' + _escapeHtml(msg.text) + '" class="chat-message-image" data-chat-img="1" alt="Bild">';
       }
       return '<div class="chat-message-text">' + _escapeHtml(msg.text || '') + '</div>';
     }
+
+    // Delegated click handler for chat images – avoids inline onclick XSS risk
+    document.addEventListener('click', function(e) {
+      var img = e.target.closest('img[data-chat-img]');
+      if (!img) return;
+      var src = img.getAttribute('src') || '';
+      if (src.startsWith('/uploads/')) window.open(src, '_blank');
+    });
 
     function loadChatUsers() {
       // Load channels from API for chat recipient dropdown
@@ -6164,7 +6172,7 @@
       `;
 
       if (message.type === 'image' && message.text) {
-        contentHTML += '<img src="' + _escapeHtml(message.text) + '" class="chat-message-image" onclick="window.open(this.src,\'_blank\')" alt="Bild">';
+        contentHTML += '<img src="' + _escapeHtml(message.text) + '" class="chat-message-image" data-chat-img="1" alt="Bild">';
       } else {
         contentHTML += '<div class="chat-message-text">' + _escapeHtml(message.text) + '</div>';
       }

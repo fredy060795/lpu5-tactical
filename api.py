@@ -8952,16 +8952,22 @@ async def send_chat_image(
     authorization: str = Header(None),
 ):
     """Upload an image and create a chat message with the image URL."""
+    _MAX_CHAT_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+
     db = SessionLocal()
     try:
         username = _extract_username_from_auth(authorization)
 
         # Validate file type
         original_name = file.filename or "photo.jpg"
-        _, ext = os.path.splitext(original_name)
-        ext_lower = ext.lower()
+        _, ext = os.path.splitext(os.path.basename(original_name))
+        ext_lower = ext.lower().strip()
         if not ext_lower:
             ext_lower = ".jpg"
+
+        # Sanitize: only allow alphanumeric ext chars (no null bytes, path separators)
+        if not all(c.isalnum() or c == '.' for c in ext_lower):
+            raise HTTPException(status_code=400, detail="Invalid file extension")
 
         allowed_img_ext = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
         allowed_img_mime = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
@@ -8972,6 +8978,22 @@ async def send_chat_image(
         content_type = file.content_type or ""
         if content_type and content_type not in allowed_img_mime:
             raise HTTPException(status_code=400, detail=f"MIME type '{content_type}' is not allowed.")
+
+        # Read file content with size limit
+        content = await file.read()
+        if len(content) > _MAX_CHAT_IMAGE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {_MAX_CHAT_IMAGE_SIZE // (1024*1024)} MB.")
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        # Verify it is a valid image using Pillow
+        try:
+            from PIL import Image as PILImage
+            import io
+            img = PILImage.open(io.BytesIO(content))
+            img.verify()
+        except Exception:
+            raise HTTPException(status_code=400, detail="File is not a valid image")
 
         # Verify channel exists
         _ensure_default_channels(db)
@@ -8992,7 +9014,6 @@ async def send_chat_image(
         os.makedirs(chat_uploads, exist_ok=True)
         safe_name = f"{uuid.uuid4().hex}{ext_lower}"
         dest_path = os.path.join(chat_uploads, safe_name)
-        content = await file.read()
         with open(dest_path, "wb") as fh:
             fh.write(content)
 
