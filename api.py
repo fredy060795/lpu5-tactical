@@ -12008,7 +12008,9 @@ def catch_all(full_path: str, request: Request):
 
     # Map of old HTML filenames to SPA view IDs (merged into index.html).
     # Keys use the original filenames on disk (casing preserved intentionally).
-    _SPA_STREAM_SLOTS = 15  # number of individual stream_share_N.html slots
+    # NOTE: stream_share.html and stream_share_N.html are intentionally excluded
+    # from the SPA redirect – they are pure video viewers (no Global_nav) that
+    # are loaded inside iframes and must be served as standalone HTML files.
     _SPA_VIEWS = {
         "landing.html": "landing", "admin.html": "admin",
         "admin_map.html": "admin_map", "mission.html": "mission",
@@ -12016,13 +12018,10 @@ def catch_all(full_path: str, request: Request):
         "statistics.html": "statistics", "meshtastic.html": "meshtastic",
         "import_nodes.html": "import_nodes", "network.html": "network",
         "SDR.html": "sdr", "stream.html": "stream",
-        "stream_share.html": "stream_share",
         "global_Intel.html": "global_intel",
         "cot_monitor_ui.html": "cot_monitor", "language.html": "language",
         "admin_map_toolbar_icons.html": "admin_map_toolbar",
     }
-    for _i in range(1, _SPA_STREAM_SLOTS + 1):
-        _SPA_VIEWS[f"stream_share_{_i}.html"] = f"stream_share_{_i}"
 
     # Redirect merged pages to the SPA with the correct hash fragment.
     # Target must be /index.html#view (not /#view) because the root URL /
