@@ -29,6 +29,7 @@ EXTERNAL_GLOBAL_FUNCTIONS = {
 }
 
 # Built-in JS / well-known global identifiers that are not custom functions.
+# Note: 'map' is the global Leaflet map instance (used as map.setView() etc.)
 BUILTIN_NAMES = {
     "event", "this", "alert", "confirm", "console", "document", "window",
     "parseInt", "parseFloat", "setTimeout", "clearTimeout", "setInterval",
@@ -39,13 +40,6 @@ BUILTIN_NAMES = {
     "continue", "return", "throw", "try", "catch", "finally", "new",
     "delete", "typeof", "void", "in", "instanceof", "with",
 }
-
-# Patterns that look like function calls but are actually JS keywords or
-# object method calls that don't need global exposure.
-SKIP_PATTERNS = re.compile(
-    r"^(event\.|this\.|document\.|window\.|map\.|console\.|localStorage\.|"
-    r"if\(|return |new |typeof )"
-)
 
 
 def _load_index():
@@ -62,15 +56,12 @@ def _extract_inline_handler_functions(html):
         re.IGNORECASE,
     )
     # Match the first function-call identifier in the handler value
-    func_call_re = re.compile(r"(?:^|;\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(")
+    # Handles patterns like: func1(); func2(); condition && func3()
+    func_call_re = re.compile(r"(?:^|[;&|,\s])([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(")
 
     functions = set()
     for m in handler_re.finditer(html):
         handler_body = m.group(1)
-        # Skip pure JS expressions like event.stopPropagation()
-        if SKIP_PATTERNS.match(handler_body.strip()):
-            # But still check for function calls after the prefix
-            pass
         for fc in func_call_re.finditer(handler_body):
             name = fc.group(1)
             if name not in BUILTIN_NAMES and not name.startswith("event."):
