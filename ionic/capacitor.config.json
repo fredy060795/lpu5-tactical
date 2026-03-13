@@ -12,8 +12,7 @@
   },
   "ios": {
     "contentInset": "automatic",
-    "allowsLinkPreview": false,
-    "backgroundColor": "#000000"
+    "allowsLinkPreview": false
   },
   "plugins": {
     "Geolocation": {

@@ -7339,6 +7339,7 @@
       '</div>';
       document.body.appendChild(overlay);
       overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+      document.addEventListener('keydown', function _escHandler(e) { if (e.key === 'Escape') { var el = document.getElementById('ios-mesh-guide-overlay'); if (el) el.remove(); document.removeEventListener('keydown', _escHandler); } });
     };
 
     // Handle incoming messages

@@ -33,7 +33,7 @@
 
   window.isCapacitorNative = isCapacitor;
   // Keep backwards-compatible flag that existing code checks
-  window.isAndroidNative = isCapacitor && capPlatform !== 'ios';
+  window.isAndroidNative = isCapacitor && capPlatform === 'android';
   // iOS native flag – Meshtastic BLE is now fully supported on iOS via Capacitor
   window.isIOSNative = isCapacitor && capPlatform === 'ios';
   // Both Android and iOS support direct BLE Meshtastic via Capacitor
@@ -126,7 +126,10 @@
     try {
       await BluetoothLe.initialize();
 
-      // On iOS, request BLE permissions explicitly (CoreBluetooth)
+      // On iOS, trigger a short BLE scan to ensure CoreBluetooth permissions
+      // are granted before the device picker. This is a standard workaround
+      // for the Capacitor BLE plugin on iOS where permissions must be
+      // requested before requestDevice() will show available devices.
       if (capPlatform === 'ios') {
         try {
           await BluetoothLe.requestLEScan({ allowDuplicates: false });
@@ -174,6 +177,7 @@
    */
   window.nativeDisconnectMeshtastic = async function () {
     if (!_bleDevice) return;
+    var deviceLabel = _bleDevice.name || _bleDevice.deviceId;
     try {
       await BluetoothLe.stopNotifications({
         deviceId: _bleDevice.deviceId,
@@ -185,7 +189,6 @@
       await BluetoothLe.disconnect({ deviceId: _bleDevice.deviceId });
     } catch (e) { /* ignore */ }
     _bleConnected = false;
-    var deviceLabel = _bleDevice ? (_bleDevice.name || _bleDevice.deviceId) : '';
     _bleDevice = null;
     console.log('[CapacitorBridge] BLE disconnected', deviceLabel);
     fireEvent('meshtasticServiceDisconnected', { status: 'disconnected', device: deviceLabel });
