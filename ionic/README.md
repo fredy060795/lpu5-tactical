@@ -167,15 +167,25 @@ ionic/
 ## Native Funktionen (capacitor-bridge.js)
 
 Die Datei `www/capacitor-bridge.js` stellt folgende native Funktionen bereit,
-die automatisch aktiv sind wenn die App auf Android oder iOS läuft:
+die automatisch aktiv sind wenn die App auf Android **oder iOS** läuft:
 
 | Funktion | Plugin | Beschreibung |
 |----------|--------|--------------|
 | `window.nativeGetPosition()` | `@capacitor/geolocation` | Aktuelle GPS-Position (JSON) |
-| `window.nativeConnectMeshtastic()` | `@capacitor-community/bluetooth-le` | BLE Gerätesuche & Verbindung |
+| `window.nativeConnectMeshtastic()` | `@capacitor-community/bluetooth-le` | BLE Gerätesuche & Verbindung (Android + iOS) |
+| `window.nativeDisconnectMeshtastic()` | `@capacitor-community/bluetooth-le` | BLE Gerät trennen |
 | `window.nativeSendMessage(msg, isCOT)` | `@capacitor-community/bluetooth-le` | Nachricht via Mesh senden |
 | `window.nativeGetMeshtasticNodes()` | `@capacitor-community/bluetooth-le` | Verbundene Nodes (JSON) |
 | `window.Android.showToast(msg)` | `@capacitor/toast` | Nativer Toast-Hinweis |
+
+**Plattform-Erkennung:**
+
+| Flag | Beschreibung |
+|------|-------------|
+| `window.isCapacitorNative` | `true` wenn App auf Android oder iOS läuft |
+| `window.isIOSNative` | `true` wenn App auf iOS läuft |
+| `window.isAndroidNative` | `true` wenn App auf Android läuft |
+| `window.hasNativeMeshtastic` | `true` auf beiden Plattformen (BLE verfügbar) |
 
 Im Desktop-Browser werden diese Funktionen automatisch deaktiviert – der Code
 fällt dann auf die Web-Bluetooth-API zurück.

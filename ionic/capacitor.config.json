@@ -24,7 +24,8 @@
         "cancel": "Abbrechen",
         "availableDevices": "Verfügbare Geräte",
         "noDeviceFound": "Kein Meshtastic Gerät gefunden"
-      }
+      },
+      "iosUseCoreBluetooth": true
     }
   }
 }

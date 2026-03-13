@@ -10,12 +10,12 @@ The LPU5 Tactical system is now split into two platform-specific implementations
 ## Platform Architecture
 
 ### iOS Devices (Web Client Role)
-- **Technology**: Progressive Web App (PWA)
-- **Access Method**: HQ's public IP address via HTTPS
-- **Communication**: REST API + WebSocket
-- **Limitations**: No direct Meshtastic BLE (Safari limitation)
+- **Technology**: Progressive Web App (PWA) or Capacitor native app
+- **Access Method**: HQ's public IP address via HTTPS (PWA) or direct BLE (Capacitor)
+- **Communication**: REST API + WebSocket (PWA) or native BLE (Capacitor)
+- **Meshtastic**: Direct BLE via Capacitor app, or Meshtastic iOS app with built-in TAK server + iTAK
 - **Use Case**: Remote field devices, HQ coordination
-- **Offline**: Service Worker caching for offline operation
+- **Offline**: Service Worker caching (PWA) or direct mesh (Capacitor/Meshtastic app)
 
 ### Android Devices (Mesh Client Role)
 - **Technology**: Native Android APK with WebView
@@ -139,14 +139,29 @@ https://your-server-ip:8101/pwa/overview.html
 - Offline map caching
 - Remote HQ communication
 
-❌ **Not Available** (iOS Safari limitations):
-- Direct Bluetooth to Meshtastic devices
-- Web Bluetooth API
+❌ **Not Available** (iOS Safari PWA limitations):
+- Web Bluetooth API (Safari only)
 - Background sync
 
-### iOS Limitations & Workarounds
+✅ **Now Available** for iOS:
+- Direct BLE via LPU5 Tactical Capacitor app (uses @capacitor-community/bluetooth-le)
+- Meshtastic iOS app with built-in TAK server + iTAK for full mesh integration
 
-**No Direct Meshtastic Connection**:
+### iOS Meshtastic Options
+
+**Option 1: LPU5 Tactical Capacitor App (Direct BLE)**
+- Build the Ionic/Capacitor project for iOS (`npx cap add ios && npx cap sync`)
+- Install on iPhone via Xcode
+- Use "Connect Mesh Device" button for direct BLE connection to Meshtastic
+
+**Option 2: Meshtastic iOS App + iTAK**
+1. Install Meshtastic iOS app and iTAK from the App Store
+2. Pair Meshtastic LoRa radio via Bluetooth in the Meshtastic app
+3. Enable the built-in TAK Server in Meshtastic app Settings
+4. In iTAK, connect to `127.0.0.1` on the TAK server port (e.g., 4242)
+5. Position, messages, and COT markers flow over the LoRa mesh
+
+**Option 3: HQ Gateway (PWA fallback)**
 - iOS devices communicate with HQ server via REST API
 - HQ server can run Meshtastic Gateway Service
 - iOS devices receive mesh updates through WebSocket

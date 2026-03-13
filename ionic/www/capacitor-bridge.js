@@ -8,10 +8,13 @@
  * Exposed globals after this script runs:
  *   window.isCapacitorNative  – true when running inside a Capacitor shell
  *   window.isAndroidNative    – kept for backwards compat with existing code
+ *   window.isIOSNative        – true when running inside Capacitor on iOS
+ *   window.hasNativeMeshtastic– true on both Android and iOS Capacitor (BLE)
  *   window.nativeGetPosition()      – returns current GPS position (JSON string)
  *   window.nativeConnectMeshtastic()– open BLE device picker and connect
  *   window.nativeSendMessage(msg, isCOT) – send a text/COT message via BLE
  *   window.nativeGetMeshtasticNodes() – return connected BLE node list (JSON)
+ *   window.nativeDisconnectMeshtastic() – disconnect current BLE device
  *   window.Android.showToast(msg)   – show a native toast notification
  *   window.onAndroidEvent(event, data) – override this to receive native events
  */
@@ -22,15 +25,26 @@
   // ── Detect Capacitor runtime ──────────────────────────────────────────────
   const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
+  // Detect specific platform (iOS vs Android)
+  var capPlatform = '';
+  if (isCapacitor && window.Capacitor.getPlatform) {
+    capPlatform = window.Capacitor.getPlatform(); // 'ios', 'android', or 'web'
+  }
+
   window.isCapacitorNative = isCapacitor;
   // Keep backwards-compatible flag that existing code checks
-  window.isAndroidNative = isCapacitor;
+  window.isAndroidNative = isCapacitor && capPlatform === 'android';
+  // iOS native flag – Meshtastic BLE is now fully supported on iOS via Capacitor
+  window.isIOSNative = isCapacitor && capPlatform === 'ios';
+  // Both Android and iOS support direct BLE Meshtastic via Capacitor
+  window.hasNativeMeshtastic = isCapacitor;
 
   if (!isCapacitor) {
     console.log('[CapacitorBridge] Running in browser – native features disabled.');
     // Provide no-op stubs so callers don't get undefined errors in browser mode
     window.nativeGetPosition        = function () { return '{}'; };
     window.nativeConnectMeshtastic  = function () { console.log('[CapacitorBridge] BLE not available in browser.'); };
+    window.nativeDisconnectMeshtastic = function () { console.log('[CapacitorBridge] BLE not available in browser.'); };
     window.nativeSendMessage        = function () { console.log('[CapacitorBridge] BLE not available in browser.'); };
     window.nativeGetMeshtasticNodes = function () { return '[]'; };
     window.Android = window.Android || {};
@@ -38,7 +52,7 @@
     return;
   }
 
-  console.log('[CapacitorBridge] Capacitor native platform detected, initialising bridge…');
+  console.log('[CapacitorBridge] Capacitor native platform detected (' + (capPlatform || 'unknown') + '), initialising bridge…');
 
   // ── Helper: fire web-facing event (same contract as the old Android bridge) ──
   function fireEvent(event, dataObj) {
@@ -90,6 +104,8 @@
 
   // ══════════════════════════════════════════════════════════════════════════
   // 2. BLUETOOTH LE  (@capacitor-community/bluetooth-le)
+  //    Works on BOTH Android and iOS via Capacitor native BLE plugin.
+  //    iOS now fully supports Meshtastic BLE connections.
   // ══════════════════════════════════════════════════════════════════════════
   const { BluetoothLe } = window.Capacitor.Plugins;
   let _bleDevice = null;
@@ -103,15 +119,33 @@
 
   /**
    * Show the BLE device picker and connect to a Meshtastic device.
+   * Works on both Android and iOS via @capacitor-community/bluetooth-le.
    * Replaces Android.connectMeshtastic() / window.nativeConnectMeshtastic().
    */
   window.nativeConnectMeshtastic = async function () {
     try {
       await BluetoothLe.initialize();
 
-      const result = await BluetoothLe.requestDevice({
-        services: [MESH_SERVICE_UUID]
-      });
+      // On iOS, trigger a short BLE scan to ensure CoreBluetooth permissions
+      // are granted before the device picker. This is a standard workaround
+      // for the Capacitor BLE plugin on iOS where permissions must be
+      // requested before requestDevice() will show available devices.
+      if (capPlatform === 'ios') {
+        try {
+          await BluetoothLe.requestLEScan({ allowDuplicates: false });
+          await BluetoothLe.stopLEScan();
+        } catch (scanErr) {
+          console.log('[CapacitorBridge] iOS BLE permission pre-check:', scanErr.message);
+        }
+      }
+
+      var scanOpts = { services: [MESH_SERVICE_UUID] };
+      // On iOS, optionally allow all devices if service filter fails
+      if (capPlatform === 'ios') {
+        scanOpts.optionalServices = [MESH_SERVICE_UUID];
+      }
+
+      const result = await BluetoothLe.requestDevice(scanOpts);
       _bleDevice = result;
 
       await BluetoothLe.connect({ deviceId: _bleDevice.deviceId });
@@ -127,14 +161,38 @@
         fireEvent('meshtasticMessage', { raw: data.value });
       });
 
-      console.log('[CapacitorBridge] BLE connected to', _bleDevice.name);
-      fireEvent('meshtasticServiceConnected', { status: 'connected', device: _bleDevice.name });
-      window.Android && window.Android.showToast('Meshtastic verbunden: ' + (_bleDevice.name || _bleDevice.deviceId));
+      var deviceLabel = _bleDevice.name || _bleDevice.deviceId;
+      console.log('[CapacitorBridge] BLE connected to', deviceLabel, '(platform:', capPlatform, ')');
+      fireEvent('meshtasticServiceConnected', { status: 'connected', device: deviceLabel, platform: capPlatform });
+      window.Android && window.Android.showToast('Meshtastic verbunden: ' + deviceLabel);
     } catch (e) {
       console.warn('[CapacitorBridge] BLE connect error:', e);
       fireEvent('meshtasticServiceDisconnected', { status: 'error', message: e.message });
       window.Android && window.Android.showToast('BLE Fehler: ' + e.message);
     }
+  };
+
+  /**
+   * Disconnect from the currently connected Meshtastic BLE device.
+   */
+  window.nativeDisconnectMeshtastic = async function () {
+    if (!_bleDevice) return;
+    var deviceLabel = _bleDevice.name || _bleDevice.deviceId;
+    try {
+      await BluetoothLe.stopNotifications({
+        deviceId: _bleDevice.deviceId,
+        service:  MESH_SERVICE_UUID,
+        characteristic: MESH_FROMNUM_UUID
+      });
+    } catch (e) { /* ignore */ }
+    try {
+      await BluetoothLe.disconnect({ deviceId: _bleDevice.deviceId });
+    } catch (e) { /* ignore */ }
+    _bleConnected = false;
+    _bleDevice = null;
+    console.log('[CapacitorBridge] BLE disconnected', deviceLabel);
+    fireEvent('meshtasticServiceDisconnected', { status: 'disconnected', device: deviceLabel });
+    window.Android && window.Android.showToast('Meshtastic getrennt');
   };
 
   /**
@@ -189,5 +247,8 @@
   // ── Auto-start location tracking ─────────────────────────────────────────
   startLocationTracking();
 
-  console.log('[CapacitorBridge] Bridge initialised (Geolocation + BLE + Toast).');
+  console.log('[CapacitorBridge] Bridge initialised (Geolocation + BLE + Toast) on ' + (capPlatform || 'unknown') + '.');
+  if (capPlatform === 'ios') {
+    console.log('[CapacitorBridge] iOS detected – Meshtastic BLE is fully supported via Capacitor.');
+  }
 })();

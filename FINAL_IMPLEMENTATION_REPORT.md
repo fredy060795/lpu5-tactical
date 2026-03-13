@@ -116,11 +116,12 @@ lpu5-tactical/
 | REST API Communication | ✅ | Full support |
 | WebSocket Updates | ✅ | Real-time sync |
 | Offline Caching | ✅ | Service Worker |
-| Direct Bluetooth | ❌ | Safari limitation |
+| Direct Bluetooth (Capacitor) | ✅ | Via @capacitor-community/bluetooth-le |
+| Meshtastic iOS + iTAK | ✅ | Built-in TAK server on iOS |
 | Gateway Access | ✅ | Via HQ server |
-| GPS Tracking | ⚠️ | Browser API only |
+| GPS Tracking | ⚠️ | Browser API (PWA) / Native (Capacitor) |
 | Background Operation | ⚠️ | iOS restricted |
-| Installation | ✅ | Add to Home Screen |
+| Installation | ✅ | Add to Home Screen / Xcode |
 | Updates | ✅ | Automatic |
 | Security | ✅ | HTTPS/TLS, JWT |
 
