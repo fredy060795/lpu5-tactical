@@ -6280,11 +6280,17 @@ def api_qr_create(data: dict = Body(...), request: Request = None, db: Session =
     qr_url = None
     if generate_png and qrcode:
         try:
-            local_ip, _ = get_local_ip()
-            cert_file = os.path.join(base_path, "cert.pem")
-            key_file = os.path.join(base_path, "key.pem")
-            protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
-            qr_url = f"{protocol}://{local_ip}:8101/qr/{token}"
+            # Use caller-supplied base_url when available so the QR code
+            # points to the domain / IP the admin chose in the UI.
+            caller_base = (data.get("base_url") or "").strip().rstrip("/")
+            if caller_base:
+                qr_url = f"{caller_base}/qr/{token}"
+            else:
+                local_ip, _ = get_local_ip()
+                cert_file = os.path.join(base_path, "cert.pem")
+                key_file = os.path.join(base_path, "key.pem")
+                protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
+                qr_url = f"{protocol}://{local_ip}:8101/qr/{token}"
             qr_img = qrcode.make(qr_url)
             from io import BytesIO
             buf = BytesIO()

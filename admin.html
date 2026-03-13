@@ -452,9 +452,13 @@
             <strong>Note:</strong> For register.html you can leave username blank. The QR code will then enable self-registration with manual admin approval.
         </div>
 
-        <div id="qrServerInfo" style="margin-top:10px; margin-bottom:10px; padding:10px; background:rgba(52,152,219,0.1); border:1px solid rgba(52,152,219,0.3); border-radius:4px; font-size:0.85em; display:none;">
+        <div style="margin-top:10px; margin-bottom:10px; padding:10px; background:rgba(52,152,219,0.1); border:1px solid rgba(52,152,219,0.3); border-radius:4px; font-size:0.85em;">
             <i class="fas fa-network-wired" style="color:#3498db;"></i>
-            <strong>Server Address:</strong> <span id="qrServerUrl">Loading...</span>
+            <strong>Server Address (Domain / IP):</strong>
+            <input id="qrBaseUrl" type="text" placeholder="Loading..." style="width:100%;margin-top:6px;padding:6px 8px;background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(52,152,219,0.4);border-radius:4px;font-size:0.95em;">
+            <div style="margin-top:4px;color:#888;font-size:0.8em;">
+                <i class="fas fa-info-circle"></i> The QR code will point to this address. Change it if users connect via a different domain or IP.
+            </div>
         </div>
 
         <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
@@ -899,6 +903,11 @@
       loadPendingRegistrations();
       const select = document.getElementById('qrUserSelect');
       if (select) select.addEventListener('change', onQRUserChange);
+      // Pre-populate server base URL field
+      fetch('/api/server_info').then(r => r.json()).then(info => {
+        const inp = document.getElementById('qrBaseUrl');
+        if (inp && info && info.base_url) inp.value = info.base_url;
+      }).catch(e => { console.warn('Failed to pre-populate server URL', e); });
     });
 
     // createQRCode: called by onclick on the admin.html "Erstelle QR CODE" button
@@ -910,27 +919,32 @@
       const maxUsesInput = document.getElementById('qrMaxUses');
       const maxUses = maxUsesInput ? parseInt(maxUsesInput.value, 10) || 999 : 999;
       
+      // Use the admin-editable base URL field
+      const baseUrlInput = document.getElementById('qrBaseUrl');
+      let baseUrl = baseUrlInput ? baseUrlInput.value.trim().replace(/\/+$/, '') : '';
+      
+      if (!baseUrl) {
+        // Fallback: fetch from server_info if field is empty
+        try {
+          const serverInfoRes = await fetch('/api/server_info');
+          const serverInfo = await serverInfoRes.json().catch(e => { console.warn('server_info JSON parse error', e); return null; });
+          if (serverInfo && serverInfo.base_url) {
+            baseUrl = serverInfo.base_url;
+            if (baseUrlInput) baseUrlInput.value = baseUrl;
+          }
+        } catch (e) { console.warn('Failed to fetch server_info fallback', e); }
+      }
+      
+      if (!baseUrl) {
+        alert('Please enter a server address (domain or IP) for the QR code.');
+        return;
+      }
+      
       // Allow blank QR codes for registration - don't require username/password
       try{
-        // First, fetch server info to get the base URL
-        const serverInfoRes = await fetch('/api/server_info');
-        const serverInfo = await serverInfoRes.json().catch(() => null);
-        
-        if (!serverInfo || !serverInfo.base_url) {
-          alert('Could not retrieve server information');
-          return;
-        }
-        
-        // Show server URL to user
-        const qrServerInfo = document.getElementById('qrServerInfo');
-        const qrServerUrl = document.getElementById('qrServerUrl');
-        if (qrServerInfo && qrServerUrl) {
-          qrServerUrl.textContent = serverInfo.base_url;
-          qrServerInfo.style.display = '';
-        }
-        
         const payload = {
-          redirect_url: `${serverInfo.base_url}/${selectedPage}`,
+          redirect_url: `${baseUrl}/${selectedPage}`,
+          base_url: baseUrl,
           label: 'registration',
           max_uses: maxUses,
           expires_days: 365,
