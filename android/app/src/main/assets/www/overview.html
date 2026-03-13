@@ -3684,6 +3684,9 @@
           <button class="menu-btn" id="menu-mesh-disconnect-btn" onclick="event.stopPropagation(); disconnectMeshtastic(); toggleHamburgerMenu();" style="display:none;">
             <i class="fas fa-times"></i> Disconnect Mesh Device
           </button>
+          <button class="menu-btn" onclick="event.stopPropagation(); showIOSMeshtasticGuide(); toggleHamburgerMenu();">
+            <i class="fab fa-apple"></i> iOS Meshtastic Setup Guide
+          </button>
         </div>
 
         <div class="menu-section">
@@ -4020,9 +4023,13 @@
       });
 
       // Check for Web Bluetooth support
-      if (!navigator.bluetooth) {
-        console.warn('[Meshtastic] Web Bluetooth not supported — please use Chrome/Edge/Opera');
-        updateMeshStatus('BLE not available — please use Chrome/Edge/Opera', false);
+      if (window.hasNativeMeshtastic) {
+        // Running in Capacitor (Android or iOS) – use native BLE via capacitor-bridge.js
+        console.log('[Meshtastic] Native BLE available via Capacitor (platform: ' + (window.isIOSNative ? 'iOS' : 'Android') + ')');
+        updateMeshStatus('Native BLE ready', false);
+      } else if (!navigator.bluetooth) {
+        console.warn('[Meshtastic] Web Bluetooth not supported — please use Chrome/Edge/Opera or the native app');
+        updateMeshStatus('BLE not available', false);
       } else {
         // Initialize Meshtastic BLE client
         meshtasticClient = new MeshtasticWebClient();
@@ -4053,16 +4060,36 @@
     // The server gateway is managed exclusively by meshtastic.html / import_nodes.html.
 
     window.connectMeshtastic = async function() {
-      // overview.html ONLY supports Web BLE — no server gateway fallback
+      // If running in Capacitor (Android or iOS), use native BLE
+      if (window.hasNativeMeshtastic && typeof window.nativeConnectMeshtastic === 'function') {
+        try {
+          updateMeshStatus('Connecting via native BLE...', false);
+          await window.nativeConnectMeshtastic();
+          meshtasticConnected = true;
+          updateMeshStatus('Connected (native BLE)', true);
+          updateMenuMeshButtons(true);
+          if (typeof processPendingMessages === 'function') processPendingMessages();
+        } catch (error) {
+          console.error('[Meshtastic] Native BLE connection failed:', error);
+          updateMeshStatus('Native BLE connection failed', false);
+        }
+        return;
+      }
+
+      // Web Bluetooth fallback (Chrome/Edge/Opera on desktop/Android)
       if (!meshtasticClient || !meshtasticClient.isSupported()) {
         console.warn('[Meshtastic] Web Bluetooth not supported in this browser');
         updateMeshStatus('Web Bluetooth not supported', false);
         alert(
           'Web Bluetooth is not supported by this browser.\n\n' +
-          'Please use one of the following browsers:\n' +
+          'Supported browsers:\n' +
           '• Chrome (Android, Windows, ChromeOS)\n' +
           '• Edge (Windows)\n' +
           '• Opera (Android, Windows)\n\n' +
+          'For iOS:\n' +
+          '• Use the LPU5 Tactical iOS app (Capacitor) for direct BLE\n' +
+          '• Or use the Meshtastic iOS app with built-in TAK server\n' +
+          '  (connect iTAK to 127.0.0.1 on the TAK server port)\n\n' +
           'Make sure Bluetooth is enabled.'
         );
         return;
@@ -4119,7 +4146,9 @@
 
     // Disconnect from Meshtastic device
     window.disconnectMeshtastic = async function() {
-      if (meshtasticClient) {
+      if (window.hasNativeMeshtastic && typeof window.nativeDisconnectMeshtastic === 'function') {
+        await window.nativeDisconnectMeshtastic();
+      } else if (meshtasticClient) {
         await meshtasticClient.disconnect();
       }
       
@@ -4134,6 +4163,63 @@
 
       // Update hamburger menu buttons
       updateMenuMeshButtons(false);
+    };
+
+    // Show iOS Meshtastic Setup Guide
+    window.showIOSMeshtasticGuide = function() {
+      var overlay = document.createElement('div');
+      overlay.id = 'ios-mesh-guide-overlay';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
+      overlay.innerHTML = '<div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto;padding:24px;color:#d0d0d0;font-family:Arial,sans-serif;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+          '<h2 style="margin:0;color:#fff;font-size:1.2rem;"><i class="fab fa-apple" style="margin-right:8px;"></i>iOS Meshtastic Setup</h2>' +
+          '<button onclick="document.getElementById(\'ios-mesh-guide-overlay\').remove()" style="background:none;border:none;color:#888;font-size:24px;cursor:pointer;padding:4px 8px;">×</button>' +
+        '</div>' +
+        '<div style="background:#0d1117;border-radius:8px;padding:16px;margin-bottom:16px;">' +
+          '<p style="color:#58a6ff;font-weight:bold;margin:0 0 8px 0;"><i class="fas fa-info-circle"></i> iOS supports full Meshtastic BLE!</p>' +
+          '<p style="margin:0;font-size:0.9rem;color:#aaa;">The Meshtastic iOS app now includes a built-in TAK server. You can connect iTAK directly to your Meshtastic LoRa radio via Bluetooth.</p>' +
+        '</div>' +
+        '<div style="margin-bottom:16px;">' +
+          '<h3 style="color:#fff;font-size:1rem;margin:0 0 12px 0;">Requirements</h3>' +
+          '<ul style="margin:0;padding-left:20px;font-size:0.9rem;line-height:1.6;">' +
+            '<li>iPhone with <strong>iOS 15+</strong></li>' +
+            '<li>Latest <strong>Meshtastic iOS app</strong> (App Store)</li>' +
+            '<li><strong>iTAK</strong> or <strong>TAK Aware</strong> app (App Store)</li>' +
+            '<li>Meshtastic LoRa radio with <strong>latest firmware</strong></li>' +
+          '</ul>' +
+        '</div>' +
+        '<div style="margin-bottom:16px;">' +
+          '<h3 style="color:#fff;font-size:1rem;margin:0 0 12px 0;">Setup Steps</h3>' +
+          '<div style="font-size:0.9rem;line-height:1.6;">' +
+            '<div style="margin-bottom:12px;padding:10px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">' +
+              '<strong style="color:#58a6ff;">Step 1:</strong> Update Meshtastic firmware<br>' +
+              '<span style="color:#aaa;">Flash latest firmware via Web Flasher (Chrome/Edge). Set LoRa region.</span>' +
+            '</div>' +
+            '<div style="margin-bottom:12px;padding:10px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">' +
+              '<strong style="color:#58a6ff;">Step 2:</strong> Pair device in Meshtastic app<br>' +
+              '<span style="color:#aaa;">Open Meshtastic iOS app → Connect to your LoRa radio via Bluetooth.</span>' +
+            '</div>' +
+            '<div style="margin-bottom:12px;padding:10px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">' +
+              '<strong style="color:#58a6ff;">Step 3:</strong> Enable TAK Server<br>' +
+              '<span style="color:#aaa;">In Meshtastic app → Settings → Enable TAK Server. Note the port number.</span>' +
+            '</div>' +
+            '<div style="margin-bottom:12px;padding:10px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">' +
+              '<strong style="color:#58a6ff;">Step 4:</strong> Connect iTAK<br>' +
+              '<span style="color:#aaa;">In iTAK → Connect to Server → Manual → Host: <code style="background:#0d1117;padding:2px 6px;border-radius:3px;color:#f0883e;">127.0.0.1</code> Port: <code style="background:#0d1117;padding:2px 6px;border-radius:3px;color:#f0883e;">4242</code></span>' +
+            '</div>' +
+            '<div style="padding:10px;background:#161b22;border-radius:6px;border-left:3px solid #2ea043;">' +
+              '<strong style="color:#2ea043;">Done!</strong> iTAK now sends/receives via LoRa mesh.<br>' +
+              '<span style="color:#aaa;">Position, messages, and markers are relayed over the mesh network.</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="background:#0d1117;border-radius:8px;padding:12px;margin-bottom:16px;">' +
+          '<p style="margin:0;font-size:0.85rem;color:#888;"><i class="fas fa-exclamation-triangle" style="color:#d29922;"></i> <strong>Note:</strong> If using the LPU5 Tactical Capacitor app, direct BLE connection is available via the "Connect Mesh Device" button above — no extra apps needed.</p>' +
+        '</div>' +
+        '<button onclick="document.getElementById(\'ios-mesh-guide-overlay\').remove()" style="width:100%;padding:10px;background:#238636;border:none;border-radius:6px;color:#fff;font-size:1rem;cursor:pointer;font-weight:bold;">Close</button>' +
+      '</div>';
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
     };
 
     // Handle incoming messages

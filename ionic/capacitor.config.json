@@ -12,7 +12,8 @@
   },
   "ios": {
     "contentInset": "automatic",
-    "allowsLinkPreview": false
+    "allowsLinkPreview": false,
+    "backgroundColor": "#000000"
   },
   "plugins": {
     "Geolocation": {
@@ -24,7 +25,8 @@
         "cancel": "Abbrechen",
         "availableDevices": "Verfügbare Geräte",
         "noDeviceFound": "Kein Meshtastic Gerät gefunden"
-      }
+      },
+      "iosUseCoreBluetooth": true
     }
   }
 }
