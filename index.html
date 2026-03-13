@@ -11602,6 +11602,15 @@ window.addEventListener('storage', (e) => {
             document.getElementById('nav-placeholder').innerHTML = data;
             // If JS functions in the nav exist, re-initialize them here
         });
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.createMission = createMission;
+    window.saveMission = createMission;
+    window.saveGesamtbefehl = saveGesamtbefehl;
+    window.openOrderView = openOrderView;
+    window.uploadAttachment = uploadAttachment;
+    window.deleteMission = deleteMission;
+    window.loadMissions = loadMissions;
     };
     </script>
     <!-- Ende JS mission.html -->
@@ -11854,6 +11863,10 @@ window.addEventListener('storage', (e) => {
         loadMissionList();
         loadOrder();
     });
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.toggleShowCompleted = toggleShowCompleted;
+    window.selectMission = selectMission;
     };
     </script>
     <!-- Ende JS mission_Overview.html -->
@@ -14362,7 +14375,10 @@ window.addEventListener('storage', (e) => {
         }
       }
 
+      let _loadOverlaysInFlight = false;
       async function loadOverlays() {
+        if (_loadOverlaysInFlight) return;
+        _loadOverlaysInFlight = true;
         try {
           const resp = await fetch('/api/overlays');
           if (!resp.ok) {
@@ -14412,6 +14428,8 @@ window.addEventListener('storage', (e) => {
           if (overlays.length === 0) {
             loadStateFromLocalStorage();
           }
+        } finally {
+          _loadOverlaysInFlight = false;
         }
       }
 
@@ -16287,8 +16305,24 @@ window.addEventListener('storage', (e) => {
 
   window.openStreamWindow = function() {
     const streamWindow = document.getElementById('streamWindow');
-    streamWindow.classList.add('active');
-    isMinimized = false;
+    if (streamWindow) {
+      streamWindow.classList.add('active');
+      isMinimized = false;
+
+      // Load stream_share.html in iframe if not already loaded
+      const content = streamWindow.querySelector('.stream-window-content');
+      if (content && !content.querySelector('#streamWindowFrame')) {
+        const iframe = document.createElement('iframe');
+        iframe.id = 'streamWindowFrame';
+        iframe.src = '/stream_share.html';
+        iframe.style.cssText = 'width: 100%; height: 100%; min-height: 225px; border: none; display: block; background: #000; overflow: hidden;';
+        iframe.scrolling = 'no';
+        iframe.allow = 'camera; microphone';
+
+        content.innerHTML = '';
+        content.appendChild(iframe);
+      }
+    }
   };
 
   window.closeStreamWindow = function() {
@@ -17859,8 +17893,24 @@ window.addEventListener('storage', (e) => {
         localStorage.removeItem('lpu5_token');
         localStorage.removeItem('lpu5_user');
         sessionStorage.clear();
-        window.location.href="#" onclick="navigateTo('landing'); return false;";
+        navigateTo('landing');
     }
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.openCreateChannelModal = openCreateChannelModal;
+    window.closeCreateChannelModal = closeCreateChannelModal;
+    window.createChannel = createChannel;
+    window.openChannelAdminModal = openChannelAdminModal;
+    window.closeChannelAdminModal = closeChannelAdminModal;
+    window.openChannelInfoModal = openChannelInfoModal;
+    window.closeChannelInfoModal = closeChannelInfoModal;
+    window.openDeleteChannelModal = openDeleteChannelModal;
+    window.closeDeleteChannelModal = closeDeleteChannelModal;
+    window.confirmDeleteChannel = confirmDeleteChannel;
+    window.addChannelAdminMember = addChannelAdminMember;
+    window.removeChannelAdminMember = removeChannelAdminMember;
+    window.setActiveChannel = setActiveChannel;
+    window.logoutUser = logoutUser;
     };
     </script>
     <!-- Ende JS meshtastic.html -->
@@ -21925,6 +21975,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.connectCamera = connectCamera;
+    window.stopCamera = stopCamera;
+    window.connectScreenShare = connectScreenShare;
+    window.connectSSHStream = connectSSHStream;
+    window.shareToAdminMap = shareToAdminMap;
+    window.stopStream = stopStream;
+    window.toggleMulticast = toggleMulticast;
+    window.selectStreamToBroadcast = selectStreamToBroadcast;
+    window.deselectStream = deselectStream;
+    window.viewStream = viewStream;
+    window.removeStream = removeStream;
     };
     </script>
     <!-- Ende JS stream.html -->
@@ -23311,6 +23374,12 @@ async function loadExisting() {
 
 // ── Init ──
 loadExisting().then(() => connect());
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.clearEvents = clearEvents;
+    window.pauseToggle = pauseToggle;
+    window.exportLog = exportLog;
+    window.closeDetail = closeDetail;
     };
     </script>
     <!-- Ende JS cot_monitor_ui.html -->
@@ -23575,6 +23644,9 @@ loadExisting().then(() => connect());
                 renderLanguages(e.target.value);
             });
         });
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.saveLanguage = saveLanguage;
     };
     </script>
     <!-- Ende JS language.html -->
