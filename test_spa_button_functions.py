@@ -77,7 +77,7 @@ def _extract_dynamic_onclick_functions(html):
     )
     functions = set()
     # Search inside <script> blocks for dynamic HTML generation
-    script_re = re.compile(r"<script[^>]*>(.*?)</script>", re.DOTALL)
+    script_re = re.compile(r"<script[^>]*>(.*?)</script[^>]*>", re.DOTALL | re.IGNORECASE)
     for sm in script_re.finditer(html):
         script_body = sm.group(1)
         for m in dynamic_re.finditer(script_body):
