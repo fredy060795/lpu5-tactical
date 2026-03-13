@@ -12529,7 +12529,7 @@ window.addEventListener('storage', (e) => {
       fetch('/api/server_info').then(r => r.json()).then(info => {
         const inp = document.getElementById('qrBaseUrl');
         if (inp && info && info.base_url) inp.value = info.base_url;
-      }).catch(() => {});
+      }).catch(e => { console.warn('Failed to pre-populate server URL', e); });
     });
 
     // createQRCode: called by onclick on the admin.html "Erstelle QR CODE" button
@@ -12549,12 +12549,12 @@ window.addEventListener('storage', (e) => {
         // Fallback: fetch from server_info if field is empty
         try {
           const serverInfoRes = await fetch('/api/server_info');
-          const serverInfo = await serverInfoRes.json().catch(() => null);
+          const serverInfo = await serverInfoRes.json().catch(e => { console.warn('server_info JSON parse error', e); return null; });
           if (serverInfo && serverInfo.base_url) {
             baseUrl = serverInfo.base_url;
             if (baseUrlInput) baseUrlInput.value = baseUrl;
           }
-        } catch (_) {}
+        } catch (e) { console.warn('Failed to fetch server_info fallback', e); }
       }
       
       if (!baseUrl) {
