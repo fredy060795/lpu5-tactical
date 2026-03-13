@@ -12017,10 +12017,11 @@ def catch_all(full_path: str, request: Request):
     # NOTE: stream_share.html and stream_share_N.html are intentionally excluded
     # from the SPA redirect – they are pure video viewers (no Global_nav) that
     # are loaded inside iframes and must be served as standalone HTML files.
+    # NOTE: mission_Overview.html is intentionally excluded – it is a standalone
+    # read-only overview of mission orders (no Global_nav) accessible via QR code.
     _SPA_VIEWS = {
         "landing.html": "landing", "admin.html": "admin",
         "admin_map.html": "admin_map", "mission.html": "mission",
-        "mission_Overview.html": "mission_overview",
         "statistics.html": "statistics", "meshtastic.html": "meshtastic",
         "import_nodes.html": "import_nodes", "network.html": "network",
         "SDR.html": "sdr", "stream.html": "stream",
