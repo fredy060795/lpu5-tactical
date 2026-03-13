@@ -12247,6 +12247,10 @@ window.addEventListener('storage', (e) => {
         return `${s}s`;
     }
 
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.terminateMission = terminateMission;
+    window.toggleHistory = toggleHistory;
+
     // Initial load
     loadArchive();
     };
@@ -16286,6 +16290,102 @@ window.addEventListener('storage', (e) => {
       // Initial sync after 1 second
       setTimeout(autoSyncUpload, 1000);
 
+      // ─── Expose flyout functions to global scope for inline onclick/oninput handlers ─
+
+      // GPS toolbar buttons
+      window.gpsRefresh = async function() {
+        if (gpsFixedMarker) { alert('GPS is fixed. Remove the fix first.'); return; }
+        try {
+          const pos = await getCurrentPositionPromise();
+          putTempArrow(pos.coords.latitude, pos.coords.longitude);
+          map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15));
+        } catch (e) { alert('GPS error: ' + (e.message || e)); }
+      };
+      window.gpsFix = async function() {
+        try {
+          const pos = await getCurrentPositionPromise();
+          putFixedArrow(pos.coords.latitude, pos.coords.longitude);
+          map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15));
+          if (gpsTempMarker) { try { map.removeLayer(gpsTempMarker); } catch (e) { } gpsTempMarker = null; }
+          var interval = parseInt((document.getElementById('gpsIntervalSelect') || {}).value, 10) || 0;
+          if (interval > 0) startGpsAutoUpdate(interval);
+        } catch (e) {
+          alert('Geolocation not available. Click the map to set position manually.');
+          map.once('click', function(ev) {
+            putFixedArrow(ev.latlng.lat, ev.latlng.lng);
+            map.setView([ev.latlng.lat, ev.latlng.lng], Math.max(map.getZoom(), 15));
+          });
+        }
+      };
+
+      // Symbol toolbar buttons
+      window.selectSymbol = function(type, btn) {
+        if (symbolDeleteMode) { alert('End delete mode first'); return; }
+        var was = btn.classList.contains('active');
+        document.querySelectorAll('.icon-btn').forEach(function(x) { x.classList.remove('active'); });
+        document.querySelectorAll('.fly-sym-btn').forEach(function(x) { x.classList.remove('active'); });
+        if (was) { activeSymbol = null; stopPlacingSymbol(); }
+        else { btn.classList.add('active'); activeSymbol = type; startPlacingSymbol(); }
+      };
+      window.startSymbolPlace = function() { startPlacingSymbol(); };
+
+      // Drawing toolbar buttons
+      window.startDrawing = startDrawing;
+      window.finishDrawing = finishDrawing;
+
+      // Overlay toolbar buttons
+      window.onOverlayFile = function(event) {
+        var files = event.target.files;
+        var el = document.getElementById('ovFileName_fly');
+        if (el) el.textContent = (files && files.length) ? Array.from(files).map(function(f) { return f.name; }).join(', ') : 'None selected';
+      };
+      window.applyRotation = function() {
+        var angle = parseFloat((document.getElementById('ovR_fly') || {}).value) || 0;
+        overlays.forEach(function(o) {
+          if (o.overlay && o.overlay.getElement) {
+            var img = o.overlay.getElement();
+            if (img) { img.style.transform = 'rotate(' + angle + 'deg)'; img.style.transformOrigin = '50% 50%'; }
+          }
+        });
+      };
+      window.saveOverlayConfig = async function() {
+        var fileInput = document.getElementById('ovFile_fly');
+        var files = fileInput ? fileInput.files : null;
+        if (!files || files.length === 0) { alert('Please select at least one file.'); return; }
+        var w = parseFloat((document.getElementById('ovW_fly') || {}).value) || 500;
+        var h = parseFloat((document.getElementById('ovH_fly') || {}).value) || 500;
+        var r = parseFloat((document.getElementById('ovR_fly') || {}).value) || 0;
+        var op = (parseFloat((document.getElementById('ovOpacity_fly') || {}).value) || 100) / 100.0;
+        for (var i = 0; i < files.length; i++) { await addOverlay(files[i], w, h, r, op); }
+        if (fileInput) fileInput.value = '';
+        var fn = document.getElementById('ovFileName_fly');
+        if (fn) fn.textContent = 'None selected';
+        refreshOverlayList(); renderSettingsList();
+      };
+      window.resetOverlayInputs = function() {
+        var ids = { 'ovR_fly': '0', 'ovW_fly': '5', 'ovH_fly': '5', 'ovOffsetX_fly': '0', 'ovOffsetY_fly': '0' };
+        Object.keys(ids).forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ids[id]; });
+        var av = document.getElementById('angleVal_fly'); if (av) av.innerText = '0';
+        var fi = document.getElementById('ovFile_fly'); if (fi) fi.value = '';
+        var fn = document.getElementById('ovFileName_fly'); if (fn) fn.textContent = 'None selected';
+      };
+      window.scheduleReapply = function() {
+        if (window._reapplyTimeout) clearTimeout(window._reapplyTimeout);
+        window._reapplyTimeout = setTimeout(function() {
+          overlays.forEach(function(o) {
+            if (o.overlay && o.overlay.getElement) {
+              var img = o.overlay.getElement();
+              if (img) {
+                var angle = o.rotation || 0;
+                img.style.transform = 'rotate(' + angle + 'deg)';
+                img.style.transformOrigin = '50% 50%';
+              }
+            }
+          });
+          saveStateToLocalStorage();
+        }, 100);
+      };
+
     })();
     };
     </script>
@@ -19957,6 +20057,9 @@ window.fedHsVerify = fedHsVerify;
 window.fedHsClose = fedHsClose;
 window.fedLoadAutoSyncStatus = fedLoadAutoSyncStatus;
 window.fedRunSync = fedRunSync;
+window._cleanTakHost = _cleanTakHost;
+window.fedDecodeQrFile = fedDecodeQrFile;
+window._onTakConnectionTypeChange = _onTakConnectionTypeChange;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -23019,6 +23122,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 /* ========== End of disabled Global_Intel functions ========== */
+
+    // ─── Expose functions to global scope for inline onclick handlers ─
+    window.togglePanel = togglePanel;
+    window.switchTile = switchTile;
+    window.toggleLayer = toggleLayer;
+    window.toggleGroupShare = toggleGroupShare;
+    window.refreshAll = refreshAll;
+    window.closeWebcamModal = closeWebcamModal;
+    window.loadWebcams = loadWebcams;
+    window.shareCurrentZone = shareCurrentZone;
+    window.openInWindy = openInWindy;
+    window.shareItem = shareItem;
+    window.toggleFlightRoute = toggleFlightRoute;
+    window.openWebcamModal = openWebcamModal;
+    window.toggleShipRoute = toggleShipRoute;
     };
     </script>
     <!-- Ende JS global_Intel.html -->
@@ -23441,6 +23559,9 @@ loadExisting().then(() => connect());
     window.pauseToggle = pauseToggle;
     window.exportLog = exportLog;
     window.closeDetail = closeDetail;
+    window.showDetail = showDetail;
+    window.onCorrection = onCorrection;
+    window.onNotes = onNotes;
     };
     </script>
     <!-- Ende JS cot_monitor_ui.html -->
