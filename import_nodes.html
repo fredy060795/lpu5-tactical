@@ -200,6 +200,54 @@
       <h2><i class="fas fa-broadcast-tower"></i> Found Nodes (Preview)</h2>
       <div id="nodesList"></div>
     </div>
+
+    <div class="form-section">
+      <h2><i class="fab fa-apple"></i> iOS Meshtastic Setup (iTAK)</h2>
+      <div style="background:#0d1117;border-radius:8px;padding:16px;margin-bottom:16px;">
+        <p style="color:#58a6ff;font-weight:bold;margin:0 0 8px 0;"><i class="fas fa-info-circle"></i> iOS now supports full Meshtastic BLE!</p>
+        <p style="margin:0;font-size:0.9rem;color:#aaa;">The Meshtastic iOS app includes a built-in TAK server. Connect iTAK or TAK Aware directly to your Meshtastic LoRa radio via Bluetooth — no Android or plugin workarounds required.</p>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <h3 style="margin:0 0 8px 0;"><i class="fas fa-clipboard-list"></i> Requirements</h3>
+        <ul style="color:#ccc;font-size:0.9rem;line-height:1.8;">
+          <li>iPhone with <strong>iOS 15+</strong></li>
+          <li>Latest <strong>Meshtastic iOS app</strong> from the App Store</li>
+          <li><strong>iTAK</strong> or <strong>TAK Aware</strong> from the App Store</li>
+          <li>Meshtastic LoRa radio with <strong>latest firmware</strong></li>
+        </ul>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <h3 style="margin:0 0 12px 0;"><i class="fas fa-shoe-prints"></i> Setup Steps</h3>
+        <div style="font-size:0.9rem;line-height:1.6;">
+          <div style="margin-bottom:12px;padding:12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">
+            <strong style="color:#58a6ff;">Step 1: Update Firmware</strong><br>
+            <span style="color:#aaa;">Flash the latest Meshtastic firmware to your LoRa device using the Meshtastic Web Flasher (Chrome/Edge). Set your LoRa region per country regulations.</span>
+          </div>
+          <div style="margin-bottom:12px;padding:12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">
+            <strong style="color:#58a6ff;">Step 2: Pair Device</strong><br>
+            <span style="color:#aaa;">Open the Meshtastic iOS app. Power on your LoRa radio. Tap your device in the list and complete the Bluetooth pairing. Enter PIN if prompted.</span>
+          </div>
+          <div style="margin-bottom:12px;padding:12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">
+            <strong style="color:#58a6ff;">Step 3: Enable TAK Server</strong><br>
+            <span style="color:#aaa;">In the Meshtastic iOS app, go to Settings → Enable TAK Server. Note the localhost port number displayed (typically 4242).</span>
+          </div>
+          <div style="margin-bottom:12px;padding:12px;background:#161b22;border-radius:6px;border-left:3px solid #58a6ff;">
+            <strong style="color:#58a6ff;">Step 4: Connect iTAK</strong><br>
+            <span style="color:#aaa;">In iTAK → Connect to Server → Manual Entry → Host: <code style="background:#0d1117;padding:2px 6px;border-radius:3px;color:#f0883e;">127.0.0.1</code> Port: <code style="background:#0d1117;padding:2px 6px;border-radius:3px;color:#f0883e;">4242</code> → Connect.</span>
+          </div>
+          <div style="padding:12px;background:#161b22;border-radius:6px;border-left:3px solid #2ea043;">
+            <strong style="color:#2ea043;"><i class="fas fa-check-circle"></i> Done!</strong><br>
+            <span style="color:#aaa;">iTAK now sends and receives via the LoRa mesh network. Position, messages, and markers are relayed to all mesh nodes.</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#1a1a00;border:1px solid #444400;border-radius:8px;padding:12px;">
+        <p style="margin:0;font-size:0.85rem;color:#ccaa00;"><i class="fas fa-lightbulb"></i> <strong>Capacitor App:</strong> If using the LPU5 Tactical native app (Capacitor), direct BLE connection to Meshtastic devices works on both iOS and Android — use the "Connect Mesh Device" button in the EUD overview.</p>
+      </div>
+    </div>
   </div>
 
   <!-- sidebar behaviour script from global nav -->

@@ -64,16 +64,16 @@ This document provides a comprehensive comparison to help you choose the right p
 | Feature | iOS PWA | Android Native |
 |---------|---------|----------------|
 | **Internet Required** | ✅ Yes (for real-time) | ❌ No (mesh works offline) |
-| **Direct Meshtastic BLE** | ❌ Not supported | ✅ Full support |
-| **Mesh Communication** | Via HQ gateway | Direct to device |
+| **Direct Meshtastic BLE** | ✅ Via Capacitor app or Meshtastic iOS app | ✅ Full support |
+| **Mesh Communication** | Via Capacitor BLE or HQ gateway | Direct to device |
 | **REST API** | ✅ Full access | ⚠️ Optional |
 | **WebSocket** | ✅ Real-time updates | ⚠️ Optional |
-| **Bluetooth** | ❌ Safari limitation | ✅ Native BLE stack |
+| **Bluetooth** | ✅ Capacitor native BLE / Meshtastic iOS app | ✅ Native BLE stack |
 | **Serial Connection** | ❌ Not available | ✅ USB OTG/Serial |
-| **Gateway Integration** | ✅ Required | ⚠️ Optional fallback |
-| **Offline Messaging** | ❌ Requires HQ | ✅ Full mesh offline |
-| **COT Messages** | 📖 Display only | ✅ Send & Receive |
-| **Message Latency** | Internet + HQ | Direct mesh |
+| **Gateway Integration** | ⚠️ Optional (PWA mode) | ⚠️ Optional fallback |
+| **Offline Messaging** | ✅ Via Meshtastic iOS app + iTAK | ✅ Full mesh offline |
+| **COT Messages** | ✅ Send & Receive (via iTAK/Capacitor) | ✅ Send & Receive |
+| **Message Latency** | Direct mesh (Capacitor) or Internet + HQ | Direct mesh |
 
 ---
 
@@ -103,20 +103,20 @@ This document provides a comprehensive comparison to help you choose the right p
 
 | Feature | iOS PWA | Android Native |
 |---------|---------|----------------|
-| **Device Discovery** | ❌ Not supported | ✅ BLE scanning |
-| **Device Pairing** | ❌ Not supported | ✅ Native pairing |
-| **Connection Type** | Via HQ gateway | BLE or Serial |
-| **Mesh Node List** | ✅ Via gateway | ✅ Direct |
+| **Device Discovery** | ✅ Capacitor BLE / Meshtastic iOS app | ✅ BLE scanning |
+| **Device Pairing** | ✅ Capacitor BLE / Meshtastic iOS app | ✅ Native pairing |
+| **Connection Type** | BLE (Capacitor) / Meshtastic app + iTAK | BLE or Serial |
+| **Mesh Node List** | ✅ Via Capacitor BLE or gateway | ✅ Direct |
 | **Node Details** | ✅ Display | ✅ Full access |
-| **Send Text Messages** | Via HQ API | Direct mesh |
-| **Send COT Messages** | Via HQ API | Direct mesh |
-| **Receive Messages** | ✅ Via gateway | ✅ Direct |
-| **Channel Management** | ❌ Not available | ✅ Native SDK |
-| **Encryption Keys** | N/A | ✅ Configure |
-| **Device Settings** | ❌ Not available | ✅ Full config |
-| **Firmware Updates** | ❌ Not available | ⚠️ Via Meshtastic app |
-| **Multiple Devices** | Via gateway only | One per app instance |
-| **Background Service** | ❌ Not supported | ✅ Persistent |
+| **Send Text Messages** | ✅ Direct mesh (Capacitor/iTAK) | Direct mesh |
+| **Send COT Messages** | ✅ Direct mesh (Capacitor/iTAK) | Direct mesh |
+| **Receive Messages** | ✅ Direct mesh or via gateway | ✅ Direct |
+| **Channel Management** | ⚠️ Via Meshtastic iOS app | ✅ Native SDK |
+| **Encryption Keys** | ⚠️ Via Meshtastic iOS app | ✅ Configure |
+| **Device Settings** | ⚠️ Via Meshtastic iOS app | ✅ Full config |
+| **Firmware Updates** | ⚠️ Via Meshtastic iOS app | ⚠️ Via Meshtastic app |
+| **Multiple Devices** | Via Meshtastic app or gateway | One per app instance |
+| **Background Service** | ⚠️ Limited (iOS restriction) | ✅ Persistent |
 
 ---
 
@@ -174,14 +174,15 @@ This document provides a comprehensive comparison to help you choose the right p
 
 #### iOS PWA Limitations
 
-❌ **No Web Bluetooth API**: Safari does not support Web Bluetooth, preventing direct Meshtastic connection  
+⚠️ **No Web Bluetooth in Safari**: Safari does not support Web Bluetooth API (use Capacitor native app for direct BLE, or use Meshtastic iOS app + iTAK)  
 ❌ **Limited Background**: iOS suspends web apps when not in foreground  
 ❌ **No Push Notifications**: Cannot receive background notifications  
-❌ **Internet Required**: Must connect to HQ server for real-time features  
+⚠️ **Internet for PWA mode**: PWA mode requires HQ server for real-time features (native Capacitor app works offline)  
 ❌ **GPS Limited**: Less accurate than native, stops in background  
 ❌ **No Serial**: Cannot connect via USB/Serial  
 ❌ **Storage Limits**: IndexedDB quotas apply  
-❌ **No Native Hardware**: Cannot access native BLE, NFC, or other hardware  
+✅ **Native BLE via Capacitor**: Capacitor app supports direct BLE on iOS  
+✅ **Meshtastic iOS app**: Built-in TAK server enables iTAK integration  
 ⚠️ **Update Delays**: Service Worker cache may delay updates  
 ⚠️ **iOS Restrictions**: Apple may change PWA support in future
 

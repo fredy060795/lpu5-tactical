@@ -13,7 +13,7 @@ This system provides **two optimized implementations**:
 - **Use Case**: HQ personnel, remote coordination
 - **Access**: Via HQ's public IP using Safari
 - **Communication**: REST API + WebSocket to HQ server
-- **Limitations**: No direct Bluetooth (Safari restriction)
+- **Meshtastic on iOS**: Direct BLE via Capacitor app, or use Meshtastic iOS app + iTAK with built-in TAK server
 - **Deployment**: Add to Home Screen from web browser
 - **Quick Start**: [pwa/IOS_INSTALL.md](pwa/IOS_INSTALL.md) - Step-by-step iOS installation
 - **Technical Docs**: [pwa/README.md](pwa/README.md) - Detailed PWA documentation
@@ -321,8 +321,8 @@ ws.onmessage = (event) => {
 - **iOS 11.3+** with Safari
 - Add to Home Screen for best experience
 - HTTPS required
-- **Note**: No direct Bluetooth (Safari limitation)
-- Uses HQ server via REST API
+- **Meshtastic**: Direct BLE via Capacitor native app, or use Meshtastic iOS app with built-in TAK server + iTAK
+- PWA mode uses HQ server via REST API for mesh access
 
 ### Android Native App ✅
 - **Android 7.0+** (API 24+)
