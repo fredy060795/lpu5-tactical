@@ -2446,6 +2446,8 @@
     let mapBearing = 0;
     let rotationLocked = true; // Default: map locked to North; click compass to unlock
     try { rotationLocked = localStorage.getItem('lpu5_rotation_locked') !== 'false'; } catch(e) {}
+    let deviceHeading = null; // Device compass heading (0-360, 0=north, clockwise)
+    let _deviceOrientationActive = false;
 
     function setMapBearing(deg) {
       mapBearing = ((deg % 360) + 360) % 360;
@@ -2455,6 +2457,7 @@
       if (needle) needle.style.transform = 'rotate(' + (-mapBearing) + 'deg)';
       const bearingEl = document.getElementById('tsb-compass-bearing');
       if (bearingEl) bearingEl.textContent = String(Math.round(mapBearing) % 360).padStart(3, '0') + '°';
+      updateGpsMarkerHeading();
     }
 
     function resetNorth() { setMapBearing(0); }
@@ -2467,6 +2470,25 @@
       if (rotationLocked) {
         // Snap back to North when locking
         setMapBearing(0);
+      } else {
+        // Ensure device orientation is active (iOS 13+ needs user gesture for permission)
+        if (!_deviceOrientationActive) {
+          if (typeof DeviceOrientationEvent !== 'undefined' &&
+              typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+              .then(function (state) { if (state === 'granted') startDeviceOrientation(); })
+              .catch(function () {});
+          } else {
+            startDeviceOrientation();
+          }
+        }
+        // When unlocking, immediately apply device heading if available
+        if (deviceHeading !== null) {
+          setMapBearing(deviceHeading);
+          if (gpsMarker && map) {
+            map.panTo(gpsMarker.getLatLng(), { animate: true, duration: 0.3 });
+          }
+        }
       }
     }
 
@@ -2493,6 +2515,64 @@
         if (e.touches.length < 2) rotStartAngle = null;
       }, { passive: true });
     }());
+
+    // ---- Device Orientation / Compass Heading ----
+    function _onDeviceOrientation(e) {
+      var heading = null;
+      if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+        // iOS: webkitCompassHeading is degrees clockwise from magnetic north
+        heading = e.webkitCompassHeading;
+      } else if (e.alpha !== null) {
+        // Android / standard: alpha is degrees counter-clockwise from north
+        heading = (360 - e.alpha) % 360;
+      }
+      if (heading === null || !Number.isFinite(heading)) return;
+      deviceHeading = heading;
+      updateGpsMarkerHeading();
+      // Auto-rotate map + auto-center on GPS when compass is unlocked
+      if (!rotationLocked) {
+        setMapBearing(deviceHeading);
+        if (gpsMarker && map) {
+          map.panTo(gpsMarker.getLatLng(), { animate: false });
+        }
+      }
+    }
+
+    function startDeviceOrientation() {
+      if (_deviceOrientationActive) return;
+      _deviceOrientationActive = true;
+      // Prefer absolute orientation (true north) on Android Chrome
+      if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', _onDeviceOrientation, true);
+      }
+      // Also listen to standard event (iOS uses this, provides webkitCompassHeading)
+      window.addEventListener('deviceorientation', _onDeviceOrientation, true);
+    }
+
+    function stopDeviceOrientation() {
+      if (!_deviceOrientationActive) return;
+      _deviceOrientationActive = false;
+      window.removeEventListener('deviceorientationabsolute', _onDeviceOrientation, true);
+      window.removeEventListener('deviceorientation', _onDeviceOrientation, true);
+      deviceHeading = null;
+    }
+
+    // Request permission on iOS 13+ and start orientation tracking
+    (function initDeviceOrientation() {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS 13+: permission must be requested from a user gesture.
+        // We start silently; if permission was already granted it works.
+        // Otherwise toggleCompassLock will re-request on tap.
+        DeviceOrientationEvent.requestPermission()
+          .then(function (state) { if (state === 'granted') startDeviceOrientation(); })
+          .catch(function () { /* will retry on user gesture */ });
+      } else {
+        startDeviceOrientation();
+      }
+    })();
+    // ---- End Device Orientation ----
+
     // ---- End Compass / Map Rotation ----
 
     // ---- Toolbar toggle ----
@@ -3323,6 +3403,17 @@
     function createGpsArrowIconHtml(color) {
       const safeColor = /^[#a-zA-Z0-9().,% ]+$/.test(color) ? color : '#007bff';
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${safeColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+    }
+
+    // Rotate GPS marker arrow to reflect actual device heading
+    function updateGpsMarkerHeading() {
+      if (!gpsMarker || !gpsMarker._icon || deviceHeading === null) return;
+      var el = gpsMarker._icon.querySelector('svg');
+      if (!el) return;
+      // Compensate for CSS map rotation so the arrow points in the true heading direction
+      var rot = deviceHeading - mapBearing;
+      el.style.transform = 'rotate(' + rot + 'deg)';
+      el.style.transformOrigin = 'center';
     }
 
     // Send GPS position to server so admin_map.html can see it
