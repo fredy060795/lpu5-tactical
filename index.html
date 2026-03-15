@@ -13409,15 +13409,15 @@ window.addEventListener('storage', (e) => {
           if (!res.ok) {
             const errorText = await res.text();
             console.error('Failed to place symbol:', res.status, errorText);
-            return false;
+            return null;
           } else {
             const result = await res.json();
             console.log('Symbol placed successfully:', result);
-            return true;
+            return result.symbol || result;
           }
         } catch (e) {
           console.error('Error placing symbol:', e);
-          return false;
+          return null;
         }
       }
 
@@ -14169,9 +14169,16 @@ window.addEventListener('storage', (e) => {
         addPendingSymbol(pendingData);
 
         // Try to send to server immediately
-        const success = await broadcastSymbol(pendingData);
-        if (success) {
+        const result = await broadcastSymbol(pendingData);
+        if (result) {
           removePendingSymbol(cid);
+          // Update local symbol ID with server-assigned ID so rename works immediately
+          if (result.id) {
+            const symEntry = symbols.find(x => x.id === id);
+            if (symEntry) symEntry.id = result.id;
+          }
+          // Reload symbols from server to ensure correct IDs and popups
+          scheduledLoadMapSymbols();
         } else {
           console.warn('Symbol saved locally, will retry sync later');
         }
@@ -14283,13 +14290,32 @@ window.addEventListener('storage', (e) => {
             } else {
               const _sLabel = escapeHtml(s.label || s.type || 'Symbol');
               const _sLabelAttr = _sLabel.replace(/"/g, '&quot;');
-              marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${escapeHtml(s.username || 'unknown')}</span><br><input type="text" class="rename-input" value="${_sLabelAttr}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
+              marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${escapeHtml(s.username || 'unknown')}</span><br><input type="text" class="rename-input" value="${_sLabelAttr}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button><button class="delete-btn" style="width:100%;padding:4px;margin-top:2px;background:#e74c3c;color:#fff;border:none;border-radius:3px;cursor:pointer">Löschen</button></div>`);
               marker.on('popupopen', function() {
                 const pop = marker.getPopup().getElement();
                 if (!pop) return;
                 const btn = pop.querySelector('.rename-btn');
                 const inp = pop.querySelector('.rename-input');
                 if (btn && inp) btn.addEventListener('click', function() { _renameMarker(s.id, inp); }, { once: true });
+                const delBtn = pop.querySelector('.delete-btn');
+                if (delBtn) delBtn.addEventListener('click', async function() {
+                  if (!confirm('Symbol löschen?')) return;
+                  try {
+                    const token = localStorage.getItem('token');
+                    const dres = await fetch(`/api/map/symbols/${s.id}`, {
+                      method: 'DELETE',
+                      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                    });
+                    if (dres.ok) {
+                      map.closePopup();
+                      map.removeLayer(marker);
+                      const idx = symbols.findIndex(x => x.id === s.id);
+                      if (idx !== -1) symbols.splice(idx, 1);
+                      renderSettingsList();
+                      saveStateToLocalStorage();
+                    } else alert('Löschen fehlgeschlagen');
+                  } catch (e) { console.error('Delete symbol error:', e); }
+                }, { once: true });
               });
             }
 

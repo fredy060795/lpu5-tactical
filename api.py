@@ -9444,8 +9444,9 @@ def get_map_symbols():
                 # Add extra data if available
                 if s.data:
                     s_dict.update(s.data)
-                # Restore created_by / username so that client-side filters
-                # cannot be bypassed by a stray key inside s.data.
+                # Restore id / created_by / username so that stray keys
+                # inside s.data cannot overwrite authoritative DB values.
+                s_dict["id"] = s.id
                 s_dict["created_by"] = s.created_by
                 s_dict["username"] = s.created_by
                 symbol_list.append(s_dict)
