@@ -11452,10 +11452,14 @@ def federation_verify_challenge(
 @app.post("/api/federation/handshake/respond", tags=["Federation"])
 def federation_respond_to_challenge(
     body: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
 ):
     """
     Sign a challenge received from a peer server using this server's private key.
+
+    No JWT required – peer servers call this endpoint during manual handshake
+    and do not possess a local JWT.  Trust is established through RSA key
+    verification (the caller verifies the returned signature against the
+    public key obtained during server registration).
 
     Body fields
     -----------

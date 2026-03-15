@@ -19960,15 +19960,13 @@ window._cleanTakHost = _cleanTakHost;
 window.fedDecodeQrFile = fedDecodeQrFile;
 window._onTakConnectionTypeChange = _onTakConnectionTypeChange;
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-    loadServerInfo();
-    loadNetworkSettings();
-    refreshCotListenerStatus();
-    fedLoadServers();
-    fedLoadOwnQR();
-    fedLoadAutoSyncStatus();
-});
+// Initialize – call directly (SPA: DOMContentLoaded has already fired)
+loadServerInfo();
+loadNetworkSettings();
+refreshCotListenerStatus();
+fedLoadServers();
+fedLoadOwnQR();
+fedLoadAutoSyncStatus();
     };
     </script>
     <!-- Ende JS network.html -->
