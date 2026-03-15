@@ -365,10 +365,6 @@
       cursor: pointer;
     }
 
-    .fly-sym-btn.trash-active {
-      outline: 2px solid var(--accent-red);
-    }
-
     /* Measure tool active state */
     #symMeasureBtn.active {
       background: rgba(255, 215, 0, 0.15);
@@ -1011,11 +1007,8 @@
         </svg>
       </button>
 
-      <button class="fly-sym-btn" id="symTrashBtn" title="Delete Mode"><i class="fas fa-trash"
-          style="color:#ff6666"></i></button>
     </div>
-    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol and click on the map to place it once. Placement mode deactivates automatically. Ruler activates distance measurement mode. Trash activates
-      delete mode: click symbol to remove.</div>
+    <div style="margin-top:8px;color:#bbb;font-size:.85rem">Select a symbol and click on the map to place it once. Placement mode deactivates automatically. Ruler activates distance measurement mode.</div>
   </div>
 
   <div id="fly-settings" class="icon-flyout" role="dialog" aria-hidden="true">
@@ -1674,17 +1667,6 @@
                   pane: 'paneSymbols'
                 }).addTo(map);
 
-                marker.on('click', () => {
-                  if (symbolDeleteMode) {
-                    if (!confirm('Delete symbol?')) return;
-                    const idx = symbols.findIndex(x => x.id === s.id);
-                    if (idx !== -1) {
-                      removeSymbol(s.id);
-                      renderSettingsList();
-                    }
-                  }
-                });
-
                 symbols.push({
                   id: s.id,
                   marker: marker,
@@ -1724,14 +1706,6 @@
                     icon: icon,
                     pane: 'paneSymbols'
                   }).addTo(map);
-
-                  marker.on('click', () => {
-                    if (symbolDeleteMode) {
-                      if (!confirm('Delete symbol?')) return;
-                      removeSymbol(s.id);
-                      renderSettingsList();
-                    }
-                  });
 
                   symbols[idx] = {
                     id: s.id,
@@ -2132,14 +2106,6 @@
                   }),
                   pane: 'paneSymbols'
                 }).addTo(map);
-
-                marker.on('click', () => {
-                  if (symbolDeleteMode) {
-                    if (!confirm('Delete symbol?')) return;
-                    removeSymbol(s.id);
-                    renderSettingsList();
-                  }
-                });
 
                 symbols.push({ id: s.id, marker, sym: s.sym, creator: s.creator });
               } catch (e) {
@@ -2732,7 +2698,7 @@
         'Yellow': '#ffff00', 'Green': '#00c800', 'Purple': '#800080',
         'Maroon': '#800000', 'Teal': '#008080', 'Orange': '#ff8000', 'White': '#ffffff'
       };
-      let activeSymbol = null; let placingSymbol = false; let symbolDeleteMode = false;
+      let activeSymbol = null; let placingSymbol = false;
       function getSymbolSvg(sym) {
         switch (sym) {
           case 'hostile': return getMilSymbolSvg('SHGPU----------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`;
@@ -2760,7 +2726,6 @@
 
       document.querySelectorAll('.fly-sym-btn[data-sym]').forEach(b => {
         b.addEventListener('click', () => {
-          if (symbolDeleteMode) { alert('End delete mode first'); return; }
           const sym = b.dataset.sym;
           const was = b.classList.contains('active');
           document.querySelectorAll('.fly-sym-btn').forEach(x => x.classList.remove('active'));
@@ -2848,11 +2813,6 @@
       }
       // ---- End Distance Measurement Tool ----
 
-      const trashBtn = document.getElementById('symTrashBtn');
-      trashBtn.addEventListener('click', () => { symbolDeleteMode = !symbolDeleteMode; trashBtn.classList.toggle('trash-active', symbolDeleteMode); if (symbolDeleteMode) { stopPlacingSymbol(); map.getContainer().style.cursor = 'crosshair'; document.getElementById('gpsFlyInfo').textContent = 'Delete mode active'; } else { deactivateDeleteMode(); } });
-
-      function deactivateDeleteMode() { symbolDeleteMode = false; trashBtn.classList.remove('trash-active'); map.getContainer().style.cursor = ''; document.getElementById('gpsFlyInfo').textContent = ''; }
-
       function startPlacingSymbol() {
         if (!activeSymbol) return;
         placingSymbol = true; showCrosshair(true); map.getContainer().style.cursor = 'crosshair';
@@ -2870,13 +2830,6 @@
         const marker = L.marker(latlng, { icon, pane: 'paneSymbols' }).addTo(map);
         const id = genId('sym'); const creator = getCurrentUsername();
         const cid = 'pending-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
-        marker.on('click', () => {
-          if (symbolDeleteMode) {
-            if (!confirm('Delete symbol?')) return;
-            const idx = symbols.findIndex(s => s.marker === marker || s.id === id);
-            if (idx !== -1) { removeSymbol(symbols[idx].id); renderSettingsList(); }
-          }
-        });
         symbols.push({ id, marker, sym: activeSymbol || 'hostile', creator });
 
         // Save state to localStorage
@@ -2911,7 +2864,7 @@
         activeSymbol = null;
       }
 
-      function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); deleteSymbolFromServer(id); deactivateDeleteMode(); }
+      function removeSymbol(id) { const idx = symbols.findIndex(x => x.id === id); if (idx === -1) return; try { map.removeLayer(symbols[idx].marker); } catch (e) { } symbols.splice(idx, 1); renderSettingsList(); saveStateToLocalStorage(); deleteSymbolFromServer(id); }
 
       // Rename a marker via PUT /api/map_markers/{id} and broadcast globally
       async function _renameMarker(markerId, inputEl) {
@@ -3019,16 +2972,6 @@
               });
             }
 
-            if (!isGps) {
-              marker.on('click', () => {
-                if (symbolDeleteMode) {
-                  if (!confirm('Delete symbol?')) return;
-                  deleteSymbolFromServer(s.id);
-                  deactivateDeleteMode();
-                }
-              });
-            }
-
             symbols.push({ id: s.id, marker, sym: s.type || s.sym || 'hostile', creator: s.username });
           });
 
@@ -3043,13 +2986,6 @@
               const svgHtml = getSymbolSvg(p.sym || 'hostile');
               const icon = L.divIcon({ className: 'custom-sym', html: svgHtml, iconSize: [40, 40], iconAnchor: [20, 40] });
               const marker = L.marker([p.lat, p.lng], { icon, pane: 'paneSymbols' }).addTo(map);
-              marker.on('click', () => {
-                if (symbolDeleteMode) {
-                  if (!confirm('Delete symbol?')) return;
-                  removeSymbol(p.id);
-                  renderSettingsList();
-                }
-              });
               symbols.push({ id: p.id, marker, sym: p.sym || 'hostile', creator: p.creator });
             }
           });
