@@ -34,7 +34,21 @@
             // Extract the navigation element
             const nav = doc.querySelector('.tactical-sidebar') || doc.querySelector('nav');
             if (nav) {
-                // Insert at the beginning of body
+                // Insert hamburger toggle button
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'sidebar-toggle';
+                toggleBtn.setAttribute('aria-label', 'Open menu');
+                toggleBtn.setAttribute('onclick', 'toggleSidebar()');
+                toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+                document.body.insertBefore(toggleBtn, document.body.firstChild);
+
+                // Insert overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'sidebar-overlay';
+                overlay.setAttribute('onclick', 'toggleSidebar()');
+                document.body.insertBefore(overlay, document.body.firstChild);
+
+                // Insert nav at the beginning of body
                 document.body.insertBefore(nav.cloneNode(true), document.body.firstChild);
             }
             

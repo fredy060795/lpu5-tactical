@@ -17,7 +17,7 @@
             --accent-red: #dc3545;
         }
 
-        body { background: var(--bg-dark); color: var(--text-main); font-family: 'Courier New', monospace; margin: 0; padding: 20px; padding-left: 90px; /* 70px sidebar + 20px margin */ }
+        body { background: var(--bg-dark); color: var(--text-main); font-family: 'Courier New', monospace; margin: 0; padding: 20px; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
         .card { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 20px; min-height: 400px; }
         
@@ -61,7 +61,7 @@
 
         @media (max-width: 768px) {
             .grid { grid-template-columns: 1fr; }
-            body { padding-left: 56px; padding-right: 8px; }
+            body { padding-right: 8px; }
             table { font-size: 0.8em; }
             .btn { min-height: 44px; }
         }
@@ -77,15 +77,12 @@
             --text-dim: #888;
         }
 
-        /* The global nav sets body padding-left to reserve space for the sidebar.
-           This intentionally overrides the page body margin/padding to allow the sidebar to sit fixed. */
+        /* The global nav sidebar is now a slide-out drawer. */
         body {
             margin: 0;
-            padding-left: var(--sb-collapsed);
             background: #1e1e1e;
             color: #fff;
             font-family: 'Courier New', monospace;
-            transition: padding-left 0.3s ease;
         }
 
 

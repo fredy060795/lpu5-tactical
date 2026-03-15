@@ -31,121 +31,12 @@
 
         body {
             margin: 0;
-            padding-left: var(--sb-collapsed); /* Space for Sidebar */
             background: #1e1e1e;
             color: #fff;
             font-family: "Courier New", monospace;
-            transition: padding-left 0.3s ease;
         }
 
-        .tactical-sidebar {
-            width: var(--sb-collapsed);
-            height: 100vh;
-            position: fixed;
-            left: 0;
-            top: 0;
-            background: var(--bg-dark-nav);
-            border-right: 1px solid var(--border-nav);
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            z-index: 1000;
-        }
-
-        .tactical-sidebar:hover {
-            width: var(--sb-expanded);
-        }
-
-        .logo-section {
-            padding: 15px;
-            display: flex;
-            align-items: center;
-            border-bottom: 1px solid var(--border-nav);
-            min-height: 70px;
-            box-sizing: border-box;
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .sidebar-logo {
-            min-width: 40px;
-            height: 40px;
-            object-fit: contain;
-        }
-
-        .user-meta-info {
-            margin-left: 15px;
-            opacity: 0;
-            transition: opacity 0.2s;
-            white-space: nowrap;
-        }
-
-        .tactical-sidebar:hover .user-meta-info {
-            opacity: 1;
-        }
-
-        .user-name { font-weight: bold; font-size: 0.9rem; display: block; }
-        .user-status { font-size: 0.75rem; color: var(--accent-nav); }
-
-        .nav-content-sidebar {
-            flex-grow: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            scrollbar-width: none;
-        }
-
-        .nav-content-sidebar::-webkit-scrollbar { display: none; }
-
-        .nav-group {
-            border-bottom: 1px solid var(--border-nav);
-            padding-bottom: 10px;
-        }
-
-        .nav-label {
-            padding: 15px 25px 5px;
-            font-size: 0.7rem;
-            color: #555;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .tactical-sidebar:hover .nav-label { opacity: 1; }
-
-        .nav-item-sidebar {
-            display: flex;
-            align-items: center;
-            height: 45px;
-            color: var(--text-dim-nav);
-            text-decoration: none;
-            padding: 0 23px;
-            transition: 0.2s;
-        }
-
-        .nav-item-sidebar i {
-            min-width: 24px;
-            font-size: 1.1rem;
-            text-align: center;
-        }
-
-        .nav-text-sidebar {
-            margin-left: 20px;
-            opacity: 0;
-            white-space: nowrap;
-            transition: opacity 0.2s;
-        }
-
-        .tactical-sidebar:hover .nav-text-sidebar { opacity: 1; }
-
-        .nav-item-sidebar:hover {
-            background: #1a1a1a;
-            color: #fff;
-        }
-
-        .nav-footer { border-top: 1px solid var(--border-nav); }
-        .logout-link { color: #e74c3c !important; }
+        /* Sidebar styles loaded from _global_nav.html via load-global-nav.js */
 
         /* =========================
            PAGE SPECIFIC: Meshtastic Chat

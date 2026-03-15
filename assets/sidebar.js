@@ -2,12 +2,36 @@
  * Sidebar behaviour shared across all pages that load _global_nav.html.
  *
  * Provides:
+ *  - toggleSidebar()            – opens / closes the slide-out nav
  *  - logoutUser()              – clears auth storage and redirects to /
  *  - updateUserNameDisplay()   – fills #userName / #userStatus from localStorage
  *  - storage-event listener    – keeps the sidebar in sync across tabs
  */
 (function () {
     'use strict';
+
+    // --- sidebar toggle ---------------------------------------------------------
+
+    if (typeof window.toggleSidebar !== 'function') {
+        window.toggleSidebar = function toggleSidebar() {
+            document.body.classList.toggle('sidebar-open');
+        };
+    }
+
+    // Close sidebar when a nav-item link is clicked
+    document.addEventListener('click', function (e) {
+        var item = e.target.closest('.tactical-sidebar .nav-item');
+        if (item && document.body.classList.contains('sidebar-open')) {
+            document.body.classList.remove('sidebar-open');
+        }
+    });
+
+    // Close sidebar on Escape key
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
+            document.body.classList.remove('sidebar-open');
+        }
+    });
 
     // --- logout -----------------------------------------------------------------
 
