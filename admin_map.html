@@ -2930,6 +2930,8 @@
           });
           if (res.ok) {
             map.closePopup();
+            // Immediately refresh markers so the new name is displayed
+            scheduledLoadMapSymbols();
           } else {
             alert('Rename failed');
           }

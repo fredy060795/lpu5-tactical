@@ -2915,6 +2915,9 @@
         });
         if (res.ok) {
           map.closePopup();
+          // Immediately refresh markers so the new name is displayed
+          scheduledSync();
+          if (typeof loadMapSymbols === 'function') loadMapSymbols();
         } else {
           alert('Rename failed');
         }
