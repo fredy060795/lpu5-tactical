@@ -2917,7 +2917,7 @@
           map.closePopup();
           // Immediately refresh markers so the new name is displayed
           scheduledSync();
-          if (typeof loadMapSymbols === 'function') loadMapSymbols();
+          loadMapSymbols();
         } else {
           alert('Rename failed');
         }
