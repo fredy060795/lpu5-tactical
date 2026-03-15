@@ -3936,6 +3936,12 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
             marker.data = current_extra
         elif "data" in data:
             marker.data = data["data"]
+
+        # Keep data.label in sync with the authoritative name field so
+        # that GET /api/map/symbols (which merges data into the response)
+        # never returns a stale label after a rename.
+        if "name" in data and isinstance(marker.data, dict):
+            marker.data = {**marker.data, "label": marker.name}
             
         db.commit()
         db.refresh(marker)
@@ -9444,9 +9450,10 @@ def get_map_symbols():
                 # Add extra data if available
                 if s.data:
                     s_dict.update(s.data)
-                # Restore id / created_by / username so that stray keys
+                # Restore id / created_by / username / label so that stray keys
                 # inside s.data cannot overwrite authoritative DB values.
                 s_dict["id"] = s.id
+                s_dict["label"] = s.name
                 s_dict["created_by"] = s.created_by
                 s_dict["username"] = s.created_by
                 symbol_list.append(s_dict)
