@@ -1234,16 +1234,7 @@
         <line x1="15" y1="5" x2="15" y2="3"/>
       </svg>
     </div>
-    <!-- Trash / Delete tool -->
-    <div class="tool-btn" id="s-trash" ontouchstart="handleToolInteraction(() => setTool('trash'), event)"
-      onclick="handleToolInteraction(() => setTool('trash'), event)" title="Delete Mode">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff6666" stroke-width="2">
-        <polyline points="3 6 5 6 21 6"></polyline>
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-        <line x1="10" y1="11" x2="10" y2="17"></line>
-        <line x1="14" y1="11" x2="14" y2="17"></line>
-      </svg>
-    </div>
+
   </div>
 
   <!-- Hamburger sidebar menu -->
@@ -2431,7 +2422,7 @@
         togglePrecisionUI(false);
       } else {
         currentTool = t;
-        togglePrecisionUI(t !== 'trash');
+        togglePrecisionUI(true);
       }
       document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
       if (currentTool) {
@@ -2734,7 +2725,7 @@
       if (now - _lastPlaceTime < 600) return; // Prevent touch+click double-fire
       _lastPlaceTime = now;
       if (gpsManualMode) { setGpsAtCrosshair(); return; }
-      if (!currentTool || currentTool === 'trash') return; // No tool selected
+      if (!currentTool) return; // No tool selected
       const latlng = crosshairLatLng();
       const cid = 'local-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
       const pending = {
@@ -2915,6 +2906,9 @@
         });
         if (res.ok) {
           map.closePopup();
+          // Immediately refresh markers so the new name is displayed
+          scheduledSync();
+          loadMapSymbols();
         } else {
           alert('Rename failed');
         }
@@ -2996,18 +2990,16 @@
           serverMarkerLayers.set(m.id, layer);
           // Popup with editable name
           const _mName = _escapeHtml(m.name || m.callsign || m.type || 'Marker');
-          layer.bindPopup(`<div style="min-width:150px"><strong>${_mName}</strong><br><input type="text" class="rename-input" value="${_mName}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
+          layer.bindPopup(`<div style="min-width:150px"><strong>${_mName}</strong><br><input type="text" class="rename-input" value="${_mName}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button><button class="delete-btn" style="width:100%;padding:4px;margin-top:2px;background:#e74c3c;color:#fff;border:none;border-radius:3px;cursor:pointer">Löschen</button></div>`);
           layer.on('popupopen', function() {
             const pop = layer.getPopup().getElement();
             if (!pop) return;
             const btn = pop.querySelector('.rename-btn');
             const inp = pop.querySelector('.rename-input');
             if (btn && inp) btn.addEventListener('click', function() { _renameMarker(m.id, inp); });
-          });
-          layer.on('click touchstart', async (ev) => {
-            ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
-            if (currentTool === 'trash') {
-              if (!confirm('Delete marker?')) return;
+            const delBtn = pop.querySelector('.delete-btn');
+            if (delBtn) delBtn.addEventListener('click', async function() {
+              if (!confirm('Marker löschen?')) return;
               try {
                 const delToken = localStorage.getItem('token');
                 const dres = await fetch(`/api/map_markers/${m.id}`, {
@@ -3015,6 +3007,7 @@
                   headers: delToken ? { 'Authorization': 'Bearer ' + delToken } : {}
                 });
                 if (dres.ok) {
+                  map.closePopup();
                   map.removeLayer(layer);
                   serverMarkerLayers.delete(m.id);
                 } else alert('Delete failed');
@@ -3022,7 +3015,7 @@
                 console.error('Delete marker error:', e);
                 alert('Network error during delete');
               }
-            }
+            });
           });
         });
         renderPendingLayers();
@@ -3104,30 +3097,29 @@
             marker.bindPopup(`<strong>${tooltipText}</strong><div style="font-size:.8rem;color:#999">GPS Position</div>`);
           } else {
             const _sLabel = _escapeHtml(s.label || s.type || 'Symbol');
-            marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${_escapeHtml(s.username || 'unknown')}</span><br><input type="text" class="rename-input" value="${_sLabel}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button></div>`);
+            marker.bindPopup(`<div style="min-width:150px"><strong>${_sLabel}</strong><br><span style="font-size:.8rem;color:#999">by ${_escapeHtml(s.username || 'unknown')}</span><br><input type="text" class="rename-input" value="${_sLabel}" style="width:100%;margin:4px 0;padding:2px 4px;border:1px solid #555;background:#222;color:#fff;border-radius:3px"><button class="rename-btn" style="width:100%;padding:4px;margin-top:2px;background:#007bff;color:#fff;border:none;border-radius:3px;cursor:pointer">Rename</button><button class="delete-btn" style="width:100%;padding:4px;margin-top:2px;background:#e74c3c;color:#fff;border:none;border-radius:3px;cursor:pointer">Löschen</button></div>`);
             marker.on('popupopen', function() {
               const pop = marker.getPopup().getElement();
               if (!pop) return;
               const btn = pop.querySelector('.rename-btn');
               const inp = pop.querySelector('.rename-input');
               if (btn && inp) btn.addEventListener('click', function() { _renameMarker(s.id, inp); });
-            });
-          }
-
-          if (!isGps) {
-            marker.on('click touchstart', async (ev) => {
-              ev.originalEvent && ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
-              if (currentTool === 'trash') {
-                if (!confirm('Delete symbol?')) return;
+              const delBtn = pop.querySelector('.delete-btn');
+              if (delBtn) delBtn.addEventListener('click', async function() {
+                if (!confirm('Symbol löschen?')) return;
                 try {
                   const token = localStorage.getItem('token');
                   const dres = await fetch(`/api/map/symbols/${s.id}`, {
                     method: 'DELETE',
                     headers: token ? { 'Authorization': 'Bearer ' + token } : {}
                   });
-                  if (dres.ok) { map.removeLayer(marker); symbolLayers.delete(s.id); }
+                  if (dres.ok) {
+                    map.closePopup();
+                    map.removeLayer(marker);
+                    symbolLayers.delete(s.id);
+                  }
                 } catch (e) { console.error('Delete symbol error:', e); }
-              }
+              });
             });
           }
 
