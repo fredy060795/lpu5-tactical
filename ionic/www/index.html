@@ -1007,6 +1007,14 @@
           }
           break;
 
+        case 'tak_maker_update':
+          // Handle TAK server unit updates (markers from ATAK/iTAK/WinTAK
+          // arriving via the remote TAK server connection).
+          if (data.data && data.channel === 'markers') {
+            sync();
+          }
+          break;
+
         case 'symbol_placed':
         case 'symbol_created':
           // Handle new symbol from another client

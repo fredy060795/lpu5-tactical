@@ -1839,18 +1839,14 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # ATAK GPS SA beacons; the <meshtastic> element is the authoritative
         # signal that this is a Meshtastic node, not a human ATAK user.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
-        #   • how starts with "h-g" (GPS-derived) → tak_maker (ATAK user SA
-        #     beacon; LPU5's own GPS positions use UIDs "GPS-*" and are filtered
-        #     above)
-        #   • All other friendly CoT events (h-e, h-t, m-g, etc.) →
-        #     meshtastic_node so relayed Meshtastic nodes render with the
-        #     correct icon.
+        #   • friendly without <meshtastic> → tak_maker (ATAK/iTAK/WinTAK user;
+        #     covers all human-originated how codes h-g, h-e, h-t as well as
+        #     machine-generated m-g from iTAK; LPU5's own GPS positions use
+        #     UIDs "GPS-*" and are filtered above)
         if _has_mesh_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly" and how.startswith("h-g"):
-            lpu5_type = "tak_maker"
         elif lpu5_type == "friendly":
-            lpu5_type = "meshtastic_node"
+            lpu5_type = "tak_maker"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are
@@ -1970,6 +1966,15 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 "shortName": _ws_short_name,
                 "symbolLink": _ws_symbol_link,
             })
+            # Relay to directly connected TCP clients (WinTAK/ATAK on port
+            # 8088) and SA Multicast so that markers received from the TAK
+            # server are also visible on locally connected TAK devices that
+            # are not themselves connected to the remote TAK server.
+            try:
+                _forward_cot_to_tcp_clients(cot_xml)
+                _forward_cot_multicast(cot_xml)
+            except Exception as _relay_err:
+                logger.debug("CoT relay to local clients failed: %s", _relay_err)
             logger.info("TAK event received: %s (%s) @ %.6f, %.6f", callsign, event_type, lat, lng)
         finally:
             db.close()
