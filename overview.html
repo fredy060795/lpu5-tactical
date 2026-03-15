@@ -4584,7 +4584,7 @@
       // ─── Server Connection Status (Online / COT / Offline) ────────
       // Tracks whether ANY server is reachable via internet.
       // Green "Online"  = server reachable via HTTP(S)
-      // Orange "COT"    = COT/mesh only (server not reachable via internet but COT active)
+      // Orange "COT"    = COT/mesh only (server not reachable but active Meshtastic BLE connection)
       // Red "Offline"   = no connection at all
       var _connStatus = 'offline'; // 'online' | 'cot' | 'offline'
 
@@ -4644,7 +4644,7 @@
               if (pending <= 0) {
                 if (anyOnline) {
                   _connStatus = 'online';
-                } else if ((typeof meshtasticClient !== 'undefined' && meshtasticClient && meshtasticClient.isConnected) || localStorage.getItem('lpu5_cot_mesh_key')) {
+                } else if (typeof meshtasticConnected !== 'undefined' && meshtasticConnected) {
                   _connStatus = 'cot';
                 } else {
                   _connStatus = 'offline';
