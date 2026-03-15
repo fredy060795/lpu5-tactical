@@ -2423,6 +2423,14 @@
       line-height: 1.4;
     }
 
+    .chat-message-image {
+      max-width: 100%;
+      border-radius: 6px;
+      margin-top: 6px;
+      cursor: pointer;
+      display: block;
+    }
+
     .chat-window-footer {
       background: #0a0a0a;
       border-top: 1px solid #333;
@@ -2948,6 +2956,14 @@
   line-height: 1.4;
 }
 
+.chat-message-image {
+  max-width: 100%;
+  border-radius: 6px;
+  margin-top: 6px;
+  cursor: pointer;
+  display: block;
+}
+
 .chat-window-footer {
   background: #0a0a0a;
   border-top: 1px solid #333;
@@ -3278,6 +3294,7 @@
         .msg-row.outgoing .msg-bubble { background: #161616; border-color: #2a2a2a; }
         .msg-meta { display:flex; justify-content:space-between; gap:12px; font-size:0.82rem; color:#9a9a9a; margin-bottom:6px; }
         .msg-text { white-space:pre-wrap; color:var(--text-main) }
+        .msg-text img.chat-message-image { max-width:100%; border-radius:6px; margin-top:6px; cursor:pointer; display:block; }
         .msg-bubble.cot { border-left:4px solid var(--accent-green); }
 
         .composer { margin-top:14px; display:grid; grid-template-columns: 1fr 260px; gap:12px; align-items:start; }
@@ -13280,7 +13297,7 @@ window.addEventListener('storage', (e) => {
                 messageEl.className = 'chat-message incoming';
                 messageEl.setAttribute('data-msg-id', msg.id || '');
                 const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
-                messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.username || 'Unknown') : (msg.username || 'Unknown')) + '</span><span class="chat-message-time">' + time + '</span></div><div class="chat-message-text">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.text || '') : (msg.text || '')) + '</div>';
+                messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.username || 'Unknown') : (msg.username || 'Unknown')) + '</span><span class="chat-message-time">' + time + '</span></div>' + (typeof renderChatMsgContent === 'function' ? renderChatMsgContent(msg) : '<div class="chat-message-text">' + (typeof escapeHtml === 'function' ? escapeHtml(msg.text || '') : (msg.text || '')) + '</div>');
                 messagesContainer.appendChild(messageEl);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 // Update unread badge if chat window is not active
@@ -13436,6 +13453,12 @@ window.addEventListener('storage', (e) => {
 
       function genId(prefix = 'id') { return prefix + '_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 9999); }
       function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+      function renderChatMsgContent(msg) {
+        if (msg.type === 'image' && msg.text) {
+          return '<img src="' + escapeHtml(msg.text) + '" class="chat-message-image" alt="Bild">';
+        }
+        return '<div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>';
+      }
 
       function fileToDataUrl(file) {
         return new Promise((resolve, reject) => {
@@ -15106,6 +15129,12 @@ window.addEventListener('storage', (e) => {
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
       }
+      function renderChatMsgContent(msg) {
+        if (msg.type === 'image' && msg.text) {
+          return '<img src="' + escapeHtml(msg.text) + '" class="chat-message-image" alt="Bild">';
+        }
+        return '<div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>';
+      }
 
       /* ── Global Intel share receiver – disabled (system load reduction) ──────
       // ── Global Intel share receiver ──────────────────────────
@@ -16049,7 +16078,7 @@ window.addEventListener('storage', (e) => {
               else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
               statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
             }
-            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + escapeHtml(time) + '</span></div><div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>' + statusHtml;
+            messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + escapeHtml(time) + '</span></div>' + renderChatMsgContent(msg) + statusHtml;
             messagesContainer.appendChild(messageEl);
           });
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -16503,6 +16532,12 @@ window.addEventListener('storage', (e) => {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
+  function renderChatMsgContent(msg) {
+    if (msg.type === 'image' && msg.text) {
+      return '<img src="' + escapeHtml(msg.text) + '" class="chat-message-image" alt="Bild">';
+    }
+    return '<div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>';
+  }
 
   // Check for incoming messages periodically
   window.addEventListener('load', function() {
@@ -16864,7 +16899,7 @@ window.addEventListener('storage', (e) => {
           else if (msg.delivered_to && msg.delivered_to.length > 0) { icon = '&#10003;&#10003;'; }
           statusHtml = '<div class="chat-msg-status" style="text-align:right;font-size:0.7em;color:' + color + ';">' + icon + '</div>';
         }
-        messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + escapeHtml(time) + '</span></div><div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>' + statusHtml;
+        messageEl.innerHTML = '<div class="chat-message-header"><span class="chat-message-sender">' + escapeHtml(msg.username || 'Unknown') + '</span><span class="chat-message-time">' + escapeHtml(time) + '</span></div>' + renderChatMsgContent(msg) + statusHtml;
         messagesContainer.appendChild(messageEl);
       });
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -17565,7 +17600,7 @@ window.addEventListener('storage', (e) => {
                                 <span>${escapeHtml(msg.username || msg.from || 'Unknown')}</span>
                                 <span>${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}</span>
                             </div>
-                            <div class="msg-text">${escapeHtml(msg.text || '')}</div>
+                            ${renderMsgContent(msg)}
                             ${readStatus}
                         </div>
                     </div>`;
@@ -17761,7 +17796,7 @@ window.addEventListener('storage', (e) => {
                                     <span>${escapeHtml(msg.username || 'Unknown')}</span>
                                     <span>${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}</span>
                                 </div>
-                                <div class="msg-text">${escapeHtml(msg.text || '')}</div>
+                                ${renderMsgContent(msg)}
                             </div>
                         </div>`;
                         messagesEl.insertAdjacentHTML('beforeend', html);
@@ -17946,6 +17981,12 @@ window.addEventListener('storage', (e) => {
     }
     function escapeAttr(str) {
         return String(str).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function renderMsgContent(msg) {
+        if (msg.type === 'image' && msg.text) {
+            return '<div class="msg-text"><img src="' + escapeAttr(msg.text) + '" class="chat-message-image" alt="Bild"></div>';
+        }
+        return '<div class="msg-text">' + escapeHtml(msg.text || '') + '</div>';
     }
 
     function logoutUser() {
