@@ -544,12 +544,11 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "meshtastic_node")
 
     def test_cot_to_marker_tak_maker_type_human_how(self):
-        # "h-e" (human-entered) without <meshtastic> → tak_maker
-        # (all friendly CoT without Meshtastic detail is from TAK clients)
+        # "h-e" (human-entered) → meshtastic_node (only GPS-derived h-g* → tak_maker)
         xml = self._make_cot_xml(how="h-e")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_maker")
+        self.assertEqual(marker["type"], "meshtastic_node")
 
     def test_cot_to_marker_gps_position_type_gps_how(self):
         # "h-g-i-g-o" (GPS-derived) → tak_maker (ATAK user SA beacon)
@@ -561,11 +560,11 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_friendly_for_machine_generated(self):
-        # "m-g" without <meshtastic> → tak_maker (e.g. iTAK SA beacons)
+        # "m-g" without <meshtastic> → meshtastic_node (Meshtastic node relayed by ATAK)
         xml = self._make_cot_xml(how="m-g")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_maker")
+        self.assertEqual(marker["type"], "meshtastic_node")
 
     def test_meshtastic_detail_takes_precedence_over_human_how(self):
         # how="h-e" (human-entered) + <meshtastic> in detail must produce

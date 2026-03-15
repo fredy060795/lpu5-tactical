@@ -1839,14 +1839,18 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # ATAK GPS SA beacons; the <meshtastic> element is the authoritative
         # signal that this is a Meshtastic node, not a human ATAK user.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
-        #   • friendly without <meshtastic> → tak_maker (ATAK/iTAK/WinTAK user;
-        #     covers all human-originated how codes h-g, h-e, h-t as well as
-        #     machine-generated m-g from iTAK; LPU5's own GPS positions use
-        #     UIDs "GPS-*" and are filtered above)
+        #   • how starts with "h-g" (GPS-derived) → tak_maker (ATAK user SA
+        #     beacon; LPU5's own GPS positions use UIDs "GPS-*" and are filtered
+        #     above)
+        #   • All other friendly CoT events (h-e, h-t, m-g, etc.) →
+        #     meshtastic_node so relayed Meshtastic nodes render with the
+        #     correct icon.
         if _has_mesh_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly":
+        elif lpu5_type == "friendly" and how.startswith("h-g"):
             lpu5_type = "tak_maker"
+        elif lpu5_type == "friendly":
+            lpu5_type = "meshtastic_node"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
             # shape types to their CBT variants so ATAK-sourced markers are
