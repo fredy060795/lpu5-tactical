@@ -9957,12 +9957,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif message_type == 'camera_stream_stop':
                     # Relay stream stop to camera channel
                     logger.info(f"Relaying camera_stream_stop from {connection_id}")
-                    await websocket_manager.publish_to_channel('camera', {
+                    stop_msg = {
                         'type': 'camera_stream_stop',
                         'channel': 'camera',
+                        'slot': data.get('slot'),
                         'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
-                    })
+                    }
+                    await websocket_manager.publish_to_channel('camera', stop_msg)
                     relay_handled = True
                     
                 elif message_type == 'broadcast_selected':
