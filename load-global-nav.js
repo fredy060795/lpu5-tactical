@@ -38,14 +38,14 @@
                 const toggleBtn = document.createElement('button');
                 toggleBtn.className = 'sidebar-toggle';
                 toggleBtn.setAttribute('aria-label', 'Open menu');
-                toggleBtn.setAttribute('onclick', 'toggleSidebar()');
+                toggleBtn.addEventListener('click', function() { window.toggleSidebar(); });
                 toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
                 document.body.insertBefore(toggleBtn, document.body.firstChild);
 
                 // Insert overlay
                 const overlay = document.createElement('div');
                 overlay.className = 'sidebar-overlay';
-                overlay.setAttribute('onclick', 'toggleSidebar()');
+                overlay.addEventListener('click', function() { window.toggleSidebar(); });
                 document.body.insertBefore(overlay, document.body.firstChild);
 
                 // Insert nav at the beginning of body
