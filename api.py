@@ -1970,8 +1970,11 @@ def _process_incoming_cot(cot_xml: str) -> None:
             # 8088) and SA Multicast so that markers received from the TAK
             # server are also visible on locally connected TAK devices that
             # are not themselves connected to the remote TAK server.
-            _forward_cot_to_tcp_clients(cot_xml)
-            _forward_cot_multicast(cot_xml)
+            try:
+                _forward_cot_to_tcp_clients(cot_xml)
+                _forward_cot_multicast(cot_xml)
+            except Exception as _relay_err:
+                logger.debug("CoT relay to local clients failed: %s", _relay_err)
             logger.info("TAK event received: %s (%s) @ %.6f, %.6f", callsign, event_type, lat, lng)
         finally:
             db.close()
