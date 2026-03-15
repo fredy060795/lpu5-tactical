@@ -468,13 +468,16 @@
     }
 
     #map {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 141.43vmax;
+      height: 141.43vmax;
+      margin-left: -70.715vmax;
+      margin-top: -70.715vmax;
       z-index: 1;
       display: block;
+      transform-origin: center center;
     }
 
     .tactical-overlay {
@@ -573,6 +576,44 @@
     .menu-btn i { width: 20px; text-align: center; }
     .logout-btn { color: var(--accent-red); border-color: var(--accent-red); margin-top: 10px; }
 
+    /* Compass floating button */
+    #tsb-compass {
+      position: fixed;
+      top: 60px;
+      left: 10px;
+      z-index: 6010;
+      background: rgba(30, 30, 30, 0.85);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 6px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: box-shadow 0.2s;
+    }
+    #tsb-compass.rotation-unlocked {
+      border-color: rgba(0,200,255,0.5);
+      box-shadow: 0 0 12px rgba(0,200,255,0.25);
+    }
+    #tsb-compass-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+    #tsb-compass svg { width: 52px; height: 52px; }
+    #tsb-compass-bearing {
+      font-size: 16px;
+      font-family: 'Courier New', monospace;
+      color: rgba(255,255,255,0.8);
+      line-height: 1;
+    }
+    #compass-needle-group {
+      transform-origin: 14px 14px;
+      transition: transform 0.25s ease;
+    }
+
   </style>
 </head>
 
@@ -592,6 +633,25 @@
   </div>
 
   <div id="map"></div>
+
+  <!-- Compass floating button -->
+  <button id="tsb-compass" ontouchstart="handleToolInteraction(toggleCompassLock, event)" onclick="handleToolInteraction(toggleCompassLock, event)" title="Kompass – Tippen zum Drehen sperren/entsperren">
+    <div id="tsb-compass-inner">
+      <svg id="tsb-compass-svg" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="13" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+        <line x1="14" y1="1" x2="14" y2="4.5" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        <line x1="14" y1="23.5" x2="14" y2="27" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        <line x1="27" y1="14" x2="23.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        <line x1="2" y1="14" x2="5.5" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        <g id="compass-needle-group">
+          <polygon points="14,3 12.6,14 15.4,14" fill="#ff3333"/>
+          <polygon points="14,25 12.6,14 15.4,14" fill="rgba(200,200,200,0.45)"/>
+          <circle cx="14" cy="14" r="1.8" fill="#fff" stroke="rgba(0,0,0,0.4)" stroke-width="0.5"/>
+        </g>
+      </svg>
+      <span id="tsb-compass-bearing">000°</span>
+    </div>
+  </button>
 
 
 
@@ -1486,22 +1546,26 @@
     }
 
     function crosshairLatLng() {
-      // Use actual crosshair element position so the marker always matches
-      // the visible crosshair, even when viewport and map container differ
-      // (mobile browser chrome, notch safe-areas, etc.)
-      const ch = document.getElementById('crosshair');
-      if (!ch) {
-        // Fallback to map center if crosshair element is missing
-        const size = map.getSize();
+      // The crosshair is fixed at the viewport centre.
+      // When the map is CSS-rotated, getBoundingClientRect() on the map element
+      // gives an axis-aligned bounding box that shifts, so use map centre instead.
+      const size = map.getSize();
+      if (mapBearing) {
         return map.containerPointToLatLng(L.point(size.x / 2, size.y / 2));
       }
-      const chRect = ch.getBoundingClientRect();
-      const mapRect = map.getContainer().getBoundingClientRect();
-      const containerPoint = L.point(
-        chRect.left + chRect.width / 2 - mapRect.left,
-        chRect.top + chRect.height / 2 - mapRect.top
-      );
-      return map.containerPointToLatLng(containerPoint);
+      // No rotation: use the crosshair's actual screen position for accuracy
+      const ch = document.getElementById('crosshair');
+      if (ch) {
+        const chRect = ch.getBoundingClientRect();
+        const screenX = chRect.left + chRect.width / 2;
+        const screenY = chRect.top + chRect.height / 2;
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        const dx = screenX - cx;
+        const dy = screenY - cy;
+        return map.containerPointToLatLng(L.point(size.x / 2 + dx, size.y / 2 + dy));
+      }
+      return map.containerPointToLatLng(L.point(size.x / 2, size.y / 2));
     }
 
     // Helper to prevent double-firing of touch and click events
@@ -2174,6 +2238,130 @@
       }
     }
 
+    // ---- Compass / Map Rotation ----
+    let mapBearing = 0;
+    let rotationLocked = true;
+    try { rotationLocked = localStorage.getItem('lpu5_rotation_locked') !== 'false'; } catch(e) {}
+    let deviceHeading = null;
+    let _deviceOrientationActive = false;
+
+    function setMapBearing(deg) {
+      mapBearing = ((deg % 360) + 360) % 360;
+      var mapEl = document.getElementById('map');
+      if (mapEl) mapEl.style.transform = 'rotate(' + mapBearing + 'deg)';
+      var needle = document.getElementById('compass-needle-group');
+      if (needle) needle.style.transform = 'rotate(' + (-mapBearing) + 'deg)';
+      var bearingEl = document.getElementById('tsb-compass-bearing');
+      if (bearingEl) bearingEl.textContent = String(Math.round(mapBearing) % 360).padStart(3, '0') + '°';
+      updateGpsMarkerHeading();
+    }
+
+    function resetNorth() { setMapBearing(0); }
+
+    function toggleCompassLock() {
+      rotationLocked = !rotationLocked;
+      try { localStorage.setItem('lpu5_rotation_locked', String(rotationLocked)); } catch(e) {}
+      var btn = document.getElementById('tsb-compass');
+      if (btn) btn.classList.toggle('rotation-unlocked', !rotationLocked);
+      if (rotationLocked) {
+        setMapBearing(0);
+      } else {
+        if (!_deviceOrientationActive) {
+          if (typeof DeviceOrientationEvent !== 'undefined' &&
+              typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+              .then(function (state) { if (state === 'granted') startDeviceOrientation(); })
+              .catch(function () {});
+          } else {
+            startDeviceOrientation();
+          }
+        }
+        if (deviceHeading !== null) {
+          setMapBearing(deviceHeading);
+          if (gpsMarker && map) {
+            map.panTo(gpsMarker.getLatLng(), { animate: true, duration: 0.3 });
+          }
+        }
+      }
+    }
+
+    // Two-finger rotation gesture (only when unlocked)
+    (function () {
+      var rotStartBearing = 0, rotStartAngle = null;
+      function fingerAngle(touches) {
+        return Math.atan2(touches[1].clientY - touches[0].clientY,
+                          touches[1].clientX - touches[0].clientX) * 180 / Math.PI;
+      }
+      document.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 2) { rotStartBearing = mapBearing; rotStartAngle = fingerAngle(e.touches); }
+      }, { passive: true });
+      document.addEventListener('touchmove', function (e) {
+        if (e.touches.length === 2 && rotStartAngle !== null && !rotationLocked) {
+          setMapBearing(rotStartBearing + fingerAngle(e.touches) - rotStartAngle);
+        }
+      }, { passive: true });
+      document.addEventListener('touchend', function (e) {
+        if (e.touches.length < 2) rotStartAngle = null;
+      }, { passive: true });
+    }());
+
+    // ---- Device Orientation / Compass Heading ----
+    function _onDeviceOrientation(e) {
+      var heading = null;
+      if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+        heading = e.webkitCompassHeading;
+      } else if (e.alpha !== null) {
+        heading = (360 - e.alpha) % 360;
+      }
+      if (heading === null || !Number.isFinite(heading)) return;
+      deviceHeading = heading;
+      if (!rotationLocked) {
+        setMapBearing(deviceHeading);
+        if (gpsMarker && map) {
+          map.panTo(gpsMarker.getLatLng(), { animate: false });
+        }
+      } else {
+        updateGpsMarkerHeading();
+      }
+    }
+
+    function startDeviceOrientation() {
+      if (_deviceOrientationActive) return;
+      _deviceOrientationActive = true;
+      if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', _onDeviceOrientation, true);
+      }
+      window.addEventListener('deviceorientation', _onDeviceOrientation, true);
+    }
+
+    function stopDeviceOrientation() {
+      if (!_deviceOrientationActive) return;
+      _deviceOrientationActive = false;
+      window.removeEventListener('deviceorientationabsolute', _onDeviceOrientation, true);
+      window.removeEventListener('deviceorientation', _onDeviceOrientation, true);
+      deviceHeading = null;
+    }
+
+    (function initDeviceOrientation() {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(function (state) { if (state === 'granted') startDeviceOrientation(); })
+          .catch(function () {});
+      } else {
+        startDeviceOrientation();
+      }
+    })();
+
+    // Restore compass-lock state on load
+    (function () {
+      try {
+        var btn = document.getElementById('tsb-compass');
+        if (btn && !rotationLocked) btn.classList.add('rotation-unlocked');
+      } catch(e) {}
+    })();
+    // ---- End Compass / Map Rotation ----
+
     // GPS & helpers
     let gpsMarker = null; // Track GPS marker globally
     let gpsWatchId = null; // Track GPS watch ID for auto-update
@@ -2182,6 +2370,17 @@
 
     function createGpsArrowIconHtml(color) {
       return `<i class="fas fa-location-arrow" style="color:${color}; font-size: 32px; transform: rotate(0deg);"></i>`;
+    }
+
+    // Rotate GPS marker arrow to reflect actual device heading
+    function updateGpsMarkerHeading() {
+      if (!gpsMarker || !gpsMarker._icon || deviceHeading === null) return;
+      var el = gpsMarker._icon.querySelector('.fas, svg');
+      if (!el) return;
+      // fa-location-arrow icon points northeast (~45°) by default, so subtract 45
+      // to normalize to north. Also subtract mapBearing to compensate for CSS map rotation.
+      var rot = deviceHeading - 45 - mapBearing;
+      el.style.transform = 'rotate(' + rot + 'deg)';
     }
 
     // Send GPS position to server so admin_map.html can see it
