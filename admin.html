@@ -808,7 +808,7 @@
       for (const username of usernames) {
         try {
           // Try to activate user via API
-          const res = await fetch('/api/users/activate', {
+          const res = await fetch('/api/approve_registration', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -866,16 +866,20 @@
       
       for (const username of usernames) {
         try {
-          // Try to delete user via API
-          const res = await fetch(`/api/users/${encodeURIComponent(username)}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
+          // Try to reject registration via API
+          const res = await fetch('/api/reject_registration', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders()
+            },
+            body: JSON.stringify({ username: username })
           });
           
           if (res.ok) {
-            console.log(`User ${username} rejected and deleted`);
+            console.log(`User ${username} rejected`);
           } else {
-            console.warn(`Failed to delete ${username}: ${res.status}`);
+            console.warn(`Failed to reject ${username}: ${res.status}`);
           }
         } catch(e) {
           console.error(`Error deleting ${username}:`, e);
