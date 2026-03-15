@@ -2225,6 +2225,7 @@
     let rotationLocked = true;
     try { rotationLocked = localStorage.getItem('lpu5_rotation_locked') !== 'false'; } catch(e) {}
     let deviceHeading = null;
+    let gpsHeading = null;    // GPS movement heading fallback (from coords.heading)
     let _deviceOrientationActive = false;
 
     function setMapBearing(deg) {
@@ -2355,12 +2356,14 @@
 
     // Rotate GPS marker arrow to reflect actual device heading
     function updateGpsMarkerHeading() {
-      if (!gpsMarker || !gpsMarker._icon || deviceHeading === null) return;
+      if (!gpsMarker || !gpsMarker._icon) return;
+      var heading = deviceHeading !== null ? deviceHeading : gpsHeading;
+      if (heading === null) return;
       var el = gpsMarker._icon.querySelector('.fas, svg');
       if (!el) return;
       // fa-location-arrow icon points northeast (~45°) by default, so subtract 45
       // to normalize to north. Also subtract mapBearing to compensate for CSS map rotation.
-      var rot = deviceHeading - 45 - mapBearing;
+      var rot = heading - 45 - mapBearing;
       el.style.transform = 'rotate(' + rot + 'deg)';
     }
 
@@ -2422,6 +2425,11 @@
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
 
+          // Use GPS movement heading as fallback when device compass is unavailable
+          if (position.coords.heading !== null && Number.isFinite(position.coords.heading)) {
+            gpsHeading = position.coords.heading;
+          }
+
           // Update or create GPS marker
           if (gpsMarker) {
             gpsMarker.setLatLng([lat, lng]);
@@ -2438,6 +2446,9 @@
               closeButton: true
             });
           }
+
+          // Update arrow rotation after position/heading change
+          updateGpsMarkerHeading();
 
           // Send GPS position to server for admin_map visibility
           sendGpsToServer(lat, lng);
@@ -2503,6 +2514,7 @@
         }).addTo(map).bindPopup('GPS Position (Manual)', {
           closeButton: true
         });
+        updateGpsMarkerHeading();
 
         map.setView([latNum, lngNum], Math.max(map.getZoom(), 15));
         sendGpsToServer(latNum, lngNum);
@@ -2525,6 +2537,10 @@
       }
       navigator.geolocation.getCurrentPosition(async (p) => {
         const lat = p.coords.latitude, lng = p.coords.longitude;
+        // Use GPS movement heading as fallback when device compass is unavailable
+        if (p.coords.heading !== null && Number.isFinite(p.coords.heading)) {
+          gpsHeading = p.coords.heading;
+        }
         // Remove old GPS marker if exists
         if (gpsMarker) {
           try { map.removeLayer(gpsMarker); } catch (e) { }
@@ -2541,6 +2557,7 @@
         }).addTo(map).bindPopup('GPS Position', {
           closeButton: true
         }).openPopup();
+        updateGpsMarkerHeading();
 
         map.setView([lat, lng], Math.max(map.getZoom(), 15));
         flashBtn(btn, '#28a745');
@@ -2596,6 +2613,7 @@
           }).addTo(map).bindPopup('IP-based position (approximate)', {
             closeButton: true
           }).openPopup();
+          updateGpsMarkerHeading();
 
           map.setView([lat, lng], Math.max(map.getZoom(), 12));
           flashBtn(btn, '#ffaa00');
@@ -2643,6 +2661,7 @@
         }).addTo(map).bindPopup('Manually entered position', {
           closeButton: true
         }).openPopup();
+        updateGpsMarkerHeading();
 
         map.setView([lat, lng], Math.max(map.getZoom(), 14));
         sendGpsToServer(lat, lng);
