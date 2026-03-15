@@ -2975,7 +2975,7 @@
                 if (!pop) return;
                 const btn = pop.querySelector('.rename-btn');
                 const inp = pop.querySelector('.rename-input');
-                if (btn && inp) btn.addEventListener('click', function() { _renameMarker(s.id, inp); });
+                if (btn && inp) btn.addEventListener('click', function() { _renameMarker(s.id, inp); }, { once: true });
                 const delBtn = pop.querySelector('.delete-btn');
                 if (delBtn) delBtn.addEventListener('click', async function() {
                   if (!confirm('Symbol löschen?')) return;
@@ -2994,7 +2994,7 @@
                       saveStateToLocalStorage();
                     } else alert('Löschen fehlgeschlagen');
                   } catch (e) { console.error('Delete symbol error:', e); }
-                });
+                }, { once: true });
               });
             }
 
