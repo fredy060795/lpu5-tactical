@@ -2268,12 +2268,13 @@
       }
       if (heading === null || !Number.isFinite(heading)) return;
       deviceHeading = heading;
-      updateGpsMarkerHeading();
       if (!rotationLocked) {
         setMapBearing(deviceHeading);
         if (gpsMarker && map) {
           map.panTo(gpsMarker.getLatLng(), { animate: false });
         }
+      } else {
+        updateGpsMarkerHeading();
       }
     }
 
@@ -2328,6 +2329,8 @@
       if (!gpsMarker || !gpsMarker._icon || deviceHeading === null) return;
       var el = gpsMarker._icon.querySelector('.fas, svg');
       if (!el) return;
+      // fa-location-arrow icon points northeast (~45°) by default, so subtract 45
+      // to normalize to north. Also subtract mapBearing to compensate for CSS map rotation.
       var rot = deviceHeading - 45 - mapBearing;
       el.style.transform = 'rotate(' + rot + 'deg)';
     }

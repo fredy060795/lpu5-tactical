@@ -2528,13 +2528,15 @@
       }
       if (heading === null || !Number.isFinite(heading)) return;
       deviceHeading = heading;
-      updateGpsMarkerHeading();
       // Auto-rotate map + auto-center on GPS when compass is unlocked
       if (!rotationLocked) {
-        setMapBearing(deviceHeading);
+        setMapBearing(deviceHeading); // also updates marker heading
         if (gpsMarker && map) {
           map.panTo(gpsMarker.getLatLng(), { animate: false });
         }
+      } else {
+        // Map locked to north – just rotate the marker arrow
+        updateGpsMarkerHeading();
       }
     }
 
@@ -3410,7 +3412,8 @@
       if (!gpsMarker || !gpsMarker._icon || deviceHeading === null) return;
       var el = gpsMarker._icon.querySelector('svg');
       if (!el) return;
-      // Compensate for CSS map rotation so the arrow points in the true heading direction
+      // The SVG arrow points north (up) at 0°. Subtract mapBearing to compensate
+      // for CSS map rotation so the arrow visually points in the true heading direction.
       var rot = deviceHeading - mapBearing;
       el.style.transform = 'rotate(' + rot + 'deg)';
       el.style.transformOrigin = 'center';
