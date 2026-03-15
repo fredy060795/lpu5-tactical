@@ -2435,8 +2435,7 @@
 
     // ---- Compass / Map Rotation ----
     let mapBearing = 0;
-    let rotationLocked = true; // Default: map locked to North; click compass to unlock
-    try { rotationLocked = localStorage.getItem('lpu5_rotation_locked') !== 'false'; } catch(e) {}
+    let rotationLocked = true; // Map always stays north-up
     let deviceHeading = null; // Device compass heading (0-360, 0=north, clockwise)
     let gpsHeading = null;    // GPS movement heading fallback (from coords.heading)
     let _deviceOrientationActive = false;
@@ -2455,31 +2454,17 @@
     function resetNorth() { setMapBearing(0); }
 
     function toggleCompassLock() {
-      rotationLocked = !rotationLocked;
-      try { localStorage.setItem('lpu5_rotation_locked', String(rotationLocked)); } catch(e) {}
-      const btn = document.getElementById('tsb-compass');
-      if (btn) btn.classList.toggle('rotation-unlocked', !rotationLocked);
-      if (rotationLocked) {
-        // Snap back to North when locking
-        setMapBearing(0);
-      } else {
-        // Ensure device orientation is active (iOS 13+ needs user gesture for permission)
-        if (!_deviceOrientationActive) {
-          if (typeof DeviceOrientationEvent !== 'undefined' &&
-              typeof DeviceOrientationEvent.requestPermission === 'function') {
-            DeviceOrientationEvent.requestPermission()
-              .then(function (state) { if (state === 'granted') startDeviceOrientation(); })
-              .catch(function () {});
-          } else {
-            startDeviceOrientation();
-          }
-        }
-        // When unlocking, immediately apply device heading if available
-        if (deviceHeading !== null) {
-          setMapBearing(deviceHeading);
-          if (gpsMarker && map) {
-            map.panTo(gpsMarker.getLatLng(), { animate: true, duration: 0.3 });
-          }
+      // Map always stays north-up. Compass tap ensures device orientation is
+      // active so the GPS arrow and bearing display work (iOS 13+ needs a user
+      // gesture to grant permission).
+      if (!_deviceOrientationActive) {
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission()
+            .then(function (state) { if (state === 'granted') startDeviceOrientation(); })
+            .catch(function () {});
+        } else {
+          startDeviceOrientation();
         }
       }
     }
@@ -2509,27 +2494,28 @@
     }());
 
     // ---- Device Orientation / Compass Heading ----
+    let _hasAbsoluteOrientation = false;
     function _onDeviceOrientation(e) {
       var heading = null;
       if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
         // iOS: webkitCompassHeading is degrees clockwise from magnetic north
         heading = e.webkitCompassHeading;
-      } else if (e.alpha !== null) {
-        // Android / standard: alpha is degrees counter-clockwise from north
+        _hasAbsoluteOrientation = true;
+      } else if (e.absolute === true && e.alpha !== null) {
+        // Absolute orientation (true north) – preferred on Android Chrome
+        heading = (360 - e.alpha) % 360;
+        _hasAbsoluteOrientation = true;
+      } else if (!_hasAbsoluteOrientation && e.alpha !== null) {
+        // Fallback: non-absolute orientation only when no absolute source received yet
         heading = (360 - e.alpha) % 360;
       }
       if (heading === null || !Number.isFinite(heading)) return;
       deviceHeading = heading;
-      // Auto-rotate map + auto-center on GPS when compass is unlocked
-      if (!rotationLocked) {
-        setMapBearing(deviceHeading); // also updates marker heading
-        if (gpsMarker && map) {
-          map.panTo(gpsMarker.getLatLng(), { animate: false });
-        }
-      } else {
-        // Map locked to north – just rotate the marker arrow
-        updateGpsMarkerHeading();
-      }
+      // Show device heading on compass bearing display
+      var bearingEl = document.getElementById('tsb-compass-bearing');
+      if (bearingEl) bearingEl.textContent = String(Math.round(((heading % 360) + 360) % 360)).padStart(3, '0') + '°';
+      // Map always stays north-up – only rotate the GPS marker arrow
+      updateGpsMarkerHeading();
     }
 
     function startDeviceOrientation() {
@@ -2590,9 +2576,6 @@
           if (toolbar) toolbar.style.display = 'flex';
           if (btn) btn.classList.add('active');
         }
-        // Apply saved compass lock state
-        const compassBtn = document.getElementById('tsb-compass');
-        if (compassBtn && !rotationLocked) compassBtn.classList.add('rotation-unlocked');
       } catch(e) {}
     })();
 
@@ -3408,8 +3391,8 @@
       if (heading === null) return;
       var el = gpsMarker._icon.querySelector('svg');
       if (!el) return;
-      // The SVG arrow points north (up) at 0°. Subtract mapBearing to compensate
-      // for CSS map rotation so the arrow visually points in the true heading direction.
+      // The SVG arrow points north (up) at 0°. mapBearing is always 0 (north-up)
+      // so the arrow simply rotates by the device heading.
       var rot = heading - mapBearing;
       el.style.transform = 'rotate(' + rot + 'deg)';
       el.style.transformOrigin = 'center';
