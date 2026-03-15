@@ -453,6 +453,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         "source": data.get("source"),
                         "details": data.get("details"),
                         "stream_url": data.get("stream_url"),
+                        "stream_type": data.get("stream_type"),
+                        "slot": data.get("slot"),
                         "timestamp": data.get("timestamp"),
                         "target_units": target_units,
                         "source_connection": connection_id
@@ -473,6 +475,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     sel_msg = {
                         "type": "broadcast_selected",
                         "streamId": data.get("streamId"),
+                        "active": data.get("active"),
+                        "slot": data.get("slot"),
                         "source": data.get("source"),
                         "details": data.get("details"),
                         "timestamp": data.get("timestamp"),

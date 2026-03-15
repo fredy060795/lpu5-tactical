@@ -568,28 +568,6 @@
       background: #dc3545;
     }
 
-    .stream-share-btn {
-      background: #28a745;
-      border: none;
-      color: #fff;
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.8rem;
-      font-weight: bold;
-      transition: background 0.2s;
-    }
-
-    .stream-share-btn:hover {
-      background: #218838;
-    }
-
-    .stream-share-btn:disabled {
-      background: #444;
-      cursor: not-allowed;
-      color: #888;
-    }
-
     /* Chat Window */
     .chat-window {
       position: fixed;
@@ -1116,9 +1094,6 @@
       <div class="col"><button class="btn primary" onclick="openStreamWindow()">Show Stream</button></div>
       <div class="col"><button class="btn ghost" onclick="closeStreamWindow()">Close</button></div>
     </div>
-    <div style="margin-top:10px;">
-      <button class="btn ghost" onclick="shareStreamToOverview()">Share to Overview</button>
-    </div>
     <div id="cameraFlyInfo" style="margin-top:8px;color:#bbb;font-size:.85rem">No stream available</div>
   </div>
 
@@ -1151,9 +1126,6 @@
         <span class="pulse-dot"></span>
         <span>Offline</span>
       </div>
-      <button class="stream-share-btn" id="streamShareBtn" onclick="shareStreamToOverview()" disabled>
-        <i class="fas fa-share-alt"></i> Share
-      </button>
     </div>
   </div>
 
@@ -3543,7 +3515,6 @@
         const video = document.getElementById('streamWindowVideo');
         const placeholder = document.getElementById('streamWindowPlaceholder');
         const statusBadge = document.getElementById('streamWindowStatus');
-        const shareBtn = document.getElementById('streamShareBtn');
         const flyInfo = document.getElementById('cameraFlyInfo');
 
         if (data.videoSrc) {
@@ -3574,8 +3545,6 @@
           statusBadge.classList.add('connected');
           statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Verbunden</span>';
         }
-
-        if (shareBtn) shareBtn.disabled = false;
 
         if (flyInfo) {
           flyInfo.textContent = `${data.source}: ${data.details}`;
@@ -3618,14 +3587,12 @@
         }
 
         const statusBadge = document.getElementById('streamWindowStatus');
-        const shareBtn = document.getElementById('streamShareBtn');
         const flyInfo = document.getElementById('cameraFlyInfo');
 
         if (statusBadge) {
           statusBadge.classList.add('offline');
           statusBadge.innerHTML = '<span class="pulse-dot"></span><span>Offline</span>';
         }
-        if (shareBtn) shareBtn.disabled = true;
 
         if (flyInfo) {
           flyInfo.textContent = 'No stream available';
@@ -3648,23 +3615,6 @@
           footer.style.display = 'none';
           isMinimized = true;
         }
-      };
-
-      window.shareStreamToOverview = function () {
-        const video = document.getElementById('streamWindowVideo');
-        if (!video || !video.src) {
-          alert('No active stream to share');
-          return;
-        }
-
-        const streamData = {
-          videoSrc: video.src,
-          timestamp: Date.now(),
-          source: 'admin_map'
-        };
-
-        localStorage.setItem('lpu5_overview_stream', JSON.stringify(streamData));
-        alert('Stream sent to Overview!');
       };
 
       // Camera stream functions

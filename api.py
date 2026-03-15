@@ -9969,15 +9969,18 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Relay broadcast selection so the source (e.g. overview.html) can start sending frames
                     stream_id = str(data.get('streamId', '')).replace('\n', '').replace('\r', '')
                     logger.info(f"Relaying broadcast_selected from {connection_id}: streamId={stream_id}")
-                    await websocket_manager.publish_to_channel('camera', {
+                    bc_msg = {
                         'type': 'broadcast_selected',
                         'channel': 'camera',
                         'streamId': data.get('streamId'),
+                        'active': data.get('active'),
+                        'slot': data.get('slot'),
                         'source': data.get('source'),
                         'details': data.get('details'),
                         'timestamp': datetime.now(timezone.utc).isoformat(),
                         'source_connection': connection_id
-                    })
+                    }
+                    await websocket_manager.publish_to_channel('camera', bc_msg)
                     relay_handled = True
                     
                 # Relay map data updates (markers, drawings, overlays, symbols)
