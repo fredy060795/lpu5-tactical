@@ -6485,8 +6485,7 @@ def api_qr_join_create(request: Request = None):
     png_b64 = None
     if qrcode:
         try:
-            import json as _json
-            qr_img = qrcode.make(_json.dumps(qr_payload))
+            qr_img = qrcode.make(json.dumps(qr_payload))
             from io import BytesIO
             buf = BytesIO()
             qr_img.save(buf, format="PNG")
