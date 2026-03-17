@@ -70,7 +70,21 @@ if errorlevel 1 (
     )
     echo [OK] pywebview installiert
 ) else (
-    echo [OK] Abhaengigkeiten vorhanden
+    echo [OK] pywebview vorhanden
+)
+
+pip show pyserial >nul 2>&1
+if errorlevel 1 (
+    echo [*] Installiere pyserial (COM-Port Zugriff)...
+    pip install pyserial 2>&1
+    if errorlevel 1 (
+        echo [WARNUNG] pyserial konnte nicht installiert werden.
+        echo           COM-Port-Scan wird nicht verfuegbar sein.
+    ) else (
+        echo [OK] pyserial installiert
+    )
+) else (
+    echo [OK] pyserial vorhanden
 )
 
 REM ── Dateien pruefen ──────────────────────────────────────────

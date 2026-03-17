@@ -680,6 +680,14 @@
     .sidebar-tile:active { background: #2d2d2d; }
     .sidebar-tile i { font-size: 1.3rem; color: #bbb; }
     .sidebar-tile span { font-size: 0.62rem; color: #bbb; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
+    .sidebar-nav-divider {
+      grid-column: 1 / -1; display: flex; align-items: center; gap: 8px;
+      margin: 4px 0 2px; color: var(--accent-blue); font-size: 0.65rem;
+      font-weight: bold; letter-spacing: 1px; text-transform: uppercase;
+    }
+    .sidebar-nav-divider::after {
+      content: ''; flex: 1; height: 1px; background: #2a2a2a;
+    }
 
     /* Menu popup modal */
     #menu-popup {
@@ -5330,6 +5338,17 @@
     function sidebarTile(id, icon, label, action) {
       return `<div class="sidebar-tile" id="${id}" onclick="event.stopPropagation();${action}"><i class="${icon}"></i><span>${label}</span></div>`;
     }
+    function sidebarDivider(label) {
+      return `<div class="sidebar-nav-divider">${label}</div>`;
+    }
+
+    /* Navigate to an SPA page (index.html#viewName), preserving standalone mode */
+    window.navigateToPage = function(viewName) {
+      var host = window.location.hostname;
+      var standalone = (host === '127.0.0.1' || host === 'localhost');
+      var url = 'index.html' + (standalone ? '?standalone=1' : '') + '#' + viewName;
+      window.location.href = url;
+    };
 
     function updateSidebarTiles() {
       const grid = document.getElementById('sidebar-tile-grid');
@@ -5348,6 +5367,17 @@
       html += sidebarTile('tile-contacts','fas fa-address-book','Contacts',"openMenuPopup('contacts')");
       html += sidebarTile('tile-sync',   'fas fa-sync-alt',    'Sync',  'closeHamburgerMenu();refreshAllData()');
       html += sidebarTile('tile-night', 'fas fa-moon', 'Nacht', 'closeHamburgerMenu();toggleNightMode()');
+      /* ── Page navigation tiles ── */
+      html += sidebarDivider('Navigation');
+      html += sidebarTile('tile-nav-dashboard',  'fas fa-th-large',        'Dashboard',  "navigateToPage('dashboard')");
+      html += sidebarTile('tile-nav-admin-map',  'fas fa-map-marked-alt',  'Tac Map',    "navigateToPage('admin_map')");
+      html += sidebarTile('tile-nav-admin',      'fas fa-user-shield',     'Admin',      "navigateToPage('admin')");
+      html += sidebarTile('tile-nav-mission',    'fas fa-crosshairs',      'Mission',    "navigateToPage('mission')");
+      html += sidebarTile('tile-nav-meshtastic', 'fas fa-comments',        'Mesh Chat',  "navigateToPage('meshtastic')");
+      html += sidebarTile('tile-nav-stream',     'fas fa-video',           'Stream',     "navigateToPage('stream')");
+      html += sidebarTile('tile-nav-network',    'fas fa-network-wired',   'Network',    "navigateToPage('network')");
+      html += sidebarTile('tile-nav-sdr',        'fas fa-satellite-dish',  'SDR',        "navigateToPage('sdr')");
+      html += sidebarTile('tile-nav-language',   'fas fa-globe',           'Language',   "navigateToPage('language')");
       grid.innerHTML = html;
     }
 
