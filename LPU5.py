@@ -28,7 +28,9 @@ import hashlib
 import json
 import os
 import secrets
+import signal
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -50,6 +52,15 @@ _USERS_FILE = os.path.join(
 # In-memory session store – sessions are valid for the lifetime of the
 # desktop application window and are cleared on restart.
 _sessions: dict[str, dict] = {}
+
+# ── Default admin credentials (auto-created on first start) ─────
+_DEFAULT_ADMIN_USER = "admin"
+_DEFAULT_ADMIN_PASS = "admin"
+
+# ── Backend server subprocess management ────────────────────────
+_SHUTDOWN_TIMEOUT_S = 10
+_server_process: subprocess.Popen | None = None
+_server_process_lock = threading.Lock()
 
 
 def _load_users() -> list[dict]:
@@ -137,6 +148,121 @@ def _scan_serial_ports() -> list[dict]:
         return result
     except Exception:
         return []
+
+
+def _ensure_default_admin() -> dict:
+    """Ensure the default admin user exists.  Return the user dict."""
+    users = _load_users()
+    for u in users:
+        if u["username"] == _DEFAULT_ADMIN_USER:
+            return u
+    admin = {
+        "id": str(uuid.uuid4()),
+        "username": _DEFAULT_ADMIN_USER,
+        "password_hash": _hash_password(_DEFAULT_ADMIN_PASS),
+        "fullname": "Administrator",
+        "callsign": "ADMIN",
+        "role": "admin",
+    }
+    users.append(admin)
+    _save_users(users)
+    return admin
+
+
+def _auto_login_admin() -> tuple[str, dict]:
+    """Create (or find) the default admin and return ``(token, user_info)``."""
+    admin = _ensure_default_admin()
+    token = _generate_token(admin)
+    return token, _user_info(admin)
+
+
+# ── Backend server (api.py) management ──────────────────────────
+
+def _find_python_for_server() -> str:
+    """Return the Python interpreter that should run api.py.
+
+    Prefer the project's server virtualenv (``.venv``) when it exists.
+    """
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    if sys.platform == "win32":
+        candidates = [
+            os.path.join(project_dir, ".venv", "Scripts", "python.exe"),
+            os.path.join(project_dir, ".venv", "python.exe"),
+        ]
+    else:
+        candidates = [
+            os.path.join(project_dir, ".venv", "bin", "python"),
+            os.path.join(project_dir, ".venv", "bin", "python3"),
+        ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return sys.executable
+
+
+def _start_backend_server() -> dict:
+    """Start ``api.py`` as a subprocess and return status info."""
+    global _server_process
+    with _server_process_lock:
+        if _server_process is not None and _server_process.poll() is None:
+            return {"status": "already_running", "pid": _server_process.pid}
+
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        api_script = os.path.join(project_dir, "api.py")
+        if not os.path.isfile(api_script):
+            return {"status": "error", "detail": "api.py not found"}
+
+        python = _find_python_for_server()
+        log_file = os.path.join(project_dir, "server.log")
+        try:
+            kwargs: dict = {}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            fh = open(log_file, "a", encoding="utf-8")
+            _server_process = subprocess.Popen(
+                [python, api_script],
+                cwd=project_dir,
+                stdout=fh,
+                stderr=subprocess.STDOUT,
+                **kwargs,
+            )
+        except Exception as exc:
+            return {"status": "error", "detail": str(exc)}
+
+        print(f"[*] Backend-Server gestartet (PID {_server_process.pid}), Log: {log_file}")
+        return {"status": "started", "pid": _server_process.pid}
+
+
+def _stop_backend_server() -> dict:
+    """Stop the backend server subprocess if it is running."""
+    global _server_process
+    with _server_process_lock:
+        if _server_process is None or _server_process.poll() is not None:
+            _server_process = None
+            return {"status": "not_running"}
+        pid = _server_process.pid
+        try:
+            if sys.platform == "win32":
+                _server_process.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                _server_process.terminate()
+            _server_process.wait(timeout=_SHUTDOWN_TIMEOUT_S)
+        except Exception:
+            try:
+                _server_process.kill()
+                _server_process.wait(timeout=5)
+            except Exception:
+                pass
+        _server_process = None
+        return {"status": "stopped", "pid": pid}
+
+
+def _backend_server_status() -> dict:
+    """Return the current status of the backend server subprocess."""
+    with _server_process_lock:
+        if _server_process is not None and _server_process.poll() is None:
+            return {"running": True, "pid": _server_process.pid}
+        return {"running": False}
 
 
 # ── Local file server ───────────────────────────────────────────
@@ -234,6 +360,21 @@ class _LPU5Handler(SimpleHTTPRequestHandler):
             _send_json(self, 200, {"has_users": len(_load_users()) > 0})
             return
 
+        # /api/standalone/auto_login – auto-login with default admin
+        if path == "/api/standalone/auto_login":
+            token, user_info = _auto_login_admin()
+            _send_json(self, 200, {
+                "status": "success",
+                "token": token,
+                "user": user_info,
+            })
+            return
+
+        # /api/standalone/server_status – backend server status
+        if path == "/api/standalone/server_status":
+            _send_json(self, 200, _backend_server_status())
+            return
+
         if path in _API_STUBS:
             status, body = _API_STUBS[path]
             _send_json(self, status, body)
@@ -324,6 +465,19 @@ class _LPU5Handler(SimpleHTTPRequestHandler):
             return
 
         # Catch-all for other POST /api/* endpoints
+
+        # Start backend server (api.py)
+        if path == "/api/standalone/start_server":
+            result = _start_backend_server()
+            _send_json(self, 200, result)
+            return
+
+        # Stop backend server
+        if path == "/api/standalone/stop_server":
+            result = _stop_backend_server()
+            _send_json(self, 200, result)
+            return
+
         if path.startswith("/api/"):
             _send_json(self, 200, {"status": "ok", "standalone": True})
             return
@@ -477,11 +631,13 @@ def main():
     print(f"[*] Version: {VERSION}")
     print(f"[*] Lokaler Server: http://127.0.0.1:{port}")
     print(f"[*] UI: {local_url}")
+
+    # Ensure default admin account exists (auto-created on first start)
+    admin = _ensure_default_admin()
+    print(f"[*] Standard-Admin: {admin['username']} (Rolle: {admin['role']})")
     users = _load_users()
-    if users:
-        print(f"[*] Lokale Benutzer: {len(users)}")
-    else:
-        print("[*] Kein Benutzer vorhanden – Erstregistrierung beim Start.")
+    print(f"[*] Lokale Benutzer: {len(users)}")
+
     if _serial_list_ports:
         ports = _scan_serial_ports()
         print(f"[*] COM-Ports: {len(ports)} gefunden")
@@ -513,6 +669,8 @@ def main():
     try:
         webview.start(debug=args.debug, gui=gui)
     finally:
+        # Stop backend server if it was started from the UI
+        _stop_backend_server()
         server.shutdown()
 
 

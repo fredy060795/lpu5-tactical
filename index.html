@@ -7106,6 +7106,78 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
     </div>
 </header>
 
+<!-- ── Server Connection Panel (standalone mode only) ── -->
+<div id="serverConnectionPanel" style="display:none; padding:0 20px;">
+    <div style="background:#1a1a1a; border:1px solid #333; border-radius:6px; padding:20px; margin-bottom:20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #282828;">
+            <div style="font-size:1.1rem; font-weight:bold; color:#d0d0d0;">
+                <i class="fas fa-server" style="color:#3498db; margin-right:8px;"></i>
+                Server Backend
+            </div>
+            <div id="serverStatusBadge" style="padding:4px 12px; border-radius:12px; font-size:0.8rem; font-weight:bold; background:#333; color:#888;">
+                <i class="fas fa-circle" style="font-size:0.6rem; margin-right:4px;"></i>
+                Offline
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+            <!-- Option 1: Start Own Server -->
+            <div style="background:#111; border:1px solid #282828; border-radius:4px; padding:15px;">
+                <div style="font-weight:bold; color:#2ecc71; margin-bottom:8px; font-size:0.95rem;">
+                    <i class="fas fa-play-circle" style="margin-right:6px;"></i>
+                    Eigenen Server starten
+                </div>
+                <div style="color:#888; font-size:0.8rem; margin-bottom:12px;">
+                    Startet das LPU5 Backend lokal. Sie sind automatisch als Admin angemeldet.
+                </div>
+                <div id="localServerInfo" style="display:none; color:#888; font-size:0.8rem; margin-bottom:10px;">
+                    <span style="color:#2ecc71;">●</span> Server läuft auf Port <strong style="color:#d0d0d0;">8101</strong>
+                </div>
+                <button id="btnStartServer" onclick="standaloneStartServer()" style="width:100%; padding:10px; background:linear-gradient(135deg,#27ae60,#2ecc71); border:none; color:#fff; font-family:'Courier New',monospace; font-size:0.9rem; font-weight:bold; border-radius:4px; cursor:pointer; text-transform:uppercase;">
+                    <i class="fas fa-power-off"></i> Server starten
+                </button>
+                <button id="btnStopServer" onclick="standaloneStopServer()" style="display:none; width:100%; padding:10px; background:linear-gradient(135deg,#c0392b,#e74c3c); border:none; color:#fff; font-family:'Courier New',monospace; font-size:0.9rem; font-weight:bold; border-radius:4px; cursor:pointer; text-transform:uppercase;">
+                    <i class="fas fa-stop"></i> Server stoppen
+                </button>
+                <button id="btnConnectLocal" onclick="standaloneConnectLocal()" style="display:none; width:100%; padding:10px; margin-top:8px; background:linear-gradient(135deg,#2980b9,#3498db); border:none; color:#fff; font-family:'Courier New',monospace; font-size:0.9rem; font-weight:bold; border-radius:4px; cursor:pointer; text-transform:uppercase;">
+                    <i class="fas fa-plug"></i> Mit Server verbinden
+                </button>
+            </div>
+
+            <!-- Option 2: Connect to Existing Server -->
+            <div style="background:#111; border:1px solid #282828; border-radius:4px; padding:15px;">
+                <div style="font-weight:bold; color:#3498db; margin-bottom:8px; font-size:0.95rem;">
+                    <i class="fas fa-network-wired" style="margin-right:6px;"></i>
+                    Mit Server verbinden
+                </div>
+                <div style="color:#888; font-size:0.8rem; margin-bottom:12px;">
+                    Verbinden Sie sich mit einem bestehenden LPU5 Server. Melden Sie sich mit Ihren Zugangsdaten an.
+                </div>
+                <div class="error-msg" id="remoteConnError" style="display:none; background:rgba(220,53,69,0.2); border:1px solid #dc3545; color:#ff6b6b; padding:8px; border-radius:4px; font-size:0.8rem; margin-bottom:8px;"></div>
+                <div id="remoteConnSuccess" style="display:none; background:rgba(39,174,96,0.2); border:1px solid #27ae60; color:#2ecc71; padding:8px; border-radius:4px; font-size:0.8rem; margin-bottom:8px;"></div>
+                <div style="margin-bottom:8px;">
+                    <label style="display:block; color:#888; font-size:0.75rem; text-transform:uppercase; margin-bottom:3px;">Server URL</label>
+                    <input type="text" id="remoteServerUrl" placeholder="https://192.168.1.100:8101" style="width:100%; padding:8px; background:#000; border:1px solid #333; color:#fff; font-family:'Courier New',monospace; font-size:0.85rem; border-radius:3px; box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:8px;">
+                    <label style="display:block; color:#888; font-size:0.75rem; text-transform:uppercase; margin-bottom:3px;">Username</label>
+                    <input type="text" id="remoteUsername" placeholder="username" style="width:100%; padding:8px; background:#000; border:1px solid #333; color:#fff; font-family:'Courier New',monospace; font-size:0.85rem; border-radius:3px; box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="display:block; color:#888; font-size:0.75rem; text-transform:uppercase; margin-bottom:3px;">Password</label>
+                    <input type="password" id="remotePassword" placeholder="password" style="width:100%; padding:8px; background:#000; border:1px solid #333; color:#fff; font-family:'Courier New',monospace; font-size:0.85rem; border-radius:3px; box-sizing:border-box;">
+                </div>
+                <button onclick="standaloneConnectRemote()" style="width:100%; padding:10px; background:linear-gradient(135deg,#2980b9,#3498db); border:none; color:#fff; font-family:'Courier New',monospace; font-size:0.9rem; font-weight:bold; border-radius:4px; cursor:pointer; text-transform:uppercase;">
+                    <i class="fas fa-sign-in-alt"></i> Anmelden
+                </button>
+                <button id="btnDisconnectRemote" onclick="standaloneDisconnectRemote()" style="display:none; width:100%; padding:10px; margin-top:8px; background:linear-gradient(135deg,#c0392b,#e74c3c); border:none; color:#fff; font-family:'Courier New',monospace; font-size:0.9rem; font-weight:bold; border-radius:4px; cursor:pointer; text-transform:uppercase;">
+                    <i class="fas fa-unlink"></i> Trennen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="container">
     <table>
         <thead>
@@ -10628,8 +10700,253 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
                     if (el) el.textContent = u.fullname || u.username || u.callsign || '';
                 }
             } catch(e){}
+            // Show server connection panel in standalone mode
+            if (window._standaloneMode) {
+                var panel = document.getElementById('serverConnectionPanel');
+                if (panel) panel.style.display = 'block';
+            }
             var hash = location.hash.replace('#', '') || 'dashboard';
             navigateTo(hash);
+        }
+
+        /* ── Server Backend Management (standalone mode) ── */
+
+        // Base URL of the connected backend server (null = local stubs only)
+        window._lpu5ServerUrl = null;
+
+        // Server health-check retry limits
+        var _SERVER_READY_RETRIES_HTTPS = 30;   // ~30 s for HTTPS
+        var _SERVER_READY_RETRIES_HTTP  = 5;    // ~5 s  for HTTP fallback
+
+        // Override apiFetch to proxy through connected server when available
+        var _origApiFetch = window.apiFetch;
+        window.apiFetch = function(path, opts) {
+            if (window._lpu5ServerUrl && !path.startsWith('/api/standalone/')) {
+                var url = window._lpu5ServerUrl.replace(/\/+$/, '') + path;
+                opts = opts || {};
+                opts.headers = opts.headers || {};
+                var token = spaToken();
+                if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+                return fetch(url, opts);
+            }
+            return _origApiFetch(path, opts);
+        };
+
+        // Start own local server (Use Case 1)
+        window.standaloneStartServer = async function() {
+            var btn = document.getElementById('btnStartServer');
+            if (btn) { btn.disabled = true; btn.textContent = 'Starte Server...'; }
+            try {
+                var res = await fetch('/api/standalone/start_server', { method: 'POST' });
+                var data = await res.json();
+                if (data.status === 'started' || data.status === 'already_running') {
+                    _updateServerPanel(true);
+                    // Poll until server is ready
+                    _waitForServer('https://127.0.0.1:8101', _SERVER_READY_RETRIES_HTTPS).then(function(ready) {
+                        if (!ready) {
+                            // Try HTTP fallback
+                            _waitForServer('http://127.0.0.1:8101', _SERVER_READY_RETRIES_HTTP).then(function(readyHttp) {
+                                if (readyHttp) {
+                                    _autoConnectLocalServer('http://127.0.0.1:8101');
+                                }
+                            });
+                        } else {
+                            _autoConnectLocalServer('https://127.0.0.1:8101');
+                        }
+                    });
+                } else {
+                    alert('Server konnte nicht gestartet werden: ' + (data.detail || data.status));
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-power-off"></i> Server starten'; }
+                }
+            } catch(e) {
+                alert('Fehler beim Starten: ' + e.message);
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-power-off"></i> Server starten'; }
+            }
+        };
+
+        // Stop local server
+        window.standaloneStopServer = async function() {
+            try {
+                await fetch('/api/standalone/stop_server', { method: 'POST' });
+                window._lpu5ServerUrl = null;
+                localStorage.removeItem('lpu5_server_url');
+                _updateServerPanel(false);
+            } catch(e) {
+                console.error('Stop server error:', e);
+            }
+        };
+
+        // Connect to local server after start with admin credentials
+        // Note: api.py creates its own default admin 'administrator'/'password'
+        // (different from the LPU5.py local stub admin 'admin'/'admin').
+        async function _autoConnectLocalServer(serverUrl) {
+            try {
+                var res = await fetch(serverUrl + '/api/login_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'administrator', password: 'password' })
+                });
+                if (res.ok) {
+                    var data = await res.json();
+                    window._lpu5ServerUrl = serverUrl;
+                    localStorage.setItem('lpu5_server_url', serverUrl);
+                    localStorage.setItem('lpu5_user', JSON.stringify(data.user));
+                    localStorage.setItem('lpu5_token', data.token);
+                    if (data.token) localStorage.setItem('token', data.token);
+                    _updateServerPanel(true, serverUrl);
+                    // Update username display
+                    var el = document.getElementById('userName');
+                    if (el) el.textContent = data.user.fullname || data.user.username || '';
+                }
+            } catch(e) {
+                console.log('Auto-connect local server: ' + e.message);
+            }
+        }
+
+        // Wait for server health endpoint
+        function _waitForServer(url, maxRetries) {
+            return new Promise(function(resolve) {
+                var attempts = 0;
+                function check() {
+                    fetch(url + '/api/health', { mode: 'cors' })
+                        .then(function(r) { return r.json(); })
+                        .then(function() { resolve(true); })
+                        .catch(function() {
+                            attempts++;
+                            if (attempts < maxRetries) {
+                                setTimeout(check, 1000);
+                            } else {
+                                resolve(false);
+                            }
+                        });
+                }
+                check();
+            });
+        }
+
+        // Connect to existing remote server (Use Case 2)
+        window.standaloneConnectRemote = async function() {
+            var url = (document.getElementById('remoteServerUrl').value || '').trim();
+            var user = (document.getElementById('remoteUsername').value || '').trim();
+            var pass = (document.getElementById('remotePassword').value || '').trim();
+            var errEl = document.getElementById('remoteConnError');
+            var successEl = document.getElementById('remoteConnSuccess');
+            errEl.style.display = 'none';
+            successEl.style.display = 'none';
+
+            if (!url) { errEl.textContent = 'Server URL erforderlich'; errEl.style.display = 'block'; return; }
+            if (!user || !pass) { errEl.textContent = 'Username und Passwort erforderlich'; errEl.style.display = 'block'; return; }
+
+            // Normalize URL
+            url = url.replace(/\/+$/, '');
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+
+            try {
+                var res = await fetch(url + '/api/login_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                var data = await res.json();
+                if (res.ok && data.token) {
+                    window._lpu5ServerUrl = url;
+                    localStorage.setItem('lpu5_server_url', url);
+                    localStorage.setItem('lpu5_user', JSON.stringify(data.user));
+                    localStorage.setItem('lpu5_token', data.token);
+                    localStorage.setItem('token', data.token);
+                    _updateServerPanel(true, url);
+                    successEl.textContent = '✓ Verbunden mit ' + url + ' als ' + (data.user.username || user);
+                    successEl.style.display = 'block';
+                    // Show disconnect button
+                    var discBtn = document.getElementById('btnDisconnectRemote');
+                    if (discBtn) discBtn.style.display = 'block';
+                    // Update username display
+                    var el = document.getElementById('userName');
+                    if (el) el.textContent = data.user.fullname || data.user.username || '';
+                } else {
+                    errEl.textContent = '⌧ ' + (data.detail || data.message || 'Login fehlgeschlagen');
+                    errEl.style.display = 'block';
+                }
+            } catch(e) {
+                errEl.textContent = 'Verbindungsfehler: ' + e.message;
+                errEl.style.display = 'block';
+            }
+        };
+
+        // Disconnect from remote server
+        window.standaloneDisconnectRemote = function() {
+            window._lpu5ServerUrl = null;
+            localStorage.removeItem('lpu5_server_url');
+            // Re-login with local admin
+            fetch('/api/standalone/auto_login')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    localStorage.setItem('lpu5_user', JSON.stringify(data.user));
+                    localStorage.setItem('lpu5_token', data.token);
+                    var el = document.getElementById('userName');
+                    if (el) el.textContent = data.user.fullname || data.user.username || '';
+                }).catch(function(){});
+            _updateServerPanel(false);
+            var errEl = document.getElementById('remoteConnError');
+            var successEl = document.getElementById('remoteConnSuccess');
+            if (errEl) errEl.style.display = 'none';
+            if (successEl) successEl.style.display = 'none';
+            var discBtn = document.getElementById('btnDisconnectRemote');
+            if (discBtn) discBtn.style.display = 'none';
+        };
+
+        // Update server panel UI
+        function _updateServerPanel(connected, serverUrl) {
+            var badge = document.getElementById('serverStatusBadge');
+            var startBtn = document.getElementById('btnStartServer');
+            var stopBtn = document.getElementById('btnStopServer');
+            var connectBtn = document.getElementById('btnConnectLocal');
+            var localInfo = document.getElementById('localServerInfo');
+
+            if (connected) {
+                if (badge) {
+                    badge.innerHTML = '<i class="fas fa-circle" style="font-size:0.6rem; margin-right:4px; color:#2ecc71;"></i> Online' + (serverUrl ? ' – ' + serverUrl : '');
+                    badge.style.background = 'rgba(46,204,113,0.15)';
+                    badge.style.color = '#2ecc71';
+                }
+                if (startBtn) startBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'block';
+                if (connectBtn) connectBtn.style.display = serverUrl ? 'none' : 'block';
+                if (localInfo) localInfo.style.display = serverUrl ? 'block' : 'none';
+            } else {
+                if (badge) {
+                    badge.innerHTML = '<i class="fas fa-circle" style="font-size:0.6rem; margin-right:4px;"></i> Offline';
+                    badge.style.background = '#333';
+                    badge.style.color = '#888';
+                }
+                if (startBtn) { startBtn.style.display = 'block'; startBtn.disabled = false; startBtn.innerHTML = '<i class="fas fa-power-off"></i> Server starten'; }
+                if (stopBtn) stopBtn.style.display = 'none';
+                if (connectBtn) connectBtn.style.display = 'none';
+                if (localInfo) localInfo.style.display = 'none';
+            }
+        }
+
+        // Connect to local server UI button
+        window.standaloneConnectLocal = function() {
+            var serverUrl = localStorage.getItem('lpu5_server_url') || 'https://127.0.0.1:8101';
+            _autoConnectLocalServer(serverUrl);
+        };
+
+        // Poll server status periodically in standalone mode
+        function _pollServerStatus() {
+            if (!window._standaloneMode) return;
+            fetch('/api/standalone/server_status')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.running && window._lpu5ServerUrl && window._lpu5ServerUrl.indexOf('127.0.0.1') !== -1) {
+                        // Local server died
+                        window._lpu5ServerUrl = null;
+                        localStorage.removeItem('lpu5_server_url');
+                        _updateServerPanel(false);
+                    }
+                }).catch(function(){});
         }
 
         /* ── Startup ── */
@@ -10642,22 +10959,27 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             });
 
             if (window._standaloneMode) {
-                // Standalone desktop mode – check if local users exist
-                fetch('/api/standalone/has_users')
+                // Standalone desktop mode – auto-login with default admin
+                // Registration is hidden; login overlay is skipped
+                fetch('/api/standalone/auto_login')
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
-                        if (data.has_users) {
-                            // Users exist → show login form
-                            _showStandaloneLogin();
+                        if (data.token && data.user) {
+                            localStorage.setItem('lpu5_user', JSON.stringify(data.user));
+                            localStorage.setItem('lpu5_token', data.token);
+                            localStorage.setItem('token', data.token);
+                            spaShowApp();
                         } else {
-                            // No users yet → show registration form
-                            _showStandaloneSetup();
+                            // Fallback: show login
+                            _showStandaloneLogin();
                         }
                     })
                     .catch(function() {
-                        // Fallback: show login form
+                        // Fallback: show login
                         _showStandaloneLogin();
                     });
+                // Start server status polling
+                setInterval(_pollServerStatus, 5000);
                 return;
             }
 
