@@ -1,32 +1,210 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LPU5.py – Standalone LPU5 Tactical Map Client
+LPU5.py – Standalone LPU5 Tactical Desktop Client
 
-Desktop application that runs independently from the LPU5 server.
-Opens directly with the full tactical map UI — no login wall.
-Connect to any LPU5 server via the built-in Network panel to sync
-markers, positions, Meshtastic nodes, and more.
+Full 1:1 copy of the web UI (Dashboard, Admin, SDR, Map, etc.)
+running as a native desktop window — no server required.
+
+A lightweight local HTTP server serves the project files so that all
+relative paths (JS, CSS, images, assets) work correctly.  The SPA
+opens in standalone mode (login bypassed) with empty data.  Use the
+built-in Network view to connect to a remote LPU5 server for live
+data synchronisation.
 
 Requirements:
     pip install pywebview
 
 Usage:
     python LPU5.py
-    python LPU5.py --url https://192.168.1.10:8101
     python LPU5.py --fullscreen
+    python LPU5.py --debug
     python LPU5.py --width 1600 --height 1000
 """
 
 import argparse
+import functools
 import json
 import os
+import socket
 import sys
+import threading
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 VERSION = "1.0.0"
 
 
-def check_dependencies():
+# ── Local file server ───────────────────────────────────────────
+# Serves all project files AND provides minimal stub API responses
+# so the SPA doesn't break when running without the real backend.
+
+# Minimal JSON stubs keyed by request path.
+_API_STUBS: dict[str, tuple[int, dict | list]] = {
+    "/api/me": (
+        200,
+        {
+            "id": "standalone",
+            "username": "offline",
+            "callsign": "OFFLINE",
+            "role": "admin",
+            "fullname": "Standalone User",
+        },
+    ),
+    "/api/health": (200, {"status": "ok", "standalone": True}),
+    "/api/map_markers": (200, []),
+    "/api/meshtastic/nodes": (200, []),
+    "/api/missions": (200, []),
+    "/api/users": (200, []),
+    "/api/pending_registrations": (200, []),
+    "/api/groups": (200, []),
+    "/api/chat/channels": (200, []),
+    "/api/drawings": (200, []),
+    "/api/overlays": (200, []),
+    "/api/symbols": (200, []),
+    "/api/map_symbols": (200, []),
+    "/api/geofences": (200, []),
+    "/api/autonomous_rules": (200, []),
+    "/api/sessions": (200, []),
+    "/api/audit_log": (200, []),
+    "/api/scan_ports": (200, []),
+    "/api/federation/servers": (200, []),
+    "/api/federation/info": (
+        200,
+        {
+            "server_name": "LPU5 Standalone",
+            "version": VERSION,
+            "standalone": True,
+        },
+    ),
+    "/api/server_info": (
+        200,
+        {
+            "server_name": "LPU5 Standalone",
+            "version": VERSION,
+            "base_url": "",
+            "standalone": True,
+        },
+    ),
+    "/api/config": (200, {}),
+    "/api/dependencies/check": (200, {"standalone": True}),
+}
+
+
+class _LPU5Handler(SimpleHTTPRequestHandler):
+    """Serve static files + return stubs for /api/* requests."""
+
+    def do_GET(self):
+        # Strip query string for path matching
+        path = self.path.split("?")[0]
+
+        if path in _API_STUBS:
+            status, body = _API_STUBS[path]
+            payload = json.dumps(body).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        # Catch-all for unknown /api/* endpoints → empty JSON
+        if path.startswith("/api/"):
+            payload = b"[]"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        # Default: serve static file
+        super().do_GET()
+
+    def do_POST(self):
+        path = self.path.split("?")[0]
+
+        # Stub login – always succeed in standalone mode
+        if path == "/api/login_user":
+            body = {
+                "token": "standalone_token",
+                "user": {
+                    "id": "standalone",
+                    "username": "standalone",
+                    "callsign": "OFFLINE",
+                    "role": "admin",
+                    "fullname": "Standalone User",
+                },
+            }
+            payload = json.dumps(body).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        # Catch-all for other POST /api/* endpoints
+        if path.startswith("/api/"):
+            payload = json.dumps({"status": "ok", "standalone": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        self.send_error(405)
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization")
+        self.end_headers()
+
+    def do_PUT(self):
+        self.do_POST()
+
+    def do_DELETE(self):
+        path = self.path.split("?")[0]
+        if path.startswith("/api/"):
+            payload = json.dumps({"status": "ok"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        self.send_error(405)
+
+    # Suppress noisy access logs
+    def log_message(self, format, *log_args):
+        pass
+
+
+def _find_free_port() -> int:
+    """Find an available TCP port on localhost."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _start_local_server(directory: str, port: int) -> HTTPServer:
+    """Start a background HTTP server rooted at *directory*."""
+    handler = functools.partial(_LPU5Handler, directory=directory)
+    server = HTTPServer(("127.0.0.1", port), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server
+
+
+# ── Dependency check ────────────────────────────────────────────
+
+def check_dependencies() -> bool:
     """Verify that pywebview is installed."""
     try:
         import webview  # noqa: F401
@@ -41,11 +219,7 @@ def check_dependencies():
         return False
 
 
-def get_html_path():
-    """Resolve path to LPU5_ui.html relative to this script."""
-    base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, "LPU5_ui.html")
-
+# ── pywebview JS API bridge ─────────────────────────────────────
 
 class LPU5Api:
     """Python-to-JS bridge exposed via pywebview js_api.
@@ -78,22 +252,18 @@ class LPU5Api:
         }
 
 
+# ── Main ────────────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(
-        description="LPU5 Tactical Map – Standalone Client",
+        description="LPU5 Tactical Tracker – Standalone Desktop Client",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Beispiele:\n"
-            "  python LPU5.py                          Normaler Start\n"
-            "  python LPU5.py --fullscreen              Vollbild\n"
-            "  python LPU5.py --url https://10.0.0.1:8101  Auto-Verbindung\n"
+            "  python LPU5.py                    Normaler Start\n"
+            "  python LPU5.py --fullscreen        Vollbild\n"
+            "  python LPU5.py --debug             Mit Entwickler-Tools\n"
         ),
-    )
-    parser.add_argument(
-        "--url",
-        type=str,
-        default=None,
-        help="Auto-Verbindung zu Server-URL (z.B. https://192.168.1.10:8101)",
     )
     parser.add_argument(
         "--fullscreen",
@@ -125,17 +295,30 @@ def main():
 
     import webview
 
-    html_path = get_html_path()
-    if not os.path.exists(html_path):
-        print(f"[FEHLER] UI-Datei nicht gefunden: {html_path}")
+    # Resolve project root (directory containing this script)
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    index_path = os.path.join(project_dir, "index.html")
+    if not os.path.exists(index_path):
+        print(f"[FEHLER] index.html nicht gefunden in: {project_dir}")
         sys.exit(1)
+
+    # Start local HTTP server
+    port = _find_free_port()
+    server = _start_local_server(project_dir, port)
+    local_url = f"http://127.0.0.1:{port}/index.html?standalone=1"
+
+    print("[*] LPU5 Tactical Tracker – Standalone Client")
+    print(f"[*] Version: {VERSION}")
+    print(f"[*] Lokaler Server: http://127.0.0.1:{port}")
+    print(f"[*] UI: {local_url}")
+    print("[*] Fenster schließen zum Beenden.")
 
     api = LPU5Api()
 
     # Create the main application window
     window = webview.create_window(
         "LPU5 Tactical Tracker",
-        url=html_path,
+        url=local_url,
         width=args.width,
         height=args.height,
         min_size=(800, 600),
@@ -145,39 +328,15 @@ def main():
     )
     api.set_window(window)
 
-    # If --url provided, inject auto-connect call after page loads
-    if args.url:
-        server_url = args.url.rstrip("/")
-        # Validate URL format
-        from urllib.parse import urlparse
-
-        parsed = urlparse(server_url)
-        if parsed.scheme not in ("http", "https"):
-            print(f"[FEHLER] Ungültiges URL-Schema: {parsed.scheme}")
-            print("         Erlaubt: http, https")
-            sys.exit(1)
-        if not parsed.hostname:
-            print(f"[FEHLER] Kein Hostname in URL: {server_url}")
-            sys.exit(1)
-
-        def on_loaded():
-            safe_url = json.dumps(server_url)
-            window.evaluate_js(f"autoConnectServer({safe_url})")
-
-        window.events.loaded += on_loaded
-
-    print("[*] LPU5 Tactical Tracker wird gestartet...")
-    print(f"[*] UI: {html_path}")
-    if args.url:
-        print(f"[*] Auto-Verbindung: {args.url}")
-    print("[*] Fenster schließen zum Beenden.")
-
     # Select GUI backend based on platform
     gui = None
     if sys.platform == "win32":
         gui = "edgechromium"
 
-    webview.start(debug=args.debug, gui=gui)
+    try:
+        webview.start(debug=args.debug, gui=gui)
+    finally:
+        server.shutdown()
 
 
 if __name__ == "__main__":

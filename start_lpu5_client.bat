@@ -6,7 +6,7 @@ setlocal enabledelayedexpansion
 echo.
 echo ========================================
 echo   LPU5 TACTICAL TRACKER - CLIENT
-echo   Standalone Karten-Anwendung
+echo   Standalone Desktop-Anwendung (Full UI)
 echo ========================================
 echo.
 
@@ -73,11 +73,11 @@ if errorlevel 1 (
     echo [OK] Abhaengigkeiten vorhanden
 )
 
-REM ── UI-Datei pruefen ─────────────────────────────────────────
-if not exist "LPU5_ui.html" (
-    echo [FEHLER] LPU5_ui.html nicht gefunden!
-    echo          Stellen Sie sicher, dass die Datei im gleichen
-    echo          Verzeichnis wie dieses Skript liegt.
+REM ── Dateien pruefen ──────────────────────────────────────────
+if not exist "index.html" (
+    echo [FEHLER] index.html nicht gefunden!
+    echo          Stellen Sie sicher, dass dieses Skript im
+    echo          LPU5 Projektverzeichnis liegt.
     pause
     exit /b 1
 )
@@ -91,7 +91,8 @@ if not exist "LPU5.py" (
 REM ── Client starten ───────────────────────────────────────────
 echo.
 echo ========================================
-echo   Starte LPU5 Client...
+echo   Starte LPU5 Desktop Client...
+echo   Vollstaendige UI ohne Server.
 echo   Fenster schliessen zum Beenden.
 echo ========================================
 echo.
