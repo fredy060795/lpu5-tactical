@@ -10534,11 +10534,25 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
         }
 
         /* ── Startup ── */
+        window._standaloneMode = (new URLSearchParams(window.location.search)).get('standalone') === '1';
+
         window.addEventListener('DOMContentLoaded', function() {
             // Disable all section styles initially
             document.querySelectorAll('style[data-view]').forEach(function(s) {
                 s.disabled = true;
             });
+
+            if (window._standaloneMode) {
+                // Standalone desktop mode – skip login, show full UI
+                localStorage.setItem('lpu5_token', 'standalone_token');
+                localStorage.setItem('lpu5_user', JSON.stringify({
+                    id: 'standalone', username: 'standalone',
+                    callsign: 'OFFLINE', role: 'admin',
+                    fullname: 'Standalone'
+                }));
+                spaShowApp();
+                return;
+            }
 
             var saved = localStorage.getItem('lpu5_token');
             if (saved) {
