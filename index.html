@@ -10714,6 +10714,10 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
         // Base URL of the connected backend server (null = local stubs only)
         window._lpu5ServerUrl = null;
 
+        // Server health-check retry limits
+        var _SERVER_READY_RETRIES_HTTPS = 30;   // ~30 s for HTTPS
+        var _SERVER_READY_RETRIES_HTTP  = 5;    // ~5 s  for HTTP fallback
+
         // Override apiFetch to proxy through connected server when available
         var _origApiFetch = window.apiFetch;
         window.apiFetch = function(path, opts) {
@@ -10738,10 +10742,10 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
                 if (data.status === 'started' || data.status === 'already_running') {
                     _updateServerPanel(true);
                     // Poll until server is ready
-                    _waitForServer('https://127.0.0.1:8101', 30).then(function(ready) {
+                    _waitForServer('https://127.0.0.1:8101', _SERVER_READY_RETRIES_HTTPS).then(function(ready) {
                         if (!ready) {
                             // Try HTTP fallback
-                            _waitForServer('http://127.0.0.1:8101', 5).then(function(readyHttp) {
+                            _waitForServer('http://127.0.0.1:8101', _SERVER_READY_RETRIES_HTTP).then(function(readyHttp) {
                                 if (readyHttp) {
                                     _autoConnectLocalServer('http://127.0.0.1:8101');
                                 }
@@ -10773,6 +10777,8 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
         };
 
         // Connect to local server after start with admin credentials
+        // Note: api.py creates its own default admin 'administrator'/'password'
+        // (different from the LPU5.py local stub admin 'admin'/'admin').
         async function _autoConnectLocalServer(serverUrl) {
             try {
                 var res = await fetch(serverUrl + '/api/login_user', {

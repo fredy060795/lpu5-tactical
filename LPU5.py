@@ -58,6 +58,7 @@ _DEFAULT_ADMIN_USER = "admin"
 _DEFAULT_ADMIN_PASS = "admin"
 
 # ── Backend server subprocess management ────────────────────────
+_SHUTDOWN_TIMEOUT_S = 10
 _server_process: subprocess.Popen | None = None
 _server_process_lock = threading.Lock()
 
@@ -212,20 +213,23 @@ def _start_backend_server() -> dict:
             return {"status": "error", "detail": "api.py not found"}
 
         python = _find_python_for_server()
+        log_file = os.path.join(project_dir, "server.log")
         try:
             kwargs: dict = {}
             if sys.platform == "win32":
                 kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            fh = open(log_file, "a", encoding="utf-8")
             _server_process = subprocess.Popen(
                 [python, api_script],
                 cwd=project_dir,
-                stdout=subprocess.PIPE,
+                stdout=fh,
                 stderr=subprocess.STDOUT,
                 **kwargs,
             )
         except Exception as exc:
             return {"status": "error", "detail": str(exc)}
 
+        print(f"[*] Backend-Server gestartet (PID {_server_process.pid}), Log: {log_file}")
         return {"status": "started", "pid": _server_process.pid}
 
 
@@ -242,7 +246,7 @@ def _stop_backend_server() -> dict:
                 _server_process.send_signal(signal.CTRL_BREAK_EVENT)
             else:
                 _server_process.terminate()
-            _server_process.wait(timeout=10)
+            _server_process.wait(timeout=_SHUTDOWN_TIMEOUT_S)
         except Exception:
             try:
                 _server_process.kill()
