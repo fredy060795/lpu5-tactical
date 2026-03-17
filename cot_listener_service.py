@@ -32,6 +32,7 @@ import os
 import pathlib
 import queue
 import socket
+import ssl
 import struct
 import sys
 import threading
@@ -1022,6 +1023,294 @@ def _make_web_ingest(store: _EventStore):
         else:
             logger.debug("Could not parse CoT event: %s…", xml_string[:80])
     return _ingest
+
+
+# ---------------------------------------------------------------------------
+# iTAK CoT Bridge Server  (SSL TCP on 127.0.0.1:8089)
+# ---------------------------------------------------------------------------
+# Meshtastic's iOS app includes a built-in TAK server that bridges CoT between
+# iTAK and the LoRa mesh (default 127.0.0.1:4242).  The iTAKBridgeServer
+# replicates this pattern on port 8089 with TLS so the LPU5 ecosystem can
+# serve the same role — iTAK connects to 127.0.0.1:8089 (SSL) and CoT events
+# flow bidirectionally through the existing ingest pipeline into the mesh.
+# ---------------------------------------------------------------------------
+
+class iTAKBridgeServer:
+    """
+    Local SSL TCP server that bridges CoT XML between iTAK on iPhone
+    and the Meshtastic mesh network.
+
+    Binds to ``127.0.0.1:8089`` (SSL/TLS) by default.  iTAK connects as a
+    regular TAK server client and exchanges CoT XML.  Received events are
+    forwarded to *ingest_callback* (the same pipeline as the main CoT
+    listener), and outgoing CoT can be pushed to all connected iTAK
+    clients via :meth:`send_to_clients`.
+
+    The server auto-generates a self-signed certificate when
+    *cert_path*/*key_path* do not exist, using :func:`generate_self_signed_cert`
+    from ``generate_cert.py``.
+    """
+
+    DEFAULT_PORT = 8089
+    DEFAULT_BIND = "127.0.0.1"
+
+    def __init__(
+        self,
+        port: int = DEFAULT_PORT,
+        bind_address: str = DEFAULT_BIND,
+        cert_path: str = "cert.pem",
+        key_path: str = "key.pem",
+        ingest_callback: Optional[Callable[[str], None]] = None,
+        on_client_connect: Optional[Callable[["socket.socket", tuple], None]] = None,
+    ):
+        self.port = port
+        self.bind_address = bind_address
+        self.cert_path = cert_path
+        self.key_path = key_path
+        self.ingest_callback = ingest_callback
+        self.on_client_connect = on_client_connect
+
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._handler_threads: List[threading.Thread] = []
+
+        self._clients: Dict[int, "socket.socket"] = {}
+        self._clients_lock = threading.Lock()
+
+        self.stats: Dict[str, Any] = {
+            "running": False,
+            "started_at": None,
+            "port": port,
+            "bind_address": bind_address,
+            "ssl": True,
+            "events_received": 0,
+            "events_ingested": 0,
+            "connections": 0,
+            "clients_active": 0,
+            "errors": 0,
+        }
+
+    # ------------------------------------------------------------------
+    # SSL context
+    # ------------------------------------------------------------------
+
+    def _get_ssl_context(self) -> ssl.SSLContext:
+        """Create a server-side TLS context, generating certs if missing."""
+        if not os.path.exists(self.cert_path) or not os.path.exists(self.key_path):
+            logger.info("iTAK bridge: generating self-signed certificate …")
+            try:
+                from generate_cert import generate_self_signed_cert
+                if not generate_self_signed_cert(self.cert_path, self.key_path, "127.0.0.1"):
+                    raise RuntimeError("Certificate generation returned False")
+            except Exception as exc:
+                logger.error("iTAK bridge: cert generation failed: %s", exc)
+                raise
+
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.load_cert_chain(self.cert_path, self.key_path)
+        return ctx
+
+    # ------------------------------------------------------------------
+    # Ingest / send helpers (reuse CoTListenerService statics)
+    # ------------------------------------------------------------------
+
+    def _ingest(self, xml_string: str) -> None:
+        self.stats["events_received"] += 1
+        if not self.ingest_callback:
+            logger.debug("iTAK bridge event (no callback): %s…", xml_string[:80])
+            return
+        try:
+            self.ingest_callback(xml_string)
+            self.stats["events_ingested"] += 1
+        except Exception as exc:
+            logger.error("iTAK bridge ingest error: %s", exc)
+            self.stats["errors"] += 1
+
+    def send_to_clients(self, cot_xml: str) -> int:
+        """Push CoT XML to all connected iTAK clients.  Returns count of clients reached."""
+        data = cot_xml.encode("utf-8")
+        sent = 0
+        with self._clients_lock:
+            dead: List[int] = []
+            for fd, sock in list(self._clients.items()):
+                try:
+                    sock.sendall(data)
+                    sent += 1
+                except OSError:
+                    dead.append(fd)
+            for fd in dead:
+                self._clients.pop(fd, None)
+                self.stats["clients_active"] = len(self._clients)
+        if sent:
+            logger.debug("iTAK bridge: pushed CoT to %d client(s)", sent)
+        return sent
+
+    # ------------------------------------------------------------------
+    # Per-connection handler
+    # ------------------------------------------------------------------
+
+    def _handle_connection(self, conn: socket.socket, addr: tuple) -> None:
+        self.stats["connections"] += 1
+        logger.info("iTAK bridge: connection from %s", addr)
+        buf = b""
+        conn.settimeout(_CONN_TIMEOUT)
+        fd = conn.fileno()
+        with self._clients_lock:
+            self._clients[fd] = conn
+            self.stats["clients_active"] = len(self._clients)
+        if self.on_client_connect is not None:
+            try:
+                self.on_client_connect(conn, addr)
+            except Exception:
+                pass
+        try:
+            while not self._stop.is_set():
+                try:
+                    chunk = conn.recv(_RECV_CHUNK)
+                except socket.timeout:
+                    continue
+                except ssl.SSLError as e:
+                    if "timed out" in str(e):
+                        continue
+                    raise
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > _MAX_BUFFER:
+                    logger.warning("iTAK bridge: buffer overflow from %s – discarding", addr)
+                    buf = b""
+                    break
+                text = buf.decode("utf-8", errors="replace")
+                events = CoTListenerService._extract_cot_events(text)
+                for ev in events:
+                    if (' type="t-x-c-t"' in ev or " type='t-x-c-t'" in ev) and "t-x-c-t-r" not in ev:
+                        try:
+                            conn.sendall(CoTListenerService._build_pong_xml().encode("utf-8"))
+                        except OSError:
+                            break
+                    else:
+                        self._ingest(ev)
+                if events:
+                    last_end = text.rfind("</event>") + len("</event>")
+                    buf = text[last_end:].encode("utf-8")
+        except (OSError, ssl.SSLError) as exc:
+            logger.debug("iTAK bridge: connection %s closed: %s", addr, exc)
+        finally:
+            with self._clients_lock:
+                self._clients.pop(fd, None)
+                self.stats["clients_active"] = len(self._clients)
+            try:
+                conn.close()
+            except OSError:
+                pass
+
+    # ------------------------------------------------------------------
+    # Listener loop
+    # ------------------------------------------------------------------
+
+    def _listener(self) -> None:
+        srv: Optional[socket.socket] = None
+        try:
+            ssl_ctx = self._get_ssl_context()
+            raw_srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            raw_srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            raw_srv.settimeout(1.0)
+            raw_srv.bind((self.bind_address, self.port))
+            raw_srv.listen(8)
+            srv = ssl_ctx.wrap_socket(raw_srv, server_side=True)
+            srv.settimeout(1.0)
+            logger.info(
+                "✓ iTAK CoT Bridge started on %s:%d (SSL/TLS)",
+                self.bind_address, self.port,
+            )
+            while not self._stop.is_set():
+                try:
+                    conn, addr = srv.accept()
+                except socket.timeout:
+                    continue
+                except ssl.SSLError as e:
+                    logger.debug("iTAK bridge: SSL accept error: %s", e)
+                    continue
+                self._handler_threads = [t for t in self._handler_threads if t.is_alive()]
+                if len(self._handler_threads) >= _MAX_TCP_THREADS:
+                    logger.warning("iTAK bridge: max connections reached, rejecting %s", addr)
+                    try:
+                        conn.close()
+                    except OSError:
+                        pass
+                    continue
+                t = threading.Thread(
+                    target=self._handle_connection,
+                    args=(conn, addr),
+                    daemon=True,
+                    name=f"itak-bridge-{addr[0]}:{addr[1]}",
+                )
+                t.start()
+                self._handler_threads.append(t)
+        except OSError as exc:
+            if not self._stop.is_set():
+                logger.error("iTAK bridge listener error on port %d: %s", self.port, exc)
+                self.stats["errors"] += 1
+        finally:
+            if srv:
+                try:
+                    srv.close()
+                except OSError:
+                    pass
+            logger.info("iTAK bridge listener stopped")
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self) -> bool:
+        """Start the SSL listener thread.  Returns True on success."""
+        if self.stats["running"]:
+            logger.warning("iTAK bridge is already running")
+            return True
+        self._stop.clear()
+        self._thread = threading.Thread(
+            target=self._listener, daemon=True, name="itak-bridge-ssl",
+        )
+        self._thread.start()
+        self.stats["running"] = True
+        self.stats["started_at"] = datetime.now(timezone.utc).isoformat()
+        return True
+
+    def stop(self) -> None:
+        """Signal the listener to stop and wait for threads to finish."""
+        logger.info("Stopping iTAK CoT Bridge …")
+        self._stop.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5)
+        for t in self._handler_threads:
+            if t.is_alive():
+                t.join(timeout=2)
+        self._handler_threads.clear()
+        with self._clients_lock:
+            for sock in self._clients.values():
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+            self._clients.clear()
+        self.stats["running"] = False
+        self.stats["clients_active"] = 0
+        logger.info("✓ iTAK CoT Bridge stopped")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Return a copy of the current statistics dict."""
+        status = dict(self.stats)
+        if status.get("started_at"):
+            try:
+                started = datetime.fromisoformat(status["started_at"])
+                status["uptime_seconds"] = int(
+                    (datetime.now(timezone.utc) - started).total_seconds()
+                )
+            except Exception:
+                status["uptime_seconds"] = 0
+        return status
 
 
 def main() -> None:

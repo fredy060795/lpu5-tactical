@@ -5427,6 +5427,9 @@
             <div id="menu-mesh-status" style="font-size:0.85em;color:#888;margin-bottom:10px;">
               <i class="fab fa-bluetooth-b"></i> Status: <span id="menu-mesh-status-text">Not connected</span>
             </div>
+            <div id="itak-bridge-status" style="font-size:0.8em;color:#888;margin-bottom:10px;">
+              <i class="fas fa-unlink" style="color:#888;"></i> iTAK Bridge: <span style="color:#888;">Inactive</span>
+            </div>
             <button class="menu-btn" id="menu-mesh-connect-btn"
               onclick="event.stopPropagation();connectMeshtastic();closeMenuPopup()">
               <i class="fab fa-bluetooth-b"></i> Connect Mesh Device
@@ -7279,6 +7282,8 @@
           updateMeshStatus('Connected (native BLE)', true);
           updateMenuMeshButtons(true);
           if (typeof processPendingMessages === 'function') processPendingMessages();
+          // Auto-start iTAK CoT bridge (SSL 127.0.0.1:8089) for iTAK ↔ Mesh
+          _startITAKBridge();
         } catch (error) {
           console.error('[Meshtastic] Native BLE connection failed:', error);
           updateMeshStatus('Native BLE connection failed', false);
@@ -7330,6 +7335,9 @@
         // Process any pending messages
         processPendingMessages();
 
+        // Auto-start iTAK CoT bridge (SSL 127.0.0.1:8089) for iTAK ↔ Mesh
+        _startITAKBridge();
+
       } catch (error) {
         console.error('[Meshtastic] BLE connection failed:', error);
         const statusIndicator = document.getElementById('mesh-status-indicator');
@@ -7373,7 +7381,46 @@
 
       // Update hamburger menu buttons
       updateMenuMeshButtons(false);
+
+      // Stop iTAK CoT bridge
+      _stopITAKBridge();
     };
+
+    // -- iTAK CoT Bridge helpers (SSL 127.0.0.1:8089) ----------------------
+    function _startITAKBridge() {
+      var token = localStorage.getItem('token') || '';
+      fetch('/api/itak_bridge/start', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        console.log('[iTAK Bridge] started:', d);
+        _updateBridgeStatusUI(true, d.port || 8089);
+      }).catch(function(e) {
+        console.warn('[iTAK Bridge] start failed:', e);
+      });
+    }
+    function _stopITAKBridge() {
+      var token = localStorage.getItem('token') || '';
+      fetch('/api/itak_bridge/stop', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function() {
+        console.log('[iTAK Bridge] stopped');
+        _updateBridgeStatusUI(false, 0);
+      }).catch(function(e) {
+        console.warn('[iTAK Bridge] stop failed:', e);
+      });
+    }
+    function _updateBridgeStatusUI(running, port) {
+      var el = document.getElementById('itak-bridge-status');
+      if (!el) return;
+      var safePort = parseInt(port, 10) || 0;
+      if (running) {
+        el.innerHTML = '<i class="fas fa-link" style="color:#2ecc71;"></i> iTAK Bridge: <strong style="color:#2ecc71;">127.0.0.1:' + safePort + ' (SSL)</strong>';
+      } else {
+        el.innerHTML = '<i class="fas fa-unlink" style="color:#888;"></i> iTAK Bridge: <span style="color:#888;">Inactive</span>';
+      }
+    }
 
     // Show iOS Meshtastic Setup Guide
     window.showIOSMeshtasticGuide = function() {

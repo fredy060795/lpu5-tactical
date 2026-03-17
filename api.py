@@ -151,11 +151,12 @@ except Exception as e:
 
 # Import CoT listener service
 try:
-    from cot_listener_service import CoTListenerService
+    from cot_listener_service import CoTListenerService, iTAKBridgeServer
     COT_LISTENER_AVAILABLE = True
 except Exception as e:  # pragma: no cover
     logger.warning("CoT listener service not available: %s", e)
     CoTListenerService = None
+    iTAKBridgeServer = None
     COT_LISTENER_AVAILABLE = False
 
 # RBAC permissions system has been removed - all users have full access
@@ -375,6 +376,22 @@ async def lifespan(application):
         except Exception as e:
             logger.error("Error starting CoT listener service: %s", e)
 
+    # Auto-start iTAK CoT bridge (SSL on 127.0.0.1:8089) when enabled
+    try:
+        cfg = load_json("config") or {}
+        itak_bridge_enabled = cfg.get("itak_bridge_enabled", False)
+    except Exception:
+        itak_bridge_enabled = False
+    if itak_bridge_enabled and COT_LISTENER_AVAILABLE and iTAKBridgeServer is not None:
+        try:
+            if _start_itak_bridge():
+                logger.info("✅ iTAK CoT bridge started (SSL 127.0.0.1:%d)",
+                            int(cfg.get("itak_bridge_port", iTAKBridgeServer.DEFAULT_PORT)))
+            else:
+                logger.warning("⚠️  Failed to start iTAK CoT bridge")
+        except Exception as e:
+            logger.error("Error starting iTAK CoT bridge: %s", e)
+
     # Auto-start TAK receiver thread and forward existing data if TAK integration is enabled
     try:
         tak_cfg = _get_tak_config()
@@ -448,6 +465,12 @@ async def lifespan(application):
         _stop_cot_listener()
     except Exception as e:
         logger.error("Error stopping CoT listener service: %s", e)
+
+    # Stop iTAK CoT bridge
+    try:
+        _stop_itak_bridge()
+    except Exception as e:
+        logger.error("Error stopping iTAK CoT bridge: %s", e)
 
     # Stop gateway service
     global _gateway_service
@@ -1393,6 +1416,20 @@ def _forward_cot_to_tcp_clients(cot_xml: str) -> int:
     return svc.send_to_clients(cot_xml)
 
 
+def _forward_cot_to_itak_bridge(cot_xml: str) -> int:
+    """
+    Push a CoT XML string to all iTAK clients connected via the local
+    SSL bridge on port 8089 (bidirectional data exchange).
+
+    Returns the number of iTAK clients successfully reached.
+    """
+    with _itak_bridge_lock:
+        svc = _itak_bridge_service
+    if svc is None:
+        return 0
+    return svc.send_to_clients(cot_xml)
+
+
 def _build_atak_geochat_xml(sender_uid: str, sender_callsign: str, text: str) -> str:
     """
     Build an ATAK-compatible GeoChat CoT XML string (type b-t-f).
@@ -1459,6 +1496,9 @@ def _forward_chat_to_atak(sender: str, text: str) -> bool:
             delivered = True
         # 3. Send via SA Multicast for LAN ATAK devices
         if _forward_cot_multicast(cot_xml):
+            delivered = True
+        # 4. Push to iTAK bridge clients (SSL port 8089)
+        if _forward_cot_to_itak_bridge(cot_xml) > 0:
             delivered = True
         if delivered:
             logger.info("Chat→ATAK bridge: %s: %s", sender, text[:80])
@@ -1751,6 +1791,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
             if is_new:
                 _forward_cot_to_tcp_clients(cot_xml)
                 _forward_cot_multicast(cot_xml)
+                _forward_cot_to_itak_bridge(cot_xml)
             with _TAK_RECEIVER_STATS_LOCK:
                 _TAK_RECEIVER_STATS["packets_received"] += 1
             return
@@ -1977,6 +2018,7 @@ def _process_incoming_cot(cot_xml: str) -> None:
             try:
                 _forward_cot_to_tcp_clients(cot_xml)
                 _forward_cot_multicast(cot_xml)
+                _forward_cot_to_itak_bridge(cot_xml)
             except Exception as _relay_err:
                 logger.debug("CoT relay to local clients failed: %s", _relay_err)
             logger.info("TAK event received: %s (%s) @ %.6f, %.6f", callsign, event_type, lat, lng)
@@ -2344,6 +2386,7 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
         if cot_event:
             cot_xml = cot_event.to_xml()
             _forward_cot_multicast(cot_xml)
+            _forward_cot_to_itak_bridge(cot_xml)
             return forward_cot_to_tak(cot_xml)
     except Exception as _fwd_err:
         logger.debug("TAK forward for Meshtastic node %s failed: %s", node_id, _fwd_err)
@@ -2569,6 +2612,7 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
                                     mcast_sent += 1
                                 if _forward_cot_to_tcp_clients(cot_xml):
                                     tcp_sent += 1
+                                _forward_cot_to_itak_bridge(cot_xml)
                         except Exception as _mc_err:
                             logger.debug("SA Multicast send for marker %s failed: %s", m.id, _mc_err)
                 if mcast_sent:
@@ -3905,6 +3949,7 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
                     tcp_ok = _forward_cot_to_tcp_clients(cot_xml)
                     if tcp_ok:
                         logger.debug("CoT TCP push on marker_created reached %d client(s): marker_id=%s", tcp_ok, new_marker.id)
+                    _forward_cot_to_itak_bridge(cot_xml)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_created failed: %s", _fwd_err)
 
@@ -3990,6 +4035,7 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
                     tcp_ok = _forward_cot_to_tcp_clients(cot_xml)
                     if tcp_ok:
                         logger.debug("CoT TCP push on marker_updated reached %d client(s): marker_id=%s", tcp_ok, marker_id)
+                    _forward_cot_to_itak_bridge(cot_xml)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_updated failed: %s", _fwd_err)
 
@@ -4062,6 +4108,7 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
                     tcp_ok = _forward_cot_to_tcp_clients(tombstone_xml)
                     if tcp_ok:
                         logger.debug("CoT TCP tombstone pushed to %d client(s) on marker_deleted: marker_id=%s", tcp_ok, marker_id)
+                    _forward_cot_to_itak_bridge(tombstone_xml)
             except Exception as _fwd_err:
                 logger.warning("CoT tombstone forward on marker_deleted failed: %s", _fwd_err)
 
@@ -4853,6 +4900,10 @@ _gateway_service_lock = threading.Lock()
 # Global CoT listener service instance
 _cot_listener_service = None
 _cot_listener_lock = threading.Lock()
+
+# Global iTAK CoT bridge service (SSL TCP on 127.0.0.1:8089)
+_itak_bridge_service = None
+_itak_bridge_lock = threading.Lock()
 
 def _close_meshtastic_interface(iface, port_name: str = "unknown", operation: str = "operation"):
     """
@@ -7716,6 +7767,8 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
         _forward_cot_to_tcp_clients(xml_string)
         # Also push via SA Multicast so ATAK/WinTAK on the LAN stays in sync.
         _forward_cot_multicast(xml_string)
+        # Relay to iTAK bridge clients (SSL port 8089)
+        _forward_cot_to_itak_bridge(xml_string)
     except Exception as exc:
         logger.exception("_cot_listener_ingest_callback failed: %s", exc)
 
@@ -7798,6 +7851,93 @@ def cot_listener_stop(authorization: Optional[str] = Header(None)):
         if verify_token(authorization.split(" ")[1]) is None:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
     _stop_cot_listener()
+    return {"status": "stopped"}
+
+
+# ---------------------------------------------------------------------------
+# iTAK CoT Bridge  (SSL TCP 127.0.0.1:8089 — Meshtastic ↔ iTAK)
+# ---------------------------------------------------------------------------
+
+def _start_itak_bridge() -> bool:
+    """Start the iTAK CoT bridge using config.json settings."""
+    global _itak_bridge_service
+    if not COT_LISTENER_AVAILABLE or iTAKBridgeServer is None:
+        return False
+    with _itak_bridge_lock:
+        if _itak_bridge_service and _itak_bridge_service.stats.get("running"):
+            return True
+        cfg = load_json("config") or {}
+        port = int(cfg.get("itak_bridge_port", iTAKBridgeServer.DEFAULT_PORT))
+        cert_path = str(cfg.get("itak_bridge_cert", "cert.pem"))
+        key_path = str(cfg.get("itak_bridge_key", "key.pem"))
+        _itak_bridge_service = iTAKBridgeServer(
+            port=port,
+            cert_path=cert_path,
+            key_path=key_path,
+            ingest_callback=_cot_listener_ingest_callback,
+            on_client_connect=_cot_listener_on_client_connect,
+        )
+        return _itak_bridge_service.start()
+
+
+def _stop_itak_bridge() -> None:
+    """Stop the iTAK CoT bridge."""
+    global _itak_bridge_service
+    with _itak_bridge_lock:
+        if _itak_bridge_service:
+            _itak_bridge_service.stop()
+            _itak_bridge_service = None
+
+
+@app.get("/api/itak_bridge/status", summary="Get iTAK CoT bridge status")
+def itak_bridge_status():
+    """
+    Return the current status of the local iTAK CoT bridge
+    (SSL TCP on 127.0.0.1:8089).
+    """
+    if not COT_LISTENER_AVAILABLE or iTAKBridgeServer is None:
+        return {"available": False, "message": "iTAK bridge not available"}
+    with _itak_bridge_lock:
+        if not _itak_bridge_service:
+            return {"available": True, "running": False, "message": "iTAK bridge not started"}
+        return {"available": True, **_itak_bridge_service.get_status()}
+
+
+@app.post("/api/itak_bridge/start", summary="Start iTAK CoT bridge")
+def itak_bridge_start(authorization: Optional[str] = Header(None)):
+    """
+    Start the local iTAK CoT bridge on 127.0.0.1:8089 (SSL/TLS).
+
+    This creates a local TAK-compatible SSL server that iTAK on iPhone can
+    connect to.  CoT events flow bidirectionally between iTAK and the
+    Meshtastic mesh network.  The bridge starts automatically when the user
+    activates Mesh in the app.
+    """
+    if not COT_LISTENER_AVAILABLE or iTAKBridgeServer is None:
+        raise HTTPException(status_code=501, detail="iTAK bridge not available")
+    if PERMISSIONS_AVAILABLE:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if verify_token(authorization.split(" ")[1]) is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not _start_itak_bridge():
+        raise HTTPException(status_code=500, detail="Failed to start iTAK bridge")
+    with _itak_bridge_lock:
+        status = _itak_bridge_service.get_status() if _itak_bridge_service else {}
+    return {"status": "started", **status}
+
+
+@app.post("/api/itak_bridge/stop", summary="Stop iTAK CoT bridge")
+def itak_bridge_stop(authorization: Optional[str] = Header(None)):
+    """Stop the local iTAK CoT bridge."""
+    if not COT_LISTENER_AVAILABLE or iTAKBridgeServer is None:
+        raise HTTPException(status_code=501, detail="iTAK bridge not available")
+    if PERMISSIONS_AVAILABLE:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if verify_token(authorization.split(" ")[1]) is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+    _stop_itak_bridge()
     return {"status": "stopped"}
 
 
@@ -8686,6 +8826,7 @@ def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session
                 cot_xml = cot_evt.to_xml()
                 _forward_cot_to_tcp_clients(cot_xml)
                 _forward_cot_multicast(cot_xml)
+                _forward_cot_to_itak_bridge(cot_xml)
                 forward_cot_to_tak(cot_xml)
                 pushed += 1
             else:
