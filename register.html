@@ -236,7 +236,7 @@
 
                 <div id="statusMsg" aria-live="polite"></div>
 
-                <p class="note">Note: After successful registration you will be redirected to the overview page. Login is only active after confirmation by an administrator.</p>
+                <p class="note">Note: Login is only active after confirmation by an administrator.</p>
             </form>
         </div>
     </main>
@@ -438,8 +438,7 @@
 
                     if (res.ok) {
                         // Server accepted registration
-                        showStatus('Registration successfully submitted. Redirecting …', 'ok');
-                        setTimeout(() => { window.location.href = '/overview'; }, 1200);
+                        showStatus('Registration successfully submitted. Please wait for admin approval.', 'ok');
                         return;
                     }
 
@@ -455,7 +454,6 @@
                         note: 'fallback_saved_due_to_server_error: ' + reason
                     });
                     showStatus('Server reported error — Registration saved locally and available for approval in Admin.', 'ok');
-                    setTimeout(()=> { window.location.href = '/overview'; }, 1200);
                 } catch (err) {
                     // network error -> local fallback
                     console.error('Network/register error:', err);
@@ -468,7 +466,6 @@
                         note: 'network_fallback'
                     });
                     showStatus('Network error — Registration saved locally. Admin can import this.', 'ok');
-                    setTimeout(()=> { window.location.href = '/overview'; }, 1200);
                 } finally {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> Register';
