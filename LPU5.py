@@ -22,6 +22,8 @@ Usage:
     python LPU5.py --width 1600 --height 1000
 """
 
+from __future__ import annotations
+
 import argparse
 import functools
 import hashlib
@@ -214,11 +216,12 @@ def _start_backend_server() -> dict:
 
         python = _find_python_for_server()
         log_file = os.path.join(project_dir, "server.log")
+        fh = None
         try:
             kwargs: dict = {}
             if sys.platform == "win32":
                 kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-            fh = open(log_file, "a", encoding="utf-8")
+            fh = open(log_file, "a", encoding="utf-8")  # noqa: SIM115
             _server_process = subprocess.Popen(
                 [python, api_script],
                 cwd=project_dir,
@@ -227,6 +230,8 @@ def _start_backend_server() -> dict:
                 **kwargs,
             )
         except Exception as exc:
+            if fh is not None:
+                fh.close()
             return {"status": "error", "detail": str(exc)}
 
         print(f"[*] Backend-Server gestartet (PID {_server_process.pid}), Log: {log_file}")
@@ -575,6 +580,12 @@ class LPU5Api:
 # ── Main ────────────────────────────────────────────────────────
 
 def main():
+    # ── Python version guard ────────────────────────────────────
+    if sys.version_info < (3, 8):
+        print("[FEHLER] Python 3.8 oder höher wird benötigt.")
+        print(f"         Aktuelle Version: {sys.version}")
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(
         description="LPU5 Tactical Tracker – Standalone Desktop Client",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -661,13 +672,20 @@ def main():
     )
     api.set_window(window)
 
-    # Select GUI backend based on platform
-    gui = None
-    if sys.platform == "win32":
-        gui = "edgechromium"
-
+    # Let pywebview auto-detect the best available GUI backend.
+    # Previously "edgechromium" was hard-coded on Windows which crashes
+    # when the Edge WebView2 Runtime is not installed.
     try:
-        webview.start(debug=args.debug, gui=gui)
+        webview.start(debug=args.debug)
+    except Exception as exc:
+        print(f"[FEHLER] Fenster konnte nicht gestartet werden: {exc}")
+        print("")
+        print("  Mögliche Ursachen:")
+        print("  - Auf Windows: Edge WebView2 Runtime nicht installiert")
+        print("    → https://developer.microsoft.com/en-us/microsoft-edge/webview2/")
+        print("  - Auf Linux: GTK oder Qt mit Python-Bindings fehlt")
+        print("    → sudo apt install python3-gi gir1.2-webkit2-4.0")
+        sys.exit(1)
     finally:
         # Stop backend server if it was started from the UI
         _stop_backend_server()
