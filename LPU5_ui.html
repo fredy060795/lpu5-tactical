@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LPU5 TACTICAL TRACKER</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+
+<style>
+/* ============================================================
+   CSS VARIABLES & RESET
+   ============================================================ */
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --bg-panel: #111;
+  --text-primary: #d0d0d0;
+  --text-dimmed: #888;
+  --text-light: #eee;
+  --accent-blue: #3498db;
+  --accent-green: #2ecc71;
+  --accent-yellow: #f39c12;
+  --accent-red: #e74c3c;
+  --border-color: #333;
+  --border-secondary: #444;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 44px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  z-index: 1000;
+  gap: 12px;
+}
+
+#topbar-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--accent-green);
+  letter-spacing: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#topbar-spacer { flex: 1; }
+
+.topbar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dimmed);
+  white-space: nowrap;
+}
+
+#conn-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--accent-red);
+  box-shadow: 0 0 6px rgba(231,76,60,0.6);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+#conn-dot.connected {
+  background: var(--accent-green);
+  box-shadow: 0 0 6px rgba(46,204,113,0.6);
+}
+#conn-dot.connecting {
+  background: var(--accent-yellow);
+  box-shadow: 0 0 6px rgba(243,156,18,0.6);
+}
+
+#topbar-user {
+  color: var(--text-light);
+  font-weight: bold;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.topbar-btn {
+  background: rgba(52,152,219,0.15);
+  border: 1px solid rgba(52,152,219,0.4);
+  color: var(--accent-blue);
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.topbar-btn:hover {
+  background: rgba(52,152,219,0.3);
+  border-color: var(--accent-blue);
+}
+
+/* ============================================================
+   MAP CONTAINER
+   ============================================================ */
+#map {
+  position: fixed;
+  top: 44px; left: 0; right: 0; bottom: 28px;
+  z-index: 1;
+}
+
+/* Leaflet overrides for dark theme */
+.leaflet-control-zoom a {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--bg-panel) !important;
+}
+.leaflet-control-attribution {
+  background: rgba(10,10,10,0.7) !important;
+  color: var(--text-dimmed) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a { color: var(--accent-blue) !important; }
+.leaflet-control-layers {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+.leaflet-popup-content-wrapper {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 12px !important;
+}
+.leaflet-popup-tip { background: var(--bg-secondary) !important; }
+.leaflet-popup-close-button { color: var(--text-dimmed) !important; }
+
+/* Custom marker icon */
+.lpu5-marker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-blue);
+  background: rgba(52,152,219,0.25);
+  color: var(--accent-blue);
+  font-size: 13px;
+}
+.lpu5-marker-icon.local {
+  border-color: var(--accent-green);
+  background: rgba(46,204,113,0.25);
+  color: var(--accent-green);
+}
+.lpu5-marker-icon.mesh {
+  border-color: var(--accent-yellow);
+  background: rgba(243,156,18,0.25);
+  color: var(--accent-yellow);
+}
+.lpu5-gps-icon {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  border: 3px solid rgba(52,152,219,0.4);
+  box-shadow: 0 0 10px rgba(52,152,219,0.5);
+}
+
+/* ============================================================
+   BOTTOM STATUS BAR
+   ============================================================ */
+#statusbar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 28px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  z-index: 1000;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-dimmed);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.status-item i { font-size: 10px; }
+.status-spacer { flex: 1; }
+
+/* ============================================================
+   NETWORK PANEL (slide-in from right)
+   ============================================================ */
+#nw-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 2000;
+}
+#nw-overlay.open { display: block; }
+
+#nw-panel {
+  position: fixed;
+  top: 0; right: -400px; bottom: 0;
+  width: 380px;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-color);
+  z-index: 2001;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s ease;
+  overflow: hidden;
+}
+#nw-panel.open { right: 0; }
+
+#nw-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-color);
+  gap: 10px;
+  flex-shrink: 0;
+}
+#nw-header-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--text-light);
+  letter-spacing: 1px;
+}
+#nw-header-icon { color: var(--accent-blue); font-size: 16px; }
+#nw-close-btn {
+  background: none; border: none;
+  color: var(--text-dimmed);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+}
+#nw-close-btn:hover { color: var(--text-light); background: rgba(255,255,255,0.1); }
+
+#nw-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+/* Scrollbar styling */
+#nw-body::-webkit-scrollbar { width: 6px; }
+#nw-body::-webkit-scrollbar-track { background: var(--bg-primary); }
+#nw-body::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+/* Network status banner */
+.nw-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
+.nw-status-ok {
+  background: rgba(46,204,113,0.1);
+  border: 1px solid rgba(46,204,113,0.3);
+  color: var(--accent-green);
+}
+.nw-status-off {
+  background: rgba(231,76,60,0.1);
+  border: 1px solid rgba(231,76,60,0.3);
+  color: var(--accent-red);
+}
+
+/* Network dot indicators */
+.nw-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.nw-dot-green { background: #2ecc71; box-shadow: 0 0 6px rgba(46,204,113,0.6); }
+.nw-dot-yellow { background: #f39c12; box-shadow: 0 0 6px rgba(243,156,18,0.6); }
+.nw-dot-red { background: #e74c3c; box-shadow: 0 0 6px rgba(231,76,60,0.6); }
+.nw-dot-gray { background: #555; }
+
+/* Server list items */
+.nw-srv-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s;
+}
+.nw-srv-item:hover { border-color: var(--border-secondary); }
+.nw-srv-item.active { border-color: var(--accent-blue); }
+
+.nw-srv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.nw-srv-name {
+  flex: 1;
+  font-weight: bold;
+  color: var(--text-light);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nw-srv-proto {
+  font-size: 0.65em;
+  background: rgba(52,152,219,0.15);
+  color: var(--accent-blue);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(52,152,219,0.3);
+}
+.nw-srv-del {
+  background: none; border: none;
+  color: var(--text-dimmed);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.nw-srv-del:hover { color: var(--accent-red); }
+
+.nw-srv-url {
+  font-size: 0.8em;
+  color: var(--text-dimmed);
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nw-srv-user {
+  font-size: 0.75em;
+  color: var(--text-dimmed);
+  margin-bottom: 6px;
+}
+
+.nw-srv-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.nw-srv-btn {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s;
+}
+.nw-srv-btn:hover { opacity: 0.8; }
+.nw-srv-btn-connect {
+  background: rgba(52,152,219,0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+.nw-srv-btn-disconnect {
+  background: rgba(231,76,60,0.15);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+.nw-srv-btn-edit {
+  background: rgba(136,136,136,0.1);
+  border-color: var(--text-dimmed);
+  color: var(--text-dimmed);
+}
+
+/* Network form inputs */
+.nw-input {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.nw-input:focus { border-color: var(--accent-blue); }
+.nw-input::placeholder { color: #555; }
+
+.nw-input-row {
+  display: flex;
+  gap: 8px;
+}
+.nw-input-row .nw-input { flex: 1; }
+
+select.nw-input {
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Network message toast */
+#nw-msg {
+  display: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+#nw-msg.success {
+  display: block;
+  background: rgba(46,204,113,0.15);
+  border: 1px solid rgba(46,204,113,0.3);
+  color: var(--accent-green);
+}
+#nw-msg.error {
+  display: block;
+  background: rgba(231,76,60,0.15);
+  border: 1px solid rgba(231,76,60,0.3);
+  color: var(--accent-red);
+}
+
+/* Add-Server form container */
+#nw-add-form {
+  display: none;
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+/* Add server button */
+.nw-add-btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 12px;
+  background: rgba(52,152,219,0.15);
+  border: 1px solid rgba(52,152,219,0.4);
+  color: var(--accent-blue);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+.nw-add-btn:hover { background: rgba(52,152,219,0.3); }
+
+/* Form save/cancel buttons */
+.nw-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.nw-form-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: opacity 0.2s;
+}
+.nw-form-btn:hover { opacity: 0.85; }
+.nw-form-btn-save {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #000;
+}
+.nw-form-btn-cancel {
+  background: rgba(136,136,136,0.15);
+  border-color: var(--text-dimmed);
+  color: var(--text-dimmed);
+}
+
+/* Context menu for right-click marker placement */
+#ctx-menu {
+  display: none;
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 3000;
+  min-width: 180px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.ctx-item {
+  padding: 8px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  transition: background 0.15s;
+}
+.ctx-item:hover { background: rgba(52,152,219,0.15); }
+.ctx-item i { width: 16px; text-align: center; color: var(--accent-blue); }
+
+/* Callsign dialog */
+#callsign-dialog {
+  display: none;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  z-index: 3000;
+  width: 320px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+#callsign-dialog h3 {
+  color: var(--text-light);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     TOP BAR
+     ============================================================ -->
+<div id="topbar">
+  <span id="topbar-title"><i class="fas fa-crosshairs"></i> LPU5 TACTICAL</span>
+  <div id="topbar-spacer"></div>
+  <div class="topbar-item">
+    <span id="conn-dot"></span>
+    <span id="conn-text">OFFLINE</span>
+  </div>
+  <div class="topbar-item">
+    <i class="fas fa-user"></i>
+    <span id="topbar-user">OFFLINE</span>
+  </div>
+  <button class="topbar-btn" onclick="nwOpen()" title="Netzwerk / Server">
+    <i class="fas fa-network-wired"></i> Netzwerk
+  </button>
+  <button class="topbar-btn" onclick="promptCallsign()" title="Rufzeichen setzen">
+    <i class="fas fa-id-badge"></i>
+  </button>
+  <button class="topbar-btn" onclick="toggleBasemap()" title="Karte wechseln">
+    <i class="fas fa-layer-group"></i>
+  </button>
+</div>
+
+<!-- ============================================================
+     MAP
+     ============================================================ -->
+<div id="map"></div>
+
+<!-- ============================================================
+     BOTTOM STATUS BAR
+     ============================================================ -->
+<div id="statusbar">
+  <span class="status-item">
+    <i class="fas fa-satellite"></i>
+    <span id="sb-gps">GPS: ---</span>
+  </span>
+  <span class="status-item">
+    <i class="fas fa-search-plus"></i>
+    <span id="sb-zoom">Zoom: --</span>
+  </span>
+  <span class="status-item">
+    <i class="fas fa-map-marker-alt"></i>
+    <span id="sb-markers">Marker: 0</span>
+  </span>
+  <span class="status-spacer"></span>
+  <span class="status-item">
+    <i class="fas fa-clock"></i>
+    <span id="sb-time">--:--:--</span>
+  </span>
+  <span class="status-item" id="sb-conn-wrap">
+    <i class="fas fa-plug"></i>
+    <span id="sb-conn">Nicht verbunden</span>
+  </span>
+</div>
+
+<!-- ============================================================
+     NETWORK PANEL (slide-in)
+     ============================================================ -->
+<div id="nw-overlay" onclick="nwClose()"></div>
+<div id="nw-panel">
+  <div id="nw-header">
+    <i id="nw-header-icon" class="fas fa-network-wired"></i>
+    <span id="nw-header-title">Netzwerk / Server</span>
+    <button id="nw-close-btn" onclick="nwClose()">&times;</button>
+  </div>
+  <div id="nw-body"></div>
+</div>
+
+<!-- ============================================================
+     CONTEXT MENU (right-click)
+     ============================================================ -->
+<div id="ctx-menu">
+  <div class="ctx-item" onclick="ctxAddMarker()">
+    <i class="fas fa-map-pin"></i> Marker setzen
+  </div>
+  <div class="ctx-item" onclick="ctxCopyCoords()">
+    <i class="fas fa-copy"></i> Koordinaten kopieren
+  </div>
+  <div class="ctx-item" onclick="ctxCenterHere()">
+    <i class="fas fa-crosshairs"></i> Hier zentrieren
+  </div>
+</div>
+
+<!-- ============================================================
+     CALLSIGN DIALOG
+     ============================================================ -->
+<div id="callsign-dialog">
+  <h3><i class="fas fa-id-badge"></i> Rufzeichen / Callsign</h3>
+  <input type="text" id="callsign-input" class="nw-input" placeholder="z.B. ALPHA-1" maxlength="20"
+         style="margin-bottom:12px;">
+  <div class="nw-form-actions">
+    <button class="nw-form-btn nw-form-btn-save" onclick="saveCallsign()">
+      <i class="fas fa-save"></i> Speichern
+    </button>
+    <button class="nw-form-btn nw-form-btn-cancel" onclick="closeCallsign()">
+      <i class="fas fa-times"></i> Abbrechen
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT LIBRARIES
+     ============================================================ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+/* ================================================================
+   LPU5 TACTICAL TRACKER - Standalone Client
+   ================================================================
+   Self-contained tactical map application.
+   Works offline with local features, connects to LPU5 servers
+   via the built-in Network panel for data synchronization.
+   ================================================================ */
+
+(function() {
+'use strict';
+
+/* ============================================================
+   GLOBAL STATE
+   ============================================================ */
+var map = null;
+var gpsMarker = null;
+var gpsCircle = null;
+var gpsWatchId = null;
+var currentPosition = null;
+
+// Connection state
+var connectedServer = null;  // {url, token, user, name, id}
+var syncInterval = null;
+var ws = null;
+var wsReconnectTimer = null;
+
+// Markers
+var serverMarkers = {};      // id -> L.Marker (from server)
+var localMarkers = {};       // id -> {marker: L.Marker, data: {...}}
+var meshNodes = {};           // id -> L.Marker (meshtastic nodes)
+
+// Basemap state
+var basemaps = {};
+var basemapKeys = ['street', 'satellite', 'terrain'];
+var activeBasemapIdx = 0;
+
+// Context menu state
+var ctxLatLng = null;
+
+// Network form editing state
+var _nwEditingId = null;
+
+// localStorage keys
+var NW_KEY = 'lpu5_nw_servers';
+var LOCAL_MARKERS_KEY = 'lpu5_local_markers';
+var CALLSIGN_KEY = 'lpu5_local_callsign';
+var BASEMAP_KEY = 'lpu5_basemap';
+
+/* ============================================================
+   MAP INITIALIZATION
+   ============================================================ */
+function initMap() {
+  var savedCenter = [51.1657, 10.4515]; // Deutschland Zentrum
+  var savedZoom = 6;
+
+  map = L.map('map', {
+    center: savedCenter,
+    zoom: savedZoom,
+    zoomControl: true,
+    attributionControl: true
+  });
+
+  // Basemap layers
+  basemaps.street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap',
+    maxZoom: 19
+  });
+  basemaps.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 19
+  });
+  basemaps.terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'OpenTopoMap',
+    maxZoom: 17
+  });
+
+  // Restore saved basemap
+  var savedBase = localStorage.getItem(BASEMAP_KEY) || 'street';
+  activeBasemapIdx = basemapKeys.indexOf(savedBase);
+  if (activeBasemapIdx < 0) activeBasemapIdx = 0;
+  basemaps[basemapKeys[activeBasemapIdx]].addTo(map);
+
+  // Map events
+  map.on('zoomend moveend', updateStatusBar);
+  map.on('contextmenu', onMapRightClick);
+  map.on('click', hideContextMenu);
+
+  updateStatusBar();
+  loadLocalMarkers();
+}
+
+/* ============================================================
+   BASEMAP TOGGLE
+   ============================================================ */
+function toggleBasemap() {
+  var oldKey = basemapKeys[activeBasemapIdx];
+  map.removeLayer(basemaps[oldKey]);
+  activeBasemapIdx = (activeBasemapIdx + 1) % basemapKeys.length;
+  var newKey = basemapKeys[activeBasemapIdx];
+  basemaps[newKey].addTo(map);
+  localStorage.setItem(BASEMAP_KEY, newKey);
+}
+window.toggleBasemap = toggleBasemap;
+
+/* ============================================================
+   GPS TRACKING
+   ============================================================ */
+function startGpsTracking() {
+  if (!navigator.geolocation) return;
+  gpsWatchId = navigator.geolocation.watchPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+      var acc = pos.coords.accuracy;
+      currentPosition = { lat: lat, lng: lng, accuracy: acc };
+
+      if (!gpsMarker) {
+        gpsMarker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: 'lpu5-gps-icon',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+          }),
+          zIndexOffset: 1000
+        }).addTo(map);
+        gpsCircle = L.circle([lat, lng], {
+          radius: acc,
+          color: 'rgba(52,152,219,0.4)',
+          fillColor: 'rgba(52,152,219,0.1)',
+          weight: 1
+        }).addTo(map);
+        // Center map on first fix
+        map.setView([lat, lng], 13);
+      } else {
+        gpsMarker.setLatLng([lat, lng]);
+        gpsCircle.setLatLng([lat, lng]);
+        gpsCircle.setRadius(acc);
+      }
+      updateStatusBar();
+    },
+    function(err) {
+      console.warn('GPS Fehler:', err.message);
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+}
+
+/* ============================================================
+   STATUS BAR UPDATES
+   ============================================================ */
+function updateStatusBar() {
+  // GPS
+  var gpsEl = document.getElementById('sb-gps');
+  if (currentPosition) {
+    gpsEl.textContent = 'GPS: ' + currentPosition.lat.toFixed(5) + ', ' + currentPosition.lng.toFixed(5);
+  } else {
+    gpsEl.textContent = 'GPS: ---';
+  }
+
+  // Zoom
+  if (map) {
+    document.getElementById('sb-zoom').textContent = 'Zoom: ' + map.getZoom();
+  }
+
+  // Marker count
+  var total = Object.keys(serverMarkers).length + Object.keys(localMarkers).length + Object.keys(meshNodes).length;
+  document.getElementById('sb-markers').textContent = 'Marker: ' + total;
+
+  // Connection
+  var connEl = document.getElementById('sb-conn');
+  if (connectedServer) {
+    connEl.textContent = 'Verbunden: ' + (connectedServer.name || connectedServer.url);
+  } else {
+    connEl.textContent = 'Nicht verbunden';
+  }
+}
+
+function updateClock() {
+  var now = new Date();
+  var h = String(now.getHours()).padStart(2, '0');
+  var m = String(now.getMinutes()).padStart(2, '0');
+  var s = String(now.getSeconds()).padStart(2, '0');
+  document.getElementById('sb-time').textContent = h + ':' + m + ':' + s;
+}
+
+/* ============================================================
+   CONNECTION STATUS UI
+   ============================================================ */
+function setConnectionStatus(status) {
+  var dot = document.getElementById('conn-dot');
+  var text = document.getElementById('conn-text');
+  var user = document.getElementById('topbar-user');
+
+  dot.className = '';
+  if (status === 'connected') {
+    dot.className = 'connected';
+    text.textContent = 'VERBUNDEN';
+    user.textContent = (connectedServer && connectedServer.user) ?
+      connectedServer.user.toUpperCase() : 'VERBUNDEN';
+  } else if (status === 'connecting') {
+    dot.className = 'connecting';
+    text.textContent = 'VERBINDE...';
+    user.textContent = 'VERBINDE...';
+  } else {
+    dot.className = '';
+    text.textContent = 'OFFLINE';
+    var callsign = localStorage.getItem(CALLSIGN_KEY);
+    user.textContent = callsign ? callsign.toUpperCase() : 'OFFLINE';
+  }
+  updateStatusBar();
+}
+
+/* ============================================================
+   CALLSIGN MANAGEMENT
+   ============================================================ */
+function promptCallsign() {
+  var dialog = document.getElementById('callsign-dialog');
+  var input = document.getElementById('callsign-input');
+  input.value = localStorage.getItem(CALLSIGN_KEY) || '';
+  dialog.style.display = 'block';
+  input.focus();
+}
+window.promptCallsign = promptCallsign;
+
+function saveCallsign() {
+  var val = document.getElementById('callsign-input').value.trim();
+  if (val) {
+    localStorage.setItem(CALLSIGN_KEY, val);
+  } else {
+    localStorage.removeItem(CALLSIGN_KEY);
+  }
+  closeCallsign();
+  if (!connectedServer) setConnectionStatus('disconnected');
+}
+window.saveCallsign = saveCallsign;
+
+function closeCallsign() {
+  document.getElementById('callsign-dialog').style.display = 'none';
+}
+window.closeCallsign = closeCallsign;
+
+/* ============================================================
+   CONTEXT MENU (right-click marker placement)
+   ============================================================ */
+function onMapRightClick(e) {
+  L.DomEvent.preventDefault(e.originalEvent);
+  ctxLatLng = e.latlng;
+  var menu = document.getElementById('ctx-menu');
+  menu.style.left = e.originalEvent.clientX + 'px';
+  menu.style.top = e.originalEvent.clientY + 'px';
+  menu.style.display = 'block';
+}
+
+function hideContextMenu() {
+  document.getElementById('ctx-menu').style.display = 'none';
+}
+document.addEventListener('click', hideContextMenu);
+
+function ctxAddMarker() {
+  hideContextMenu();
+  if (!ctxLatLng) return;
+  var callsign = localStorage.getItem(CALLSIGN_KEY) || 'Lokal';
+  var id = 'local_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+  var name = prompt('Marker Name:', 'Marker ' + (Object.keys(localMarkers).length + 1));
+  if (name === null) return;
+  if (!name.trim()) name = 'Marker';
+
+  var markerData = {
+    id: id,
+    lat: ctxLatLng.lat,
+    lng: ctxLatLng.lng,
+    name: name.trim(),
+    type: 'local',
+    created_by: callsign,
+    created_at: new Date().toISOString()
+  };
+
+  var marker = createMapMarker(markerData, 'local');
+  localMarkers[id] = { marker: marker, data: markerData };
+  saveLocalMarkers();
+  updateStatusBar();
+}
+window.ctxAddMarker = ctxAddMarker;
+
+function ctxCopyCoords() {
+  hideContextMenu();
+  if (!ctxLatLng) return;
+  var text = ctxLatLng.lat.toFixed(6) + ', ' + ctxLatLng.lng.toFixed(6);
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text);
+  }
+}
+window.ctxCopyCoords = ctxCopyCoords;
+
+function ctxCenterHere() {
+  hideContextMenu();
+  if (!ctxLatLng) map.setView(ctxLatLng, map.getZoom());
+}
+window.ctxCenterHere = ctxCenterHere;
+
+/* ============================================================
+   LOCAL MARKERS (localStorage persistence)
+   ============================================================ */
+function saveLocalMarkers() {
+  var data = {};
+  for (var id in localMarkers) {
+    data[id] = localMarkers[id].data;
+  }
+  localStorage.setItem(LOCAL_MARKERS_KEY, JSON.stringify(data));
+}
+
+function loadLocalMarkers() {
+  try {
+    var stored = JSON.parse(localStorage.getItem(LOCAL_MARKERS_KEY) || '{}');
+    for (var id in stored) {
+      var d = stored[id];
+      var marker = createMapMarker(d, 'local');
+      localMarkers[id] = { marker: marker, data: d };
+    }
+    updateStatusBar();
+  } catch(e) {
+    console.warn('Lokale Marker laden fehlgeschlagen:', e);
+  }
+}
+
+function createMapMarker(data, type) {
+  var iconClass = 'lpu5-marker-icon';
+  var faIcon = 'fa-map-pin';
+  if (type === 'local') { iconClass += ' local'; faIcon = 'fa-map-pin'; }
+  else if (type === 'mesh') { iconClass += ' mesh'; faIcon = 'fa-broadcast-tower'; }
+  else { faIcon = data.icon || 'fa-circle'; }
+
+  var icon = L.divIcon({
+    className: '',
+    html: '<div class="' + iconClass + '"><i class="fas ' + faIcon + '"></i></div>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+    popupAnchor: [0, -28]
+  });
+
+  var marker = L.marker([data.lat, data.lng], { icon: icon }).addTo(map);
+
+  var popupHtml = '<div style="font-family:Courier New,monospace;font-size:12px;min-width:160px;">';
+  popupHtml += '<div style="font-weight:bold;color:#eee;margin-bottom:4px;">' + escHtml(data.name || 'Unbekannt') + '</div>';
+  if (data.type) {
+    popupHtml += '<div style="color:#888;font-size:10px;margin-bottom:3px;">' + escHtml(data.type.toUpperCase()) + '</div>';
+  }
+  popupHtml += '<div style="color:#3498db;font-size:10px;">';
+  popupHtml += escHtml(Number(data.lat).toFixed(5) + ', ' + Number(data.lng).toFixed(5));
+  popupHtml += '</div>';
+  if (data.created_by) {
+    popupHtml += '<div style="color:#888;font-size:10px;margin-top:3px;">';
+    popupHtml += '<i class="fas fa-user" style="font-size:9px;"></i> ' + escHtml(data.created_by);
+    popupHtml += '</div>';
+  }
+  if (data.description) {
+    popupHtml += '<div style="color:#d0d0d0;font-size:11px;margin-top:4px;">' + escHtml(data.description) + '</div>';
+  }
+  if (type === 'local') {
+    popupHtml += '<div style="margin-top:6px;">';
+    popupHtml += '<a href="#" onclick="deleteLocalMarker(\'' + escHtml(data.id) + '\');return false;" ';
+    popupHtml += 'style="color:#e74c3c;font-size:10px;text-decoration:none;">';
+    popupHtml += '<i class="fas fa-trash"></i> Entfernen</a></div>';
+  }
+  popupHtml += '</div>';
+  marker.bindPopup(popupHtml);
+
+  return marker;
+}
+
+function deleteLocalMarker(id) {
+  if (localMarkers[id]) {
+    map.removeLayer(localMarkers[id].marker);
+    delete localMarkers[id];
+    saveLocalMarkers();
+    updateStatusBar();
+  }
+}
+window.deleteLocalMarker = deleteLocalMarker;
+
+/* ============================================================
+   NETWORK PANEL - OPEN / CLOSE
+   ============================================================ */
+function nwOpen() {
+  document.getElementById('nw-overlay').classList.add('open');
+  document.getElementById('nw-panel').classList.add('open');
+  nwRender();
+}
+window.nwOpen = nwOpen;
+
+function nwClose() {
+  document.getElementById('nw-overlay').classList.remove('open');
+  document.getElementById('nw-panel').classList.remove('open');
+}
+window.nwClose = nwClose;
+
+/* ============================================================
+   NETWORK PANEL - RENDER
+   ============================================================ */
+function nwRender() {
+  var body = document.getElementById('nw-body');
+  var servers = nwGetServers();
+  var activeServer = null;
+  for (var i = 0; i < servers.length; i++) {
+    if (servers[i].active) { activeServer = servers[i]; break; }
+  }
+  var connected = !!connectedServer && !!activeServer;
+  var h = '';
+
+  // Message container
+  h += '<div id="nw-msg"></div>';
+
+  // Status banner
+  if (connected) {
+    h += '<div class="nw-status-banner nw-status-ok">';
+    h += '<span class="nw-dot nw-dot-green"></span>';
+    h += '<span>Verbunden: ' + escHtml(activeServer.name) + '</span>';
+    h += '</div>';
+  } else {
+    h += '<div class="nw-status-banner nw-status-off">';
+    h += '<span class="nw-dot nw-dot-red"></span>';
+    h += '<span>Nicht verbunden</span>';
+    h += '</div>';
+  }
+
+  // Server list
+  if (servers.length > 0) {
+    h += '<div style="margin-top:12px;">';
+    for (var j = 0; j < servers.length; j++) {
+      var s = servers[j];
+      var dotCls = 'nw-dot-gray';
+      if (s.status === 'ok') dotCls = 'nw-dot-green';
+      else if (s.status === 'checking') dotCls = 'nw-dot-yellow';
+      else if (s.status === 'error') dotCls = 'nw-dot-red';
+
+      var isActive = s.active && !!connectedServer;
+      var border = isActive ? 'border-color:var(--accent-blue);' : '';
+      var dispUrl = nwBuildUrl(s.protocol, s.host, s.port);
+      var protoLabel = (s.protocol || 'https').toUpperCase();
+      var portLabel = s.port || '';
+
+      h += '<div class="nw-srv-item' + (isActive ? ' active' : '') + '" style="' + border + '">';
+      h += '<div class="nw-srv-header">';
+      h += '<span class="nw-dot ' + dotCls + '"></span>';
+      h += '<span class="nw-srv-name">' + escHtml(s.name) + '</span>';
+      if (protoLabel || portLabel) {
+        h += '<span class="nw-srv-proto">' + escHtml(protoLabel) + (portLabel ? ':' + escHtml(portLabel) : '') + '</span>';
+      }
+      h += '<button class="nw-srv-del" onclick="event.stopPropagation();nwRemove(\'' + escHtml(s.id) + '\')" title="Entfernen">&times;</button>';
+      h += '</div>';
+      h += '<div class="nw-srv-url">' + escHtml(dispUrl) + '</div>';
+      h += '<div class="nw-srv-user"><i class="fas fa-user" style="font-size:0.7em;margin-right:4px;"></i>' + escHtml(s.user || '---') + '</div>';
+      h += '<div class="nw-srv-actions">';
+      h += '<button class="nw-srv-btn nw-srv-btn-edit" onclick="event.stopPropagation();nwEdit(\'' + escHtml(s.id) + '\')"><i class="fas fa-pen"></i> Bearbeiten</button>';
+      if (isActive) {
+        h += '<button class="nw-srv-btn nw-srv-btn-disconnect" onclick="event.stopPropagation();nwDisconnect(\'' + escHtml(s.id) + '\')"><i class="fas fa-sign-out-alt"></i> Trennen</button>';
+      } else {
+        h += '<button class="nw-srv-btn nw-srv-btn-connect" onclick="event.stopPropagation();nwConnect(\'' + escHtml(s.id) + '\')"><i class="fas fa-sign-in-alt"></i> Verbinden</button>';
+      }
+      h += '</div></div>';
+    }
+    h += '</div>';
+  } else {
+    h += '<div style="color:#666;font-size:0.85em;text-align:center;padding:15px 0;">';
+    h += 'Keine Server registriert.<br>Fügen Sie einen Server hinzu um fortzufahren.';
+    h += '</div>';
+  }
+
+  // Add server button
+  h += '<button class="nw-add-btn" onclick="event.stopPropagation();nwToggleForm()">';
+  h += '<i class="fas fa-plus"></i> Server hinzufügen';
+  h += '</button>';
+
+  // Add server form
+  h += '<div id="nw-add-form">';
+  h += '<div id="nw-form-title" style="font-size:0.85em;font-weight:bold;color:#eee;margin-bottom:8px;">Neuer Server</div>';
+  h += '<input type="text" id="nw-inp-name" placeholder="Server Name (z.B. HQ Alpha)" class="nw-input">';
+  h += '<input type="text" id="nw-inp-host" placeholder="Host / IP Adresse (z.B. 192.168.1.10)" class="nw-input">';
+  h += '<div class="nw-input-row">';
+  h += '<input type="number" id="nw-inp-port" placeholder="Port (z.B. 8101)" class="nw-input" min="1" max="65535" value="8101">';
+  h += '<select id="nw-inp-proto" class="nw-input">';
+  h += '<option value="https">HTTPS (SSL)</option>';
+  h += '<option value="http">HTTP</option>';
+  h += '</select></div>';
+  h += '<input type="text" id="nw-inp-user" placeholder="Benutzername" autocomplete="off" class="nw-input">';
+  h += '<input type="password" id="nw-inp-pass" placeholder="Passwort" class="nw-input">';
+  h += '<div style="font-size:0.7em;color:#666;margin-bottom:8px;"><i class="fas fa-info-circle"></i> Geben Sie Host und Port des LPU5 Servers ein</div>';
+  h += '<div class="nw-form-actions">';
+  h += '<button class="nw-form-btn nw-form-btn-save" onclick="event.stopPropagation();nwSaveForm()">';
+  h += '<i class="fas fa-save"></i> Speichern</button>';
+  h += '<button class="nw-form-btn nw-form-btn-cancel" onclick="event.stopPropagation();nwCancelEdit()" style="display:none;" id="nw-btn-cancel-edit">';
+  h += '<i class="fas fa-times"></i> Abbrechen</button>';
+  h += '</div></div>';
+
+  body.innerHTML = h;
+}
+
+/* ============================================================
+   NETWORK - SERVER STORAGE (localStorage)
+   ============================================================ */
+function nwGetServers() {
+  try { return JSON.parse(localStorage.getItem(NW_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+
+function nwSaveServers(list) {
+  localStorage.setItem(NW_KEY, JSON.stringify(list));
+}
+
+function nwGenId() {
+  return 'nw_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+}
+
+function nwBuildUrl(proto, host, port) {
+  if (!host) return '';
+  var url = (proto || 'https') + '://' + host;
+  if (port) url += ':' + port;
+  return url;
+}
+
+/* ============================================================
+   NETWORK - FORM ACTIONS
+   ============================================================ */
+function nwToggleForm() {
+  var form = document.getElementById('nw-add-form');
+  if (!form) return;
+  var visible = form.style.display === 'block';
+  form.style.display = visible ? 'none' : 'block';
+  if (!visible) {
+    _nwEditingId = null;
+    nwClearForm();
+    var title = document.getElementById('nw-form-title');
+    if (title) title.textContent = 'Neuer Server';
+    var cancelBtn = document.getElementById('nw-btn-cancel-edit');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+  }
+}
+window.nwToggleForm = nwToggleForm;
+
+function nwClearForm() {
+  var ids = ['nw-inp-name', 'nw-inp-host', 'nw-inp-user', 'nw-inp-pass'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var portEl = document.getElementById('nw-inp-port');
+  if (portEl) portEl.value = '8101';
+  var protoEl = document.getElementById('nw-inp-proto');
+  if (protoEl) protoEl.value = 'https';
+}
+
+function nwSaveForm() {
+  var name = (document.getElementById('nw-inp-name') || {}).value || '';
+  var host = (document.getElementById('nw-inp-host') || {}).value || '';
+  var port = (document.getElementById('nw-inp-port') || {}).value || '';
+  var proto = (document.getElementById('nw-inp-proto') || {}).value || 'https';
+  var user = (document.getElementById('nw-inp-user') || {}).value || '';
+  var pass = (document.getElementById('nw-inp-pass') || {}).value || '';
+  name = name.trim(); host = host.trim(); port = port.trim();
+  user = user.trim(); pass = pass.trim();
+
+  if (!name) { nwShowMsg('Bitte Server-Name eingeben.', 'error'); return; }
+  if (!host) { nwShowMsg('Bitte Host / IP Adresse eingeben.', 'error'); return; }
+
+  var servers = nwGetServers();
+
+  if (_nwEditingId) {
+    // Update existing server
+    for (var i = 0; i < servers.length; i++) {
+      if (servers[i].id === _nwEditingId) {
+        servers[i].name = name;
+        servers[i].host = host;
+        servers[i].port = port;
+        servers[i].protocol = proto;
+        servers[i].user = user;
+        if (pass) servers[i].pass = pass;
+        break;
+      }
+    }
+    nwSaveServers(servers);
+    nwShowMsg('Server "' + name + '" aktualisiert.', 'success');
+    _nwEditingId = null;
+  } else {
+    // Add new server
+    servers.push({
+      id: nwGenId(),
+      name: name,
+      host: host,
+      port: port,
+      protocol: proto,
+      user: user,
+      pass: pass,
+      status: 'unknown',
+      active: false
+    });
+    nwSaveServers(servers);
+    nwShowMsg('Server "' + name + '" hinzugefügt.', 'success');
+  }
+  nwRender();
+}
+window.nwSaveForm = nwSaveForm;
+
+function nwCancelEdit() {
+  _nwEditingId = null;
+  var form = document.getElementById('nw-add-form');
+  if (form) form.style.display = 'none';
+  nwRender();
+}
+window.nwCancelEdit = nwCancelEdit;
+
+/* ============================================================
+   NETWORK - EDIT / REMOVE SERVER
+   ============================================================ */
+function nwEdit(id) {
+  var servers = nwGetServers();
+  var srv = null;
+  for (var i = 0; i < servers.length; i++) {
+    if (servers[i].id === id) { srv = servers[i]; break; }
+  }
+  if (!srv) return;
+
+  _nwEditingId = id;
+  nwRender();
+
+  // Show and populate form
+  var form = document.getElementById('nw-add-form');
+  if (form) form.style.display = 'block';
+  var title = document.getElementById('nw-form-title');
+  if (title) title.textContent = 'Server bearbeiten';
+  var cancelBtn = document.getElementById('nw-btn-cancel-edit');
+  if (cancelBtn) cancelBtn.style.display = '';
+
+  var el;
+  el = document.getElementById('nw-inp-name'); if (el) el.value = srv.name || '';
+  el = document.getElementById('nw-inp-host'); if (el) el.value = srv.host || '';
+  el = document.getElementById('nw-inp-port'); if (el) el.value = srv.port || '8101';
+  el = document.getElementById('nw-inp-proto'); if (el) el.value = srv.protocol || 'https';
+  el = document.getElementById('nw-inp-user'); if (el) el.value = srv.user || '';
+  el = document.getElementById('nw-inp-pass'); if (el) el.value = '';
+}
+window.nwEdit = nwEdit;
+
+function nwRemove(id) {
+  if (!confirm('Server wirklich entfernen?')) return;
+  var servers = nwGetServers();
+  var wasActive = false;
+  servers = servers.filter(function(s) {
+    if (s.id === id) { wasActive = s.active; return false; }
+    return true;
+  });
+  nwSaveServers(servers);
+  if (wasActive) disconnectFromServer();
+  nwRender();
+}
+window.nwRemove = nwRemove;
+
+/* ============================================================
+   NETWORK - MESSAGE TOAST
+   ============================================================ */
+function nwShowMsg(text, type) {
+  var el = document.getElementById('nw-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.className = type || 'error';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(function() { el.className = ''; el.style.display = 'none'; }, 4000);
+}
+
+/* ============================================================
+   SERVER CONNECTION
+   ============================================================ */
+function nwConnect(id) {
+  var servers = nwGetServers();
+  var srv = null;
+  for (var i = 0; i < servers.length; i++) {
+    if (servers[i].id === id) { srv = servers[i]; break; }
+  }
+  if (!srv) return;
+  if (!srv.user || !srv.pass) {
+    nwShowMsg('Bitte Benutzername und Passwort eingeben.', 'error');
+    return;
+  }
+
+  // Mark all servers as inactive
+  servers.forEach(function(s) { s.active = false; });
+  srv.status = 'checking';
+  nwSaveServers(servers);
+  nwRender();
+  setConnectionStatus('connecting');
+
+  var url = nwBuildUrl(srv.protocol, srv.host, srv.port);
+  var controller = new AbortController();
+  var timeout = setTimeout(function() { controller.abort(); }, 10000);
+
+  fetch(url + '/api/login_user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: srv.user, password: srv.pass }),
+    signal: controller.signal
+  }).then(function(res) {
+    clearTimeout(timeout);
+    if (res.ok) return res.json();
+    throw new Error('Login fehlgeschlagen (HTTP ' + res.status + ')');
+  }).then(function(data) {
+    // Login successful
+    connectedServer = {
+      url: url,
+      token: data.token,
+      user: data.user ? data.user.username : srv.user,
+      name: srv.name,
+      id: srv.id
+    };
+
+    if (data.token) localStorage.setItem('token', data.token);
+    if (data.user && data.user.callsign) {
+      localStorage.setItem(CALLSIGN_KEY, data.user.callsign);
+    }
+
+    srv.active = true;
+    srv.status = 'ok';
+    nwSaveServers(servers);
+    setConnectionStatus('connected');
+    nwRender();
+    nwShowMsg('Erfolgreich verbunden mit ' + srv.name, 'success');
+
+    // Start data sync and WebSocket
+    startDataSync();
+    connectWebSocket();
+  }).catch(function(e) {
+    clearTimeout(timeout);
+    srv.status = 'error';
+    nwSaveServers(servers);
+    setConnectionStatus('disconnected');
+    nwRender();
+    nwShowMsg('Verbindungsfehler: ' + (e.message || 'Timeout'), 'error');
+    console.error('Verbindung fehlgeschlagen:', e);
+  });
+}
+window.nwConnect = nwConnect;
+
+function nwDisconnect(id) {
+  var servers = nwGetServers();
+  for (var i = 0; i < servers.length; i++) {
+    if (servers[i].id === id) {
+      servers[i].active = false;
+      servers[i].status = 'unknown';
+      break;
+    }
+  }
+  nwSaveServers(servers);
+  disconnectFromServer();
+  nwRender();
+}
+window.nwDisconnect = nwDisconnect;
+
+function disconnectFromServer() {
+  connectedServer = null;
+  localStorage.removeItem('token');
+  stopDataSync();
+  disconnectWebSocket();
+  clearServerMarkers();
+  clearMeshNodes();
+  setConnectionStatus('disconnected');
+}
+
+/* ============================================================
+   DATA SYNC (periodic fetch from server)
+   ============================================================ */
+function startDataSync() {
+  stopDataSync();
+  fetchMarkers();
+  fetchMeshNodes();
+  syncInterval = setInterval(function() {
+    fetchMarkers();
+    fetchMeshNodes();
+  }, 15000);
+}
+
+function stopDataSync() {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+    syncInterval = null;
+  }
+}
+
+function authHeaders() {
+  var h = { 'Content-Type': 'application/json' };
+  if (connectedServer && connectedServer.token) {
+    h['Authorization'] = 'Bearer ' + connectedServer.token;
+  }
+  return h;
+}
+
+function fetchMarkers() {
+  if (!connectedServer) return;
+  fetch(connectedServer.url + '/api/map_markers', {
+    method: 'GET',
+    headers: authHeaders()
+  }).then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(markers) {
+    if (!Array.isArray(markers)) return;
+    var received = {};
+    markers.forEach(function(m) {
+      received[m.id] = true;
+      if (!serverMarkers[m.id]) {
+        // New marker from server
+        serverMarkers[m.id] = createMapMarker(m, 'server');
+      } else {
+        // Update position if changed
+        serverMarkers[m.id].setLatLng([m.lat, m.lng]);
+      }
+    });
+    // Remove markers that no longer exist on server
+    for (var id in serverMarkers) {
+      if (!received[id]) {
+        map.removeLayer(serverMarkers[id]);
+        delete serverMarkers[id];
+      }
+    }
+    updateStatusBar();
+  }).catch(function(e) {
+    console.warn('Marker-Sync Fehler:', e.message);
+  });
+}
+
+function fetchMeshNodes() {
+  if (!connectedServer) return;
+  fetch(connectedServer.url + '/api/meshtastic/nodes', {
+    method: 'GET',
+    headers: authHeaders()
+  }).then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(nodes) {
+    if (!Array.isArray(nodes)) return;
+    var received = {};
+    nodes.forEach(function(n) {
+      // Skip nodes without valid coordinates
+      if (!n.lat || !n.lng || (n.lat === 0 && n.lng === 0)) return;
+      var nid = n.id || n.mesh_id || ('mesh_' + n.name);
+      received[nid] = true;
+      var mData = {
+        id: nid,
+        lat: n.lat,
+        lng: n.lng,
+        name: n.longName || n.name || n.shortName || 'Knoten',
+        type: 'meshtastic',
+        description: (n.hardware_model ? 'HW: ' + n.hardware_model : '') +
+                     (n.battery ? ' | Akku: ' + n.battery + '%' : ''),
+        created_by: n.shortName || ''
+      };
+      if (!meshNodes[nid]) {
+        meshNodes[nid] = createMapMarker(mData, 'mesh');
+      } else {
+        meshNodes[nid].setLatLng([n.lat, n.lng]);
+      }
+    });
+    for (var id in meshNodes) {
+      if (!received[id]) {
+        map.removeLayer(meshNodes[id]);
+        delete meshNodes[id];
+      }
+    }
+    updateStatusBar();
+  }).catch(function(e) {
+    console.warn('Mesh-Sync Fehler:', e.message);
+  });
+}
+
+function clearServerMarkers() {
+  for (var id in serverMarkers) {
+    map.removeLayer(serverMarkers[id]);
+  }
+  serverMarkers = {};
+  updateStatusBar();
+}
+
+function clearMeshNodes() {
+  for (var id in meshNodes) {
+    map.removeLayer(meshNodes[id]);
+  }
+  meshNodes = {};
+  updateStatusBar();
+}
+
+/* ============================================================
+   WEBSOCKET CONNECTION
+   ============================================================ */
+function connectWebSocket() {
+  disconnectWebSocket();
+  if (!connectedServer) return;
+
+  var wsProto = connectedServer.url.startsWith('https') ? 'wss' : 'ws';
+  var wsHost = connectedServer.url.replace(/^https?:\/\//, '');
+  var wsUrl = wsProto + '://' + wsHost + '/ws';
+
+  try {
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = function() {
+      console.log('WebSocket verbunden:', wsUrl);
+      // Send auth token
+      if (connectedServer && connectedServer.token) {
+        ws.send(JSON.stringify({ type: 'auth', token: connectedServer.token }));
+      }
+    };
+
+    ws.onmessage = function(event) {
+      try {
+        var msg = JSON.parse(event.data);
+        handleWsMessage(msg);
+      } catch(e) {
+        // Non-JSON message, ignore
+      }
+    };
+
+    ws.onclose = function() {
+      console.log('WebSocket getrennt');
+      ws = null;
+      // Reconnect after 5 seconds if still connected to server
+      if (connectedServer) {
+        wsReconnectTimer = setTimeout(connectWebSocket, 5000);
+      }
+    };
+
+    ws.onerror = function(e) {
+      console.warn('WebSocket Fehler:', e);
+    };
+  } catch(e) {
+    console.warn('WebSocket Verbindung fehlgeschlagen:', e);
+  }
+}
+
+function disconnectWebSocket() {
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (ws) {
+    ws.onclose = null; // Prevent reconnect on intentional close
+    ws.close();
+    ws = null;
+  }
+}
+
+function handleWsMessage(msg) {
+  if (!msg || !msg.type) return;
+  switch(msg.type) {
+    case 'markers':
+    case 'marker_update':
+      // Trigger marker refresh
+      fetchMarkers();
+      break;
+    case 'node_update':
+    case 'meshtastic':
+      fetchMeshNodes();
+      break;
+    default:
+      break;
+  }
+}
+
+/* ============================================================
+   AUTO-CONNECT (called from LPU5.py with --url flag)
+   ============================================================ */
+function autoConnectServer(url) {
+  // Parse URL and attempt connection
+  var parsed;
+  try {
+    parsed = new URL(url);
+  } catch(e) {
+    console.error('Ungültige URL:', url);
+    return;
+  }
+  var proto = parsed.protocol.replace(':', '');
+  var host = parsed.hostname;
+  var port = parsed.port || (proto === 'https' ? '443' : '80');
+
+  // Check if server already exists in list
+  var servers = nwGetServers();
+  var existing = null;
+  for (var i = 0; i < servers.length; i++) {
+    if (servers[i].host === host && servers[i].port === port) {
+      existing = servers[i];
+      break;
+    }
+  }
+
+  if (existing && existing.user && existing.pass) {
+    // Auto-connect to existing server entry
+    nwConnect(existing.id);
+  } else {
+    // Open network panel for user to enter credentials
+    nwOpen();
+    if (!existing) {
+      // Pre-fill form with URL details
+      setTimeout(function() {
+        nwToggleForm();
+        setTimeout(function() {
+          var el;
+          el = document.getElementById('nw-inp-name'); if (el) el.value = host;
+          el = document.getElementById('nw-inp-host'); if (el) el.value = host;
+          el = document.getElementById('nw-inp-port'); if (el) el.value = port;
+          el = document.getElementById('nw-inp-proto'); if (el) el.value = proto;
+        }, 100);
+      }, 300);
+    }
+  }
+}
+window.autoConnectServer = autoConnectServer;
+
+/* ============================================================
+   UTILITY: HTML ESCAPE
+   ============================================================ */
+function escHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(String(str)));
+  return div.innerHTML;
+}
+
+/* ============================================================
+   INITIALIZATION
+   ============================================================ */
+function init() {
+  initMap();
+  startGpsTracking();
+  setConnectionStatus('disconnected');
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // Try to restore previous connection
+  var servers = nwGetServers();
+  for (var i = 0; i < servers.length; i++) {
+    if (servers[i].active && servers[i].user && servers[i].pass) {
+      // Attempt silent reconnect
+      nwConnect(servers[i].id);
+      break;
+    }
+  }
+}
+
+// Start when DOM and Leaflet are ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
+</script>
+</body>
+</html>
