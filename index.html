@@ -7545,6 +7545,32 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             Der enthaltene Master-Key autorisiert den COT-Mesh-Zugang.
         </div>
     </div>
+
+    <!-- Server Join QR Code Section (read-only display from Network settings) -->
+    <div class="section" data-permission="users.create">
+        <h3><i class="fas fa-qrcode"></i> SERVER JOIN QR-CODE</h3>
+
+        <div style="margin-bottom:10px; padding:10px; background:rgba(46,204,113,0.1); border:1px solid rgba(46,204,113,0.3); border-radius:4px; font-size:0.85em;">
+            <i class="fas fa-info-circle" style="color:#2ecc71;"></i>
+            <strong>Join QR-Code:</strong> Dieser QR-Code enthält nur die Server-IP und den Port.
+            Benutzer müssen nach dem Scannen ihre Zugangsdaten selbst eingeben.
+            Der QR-Code wird unter <em>Network Settings</em> erstellt und verwaltet.
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+            <button class="btn" onclick="showAdminJoinQR()" data-permission="users.create" style="background:rgba(46,204,113,0.2); border-color:#2ecc71; color:#2ecc71;">
+                <i class="fas fa-qrcode"></i> Join QR-Code anzeigen
+            </button>
+        </div>
+
+        <div id="adminJoinQrPreview" style="display:none; margin-top:12px; text-align:center;">
+        </div>
+
+        <div style="margin-top:12px;color:var(--muted);font-size:0.85em;">
+            <i class="fas fa-shield-alt" style="color:#2ecc71;"></i>
+            Der QR-Code enthält <strong>keine</strong> Benutzerdaten. Erstelle oder ersetze ihn unter <strong>Network Settings → Server Join QR-Code</strong>.
+        </div>
+    </div>
 </div>
 
 <!-- Edit User Modal -->
@@ -8916,6 +8942,55 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
     </div>
 
     <div id="networkSaveStatus" style="margin-top: 15px; display: none;"></div>
+
+    <!-- ================================================================ -->
+    <!-- SERVER JOIN QR-CODE                                               -->
+    <!-- ================================================================ -->
+    <hr class="fed-divider">
+    <div class="fed-section-title">
+        <i class="fas fa-qrcode"></i> Server Join QR-Code
+    </div>
+
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-qrcode"></i>
+            Server Join QR-Code
+        </div>
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Dieser QR-Code enthält <strong>nur die Server-IP und den Port</strong>.
+            Benutzer müssen nach dem Scannen ihre Zugangsdaten (Benutzername &amp; Passwort) selbst eingeben.
+            Der QR-Code bleibt gespeichert und identisch, bis er manuell durch einen neuen ersetzt wird.
+        </div>
+
+        <div id="joinQrPreview" style="text-align:center; margin:16px 0; display:none;">
+            <div style="color:#2ecc71;font-weight:bold;margin-bottom:8px;">
+                <i class="fas fa-qrcode"></i> Aktueller Join QR-Code
+            </div>
+            <img id="joinQrImage" src="" alt="Join QR" width="260" height="260"
+                 style="border:2px solid #2ecc71;border-radius:8px;">
+            <div id="joinQrInfo" style="margin-top:8px;color:#aaa;font-size:0.85em;"></div>
+        </div>
+
+        <div id="joinQrEmpty" style="text-align:center;color:#888;margin:16px 0;display:none;">
+            <i class="fas fa-info-circle"></i> Noch kein Join QR-Code erstellt. Klicke auf <strong>QR-Code erstellen</strong>.
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn btn-success" onclick="generateJoinQR()">
+                <i class="fas fa-qrcode"></i> QR-Code erstellen
+            </button>
+            <button class="btn" id="joinQrReplaceBtn" onclick="replaceJoinQR()" style="display:none; background:rgba(231,76,60,0.15); border-color:#e74c3c; color:#e74c3c;">
+                <i class="fas fa-sync-alt"></i> QR-Code ersetzen (Sicherheit)
+            </button>
+        </div>
+
+        <div style="margin-top:12px;color:var(--muted);font-size:0.85em;">
+            <i class="fas fa-shield-alt" style="color:#2ecc71;"></i>
+            Der QR-Code enthält <strong>keine</strong> Benutzerdaten. Benutzer müssen Benutzername und Passwort selbst eingeben.
+            Durch <strong>Ersetzen</strong> wird der alte QR-Code ungültig (Sicherheits-Feature).
+        </div>
+    </div>
 
     <!-- ================================================================ -->
     <!-- SERVER-FÖDERATION VERWALTUNG                                      -->
@@ -12644,11 +12719,43 @@ window.addEventListener('storage', (e) => {
       }
     }
 
+    // ─── Admin: Show Join QR Code (loaded from Network settings) ─────
+    async function showAdminJoinQR() {
+      try {
+        const resp = await fetch('/api/qr/join', { headers: getAuthHeaders() });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const area = document.getElementById('adminJoinQrPreview');
+        if (!area) return;
+        if (data.status === 'ok' && data.join_qr && data.join_qr.png_base64) {
+          const jq = data.join_qr;
+          let html = '<div style="color:#2ecc71;font-weight:bold;margin-bottom:8px;"><i class="fas fa-qrcode"></i> Server Join QR-Code</div>';
+          html += '<img src="data:image/png;base64,' + jq.png_base64 + '" alt="Join QR" width="260" height="260" style="border:2px solid #2ecc71;border-radius:8px;">';
+          if (jq.payload) {
+            html += '<div style="margin-top:8px;color:#aaa;font-size:0.85em;"><i class="fas fa-server"></i> ' +
+              (jq.payload.protocol || 'https') + '://' + (jq.payload.host || '?') + ':' + (jq.payload.port || 8101) + '</div>';
+          }
+          if (jq.created_at) {
+            html += '<div style="margin-top:4px;color:#666;font-size:0.8em;">Erstellt: ' + new Date(jq.created_at).toLocaleString() + '</div>';
+          }
+          area.innerHTML = html;
+          area.style.display = '';
+        } else {
+          area.innerHTML = '<div style="padding:12px;color:#e74c3c;"><i class="fas fa-exclamation-triangle"></i> Kein Join QR-Code vorhanden. Erstelle einen unter <strong>Network Settings → Server Join QR-Code</strong>.</div>';
+          area.style.display = '';
+        }
+      } catch (e) {
+        console.error('showAdminJoinQR', e);
+        alert('Join QR-Code laden fehlgeschlagen: ' + (e.message || e));
+      }
+    }
+
     // ─── Expose functions to global scope for inline onclick handlers ─
     window.switchTab = switchTab;
     window.createQRCode = createQRCode;
     window.copyQRData = copyQRData;
     window.createCOTMeshQR = createCOTMeshQR;
+    window.showAdminJoinQR = showAdminJoinQR;
     window.loadQRUsers = loadQRUsers;
     window.onQRUserChange = onQRUserChange;
     window.loadPendingRegistrations = loadPendingRegistrations;
@@ -19974,6 +20081,63 @@ async function fedRunSync() {
     }
 }
 
+// ─── Join QR Code (persistent, IP + Port only) ──────────────────────
+async function loadJoinQR() {
+    try {
+        const token = _getAuthToken();
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/qr/join', { headers });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const preview = document.getElementById('joinQrPreview');
+        const empty = document.getElementById('joinQrEmpty');
+        const replaceBtn = document.getElementById('joinQrReplaceBtn');
+        if (data.status === 'ok' && data.join_qr) {
+            const jq = data.join_qr;
+            if (preview) {
+                const img = document.getElementById('joinQrImage');
+                if (img && jq.png_base64) img.src = 'data:image/png;base64,' + jq.png_base64;
+                const info = document.getElementById('joinQrInfo');
+                if (info && jq.payload) {
+                    info.innerHTML = '<i class="fas fa-server"></i> ' +
+                        (jq.payload.protocol || 'https') + '://' +
+                        (jq.payload.host || '?') + ':' + (jq.payload.port || 8101) +
+                        (jq.created_at ? ' &nbsp;|&nbsp; Erstellt: ' + new Date(jq.created_at).toLocaleString() : '');
+                }
+                preview.style.display = '';
+            }
+            if (empty) empty.style.display = 'none';
+            if (replaceBtn) replaceBtn.style.display = '';
+        } else {
+            if (preview) preview.style.display = 'none';
+            if (empty) empty.style.display = '';
+            if (replaceBtn) replaceBtn.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn('loadJoinQR failed:', e);
+    }
+}
+
+async function generateJoinQR() {
+    try {
+        const token = _getAuthToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/qr/join', { method: 'POST', headers });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        await loadJoinQR();
+    } catch (e) {
+        console.error('generateJoinQR', e);
+        alert('Join QR-Code Erstellung fehlgeschlagen: ' + (e.message || e));
+    }
+}
+
+async function replaceJoinQR() {
+    if (!confirm('Soll der aktuelle Join QR-Code wirklich ersetzt werden?\nDer alte QR-Code wird dadurch ungültig.')) return;
+    await generateJoinQR();
+}
+
 // Promote functions to global scope so inline onclick handlers can reach them.
 window.loadServerInfo = loadServerInfo;
 window.loadNetworkSettings = loadNetworkSettings;
@@ -20004,11 +20168,15 @@ window.fedRunSync = fedRunSync;
 window._cleanTakHost = _cleanTakHost;
 window.fedDecodeQrFile = fedDecodeQrFile;
 window._onTakConnectionTypeChange = _onTakConnectionTypeChange;
+window.loadJoinQR = loadJoinQR;
+window.generateJoinQR = generateJoinQR;
+window.replaceJoinQR = replaceJoinQR;
 
 // Initialize – call directly (SPA: DOMContentLoaded has already fired)
 loadServerInfo();
 loadNetworkSettings();
 refreshCotListenerStatus();
+loadJoinQR();
 fedLoadServers();
 fedLoadOwnQR();
 fedLoadAutoSyncStatus();
