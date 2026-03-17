@@ -683,7 +683,7 @@ def main():
         print("  Mögliche Ursachen:")
         print("  - Auf Windows: Edge WebView2 Runtime nicht installiert")
         print("    → https://developer.microsoft.com/en-us/microsoft-edge/webview2/")
-        print("  - Auf Linux: GTK oder QT mit Python-Bindings fehlt")
+        print("  - Auf Linux: GTK oder Qt mit Python-Bindings fehlt")
         print("    → sudo apt install python3-gi gir1.2-webkit2-4.0")
         sys.exit(1)
     finally:
