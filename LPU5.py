@@ -148,6 +148,17 @@ def main():
     # If --url provided, inject auto-connect call after page loads
     if args.url:
         server_url = args.url.rstrip("/")
+        # Validate URL format
+        from urllib.parse import urlparse
+
+        parsed = urlparse(server_url)
+        if parsed.scheme not in ("http", "https"):
+            print(f"[FEHLER] Ungültiges URL-Schema: {parsed.scheme}")
+            print("         Erlaubt: http, https")
+            sys.exit(1)
+        if not parsed.hostname:
+            print(f"[FEHLER] Kein Hostname in URL: {server_url}")
+            sys.exit(1)
 
         def on_loaded():
             safe_url = json.dumps(server_url)

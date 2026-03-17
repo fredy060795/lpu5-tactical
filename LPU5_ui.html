@@ -1050,7 +1050,7 @@ function createMapMarker(data, type) {
   }
   if (type === 'local') {
     popupHtml += '<div style="margin-top:6px;">';
-    popupHtml += '<a href="#" onclick="deleteLocalMarker(\'' + escHtml(data.id) + '\');return false;" ';
+    popupHtml += '<a href="#" onclick="deleteLocalMarker(\'' + escJsStr(data.id) + '\');return false;" ';
     popupHtml += 'style="color:#e74c3c;font-size:10px;text-decoration:none;">';
     popupHtml += '<i class="fas fa-trash"></i> Entfernen</a></div>';
   }
@@ -1138,16 +1138,16 @@ function nwRender() {
       if (protoLabel || portLabel) {
         h += '<span class="nw-srv-proto">' + escHtml(protoLabel) + (portLabel ? ':' + escHtml(portLabel) : '') + '</span>';
       }
-      h += '<button class="nw-srv-del" onclick="event.stopPropagation();nwRemove(\'' + escHtml(s.id) + '\')" title="Entfernen">&times;</button>';
+      h += '<button class="nw-srv-del" onclick="event.stopPropagation();nwRemove(\'' + escJsStr(s.id) + '\')" title="Entfernen">&times;</button>';
       h += '</div>';
       h += '<div class="nw-srv-url">' + escHtml(dispUrl) + '</div>';
       h += '<div class="nw-srv-user"><i class="fas fa-user" style="font-size:0.7em;margin-right:4px;"></i>' + escHtml(s.user || '---') + '</div>';
       h += '<div class="nw-srv-actions">';
-      h += '<button class="nw-srv-btn nw-srv-btn-edit" onclick="event.stopPropagation();nwEdit(\'' + escHtml(s.id) + '\')"><i class="fas fa-pen"></i> Bearbeiten</button>';
+      h += '<button class="nw-srv-btn nw-srv-btn-edit" onclick="event.stopPropagation();nwEdit(\'' + escJsStr(s.id) + '\')"><i class="fas fa-pen"></i> Bearbeiten</button>';
       if (isActive) {
-        h += '<button class="nw-srv-btn nw-srv-btn-disconnect" onclick="event.stopPropagation();nwDisconnect(\'' + escHtml(s.id) + '\')"><i class="fas fa-sign-out-alt"></i> Trennen</button>';
+        h += '<button class="nw-srv-btn nw-srv-btn-disconnect" onclick="event.stopPropagation();nwDisconnect(\'' + escJsStr(s.id) + '\')"><i class="fas fa-sign-out-alt"></i> Trennen</button>';
       } else {
-        h += '<button class="nw-srv-btn nw-srv-btn-connect" onclick="event.stopPropagation();nwConnect(\'' + escHtml(s.id) + '\')"><i class="fas fa-sign-in-alt"></i> Verbinden</button>';
+        h += '<button class="nw-srv-btn nw-srv-btn-connect" onclick="event.stopPropagation();nwConnect(\'' + escJsStr(s.id) + '\')"><i class="fas fa-sign-in-alt"></i> Verbinden</button>';
       }
       h += '</div></div>';
     }
@@ -1668,7 +1668,7 @@ function autoConnectServer(url) {
   }
   var proto = parsed.protocol.replace(':', '');
   var host = parsed.hostname;
-  var port = parsed.port || (proto === 'https' ? '443' : '80');
+  var port = parsed.port || '';
 
   // Check if server already exists in list
   var servers = nwGetServers();
@@ -1711,6 +1711,11 @@ function escHtml(str) {
   var div = document.createElement('div');
   div.appendChild(document.createTextNode(String(str)));
   return div.innerHTML;
+}
+
+function escJsStr(str) {
+  if (!str) return '';
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
 
 /* ============================================================
