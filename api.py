@@ -6440,6 +6440,79 @@ def api_qr_cot_mesh(data: dict = Body(...), request: Request = None, db: Session
     }
 
 
+@app.get("/api/qr/join")
+def api_qr_join_get():
+    """Retrieve the currently stored persistent Join QR code (IP + Port only).
+
+    The Join QR code is stored inside config.json under the key
+    ``join_qr``.  It survives server restarts and stays identical until
+    the admin explicitly regenerates it via POST /api/qr/join.
+    """
+    cfg = load_json("config") or {}
+    join_qr = cfg.get("join_qr")
+    if not join_qr:
+        return {"status": "empty", "join_qr": None}
+    return {"status": "ok", "join_qr": join_qr}
+
+
+@app.post("/api/qr/join")
+def api_qr_join_create(request: Request = None):
+    """Create (or replace) the persistent Join QR code.
+
+    The QR encodes only the server's protocol, IP and port so that a
+    user scanning it can quickly pre-fill the connection details.  No
+    credentials are embedded – the user must enter those manually.
+
+    The generated QR data and PNG are persisted in config.json so that
+    ``GET /api/qr/join`` always returns the same QR until this endpoint
+    is called again.
+    """
+    local_ip, all_ips = get_local_ip()
+    cert_file = os.path.join(base_path, "cert.pem")
+    key_file = os.path.join(base_path, "key.pem")
+    use_ssl = os.path.exists(cert_file) and os.path.exists(key_file)
+    protocol = "https" if use_ssl else "http"
+    server_port = 8101
+
+    qr_payload = {
+        "type": "join",
+        "protocol": protocol,
+        "host": local_ip,
+        "port": server_port,
+        "ssl": use_ssl,
+    }
+
+    png_b64 = None
+    if qrcode:
+        try:
+            import json as _json
+            qr_img = qrcode.make(_json.dumps(qr_payload))
+            from io import BytesIO
+            buf = BytesIO()
+            qr_img.save(buf, format="PNG")
+            png_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        except Exception:
+            logger.exception("Join QR PNG generation failed")
+
+    join_qr = {
+        "payload": qr_payload,
+        "png_base64": png_b64,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by_ip": _get_client_ip(request) if request else None,
+    }
+
+    cfg = load_json("config") or {}
+    cfg["join_qr"] = join_qr
+    save_json("config", cfg)
+
+    log_audit(
+        "create_join_qr",
+        "system",
+        {"host": local_ip, "port": server_port, "created_by_ip": join_qr["created_by_ip"]},
+    )
+    return {"status": "success", "join_qr": join_qr}
+
+
 @app.get("/api/qr/list")
 def api_qr_list(db: Session = Depends(get_db)):
     qrs = db.query(QRCode).all()
