@@ -4449,8 +4449,9 @@
     function _updateBridgeStatusUI(running, port) {
       var el = document.getElementById('itak-bridge-status');
       if (!el) return;
+      var safePort = parseInt(port, 10) || 0;
       if (running) {
-        el.innerHTML = '<i class="fas fa-link" style="color:#2ecc71;"></i> iTAK Bridge: <strong style="color:#2ecc71;">127.0.0.1:' + port + ' (SSL)</strong>';
+        el.innerHTML = '<i class="fas fa-link" style="color:#2ecc71;"></i> iTAK Bridge: <strong style="color:#2ecc71;">127.0.0.1:' + safePort + ' (SSL)</strong>';
       } else {
         el.innerHTML = '<i class="fas fa-unlink" style="color:#888;"></i> iTAK Bridge: <span style="color:#888;">Inactive</span>';
       }
