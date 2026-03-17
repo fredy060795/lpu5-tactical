@@ -2386,6 +2386,7 @@ def _forward_meshtastic_node_to_tak(node_id: str, name: str, lat: float, lng: fl
         if cot_event:
             cot_xml = cot_event.to_xml()
             _forward_cot_multicast(cot_xml)
+            _forward_cot_to_itak_bridge(cot_xml)
             return forward_cot_to_tak(cot_xml)
     except Exception as _fwd_err:
         logger.debug("TAK forward for Meshtastic node %s failed: %s", node_id, _fwd_err)
@@ -2611,6 +2612,7 @@ def _marker_broadcast_worker(interval_seconds: int = 60):
                                     mcast_sent += 1
                                 if _forward_cot_to_tcp_clients(cot_xml):
                                     tcp_sent += 1
+                                _forward_cot_to_itak_bridge(cot_xml)
                         except Exception as _mc_err:
                             logger.debug("SA Multicast send for marker %s failed: %s", m.id, _mc_err)
                 if mcast_sent:
@@ -3947,6 +3949,7 @@ def create_map_marker(data: dict = Body(...), authorization: Optional[str] = Hea
                     tcp_ok = _forward_cot_to_tcp_clients(cot_xml)
                     if tcp_ok:
                         logger.debug("CoT TCP push on marker_created reached %d client(s): marker_id=%s", tcp_ok, new_marker.id)
+                    _forward_cot_to_itak_bridge(cot_xml)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_created failed: %s", _fwd_err)
 
@@ -4032,6 +4035,7 @@ def update_map_marker(marker_id: str, data: dict = Body(...), authorization: Opt
                     tcp_ok = _forward_cot_to_tcp_clients(cot_xml)
                     if tcp_ok:
                         logger.debug("CoT TCP push on marker_updated reached %d client(s): marker_id=%s", tcp_ok, marker_id)
+                    _forward_cot_to_itak_bridge(cot_xml)
             except Exception as _fwd_err:
                 logger.warning("CoT forward on marker_updated failed: %s", _fwd_err)
 
@@ -4104,6 +4108,7 @@ def delete_map_marker(marker_id: str, authorization: Optional[str] = Header(None
                     tcp_ok = _forward_cot_to_tcp_clients(tombstone_xml)
                     if tcp_ok:
                         logger.debug("CoT TCP tombstone pushed to %d client(s) on marker_deleted: marker_id=%s", tcp_ok, marker_id)
+                    _forward_cot_to_itak_bridge(tombstone_xml)
             except Exception as _fwd_err:
                 logger.warning("CoT tombstone forward on marker_deleted failed: %s", _fwd_err)
 
@@ -8749,6 +8754,7 @@ def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session
                 cot_xml = cot_evt.to_xml()
                 _forward_cot_to_tcp_clients(cot_xml)
                 _forward_cot_multicast(cot_xml)
+                _forward_cot_to_itak_bridge(cot_xml)
                 forward_cot_to_tak(cot_xml)
                 pushed += 1
             else:

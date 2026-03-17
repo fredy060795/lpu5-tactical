@@ -18399,6 +18399,9 @@ Possible solutions:
         _connectedPort = port;
         showToast(`✅ Connected to Meshtastic on ${port}`, 'success');
         
+        // Auto-start iTAK CoT bridge (SSL 127.0.0.1:8089) for iTAK ↔ Mesh
+        _startITAKBridge();
+        
         // Automatically trigger preview after connection
         setTimeout(() => previewNodes(), 500);
         
@@ -18423,6 +18426,19 @@ Possible solutions:
       }
     }
     
+    // -- iTAK CoT Bridge helpers (SSL 127.0.0.1:8089) ----------------------
+    function _startITAKBridge() {
+      var token = localStorage.getItem('token') || '';
+      fetch('/api/itak_bridge/start', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        console.log('[iTAK Bridge] started:', d);
+      }).catch(function(e) {
+        console.warn('[iTAK Bridge] start failed:', e);
+      });
+    }
+
     async function checkConnectionStatus(){
       try {
         const res = await fetch('/api/meshtastic/connection_status');
