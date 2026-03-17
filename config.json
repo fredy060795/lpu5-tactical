@@ -12,5 +12,7 @@
     "cot_listener_udp_port": 4242,
     "sa_multicast_enabled": true,
     "sa_multicast_group": "239.2.3.1",
-    "sa_multicast_port": 6969
+    "sa_multicast_port": 6969,
+    "itak_bridge_enabled": false,
+    "itak_bridge_port": 8089
 }
