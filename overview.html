@@ -5344,7 +5344,8 @@
 
     /* Navigate to an SPA page (index.html#viewName), preserving standalone mode */
     window.navigateToPage = function(viewName) {
-      var standalone = localStorage.getItem('lpu5_token') === 'standalone_token';
+      var host = window.location.hostname;
+      var standalone = (host === '127.0.0.1' || host === 'localhost');
       var url = 'index.html' + (standalone ? '?standalone=1' : '') + '#' + viewName;
       window.location.href = url;
     };

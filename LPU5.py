@@ -47,6 +47,8 @@ except ImportError:
 _USERS_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "lpu5_users.json"
 )
+# In-memory session store – sessions are valid for the lifetime of the
+# desktop application window and are cleared on restart.
 _sessions: dict[str, dict] = {}
 
 
@@ -67,8 +69,8 @@ def _save_users(users: list[dict]) -> None:
 
 def _hash_password(password: str) -> str:
     salt = secrets.token_hex(16)
-    hashed = hashlib.sha256((salt + password).encode()).hexdigest()
-    return f"{salt}:{hashed}"
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+    return f"{salt}:{hashed.hex()}"
 
 
 def _verify_password(password: str, stored: str) -> bool:
@@ -76,7 +78,10 @@ def _verify_password(password: str, stored: str) -> bool:
         salt, hashed = stored.split(":", 1)
     except ValueError:
         return False
-    return hashlib.sha256((salt + password).encode()).hexdigest() == hashed
+    return (
+        hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000).hex()
+        == hashed
+    )
 
 
 def _generate_token(user: dict) -> str:
