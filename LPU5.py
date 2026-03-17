@@ -19,9 +19,11 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import sys
-import json
+
+VERSION = "1.0.0"
 
 
 def check_dependencies():
@@ -60,7 +62,7 @@ class LPU5Api:
 
     def get_version(self):
         """Return client version string."""
-        return "1.0.0"
+        return VERSION
 
     def get_platform(self):
         """Return the current platform identifier."""
@@ -70,7 +72,7 @@ class LPU5Api:
         """Return application metadata as a dict."""
         return {
             "name": "LPU5 Tactical Tracker",
-            "version": "1.0.0",
+            "version": VERSION,
             "platform": sys.platform,
             "python": sys.version,
         }
@@ -148,7 +150,8 @@ def main():
         server_url = args.url.rstrip("/")
 
         def on_loaded():
-            window.evaluate_js(f'autoConnectServer("{server_url}")')
+            safe_url = json.dumps(server_url)
+            window.evaluate_js(f"autoConnectServer({safe_url})")
 
         window.events.loaded += on_loaded
 

@@ -698,6 +698,12 @@ select.nw-input {
 /* ============================================================
    GLOBAL STATE
    ============================================================ */
+
+// Configuration constants
+var SYNC_INTERVAL_MS = 15000;   // Data sync polling interval
+var LOGIN_TIMEOUT_MS = 10000;   // Server login request timeout
+var WS_RECONNECT_MS = 5000;     // WebSocket reconnect delay
+
 var map = null;
 var gpsMarker = null;
 var gpsCircle = null;
@@ -1376,7 +1382,7 @@ function nwConnect(id) {
 
   var url = nwBuildUrl(srv.protocol, srv.host, srv.port);
   var controller = new AbortController();
-  var timeout = setTimeout(function() { controller.abort(); }, 10000);
+  var timeout = setTimeout(function() { controller.abort(); }, LOGIN_TIMEOUT_MS);
 
   fetch(url + '/api/login_user', {
     method: 'POST',
@@ -1459,7 +1465,7 @@ function startDataSync() {
   syncInterval = setInterval(function() {
     fetchMarkers();
     fetchMeshNodes();
-  }, 15000);
+  }, SYNC_INTERVAL_MS);
 }
 
 function stopDataSync() {
@@ -1607,7 +1613,7 @@ function connectWebSocket() {
       ws = null;
       // Reconnect after 5 seconds if still connected to server
       if (connectedServer) {
-        wsReconnectTimer = setTimeout(connectWebSocket, 5000);
+        wsReconnectTimer = setTimeout(connectWebSocket, WS_RECONNECT_MS);
       }
     };
 
