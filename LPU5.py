@@ -7,13 +7,13 @@ Full 1:1 copy of the web UI (Dashboard, Admin, SDR, Map, etc.)
 running as a native desktop window — no server required.
 
 A lightweight local HTTP server serves the project files so that all
-relative paths (JS, CSS, images, assets) work correctly.  The SPA
-opens in standalone mode (login bypassed) with empty data.  Use the
+relative paths (JS, CSS, images, assets) work correctly.  On first
+start the user is prompted to create a local admin account.  Use the
 built-in Network view to connect to a remote LPU5 server for live
 data synchronisation.
 
 Requirements:
-    pip install pywebview
+    pip install pywebview pyserial
 
 Usage:
     python LPU5.py
@@ -24,14 +24,114 @@ Usage:
 
 import argparse
 import functools
+import hashlib
 import json
 import os
+import secrets
 import socket
 import sys
 import threading
+import time
+import uuid
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 VERSION = "1.0.0"
+
+# ── Optional: serial port scanning ──────────────────────────────
+try:
+    import serial.tools.list_ports as _serial_list_ports
+except ImportError:
+    _serial_list_ports = None
+
+# ── Local user database ─────────────────────────────────────────
+_USERS_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "lpu5_users.json"
+)
+_sessions: dict[str, dict] = {}
+
+
+def _load_users() -> list[dict]:
+    if os.path.exists(_USERS_FILE):
+        try:
+            with open(_USERS_FILE, "r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except (json.JSONDecodeError, OSError):
+            return []
+    return []
+
+
+def _save_users(users: list[dict]) -> None:
+    with open(_USERS_FILE, "w", encoding="utf-8") as fh:
+        json.dump(users, fh, indent=2, ensure_ascii=False)
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    hashed = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}:{hashed}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        salt, hashed = stored.split(":", 1)
+    except ValueError:
+        return False
+    return hashlib.sha256((salt + password).encode()).hexdigest() == hashed
+
+
+def _generate_token(user: dict) -> str:
+    token = secrets.token_hex(32)
+    _sessions[token] = {
+        "user_id": user["id"],
+        "username": user["username"],
+        "created_at": time.time(),
+    }
+    return token
+
+
+def _user_from_token(token: str) -> dict | None:
+    """Return the user dict for *token*, or ``None``."""
+    session = _sessions.get(token)
+    if session is None:
+        return None
+    users = _load_users()
+    for u in users:
+        if u["id"] == session["user_id"]:
+            return u
+    return None
+
+
+def _user_info(user: dict) -> dict:
+    """Return a safe subset of user fields (no password hash)."""
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "callsign": user.get("callsign", user["username"]),
+        "role": user.get("role", "admin"),
+        "fullname": user.get("fullname", user["username"]),
+    }
+
+
+def _scan_serial_ports() -> list[dict]:
+    if _serial_list_ports is None:
+        return []
+    try:
+        result = []
+        for p in _serial_list_ports.comports():
+            result.append(
+                {
+                    "device": getattr(p, "device", "") or "",
+                    "description": getattr(p, "description", ""),
+                    "hwid": getattr(p, "hwid", ""),
+                    "manufacturer": getattr(p, "manufacturer", None),
+                    "vid": getattr(p, "vid", None),
+                    "pid": getattr(p, "pid", None),
+                    "serial_number": getattr(p, "serial_number", None),
+                }
+            )
+        return result
+    except Exception:
+        return []
 
 
 # ── Local file server ───────────────────────────────────────────
@@ -40,16 +140,6 @@ VERSION = "1.0.0"
 
 # Minimal JSON stubs keyed by request path.
 _API_STUBS: dict[str, tuple[int, dict | list]] = {
-    "/api/me": (
-        200,
-        {
-            "id": "standalone",
-            "username": "offline",
-            "callsign": "OFFLINE",
-            "role": "admin",
-            "fullname": "Standalone User",
-        },
-    ),
     "/api/health": (200, {"status": "ok", "standalone": True}),
     "/api/map_markers": (200, []),
     "/api/meshtastic/nodes": (200, []),
@@ -66,7 +156,6 @@ _API_STUBS: dict[str, tuple[int, dict | list]] = {
     "/api/autonomous_rules": (200, []),
     "/api/sessions": (200, []),
     "/api/audit_log": (200, []),
-    "/api/scan_ports": (200, []),
     "/api/federation/servers": (200, []),
     "/api/federation/info": (
         200,
@@ -90,71 +179,148 @@ _API_STUBS: dict[str, tuple[int, dict | list]] = {
 }
 
 
+def _read_request_body(handler) -> bytes:
+    length = int(handler.headers.get("Content-Length", 0))
+    return handler.rfile.read(length) if length else b""
+
+
+def _send_json(handler, status: int, body) -> None:
+    payload = json.dumps(body).encode()
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
 class _LPU5Handler(SimpleHTTPRequestHandler):
     """Serve static files + return stubs for /api/* requests."""
 
+    # ── helpers ──────────────────────────────────────────────────
+
+    def _bearer_user(self) -> dict | None:
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            return _user_from_token(auth[7:])
+        return None
+
+    # ── GET ──────────────────────────────────────────────────────
+
     def do_GET(self):
-        # Strip query string for path matching
         path = self.path.split("?")[0]
+
+        # /api/me – return logged-in user
+        if path == "/api/me":
+            user = self._bearer_user()
+            if user:
+                _send_json(self, 200, _user_info(user))
+            else:
+                _send_json(self, 401, {"detail": "Not authenticated"})
+            return
+
+        # /api/scan_ports – COM / serial port enumeration
+        if path == "/api/scan_ports":
+            _send_json(self, 200, _scan_serial_ports())
+            return
+
+        # /api/standalone/has_users – check if any local users exist
+        if path == "/api/standalone/has_users":
+            _send_json(self, 200, {"has_users": len(_load_users()) > 0})
+            return
 
         if path in _API_STUBS:
             status, body = _API_STUBS[path]
-            payload = json.dumps(body).encode()
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(payload)
+            _send_json(self, status, body)
             return
 
         # Catch-all for unknown /api/* endpoints → empty JSON
         if path.startswith("/api/"):
-            payload = b"[]"
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(payload)
+            _send_json(self, 200, [])
             return
 
         # Default: serve static file
         super().do_GET()
 
+    # ── POST ─────────────────────────────────────────────────────
+
     def do_POST(self):
         path = self.path.split("?")[0]
 
-        # Stub login – always succeed in standalone mode
+        # Login – validate against local user store
         if path == "/api/login_user":
-            body = {
-                "token": "standalone_token",
-                "user": {
-                    "id": "standalone",
-                    "username": "standalone",
-                    "callsign": "OFFLINE",
-                    "role": "admin",
-                    "fullname": "Standalone User",
-                },
+            try:
+                data = json.loads(_read_request_body(self))
+            except (json.JSONDecodeError, ValueError):
+                _send_json(self, 400, {"detail": "Invalid JSON"})
+                return
+            username = (data.get("username") or "").strip()
+            password = data.get("password") or ""
+            if not username or not password:
+                _send_json(self, 400, {"detail": "Username and password required"})
+                return
+            users = _load_users()
+            found = None
+            for u in users:
+                if u["username"] == username:
+                    found = u
+                    break
+            if not found or not _verify_password(password, found["password_hash"]):
+                _send_json(self, 401, {"detail": "Invalid credentials"})
+                return
+            token = _generate_token(found)
+            _send_json(
+                self,
+                200,
+                {"status": "success", "token": token, "user": _user_info(found)},
+            )
+            return
+
+        # Register – create a new local user (first user = admin)
+        if path == "/api/register_user":
+            try:
+                data = json.loads(_read_request_body(self))
+            except (json.JSONDecodeError, ValueError):
+                _send_json(self, 400, {"detail": "Invalid JSON"})
+                return
+            username = (data.get("username") or "").strip()
+            password = data.get("password") or ""
+            fullname = (data.get("fullname") or "").strip() or username
+            callsign = (data.get("callsign") or "").strip() or username
+            if not username or not password:
+                _send_json(self, 400, {"detail": "Username and password required"})
+                return
+            if len(password) < 4:
+                _send_json(
+                    self, 400, {"detail": "Password must be at least 4 characters"}
+                )
+                return
+            users = _load_users()
+            for u in users:
+                if u["username"] == username:
+                    _send_json(self, 409, {"detail": "Username already exists"})
+                    return
+            new_user = {
+                "id": str(uuid.uuid4()),
+                "username": username,
+                "password_hash": _hash_password(password),
+                "fullname": fullname,
+                "callsign": callsign,
+                "role": "admin",
             }
-            payload = json.dumps(body).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(payload)
+            users.append(new_user)
+            _save_users(users)
+            token = _generate_token(new_user)
+            _send_json(
+                self,
+                200,
+                {"status": "success", "token": token, "user": _user_info(new_user)},
+            )
             return
 
         # Catch-all for other POST /api/* endpoints
         if path.startswith("/api/"):
-            payload = json.dumps({"status": "ok", "standalone": True}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(payload)
+            _send_json(self, 200, {"status": "ok", "standalone": True})
             return
 
         self.send_error(405)
@@ -172,12 +338,7 @@ class _LPU5Handler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         path = self.path.split("?")[0]
         if path.startswith("/api/"):
-            payload = json.dumps({"status": "ok"}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
+            _send_json(self, 200, {"status": "ok"})
             return
         self.send_error(405)
 
@@ -211,11 +372,11 @@ def check_dependencies() -> bool:
         return True
     except ImportError:
         print("[FEHLER] pywebview ist nicht installiert.")
-        print("         Installieren mit: pip install pywebview")
+        print("         Installieren mit: pip install pywebview pyserial")
         print("")
-        print("  Windows:  pip install pywebview[cef]")
-        print("  Linux:    pip install pywebview[gtk]")
-        print("  macOS:    pip install pywebview")
+        print("  Windows:  pip install pywebview[cef] pyserial")
+        print("  Linux:    pip install pywebview[gtk] pyserial")
+        print("  macOS:    pip install pywebview pyserial")
         return False
 
 
@@ -311,6 +472,17 @@ def main():
     print(f"[*] Version: {VERSION}")
     print(f"[*] Lokaler Server: http://127.0.0.1:{port}")
     print(f"[*] UI: {local_url}")
+    users = _load_users()
+    if users:
+        print(f"[*] Lokale Benutzer: {len(users)}")
+    else:
+        print("[*] Kein Benutzer vorhanden – Erstregistrierung beim Start.")
+    if _serial_list_ports:
+        ports = _scan_serial_ports()
+        print(f"[*] COM-Ports: {len(ports)} gefunden")
+    else:
+        print("[!] pyserial nicht installiert – COM-Port-Scan deaktiviert.")
+        print("    Installieren mit: pip install pyserial")
     print("[*] Fenster schließen zum Beenden.")
 
     api = LPU5Api()

@@ -6930,7 +6930,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             <div class="login-title">LPU5</div>
             <div class="login-subtitle">Tactical Network Management</div>
 
-            <div class="login-form">
+            <div class="login-form" id="spaLoginForm">
                 <div class="error-msg" id="spaLoginError"></div>
 
                 <div class="form-group">
@@ -6948,7 +6948,44 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
                 </button>
             </div>
 
-            <div class="register-link">
+            <!-- Standalone first-time registration form (hidden by default) -->
+            <div class="login-form" id="spaRegisterForm" style="display:none;">
+                <div style="text-align:center;margin-bottom:12px;color:#2ecc71;font-size:0.85rem;">
+                    <i class="fas fa-user-plus"></i> Ersten Benutzer anlegen / Create first user
+                </div>
+                <div class="error-msg" id="spaRegisterError"></div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> Username</label>
+                    <input type="text" id="spaRegUser" placeholder="admin" autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-id-badge"></i> Full Name</label>
+                    <input type="text" id="spaRegFullname" placeholder="Full Name">
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-satellite-dish"></i> Callsign</label>
+                    <input type="text" id="spaRegCallsign" placeholder="Callsign">
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="spaRegPass" placeholder="Password (min. 4)">
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-lock"></i> Confirm Password</label>
+                    <input type="password" id="spaRegPass2" placeholder="Repeat password">
+                </div>
+
+                <button class="login-btn" onclick="spaRegister()" style="background:linear-gradient(135deg,#27ae60,#2ecc71);">
+                    <i class="fas fa-user-plus"></i> REGISTER &amp; LOGIN
+                </button>
+            </div>
+
+            <div class="register-link" id="spaRegisterLink">
                 <a href="/register.html">Registrieren / Register</a>
             </div>
         </div>
@@ -10520,6 +10557,68 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             }
         };
 
+        /* ── Standalone registration ── */
+        window.spaRegister = async function() {
+            var user = document.getElementById('spaRegUser').value.trim();
+            var fullname = document.getElementById('spaRegFullname').value.trim();
+            var callsign = document.getElementById('spaRegCallsign').value.trim();
+            var pass = document.getElementById('spaRegPass').value;
+            var pass2 = document.getElementById('spaRegPass2').value;
+            var errEl = document.getElementById('spaRegisterError');
+            errEl.classList.remove('show');
+
+            if (!user || !pass) {
+                errEl.textContent = 'Username and password required';
+                errEl.classList.add('show');
+                return;
+            }
+            if (pass.length < 4) {
+                errEl.textContent = 'Password must be at least 4 characters';
+                errEl.classList.add('show');
+                return;
+            }
+            if (pass !== pass2) {
+                errEl.textContent = 'Passwords do not match';
+                errEl.classList.add('show');
+                return;
+            }
+
+            try {
+                var res = await fetch('/api/register_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass, fullname: fullname || user, callsign: callsign || user })
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    localStorage.setItem('lpu5_user', JSON.stringify(data.user));
+                    localStorage.setItem('lpu5_token', data.token || user);
+                    if (data.token) localStorage.setItem('token', data.token);
+                    spaShowApp();
+                } else {
+                    errEl.textContent = '⌧ ' + (data.message || data.detail || 'Registration failed');
+                    errEl.classList.add('show');
+                }
+            } catch(e) {
+                errEl.textContent = 'Registration error: ' + e.message;
+                errEl.classList.add('show');
+            }
+        };
+
+        function _showStandaloneSetup() {
+            document.getElementById('spaLoginOverlay').style.display = 'flex';
+            document.getElementById('spaLoginForm').style.display = 'none';
+            document.getElementById('spaRegisterForm').style.display = 'block';
+            document.getElementById('spaRegisterLink').style.display = 'none';
+        }
+
+        function _showStandaloneLogin() {
+            document.getElementById('spaLoginOverlay').style.display = 'flex';
+            document.getElementById('spaLoginForm').style.display = 'block';
+            document.getElementById('spaRegisterForm').style.display = 'none';
+            document.getElementById('spaRegisterLink').style.display = 'none';
+        }
+
         function spaShowApp() {
             document.getElementById('spaLoginOverlay').style.display = 'none';
             try {
@@ -10543,14 +10642,22 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             });
 
             if (window._standaloneMode) {
-                // Standalone desktop mode – skip login, show full UI
-                localStorage.setItem('lpu5_token', 'standalone_token');
-                localStorage.setItem('lpu5_user', JSON.stringify({
-                    id: 'standalone', username: 'standalone',
-                    callsign: 'OFFLINE', role: 'admin',
-                    fullname: 'Standalone'
-                }));
-                spaShowApp();
+                // Standalone desktop mode – check if local users exist
+                fetch('/api/standalone/has_users')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.has_users) {
+                            // Users exist → show login form
+                            _showStandaloneLogin();
+                        } else {
+                            // No users yet → show registration form
+                            _showStandaloneSetup();
+                        }
+                    })
+                    .catch(function() {
+                        // Fallback: show login form
+                        _showStandaloneLogin();
+                    });
                 return;
             }
 
