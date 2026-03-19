@@ -13597,8 +13597,8 @@ window.addEventListener('storage', (e) => {
               }
 
               // Skip echo of our own creation (POST still in-flight, local ov_ ID present)
-              if (_pendingOverlayIds.size > 0) {
-                console.log('Overlay create in-flight, suppressing WS echo');
+              if (_pendingOverlayIds.size > 0 && (o.created_by || 'unknown') === getCurrentUsername()) {
+                console.log('Overlay create in-flight for current user, suppressing WS echo');
                 break;
               }
 
