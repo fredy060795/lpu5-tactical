@@ -13383,6 +13383,9 @@ window.addEventListener('storage', (e) => {
       const drawings = [];   // {id, layer, name, creator}
       const symbols = [];    // {id, marker, sym, creator}
       const markers = [];    // {id, marker, data} - for map markers/units
+      // Track local ov_ IDs whose server POST is still in-flight,
+      // so the WS overlay_created echo is suppressed.
+      const _pendingOverlayIds = new Set();
 
       // WebSocket connection for real-time updates
       let ws = null;
@@ -13587,9 +13590,15 @@ window.addEventListener('storage', (e) => {
               console.log('Received overlay_created:', data.data);
               const o = data.data;
 
-              // Check if overlay already exists
+              // Check if overlay already exists (by server ID)
               if (overlays.find(x => x.id === o.id)) {
                 console.log('Overlay already exists, skipping');
+                break;
+              }
+
+              // Skip echo of our own creation (POST still in-flight, local ov_ ID present)
+              if (_pendingOverlayIds.size > 0) {
+                console.log('Overlay create in-flight, suppressing WS echo');
                 break;
               }
 
@@ -14079,7 +14088,8 @@ window.addEventListener('storage', (e) => {
       }
 
       // Load drawings, symbols and overlays from localStorage
-      function loadStateFromLocalStorage() {
+      // opts.skipOverlays: when true, skip overlay restoration (loadOverlays handles it)
+      function loadStateFromLocalStorage(opts) {
         try {
           const savedState = localStorage.getItem('lpu5_map_state');
           if (!savedState) return;
@@ -14088,7 +14098,7 @@ window.addEventListener('storage', (e) => {
           console.log('Loading map state from localStorage:', state);
 
           // Restore overlays from localStorage (data URLs persist across refresh)
-          if (state.overlays) {
+          if (!(opts && opts.skipOverlays) && state.overlays) {
             state.overlays.forEach(o => {
               try {
                 if (overlays.find(x => x.id === o.id)) return; // skip duplicates
@@ -14277,6 +14287,7 @@ window.addEventListener('storage', (e) => {
         saveStateToLocalStorage();
 
         // Save overlay to server API for persistence and sharing
+        _pendingOverlayIds.add(id);
         try {
           const token = localStorage.getItem('token');
           const apiBounds = { south: bounds[0][0], west: bounds[0][1], north: bounds[1][0], east: bounds[1][1] };
@@ -14309,6 +14320,8 @@ window.addEventListener('storage', (e) => {
           }
         } catch (e) {
           console.error('Failed to save overlay to server:', e);
+        } finally {
+          _pendingOverlayIds.delete(id);
         }
 
         return id;
@@ -15314,8 +15327,9 @@ window.addEventListener('storage', (e) => {
       setInterval(updateMeshtasticNodes, 30000);
 
       // Load saved state from localStorage FIRST (immediate, synchronous)
-      // This ensures locally persisted data is visible before async server fetches
-      loadStateFromLocalStorage();
+      // Skip overlays here – loadOverlays() is the single source for overlays
+      // (it falls back to localStorage when the server is unreachable)
+      loadStateFromLocalStorage({ skipOverlays: true });
 
       // Load Map Symbols from server (merges with local state)
       loadMapSymbols();
