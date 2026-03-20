@@ -13428,6 +13428,8 @@ window.addEventListener('storage', (e) => {
     }
 
     // ─── TAK Login Management ─────────────────────────────────────────
+    function _takEscHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
     async function takLoadLogins() {
         const tbody = document.getElementById('takLoginTable');
         if (!tbody) return;
@@ -13444,18 +13446,18 @@ window.addEventListener('storage', (e) => {
                 const tr = document.createElement('tr');
                 const assigned = entry.assigned;
                 if (assigned) tr.style.opacity = '0.55';
-                const safeId = (entry.id || '').replace(/'/g, "\\'");
-                const safeUser = (entry.username || '').replace(/'/g, "\\'").replace(/</g, '&lt;');
-                const safePass = (entry.password || '').replace(/'/g, "\\'").replace(/</g, '&lt;');
+                const safeId = _takEscHtml(entry.id || '');
+                const safeUser = _takEscHtml(entry.username || '');
+                const safePass = _takEscHtml(entry.password || '');
                 tr.innerHTML =
                     '<td>' + (safeUser || '-') + '</td>' +
                     '<td>' + (safePass || '-') + '</td>' +
                     '<td>' + (assigned
                         ? '<span style="color:#f39c12;font-weight:bold;"><i class="fas fa-lock"></i> Assigned</span>'
                         : '<span style="color:#28a745;"><i class="fas fa-lock-open"></i> Available</span>') + '</td>' +
-                    '<td>' + ((entry.assigned_to_callsign || '-').replace(/</g, '&lt;')) + '</td>' +
-                    '<td>' + ((entry.assigned_to_unit || '-').replace(/</g, '&lt;')) + '</td>' +
-                    '<td style="font-size:0.8em;color:#888;">' + ((entry.assigned_to_ip || '-').replace(/</g, '&lt;')) + '</td>' +
+                    '<td>' + _takEscHtml(entry.assigned_to_callsign || '-') + '</td>' +
+                    '<td>' + _takEscHtml(entry.assigned_to_unit || '-') + '</td>' +
+                    '<td style="font-size:0.8em;color:#888;">' + _takEscHtml(entry.assigned_to_ip || '-') + '</td>' +
                     '<td style="font-size:0.8em;color:#888;">' + (entry.assigned_at ? new Date(entry.assigned_at).toLocaleString() : '-') + '</td>' +
                     '<td>' +
                         (assigned
