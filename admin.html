@@ -1267,6 +1267,7 @@
                         (assigned
                             ? '<button class="btn-icon" title="Release" onclick="takRelease(\'' + safeId + '\')"><i class="fas fa-unlock"></i></button>'
                             : '') +
+                        '<button class="btn-icon" title="Download Certificate" onclick="takDownloadUserCert(\'' + safeUser + '\',\'' + safePass + '\')" style="color:#2ecc71;"><i class="fas fa-certificate"></i></button>' +
                         '<button class="btn-icon" title="Edit" onclick="takEdit(\'' + safeId + '\',\'' + safeUser + '\',\'' + safePass + '\')"><i class="fas fa-edit"></i></button>' +
                         '<button class="btn-icon" title="Delete" onclick="takDelete(\'' + safeId + '\')" style="color:#dc3545;"><i class="fas fa-trash"></i></button>' +
                     '</td>';
@@ -1347,6 +1348,26 @@
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify({ username: newUser, password: newPass })
         }).then(() => takLoadLogins()).catch(e => alert('Error: ' + e.message));
+    }
+
+    async function takDownloadUserCert(username, password) {
+        try {
+            const res = await fetch('/api/tak_logins/generate_p12', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ username, password })
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('Certificate generation failed: ' + ((body && body.detail) || res.status)); return; }
+            if (body && body.zip_base64) {
+                const link = document.createElement('a');
+                link.href = 'data:application/zip;base64,' + body.zip_base64;
+                link.download = body.filename || (username + '_TAK_Server.zip');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        } catch (e) { alert('Error: ' + e.message); }
     }
 
     async function takGenerateP12() {
