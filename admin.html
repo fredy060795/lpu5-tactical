@@ -585,24 +585,17 @@
         </div>
     </div>
 
-    <!-- Certificate Generation -->
+    <!-- Certificate Generation (ATAK ZIP Package) -->
     <div class="section">
-        <h3><i class="fas fa-certificate"></i> Generate Client Certificate (.p12)</h3>
+        <h3><i class="fas fa-certificate"></i> ATAK / iTAK Certificate Package</h3>
         <div style="margin-bottom:10px; padding:10px; background:rgba(46,204,113,0.1); border:1px solid rgba(46,204,113,0.3); border-radius:4px; font-size:0.85em;">
             <i class="fas fa-info-circle" style="color:#2ecc71;"></i>
-            Generate a PKCS#12 (.p12) client certificate for ATAK/iTAK. Import this file into your TAK application to automatically configure the server connection.
+            Generate an ATAK-compatible certificate ZIP package. The ZIP contains the client certificate (.p12),
+            truststore, and server connection preferences. Import the ZIP directly into ATAK or iTAK.
         </div>
-        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
-            <div>
-                <label class="small">Certificate Name (CN)</label>
-                <input type="text" id="takP12CertName" placeholder="e.g. operator1" style="width:200px;">
-            </div>
-            <div>
-                <label class="small">Certificate Password</label>
-                <input type="text" id="takP12CertPass" placeholder="atakcerts" style="width:180px;" value="atakcerts">
-            </div>
+        <div style="margin-bottom:10px;">
             <button class="btn" onclick="takGenerateP12()" style="background:rgba(46,204,113,0.2); border-color:#2ecc71; color:#2ecc71;">
-                <i class="fas fa-file-export"></i> Generate &amp; Download .p12
+                <i class="fas fa-file-archive"></i> Generate &amp; Download Certificate ZIP
             </button>
         </div>
         <div id="takP12Result" style="display:none; margin-top:10px; padding:10px; background:rgba(46,204,113,0.05); border:1px solid rgba(46,204,113,0.2); border-radius:4px;"></div>
@@ -1357,27 +1350,26 @@
     }
 
     async function takGenerateP12() {
-        const cn = (document.getElementById('takP12CertName') || {}).value.trim() || 'LPU5-Client';
-        const pw = (document.getElementById('takP12CertPass') || {}).value.trim() || 'atakcerts';
         const area = document.getElementById('takP12Result');
         try {
             const res = await fetch('/api/tak_logins/generate_p12', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                body: JSON.stringify({ username: cn, password: pw })
+                body: JSON.stringify({})
             });
             const body = await res.json().catch(() => null);
             if (!res.ok) { alert('Certificate generation failed: ' + ((body && body.detail) || res.status)); return; }
-            if (area && body && body.p12_base64) {
+            if (area && body && body.zip_base64) {
                 area.style.display = 'block';
                 area.innerHTML =
-                    '<div style="color:#2ecc71;font-weight:bold;margin-bottom:8px;"><i class="fas fa-certificate"></i> Certificate Generated</div>' +
-                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Filename:</strong> ' + (body.filename || 'certificate.p12') + '</div>' +
-                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Password:</strong> <code>' + (body.password || pw) + '</code></div>' +
+                    '<div style="color:#2ecc71;font-weight:bold;margin-bottom:8px;"><i class="fas fa-file-archive"></i> Certificate Package Generated</div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Filename:</strong> ' + (body.filename || 'certificate.zip') + '</div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Certificate Password:</strong> <code>' + (body.password || 'atakcerts') + '</code></div>' +
                     '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Server:</strong> ' + (body.server || '-') + ':' + (body.port || '-') + ' (' + (body.protocol || '-').toUpperCase() + ')</div>' +
-                    '<a download="' + (body.filename || 'certificate.p12') + '" href="data:application/x-pkcs12;base64,' + body.p12_base64 + '" ' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;color:#999;">Contains: client .p12, truststore-root.p12, connection preferences</div>' +
+                    '<a download="' + (body.filename || 'certificate.zip') + '" href="data:application/zip;base64,' + body.zip_base64 + '" ' +
                     'style="display:inline-block;margin-top:8px;padding:8px 16px;background:#2ecc71;color:#000;text-decoration:none;border-radius:6px;font-weight:bold;">' +
-                    '<i class="fas fa-download"></i> Download .p12 Certificate</a>';
+                    '<i class="fas fa-download"></i> Download Certificate ZIP</a>';
             }
         } catch (e) { alert('Error: ' + e.message); }
     }

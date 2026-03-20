@@ -230,19 +230,19 @@
 
     <!-- Certificate Download Section -->
     <div class="cert-download" id="certDownloadBox">
-        <h4><i class="fas fa-certificate"></i> ATAK / iTAK Certificate</h4>
+        <h4><i class="fas fa-certificate"></i> ATAK / iTAK Certificate Package</h4>
         <div class="cert-info">
-            Download the .p12 certificate to automatically configure your TAK application.
-            Import this file into ATAK or iTAK for secure server connection.
+            Download the certificate ZIP package to automatically configure your TAK application.
+            Import this file directly into ATAK or iTAK for secure server connection.
         </div>
         <div class="cert-info" id="certPasswordInfo" style="display:none;">
             <strong>Certificate Password:</strong> <code id="certPasswordValue" style="color:#2ecc71;user-select:all;">-</code>
         </div>
         <button class="btn-cert" id="certDownloadBtn" onclick="downloadCert()">
-            <i class="fas fa-download"></i> Download .p12 Certificate
+            <i class="fas fa-download"></i> Download Certificate ZIP
         </button>
         <div id="certSpinner" style="display:none;margin-top:8px;color:#999;font-size:0.85em;">
-            <i class="fas fa-circle-notch" style="animation:spin 1s linear infinite;"></i> Generating certificate...
+            <i class="fas fa-circle-notch" style="animation:spin 1s linear infinite;"></i> Generating certificate package...
         </div>
     </div>
 
@@ -358,7 +358,7 @@
                 btn.disabled = false;
                 return;
             }
-            if (body && body.p12_base64) {
+            if (body && body.zip_base64) {
                 // Show password info
                 const pwInfo = document.getElementById('certPasswordInfo');
                 const pwVal = document.getElementById('certPasswordValue');
@@ -368,8 +368,8 @@
                 }
                 // Trigger download
                 const link = document.createElement('a');
-                link.href = 'data:application/x-pkcs12;base64,' + body.p12_base64;
-                link.download = body.filename || (login.username + '.p12');
+                link.href = 'data:application/zip;base64,' + body.zip_base64;
+                link.download = body.filename || 'TAK_Server.zip';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

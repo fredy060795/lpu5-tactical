@@ -6837,12 +6837,15 @@ def api_tak_login_settings_update(data: dict = Body(...)):
 
 @app.post("/api/tak_logins/generate_p12")
 def api_tak_logins_generate_p12(data: dict = Body(default={})):
-    """Generate a PKCS#12 (.p12) client certificate bundle for ATAK/iTAK.
+    """Generate an ATAK-compatible certificate data package (ZIP).
 
-    The generated .p12 contains a self-signed client certificate and
-    private key that can be imported into ATAK/iTAK for TAK server
-    authentication.  The admin-configured server settings are embedded
-    in the certificate's common name for reference.
+    The ZIP contains:
+      - ``<name>.p12``          – client identity (PKCS#12)
+      - ``truststore-root.p12`` – CA trust anchor (PKCS#12)
+      - ``<server>.pref``       – ATAK connection preferences XML
+
+    ATAK / iTAK can import this ZIP directly to auto-configure the
+    server connection including certificates and trust chain.
     """
     try:
         from cryptography import x509
@@ -6851,6 +6854,8 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
         from cryptography.x509.oid import NameOID
         from cryptography.hazmat.primitives.serialization import pkcs12
         import ipaddress as ipaddr
+        import zipfile
+        import io
     except ImportError:
         raise HTTPException(
             status_code=500,
@@ -6860,32 +6865,63 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
     settings = _get_tak_login_settings()
     cn = data.get("username") or settings.get("display_name") or "LPU5-Client"
     p12_password = data.get("password") or "atakcerts"
+    server_host = settings.get("server_host") or "0.0.0.0"
+    server_port = int(settings.get("server_port", 8089))
+    protocol = settings.get("protocol", "ssl")
+    display_name = settings.get("display_name") or "LPU5"
 
     try:
-        # Generate RSA key pair
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        # ── 1. Generate CA key + self-signed CA certificate ──────────
+        ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        now = datetime.now(timezone.utc)
 
-        # Build subject
-        subject = issuer = x509.Name([
+        ca_subject = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, f"{display_name}-CA"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, display_name),
+        ])
+        ca_cert = (
+            x509.CertificateBuilder()
+            .subject_name(ca_subject)
+            .issuer_name(ca_subject)
+            .public_key(ca_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now)
+            .not_valid_after(now + timedelta(days=3650))
+            .add_extension(
+                x509.BasicConstraints(ca=True, path_length=0), critical=True,
+            )
+            .add_extension(
+                x509.KeyUsage(
+                    digital_signature=True, key_cert_sign=True, crl_sign=True,
+                    content_commitment=False, key_encipherment=False,
+                    data_encipherment=False, key_agreement=False,
+                    encipher_only=False, decipher_only=False,
+                ),
+                critical=True,
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+
+        # ── 2. Generate client key + certificate signed by CA ────────
+        client_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+        client_subject = x509.Name([
             x509.NameAttribute(NameOID.COMMON_NAME, str(cn)),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, settings.get("display_name") or "LPU5"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, display_name),
         ])
 
-        # SAN entries
         san_entries = [x509.DNSName("localhost")]
-        server_host = settings.get("server_host") or ""
         if server_host:
             try:
                 san_entries.append(x509.IPAddress(ipaddr.ip_address(server_host)))
             except ValueError:
                 san_entries.append(x509.DNSName(server_host))
 
-        now = datetime.now(timezone.utc)
-        cert = (
+        client_cert = (
             x509.CertificateBuilder()
-            .subject_name(subject)
-            .issuer_name(issuer)
-            .public_key(key.public_key())
+            .subject_name(client_subject)
+            .issuer_name(ca_subject)
+            .public_key(client_key.public_key())
             .serial_number(x509.random_serial_number())
             .not_valid_before(now)
             .not_valid_after(now + timedelta(days=730))
@@ -6896,34 +6932,78 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
                 x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH]),
                 critical=False,
             )
-            .sign(key, hashes.SHA256())
+            .sign(ca_key, hashes.SHA256())
         )
 
-        # Serialize to PKCS#12
-        p12_bytes = pkcs12.serialize_key_and_certificates(
+        # ── 3. Serialize PKCS#12 bundles ─────────────────────────────
+        enc_algo = serialization.BestAvailableEncryption(p12_password.encode("utf-8"))
+
+        # Client .p12 (client key + cert, with CA as additional cert)
+        client_p12 = pkcs12.serialize_key_and_certificates(
             name=cn.encode("utf-8"),
-            key=key,
-            cert=cert,
-            cas=None,
-            encryption_algorithm=serialization.BestAvailableEncryption(
-                p12_password.encode("utf-8")
-            ),
+            key=client_key,
+            cert=client_cert,
+            cas=[ca_cert],
+            encryption_algorithm=enc_algo,
         )
 
-        p12_b64 = base64.b64encode(p12_bytes).decode("ascii")
+        # Truststore .p12 (CA cert only, no private key)
+        truststore_p12 = pkcs12.serialize_key_and_certificates(
+            name=b"truststore-root",
+            key=None,
+            cert=None,
+            cas=[ca_cert],
+            encryption_algorithm=enc_algo,
+        )
+
+        # ── 4. Build ATAK .pref XML ─────────────────────────────────
+        # NOTE: The 'class="class java.lang.…"' attribute syntax is
+        # required by ATAK's preference importer – do not "fix" it.
+        connect_string = f"{server_host}:{server_port}:{protocol}"
+        safe_cn = _sax_utils.escape(str(cn))
+        safe_display = _sax_utils.escape(display_name)
+        safe_connect = _sax_utils.escape(connect_string)
+        safe_password = _sax_utils.escape(p12_password)
+        pref_xml = (
+            '<?xml version=\'1.0\' standalone=\'yes\'?>\n'
+            '<preferences>\n'
+            '    <preference version="1" name="cot_streams">\n'
+            '        <entry key="count" class="class java.lang.Integer">1</entry>\n'
+            f'        <entry key="description0" class="class java.lang.String">{safe_display}</entry>\n'
+            '        <entry key="enabled0" class="class java.lang.Boolean">true</entry>\n'
+            f'        <entry key="connectString0" class="class java.lang.String">{safe_connect}</entry>\n'
+            '    </preference>\n'
+            '    <preference version="1" name="com.atakmap.app_preferences">\n'
+            f'        <entry key="clientPassword" class="class java.lang.String">{safe_password}</entry>\n'
+            f'        <entry key="caPassword" class="class java.lang.String">{safe_password}</entry>\n'
+            f'        <entry key="certificateLocation" class="class java.lang.String">/cert/{safe_cn}.p12</entry>\n'
+            '        <entry key="caLocation" class="class java.lang.String">/cert/truststore-root.p12</entry>\n'
+            '    </preference>\n'
+            '</preferences>\n'
+        )
+
+        # ── 5. Pack into ZIP ─────────────────────────────────────────
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(f"{cn}.p12", client_p12)
+            zf.writestr("truststore-root.p12", truststore_p12)
+            zf.writestr(f"{display_name}.pref", pref_xml)
+
+        zip_b64 = base64.b64encode(zip_buf.getvalue()).decode("ascii")
+        zip_filename = f"{display_name}_TAK_Server.zip"
 
         return {
             "status": "success",
-            "p12_base64": p12_b64,
-            "filename": f"{cn}.p12",
+            "zip_base64": zip_b64,
+            "filename": zip_filename,
             "password": p12_password,
-            "server": settings.get("server_host") or "",
-            "port": int(settings.get("server_port", 8089)),
-            "protocol": settings.get("protocol", "ssl"),
+            "server": server_host,
+            "port": server_port,
+            "protocol": protocol,
         }
 
     except Exception as exc:
-        logger.exception("P12 certificate generation failed: %s", exc)
+        logger.exception("ATAK certificate package generation failed: %s", exc)
         raise HTTPException(status_code=500, detail="Certificate generation failed: " + str(exc))
 
 
