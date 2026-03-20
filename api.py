@@ -41,6 +41,7 @@ import logging
 import pathlib
 import queue
 import random
+import secrets
 import threading
 import time
 import socket
@@ -49,6 +50,8 @@ import asyncio
 import sys
 import xml.sax.saxutils as _sax_utils
 import requests
+import urllib3
+import warnings
 
 # Fix Windows asyncio ProactorEventLoop issue that causes
 # "Exception in callback _ProactorBasePipeTransport._call_connection_lost"
@@ -638,6 +641,11 @@ DEFAULT_DB_CONTENTS: Dict[str, Any] = {
         "server_port": 8089,
         "protocol": "ssl",
         "display_name": "LPU5",
+        "mgmt_enabled": False,
+        "mgmt_url": "",
+        "mgmt_username": "",
+        "mgmt_password": "",
+        "tak_qr_token": "",
     },
 }
 
@@ -3323,9 +3331,32 @@ async def approve_registration(data: dict = Body(...), db: Session = Depends(get
     db.delete(reg)
     db.commit()
     db.refresh(new_user)
-    
+
+    # Auto-sync the new user to the OpenTAK management API if configured.
+    # A dedicated TAK password is generated and stored so the user can
+    # retrieve it later from the TAK login page.
+    # Always generate a TAK password so every user gets TAK credentials,
+    # regardless of whether the management API is configured.
+    tak_password = _generate_tak_password()
+    user_data = dict(new_user.data or {})
+    user_data["tak_server_password"] = tak_password
+    new_user.data = user_data
+    flag_modified(new_user, "data")
+    db.commit()
+
+    tak_sync_result = _sync_user_to_tak_server(new_user.username, tak_password)
+
+    # Also add an entry to the tak_logins JSON list so the admin
+    # TAK login panel displays the user alongside manual entries.
+    _add_tak_login_entry(new_user.username, tak_password, callsign=new_user.callsign, unit=new_user.unit)
+
     log_audit("approve_registration", "system", {"username": username, "user_id": new_user.id})
-    return {"status": "success", "message": "User approved and created", "user_id": new_user.id}
+    return {
+        "status": "success",
+        "message": "User approved and created",
+        "user_id": new_user.id,
+        "tak_sync": tak_sync_result,
+    }
 
 @app.post("/api/reject_registration")
 async def reject_registration(data: dict = Body(...), db: Session = Depends(get_db)):
@@ -6829,14 +6860,211 @@ def api_tak_login_settings_update(data: dict = Body(...)):
         settings["display_name"] = str(data["display_name"]).strip()
     if "server_name" in data:
         settings["server_name"] = str(data["server_name"]).strip()
+    if "mgmt_enabled" in data:
+        settings["mgmt_enabled"] = bool(data["mgmt_enabled"])
+    if "mgmt_url" in data:
+        settings["mgmt_url"] = str(data["mgmt_url"]).strip()
+    if "mgmt_username" in data:
+        settings["mgmt_username"] = str(data["mgmt_username"]).strip()
+    if "mgmt_password" in data:
+        settings["mgmt_password"] = str(data["mgmt_password"])
+    # Allow explicit token value; if caller sends regenerate=true a new one is created
+    if data.get("regenerate_tak_qr_token"):
+        settings["tak_qr_token"] = _generate_tak_qr_token()
+    elif "tak_qr_token" in data:
+        settings["tak_qr_token"] = str(data["tak_qr_token"]).strip()
     save_json("tak_login_settings", settings)
     return {"status": "success", "settings": settings}
+
+
+# --- TAK Management API helpers ---
+
+import string as _string
+
+def _generate_tak_password(length: int = 16) -> str:
+    """Generate a cryptographically random alphanumeric TAK server password."""
+    alphabet = _string.ascii_letters + _string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _generate_tak_qr_token() -> str:
+    """Generate a cryptographically random TAK QR trust token (32 hex chars)."""
+    return uuid.uuid4().hex
+
+
+def _get_tak_qr_token() -> str:
+    """Return the current TAK QR trust token, creating one if it does not exist yet."""
+    settings = _get_tak_login_settings()
+    token = settings.get("tak_qr_token") or ""
+    if not token:
+        token = _generate_tak_qr_token()
+        settings["tak_qr_token"] = token
+        save_json("tak_login_settings", settings)
+    return token
+
+
+def _add_tak_login_entry(
+    username: str,
+    password: str,
+    *,
+    callsign: Optional[str] = None,
+    unit: Optional[str] = None,
+) -> dict:
+    """Append a TAK login entry to the JSON list (used by approve / trusted-register).
+
+    If an entry with the same username already exists it is updated
+    instead of duplicated.  Returns the (new or updated) entry dict.
+    """
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        logins = []
+
+    existing = next(
+        (e for e in logins if (e.get("username") or "").lower() == username.lower()),
+        None,
+    )
+    if existing:
+        existing["password"] = password
+        if callsign:
+            existing["assigned_to_callsign"] = callsign
+        if unit:
+            existing["assigned_to_unit"] = unit
+        save_json("tak_logins", logins)
+        return existing
+
+    entry = {
+        "id": str(uuid.uuid4()),
+        "username": username,
+        "password": password,
+        "assigned": True,
+        "assigned_to_ip": None,
+        "assigned_to_callsign": callsign,
+        "assigned_to_unit": unit,
+        "assigned_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source": "registered",
+    }
+    logins.append(entry)
+    save_json("tak_logins", logins)
+    return entry
+
+
+def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
+    """Register a user on the OpenTAK Management API if configured.
+
+    Returns a dict with either ``{"skipped": True}`` when management
+    sync is disabled/unconfigured or ``{"success": True/False, ...}``.
+    """
+    settings = _get_tak_login_settings()
+    if not settings.get("mgmt_enabled"):
+        return {"skipped": True, "reason": "TAK management sync not enabled"}
+    mgmt_url = (settings.get("mgmt_url") or "").strip().rstrip("/")
+    if not mgmt_url:
+        return {"skipped": True, "reason": "No management URL configured"}
+    if not mgmt_url.startswith(("http://", "https://")):
+        logger.warning("TAK management URL has no scheme, assuming https:// for '%s'", mgmt_url)
+        mgmt_url = f"https://{mgmt_url}"
+    mgmt_user = settings.get("mgmt_username") or ""
+    mgmt_pass = settings.get("mgmt_password") or ""
+    auth = (mgmt_user, mgmt_pass) if mgmt_user else None
+    api_endpoint = f"{mgmt_url}/user-management/api/v1/user/"
+    payload = {"username": username, "password": tak_password, "enabled": True}
+    # OpenTAK Management servers commonly use self-signed certificates;
+    # disable host verification to allow private deployments.  Operators
+    # who need strict TLS validation should proxy through a trusted CA.
+    req_kwargs = dict(json=payload, auth=auth, verify=False, timeout=10)
+    try:
+        # Suppress noisy InsecureRequestWarning when using verify=False.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
+            resp = requests.post(api_endpoint, **req_kwargs)
+            # Some management servers (e.g. Persistent Systems) only accept
+            # PUT for user creation/update.  Retry with PUT on 405.
+            if resp.status_code == 405:
+                logger.info("TAK sync: POST returned 405, retrying with PUT for user '%s'", username)
+                resp = requests.put(api_endpoint, **req_kwargs)
+        if resp.status_code in (200, 201):
+            logger.info("TAK sync: user '%s' created on management server", username)
+            return {"success": True}
+        if resp.status_code == 409:
+            logger.info("TAK sync: user '%s' already exists on management server", username)
+            return {"success": True, "note": "user already exists on TAK server"}
+        logger.warning(
+            "TAK sync: management server returned %s for user '%s': %s",
+            resp.status_code, username, resp.text[:200],
+        )
+        return {"success": False, "error": f"TAK server returned {resp.status_code}: {resp.text[:200]}"}
+    except Exception as exc:
+        logger.warning("TAK sync error for user '%s': %s", username, exc)
+        return {"success": False, "error": str(exc)}
+
+
+@app.post("/api/tak_logins/auth_claim")
+async def api_tak_logins_auth_claim(data: dict = Body(...), db: Session = Depends(get_db)):
+    """Authenticate with personal credentials and receive TAK server connection info.
+
+    A registered and admin-approved user may call this endpoint with their
+    LPU5 username and password.  On success the response contains their
+    personal TAK server credentials (username + dedicated TAK password) as
+    well as the server connection details required to configure ATAK / iTAK.
+
+    The TAK password is generated on first call and persisted so that
+    repeated calls always return the same password (and therefore the same
+    certificate can be re-downloaded).
+    """
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="username and password required")
+
+    # Look up active user first
+    user = db.query(User).filter(User.username == username).first()
+    if user:
+        if not verify_password(password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not user.is_active:
+            return {"status": "pending", "message": "Account awaiting admin activation"}
+        # Retrieve or generate a dedicated TAK password
+        user_data = user.data or {}
+        tak_password = user_data.get("tak_server_password")
+        if not tak_password:
+            tak_password = _generate_tak_password()
+            user_data = dict(user_data)
+            user_data["tak_server_password"] = tak_password
+            user.data = user_data
+            flag_modified(user, "data")
+            db.commit()
+            # Attempt management sync (best-effort)
+            _sync_user_to_tak_server(username, tak_password)
+            # Add to tak_logins JSON so admin panel shows the user
+            _add_tak_login_entry(username, tak_password, callsign=user.callsign, unit=user.unit)
+        settings = _get_tak_login_settings()
+        return {
+            "status": "ok",
+            "login": {
+                "username": username,
+                "password": tak_password,
+                "server": settings.get("server_host") or "",
+                "port": int(settings.get("server_port", 8089)),
+                "ssl": settings.get("protocol", "ssl") == "ssl",
+                "name": settings.get("display_name") or "LPU5",
+            },
+        }
+
+    # Check pending registrations
+    reg = db.query(PendingRegistration).filter(PendingRegistration.username == username).first()
+    if reg:
+        if not verify_password(password, reg.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return {"status": "pending", "message": "Registration pending admin approval"}
+
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 # --- TAK Login Certificate (.p12) Generation ---
 
 @app.post("/api/tak_logins/generate_p12")
-def api_tak_logins_generate_p12(data: dict = Body(default={})):
+def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Depends(get_db)):
     """Generate an ATAK-compatible certificate data package (ZIP).
 
     The ZIP contains:
@@ -6846,6 +7074,11 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
 
     ATAK / iTAK can import this ZIP directly to auto-configure the
     server connection including certificates and trust chain.
+
+    When *username* is provided and no explicit *password* is given the
+    endpoint looks up the user's stored TAK password (set during admin
+    approval or first auth-claim) and uses it as the PKCS#12 encryption
+    password so every user gets their own uniquely protected certificate.
     """
     try:
         from cryptography import x509
@@ -6864,7 +7097,32 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
 
     settings = _get_tak_login_settings()
     cn = data.get("username") or settings.get("display_name") or "LPU5-Client"
-    p12_password = data.get("password") or "atakcerts"
+
+    # Resolve the p12 password: explicit caller value → stored TAK password → tak_logins JSON → fallback
+    p12_password = data.get("password")
+    if not p12_password and data.get("username"):
+        try:
+            user_obj = db.query(User).filter(User.username == data["username"]).first()
+            if user_obj:
+                p12_password = (user_obj.data or {}).get("tak_server_password")
+        except Exception:
+            pass
+    if not p12_password and data.get("username"):
+        # Fall back to manually created tak_logins entries
+        try:
+            tak_entries = load_json("tak_logins")
+            if isinstance(tak_entries, list):
+                match = next(
+                    (e for e in tak_entries
+                     if (e.get("username") or "").lower() == data["username"].lower()),
+                    None,
+                )
+                if match:
+                    p12_password = match.get("password")
+        except Exception:
+            pass
+    if not p12_password:
+        p12_password = "atakcerts"
     server_host = settings.get("server_host") or "0.0.0.0"
     server_port = int(settings.get("server_port", 8089))
     protocol = settings.get("protocol", "ssl")
@@ -6990,7 +7248,9 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
             zf.writestr(f"{display_name}.pref", pref_xml)
 
         zip_b64 = base64.b64encode(zip_buf.getvalue()).decode("ascii")
-        zip_filename = f"{cn}_TAK_Server.zip" if data.get("username") else f"{display_name}_TAK_Server.zip"
+        # Use the user's name in the ZIP filename; strip all non-alphanumeric/hyphen/underscore chars
+        safe_name = re.sub(r'[^\w\-]', '_', str(cn))
+        zip_filename = f"{safe_name}_TAK.zip"
 
         return {
             "status": "success",
@@ -7008,11 +7268,47 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
 
 
 @app.get("/api/tak_logins")
-def api_tak_logins_list():
-    """List all TAK login entries (admin view)."""
+def api_tak_logins_list(db: Session = Depends(get_db)):
+    """List all TAK login entries (admin view).
+
+    Combines manually created entries from the JSON store **and**
+    registered users from the database who have a TAK server password
+    assigned (via registration approval or auth-claim).  DB-sourced
+    entries are marked with ``source: "registered"`` so the admin UI
+    can distinguish them.
+    """
     logins = load_json("tak_logins")
     if not isinstance(logins, list):
         logins = []
+
+    # Collect usernames already present in the JSON list to avoid duplicates
+    json_usernames = {(e.get("username") or "").lower() for e in logins}
+
+    # Merge registered DB users that have a TAK server password
+    try:
+        db_users = db.query(User).filter(User.is_active == True).all()  # noqa: E712
+        for u in db_users:
+            udata = u.data or {}
+            tak_pw = udata.get("tak_server_password")
+            if not tak_pw:
+                continue
+            if (u.username or "").lower() in json_usernames:
+                continue
+            logins.append({
+                "id": f"db-{u.id}",
+                "username": u.username,
+                "password": tak_pw,
+                "assigned": True,
+                "assigned_to_ip": None,
+                "assigned_to_callsign": u.callsign,
+                "assigned_to_unit": u.unit,
+                "assigned_at": u.created_at.isoformat() if u.created_at else None,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "source": "registered",
+            })
+    except Exception:
+        logger.debug("Could not merge DB users into tak_logins list", exc_info=True)
+
     return logins
 
 @app.post("/api/tak_logins")
@@ -7053,11 +7349,24 @@ def api_tak_logins_add(data: dict = Body(...)):
         added.append(entry)
 
     save_json("tak_logins", logins)
-    return {"status": "success", "added": len(added), "entries": added}
+
+    # Best-effort sync each new user to the OpenTAK management server
+    sync_results = []
+    for entry in added:
+        result = _sync_user_to_tak_server(entry["username"], entry["password"])
+        sync_results.append(result)
+
+    return {"status": "success", "added": len(added), "entries": added, "tak_sync": sync_results}
 
 @app.post("/api/tak_logins/qr")
 def api_tak_logins_qr(data: dict = Body(default={}), request: Request = None):
-    """Generate a QR code that links to the TAK login claim page."""
+    """Generate a QR code that links to the TAK login/register page.
+
+    The URL contains a *tak_token* query parameter which serves as a
+    shared secret that proves the bearer has physical (or trusted) access
+    to the QR code.  Users who scan this code can self-register without
+    requiring a separate admin approval step.
+    """
     caller_base = (data.get("base_url") or "").strip().rstrip("/")
     if not caller_base:
         local_ip, _ = get_local_ip()
@@ -7065,7 +7374,8 @@ def api_tak_logins_qr(data: dict = Body(default={}), request: Request = None):
         key_file = os.path.join(base_path, "key.pem")
         protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
         caller_base = f"{protocol}://{local_ip}:8101"
-    claim_url = f"{caller_base}/tak_login.html"
+    tak_token = _get_tak_qr_token()
+    claim_url = f"{caller_base}/tak_login.html?tak_token={tak_token}"
 
     png_b64 = None
     if qrcode:
@@ -7079,6 +7389,130 @@ def api_tak_logins_qr(data: dict = Body(default={}), request: Request = None):
             logger.exception("TAK Login QR PNG generation failed")
 
     return {"status": "success", "claim_url": claim_url, "png_base64": png_b64}
+
+
+@app.post("/api/tak_logins/regenerate_token", summary="Regenerate the TAK QR trust token")
+def api_tak_regenerate_token(authorization: Optional[str] = Header(None)):
+    """Invalidate the current TAK QR token and generate a fresh one (admin only)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    settings = _get_tak_login_settings()
+    new_token = _generate_tak_qr_token()
+    settings["tak_qr_token"] = new_token
+    save_json("tak_login_settings", settings)
+    log_audit("regenerate_tak_qr_token", payload.get("username"), {})
+    return {"status": "success", "tak_qr_token": new_token}
+
+
+@app.post("/api/tak_logins/trusted_register")
+async def api_tak_logins_trusted_register(data: dict = Body(...), db: Session = Depends(get_db)):
+    """Self-register using the TAK QR trust token — no admin approval required.
+
+    A user who possesses the ``tak_token`` (embedded in the QR code URL) is
+    considered trusted and is created immediately as an active account.  A
+    personal TAK password is generated and, if management sync is configured,
+    the user is also created on the OpenTAK management server.
+
+    Body fields:
+      - tak_token   (str, required) – the trust token from the QR URL
+      - username    (str, required)
+      - password    (str, required, min 6 chars)
+      - callsign    (str, optional)
+      - unit        (str, optional)
+
+    Return values:
+      - status "ok"       – user created, TAK credentials returned in ``login``
+      - status "exists"   – username already active; caller should use login form
+      - status "pending"  – username already in pending queue
+      HTTP 401 if token is invalid.
+    """
+    tak_token = (data.get("tak_token") or "").strip()
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+
+    if not tak_token:
+        raise HTTPException(status_code=400, detail="tak_token required")
+    if not username:
+        raise HTTPException(status_code=400, detail="username required")
+    if not password or len(password) < 8:
+        raise HTTPException(status_code=400, detail="password must be at least 8 characters")
+
+    # Validate the token
+    stored_token = _get_tak_qr_token()
+    if not stored_token or tak_token != stored_token:
+        raise HTTPException(status_code=401, detail="Invalid or expired TAK QR token")
+
+    # Check existing active user
+    existing_user = db.query(User).filter(User.username == username).first()
+    if existing_user:
+        return {"status": "exists", "message": "Username already registered. Please use the login form."}
+
+    # Check pending registration
+    pending = db.query(PendingRegistration).filter(PendingRegistration.username == username).first()
+    if pending:
+        return {"status": "pending", "message": "A registration for this username is already pending admin approval."}
+
+    # Resolve unit
+    unit_name = (data.get("unit") or "General").strip()
+    unit_obj = db.query(Unit).filter(Unit.name == unit_name).first()
+    if not unit_obj:
+        unit_obj = db.query(Unit).filter(Unit.name == "General").first()
+        unit_name = unit_obj.name if unit_obj else "General"
+
+    # Generate a dedicated TAK password up front
+    tak_password = _generate_tak_password()
+
+    # Create the user immediately (is_active=True — no pending approval needed)
+    new_user = User(
+        id=str(uuid.uuid4()),
+        username=username,
+        password_hash=hash_password(password),
+        unit=unit_name,
+        unit_id=unit_obj.id if unit_obj else None,
+        callsign=(data.get("callsign") or "").strip() or None,
+        rank="Operator",
+        group_id="users",
+        role="user",
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+        tak_team="Cyan",
+        tak_role="Team Member",
+        tak_display_type="General Ground Unit",
+        data={"tak_server_password": tak_password, "registered_via": "tak_qr"},
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    # Best-effort sync to OpenTAK management server
+    _sync_user_to_tak_server(username, tak_password)
+
+    # Add to tak_logins JSON so admin panel shows the user
+    _add_tak_login_entry(
+        username,
+        tak_password,
+        callsign=(data.get("callsign") or "").strip() or None,
+        unit=(data.get("unit") or "General").strip(),
+    )
+
+    log_audit("trusted_register", "tak_qr", {"username": username})
+
+    settings = _get_tak_login_settings()
+    return {
+        "status": "ok",
+        "login": {
+            "username": username,
+            "password": tak_password,
+            "server": settings.get("server_host") or "",
+            "port": int(settings.get("server_port", 8089)),
+            "ssl": settings.get("protocol", "ssl") == "ssl",
+            "name": settings.get("display_name") or "LPU5",
+        },
+    }
+
 
 @app.post("/api/tak_logins/claim")
 def api_tak_logins_claim(data: dict = Body(...), request: Request = None):

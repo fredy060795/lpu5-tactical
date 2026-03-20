@@ -59,6 +59,36 @@
         .server-info div { margin: 4px 0; }
         .server-info .label { color: #3498db; font-weight: bold; }
 
+        /* Mode tabs (Login / Register) */
+        .mode-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .mode-tab {
+            flex: 1;
+            padding: 12px;
+            background: var(--panel-contrast);
+            color: var(--muted);
+            border: none;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background .15s, color .15s;
+        }
+        .mode-tab.active {
+            background: rgba(52,152,219,0.2);
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+        }
+        .mode-tab:hover:not(.active) { background: #1e1e1e; color: #ccc; }
+
         .form-group { margin-bottom: 14px; }
         .form-group label { display: block; color: #bbb; font-size: 0.85rem; margin-bottom: 4px; }
         .form-group input {
@@ -129,18 +159,6 @@
             text-align: center;
         }
 
-        .already-assigned {
-            display: none;
-            margin-bottom: 20px;
-            background: rgba(243,156,18,0.1);
-            border: 1px solid rgba(243,156,18,0.3);
-            border-radius: 8px;
-            padding: 12px;
-            font-size: 0.9rem;
-            color: #f39c12;
-            text-align: center;
-        }
-
         .spinner { display: none; text-align: center; margin: 20px 0; color: var(--muted); }
         .spinner i { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -176,7 +194,7 @@
 <body>
 <div class="container">
     <h1><i class="fas fa-satellite-dish"></i> TAK SERVER LOGIN</h1>
-    <div class="subtitle">Request credentials for the TAK Server</div>
+    <div class="subtitle" id="pageSubtitle">Log in with your registered credentials</div>
 
     <div class="server-info" id="serverInfoBox">
         <div><span class="label"><i class="fas fa-server"></i> Server:</span> <span id="infoServer">-</span></div>
@@ -184,25 +202,70 @@
         <div><span class="label"><i class="fas fa-tag"></i> Name:</span> <span id="infoName">-</span></div>
     </div>
 
-    <div class="already-assigned" id="alreadyAssigned">
-        <i class="fas fa-info-circle"></i> Your device has already been assigned a login.
+    <!-- Registration info banner (shown when redirected from register.html) -->
+    <div id="registeredBanner" style="display:none; margin-bottom:16px; background:rgba(46,204,113,0.1); border:1px solid rgba(46,204,113,0.3); border-radius:8px; padding:12px; font-size:0.9rem; color:#2ecc71; text-align:center;">
+        <i class="fas fa-check-circle"></i> Registration submitted! Once an admin approves your account, log in below to get your personal certificate.
     </div>
 
-    <div id="claimForm">
+    <!-- Trusted QR mode: Login / Register tabs -->
+    <div id="modeTabs" style="display:none;" class="mode-tabs">
+        <button class="mode-tab active" id="tabLoginBtn" onclick="switchMode('login')">
+            <i class="fas fa-sign-in-alt"></i> Login
+        </button>
+        <button class="mode-tab" id="tabRegisterBtn" onclick="switchMode('register')">
+            <i class="fas fa-user-plus"></i> Register
+        </button>
+    </div>
+
+    <!-- Login panel -->
+    <div id="loginPanel">
         <div class="form-group">
-            <label><i class="fas fa-headset"></i> Callsign *</label>
-            <input type="text" id="callsignInput" placeholder="e.g. ALPHA-1" autocomplete="off">
+            <label><i class="fas fa-user"></i> Username *</label>
+            <input type="text" id="usernameInput" placeholder="Your registered username" autocomplete="username">
         </div>
         <div class="form-group">
-            <label><i class="fas fa-shield-alt"></i> Unit *</label>
-            <input type="text" id="unitInput" placeholder="e.g. 1st Platoon / Company A" autocomplete="off">
+            <label><i class="fas fa-lock"></i> Password *</label>
+            <input type="password" id="passwordInput" placeholder="Your password" autocomplete="current-password">
         </div>
-        <button class="btn-claim" id="claimBtn" onclick="claimLogin()">
-            <i class="fas fa-key"></i> Request Credentials
+        <button class="btn-claim" id="loginBtn" onclick="authLogin()">
+            <i class="fas fa-sign-in-alt"></i> Login &amp; Get Certificate
+        </button>
+    </div>
+
+    <!-- Register panel (only visible in trusted QR mode) -->
+    <div id="registerPanel" style="display:none;">
+        <div style="margin-bottom:14px; padding:10px; background:rgba(46,204,113,0.08); border:1px solid rgba(46,204,113,0.2); border-radius:6px; font-size:0.82rem; color:#2ecc71;">
+            <i class="fas fa-shield-alt"></i> You have access via a trusted QR code. Registration is instant — no admin approval required.
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-user"></i> Username *</label>
+            <input type="text" id="regUsername" placeholder="Choose a username" autocomplete="username">
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-lock"></i> Password * <span style="color:#888;font-size:0.8em;">(min. 6 characters)</span></label>
+            <input type="password" id="regPassword" placeholder="Choose a password" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-lock"></i> Confirm Password *</label>
+            <input type="password" id="regPasswordConfirm" placeholder="Repeat password" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-headset"></i> Callsign <span style="color:#888;font-size:0.8em;">(optional)</span></label>
+            <input type="text" id="regCallsign" placeholder="e.g. ALPHA-1" autocomplete="off">
+        </div>
+        <button class="btn-claim" id="registerBtn" onclick="trustedRegister()" style="background:#3498db; border-color:#1a6fa8;">
+            <i class="fas fa-user-plus"></i> Register &amp; Get Certificate
         </button>
     </div>
 
     <div class="spinner" id="spinner"><i class="fas fa-circle-notch"></i> Loading...</div>
+
+    <!-- Pending approval info box -->
+    <div id="pendingBox" style="display:none; margin-top:16px; background:rgba(243,156,18,0.1); border:1px solid rgba(243,156,18,0.3); border-radius:10px; padding:18px; color:#f39c12; text-align:center;">
+        <i class="fas fa-clock" style="font-size:1.6rem; margin-bottom:8px; display:block;"></i>
+        <strong>Pending admin approval</strong>
+        <div style="font-size:0.85rem; margin-top:6px; color:#ccc;" id="pendingMsg">Your registration is awaiting administrator approval. Please try again after you have been approved.</div>
+    </div>
 
     <div class="result-box" id="resultBox">
         <h3><i class="fas fa-check-circle"></i> Your TAK Server Credentials</h3>
@@ -223,7 +286,7 @@
             <span class="cred-value" id="resUser">-</span>
         </div>
         <div class="cred-row">
-            <span class="cred-label">Password</span>
+            <span class="cred-label">TAK Password</span>
             <span class="cred-value" id="resPass">-</span>
         </div>
     </div>
@@ -250,90 +313,187 @@
 </div>
 
 <script>
-    // Load server settings on page load
-    (async function loadServerInfo() {
+    // --- State ---
+    let _takToken = null;   // present when opened via trusted QR code
+    let _currentMode = 'login';
+
+    // --- Init ---
+    (async function init() {
+        // Load server info
         try {
             const res = await fetch('/api/tak_login_settings');
-            if (!res.ok) return;
-            const s = await res.json();
-            const srv = document.getElementById('infoServer');
-            const port = document.getElementById('infoPort');
-            const proto = document.getElementById('infoProto');
-            const name = document.getElementById('infoName');
-            if (srv) srv.textContent = s.server_host || '(not configured)';
-            if (port) port.textContent = s.server_port || '-';
-            if (proto) proto.textContent = (s.protocol || 'ssl').toUpperCase();
-            if (name) name.textContent = s.display_name || '-';
-        } catch (e) { console.warn('loadServerInfo failed', e); }
-    })();
-
-    // On page load, check if this IP already has a login assigned
-    (async function checkExisting() {
-        try {
-            const res = await fetch('/api/tak_logins/check');
-            if (!res.ok) return;
-            const body = await res.json();
-            if (body.status === 'assigned' && body.login) {
-                document.getElementById('alreadyAssigned').style.display = 'block';
-                if (body.callsign) document.getElementById('callsignInput').value = body.callsign;
-                if (body.unit) document.getElementById('unitInput').value = body.unit;
-                showResult(body.login);
+            if (res.ok) {
+                const s = await res.json();
+                const el = (id) => document.getElementById(id);
+                if (el('infoServer')) el('infoServer').textContent = s.server_host || '(not configured)';
+                if (el('infoPort'))   el('infoPort').textContent   = s.server_port || '-';
+                if (el('infoProto'))  el('infoProto').textContent  = (s.protocol || 'ssl').toUpperCase();
+                if (el('infoName'))   el('infoName').textContent   = s.display_name || '-';
             }
-        } catch (e) { console.warn('check existing failed', e); }
+        } catch (e) { console.warn('loadServerInfo failed', e); }
+
+        // Parse URL params
+        const params = new URLSearchParams(window.location.search);
+        _takToken = params.get('tak_token') || null;
+        const username = params.get('username') || '';
+        const registered = params.get('registered') === '1';
+
+        if (username) {
+            const el = document.getElementById('usernameInput');
+            if (el) el.value = username;
+        }
+        if (registered) {
+            const banner = document.getElementById('registeredBanner');
+            if (banner) banner.style.display = 'block';
+        }
+
+        // If tak_token is present → show Login/Register tabs
+        if (_takToken) {
+            document.getElementById('modeTabs').style.display = 'flex';
+            document.getElementById('pageSubtitle').textContent = 'Login or register to get your certificate';
+            // If URL also carries username, default to login tab; otherwise register
+            switchMode(username ? 'login' : 'register');
+        }
     })();
 
-    async function claimLogin() {
-        const callsign = document.getElementById('callsignInput').value.trim();
-        const unit = document.getElementById('unitInput').value.trim();
-        if (!callsign || !unit) {
-            alert('Please enter callsign and unit.');
-            return;
-        }
-        const btn = document.getElementById('claimBtn');
-        const spinner = document.getElementById('spinner');
-        const errorBox = document.getElementById('errorBox');
-        btn.disabled = true;
-        spinner.style.display = 'block';
-        errorBox.style.display = 'none';
+    function switchMode(mode) {
+        _currentMode = mode;
+        document.getElementById('loginPanel').style.display   = (mode === 'login')    ? '' : 'none';
+        document.getElementById('registerPanel').style.display = (mode === 'register') ? '' : 'none';
+        document.getElementById('tabLoginBtn').classList.toggle('active',    mode === 'login');
+        document.getElementById('tabRegisterBtn').classList.toggle('active', mode === 'register');
+        hideError();
+        document.getElementById('pendingBox').style.display = 'none';
+    }
+
+    // --- Login (existing user) ---
+    async function authLogin() {
+        const username = (document.getElementById('usernameInput').value || '').trim();
+        const password = (document.getElementById('passwordInput').value || '');
+        if (!username || !password) { showError('Please enter your username and password.'); return; }
+
+        setLoading(true, 'loginBtn');
+        hideError();
+        document.getElementById('pendingBox').style.display = 'none';
 
         try {
-            const res = await fetch('/api/tak_logins/claim', {
+            const res = await fetch('/api/tak_logins/auth_claim', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ callsign, unit })
+                body: JSON.stringify({ username, password })
             });
             const body = await res.json().catch(() => null);
-            if (!res.ok) {
-                const msg = (body && body.detail) ? body.detail : 'Error ' + res.status;
-                errorBox.textContent = msg;
-                errorBox.style.display = 'block';
-                btn.disabled = false;
-                spinner.style.display = 'none';
+
+            if (res.status === 401) {
+                showError((body && body.detail) || 'Invalid credentials. Please check username and password.');
                 return;
             }
-            spinner.style.display = 'none';
-            if (body.login) {
+            if (!res.ok) {
+                showError((body && body.detail) || ('Error ' + res.status));
+                return;
+            }
+            if (body && body.status === 'pending') {
+                const pendingMsg = document.getElementById('pendingMsg');
+                if (pendingMsg && body.message) pendingMsg.textContent = body.message;
+                document.getElementById('pendingBox').style.display = 'block';
+                return;
+            }
+            if (body && body.status === 'ok' && body.login) {
                 showResult(body.login);
+                document.getElementById('loginPanel').style.display = 'none';
+                document.getElementById('modeTabs').style.display = 'none';
             }
         } catch (e) {
-            spinner.style.display = 'none';
-            errorBox.textContent = 'Network error: ' + (e.message || e);
-            errorBox.style.display = 'block';
-            btn.disabled = false;
+            showError('Network error: ' + (e.message || e));
+        } finally {
+            setLoading(false, 'loginBtn');
         }
+    }
+
+    // --- Trusted QR Register (new user, no admin approval) ---
+    async function trustedRegister() {
+        const username = (document.getElementById('regUsername').value || '').trim();
+        const password = (document.getElementById('regPassword').value || '');
+        const confirm  = (document.getElementById('regPasswordConfirm').value || '');
+        const callsign = (document.getElementById('regCallsign').value || '').trim();
+
+        if (!username) { showError('Please enter a username.'); return; }
+        if (!password || password.length < 6) { showError('Password must be at least 6 characters.'); return; }
+        if (password !== confirm) { showError('Passwords do not match.'); return; }
+
+        setLoading(true, 'registerBtn');
+        hideError();
+
+        try {
+            const res = await fetch('/api/tak_logins/trusted_register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tak_token: _takToken, username, password, callsign })
+            });
+            const body = await res.json().catch(() => null);
+
+            if (res.status === 401) {
+                showError((body && body.detail) || 'Invalid or expired QR token.');
+                return;
+            }
+            if (!res.ok) {
+                showError((body && body.detail) || ('Error ' + res.status));
+                return;
+            }
+
+            if (body && body.status === 'exists') {
+                // User already exists — switch to login tab and pre-fill username
+                document.getElementById('usernameInput').value = username;
+                switchMode('login');
+                showError(body.message || 'Username already exists. Please log in.');
+                return;
+            }
+            if (body && body.status === 'pending') {
+                const pendingMsg = document.getElementById('pendingMsg');
+                if (pendingMsg && body.message) pendingMsg.textContent = body.message;
+                document.getElementById('pendingBox').style.display = 'block';
+                document.getElementById('registerPanel').style.display = 'none';
+                document.getElementById('modeTabs').style.display = 'none';
+                return;
+            }
+            if (body && body.status === 'ok' && body.login) {
+                showResult(body.login);
+                document.getElementById('registerPanel').style.display = 'none';
+                document.getElementById('modeTabs').style.display = 'none';
+            }
+        } catch (e) {
+            showError('Network error: ' + (e.message || e));
+        } finally {
+            setLoading(false, 'registerBtn');
+        }
+    }
+
+    // --- Helpers ---
+    function setLoading(loading, btnId) {
+        const btn = document.getElementById(btnId);
+        const spinner = document.getElementById('spinner');
+        if (btn) btn.disabled = loading;
+        if (spinner) spinner.style.display = loading ? 'block' : 'none';
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorBox');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function hideError() {
+        document.getElementById('errorBox').style.display = 'none';
     }
 
     function showResult(login) {
         document.getElementById('resServer').textContent = login.server || '-';
-        document.getElementById('resPort').textContent = login.port || '-';
-        document.getElementById('resSsl').textContent = login.ssl ? 'Yes' : 'No';
-        document.getElementById('resUser').textContent = login.username || '-';
-        document.getElementById('resPass').textContent = login.password || '-';
-        document.getElementById('resultBox').style.display = 'block';
-        document.getElementById('claimBtn').disabled = true;
-        // Show certificate download section
+        document.getElementById('resPort').textContent   = login.port   || '-';
+        document.getElementById('resSsl').textContent    = login.ssl ? 'Yes' : 'No';
+        document.getElementById('resUser').textContent   = login.username || '-';
+        document.getElementById('resPass').textContent   = login.password || '-';
+        document.getElementById('resultBox').style.display    = 'block';
         document.getElementById('certDownloadBox').style.display = 'block';
-        // Store credentials for certificate generation
         window._takLogin = login;
     }
 
@@ -341,10 +501,9 @@
         const login = window._takLogin;
         if (!login) { alert('No credentials available'); return; }
         const btn = document.getElementById('certDownloadBtn');
-        const spinner = document.getElementById('certSpinner');
+        const spin = document.getElementById('certSpinner');
         btn.disabled = true;
-        spinner.style.display = 'block';
-
+        spin.style.display = 'block';
         try {
             const res = await fetch('/api/tak_logins/generate_p12', {
                 method: 'POST',
@@ -352,31 +511,26 @@
                 body: JSON.stringify({ username: login.username, password: login.password })
             });
             const body = await res.json().catch(() => null);
-            spinner.style.display = 'none';
+            spin.style.display = 'none';
             if (!res.ok) {
                 alert('Certificate generation failed: ' + ((body && body.detail) || res.status));
                 btn.disabled = false;
                 return;
             }
             if (body && body.zip_base64) {
-                // Show password info
                 const pwInfo = document.getElementById('certPasswordInfo');
-                const pwVal = document.getElementById('certPasswordValue');
-                if (pwInfo && pwVal) {
-                    pwVal.textContent = body.password || 'atakcerts';
-                    pwInfo.style.display = 'block';
-                }
-                // Trigger download
+                const pwVal  = document.getElementById('certPasswordValue');
+                if (pwInfo && pwVal) { pwVal.textContent = login.password || '-'; pwInfo.style.display = 'block'; }
                 const link = document.createElement('a');
                 link.href = 'data:application/zip;base64,' + body.zip_base64;
-                link.download = body.filename || 'TAK_Server.zip';
+                link.download = body.filename || 'TAK_Certificate.zip';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
             }
             btn.disabled = false;
         } catch (e) {
-            spinner.style.display = 'none';
+            spin.style.display = 'none';
             alert('Error: ' + (e.message || e));
             btn.disabled = false;
         }
