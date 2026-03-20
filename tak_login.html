@@ -523,7 +523,7 @@
                 if (pwInfo && pwVal) { pwVal.textContent = login.password || '-'; pwInfo.style.display = 'block'; }
                 const link = document.createElement('a');
                 link.href = 'data:application/zip;base64,' + body.zip_base64;
-                link.download = body.filename || (login.username + '_TAK.zip');
+                link.download = body.filename || 'TAK_Certificate.zip';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

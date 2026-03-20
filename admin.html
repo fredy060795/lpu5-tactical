@@ -574,7 +574,7 @@
                 </div>
                 <div>
                     <label class="small">Admin Password</label>
-                    <input type="password" id="takMgmtPassword" placeholder="••••••••" style="width:130px;" autocomplete="new-password">
+                    <input type="password" id="takMgmtPassword" placeholder="••••••••" style="width:130px;" autocomplete="current-password">
                 </div>
             </div>
             <div style="margin-top:8px; font-size:0.8em; color:#888;">
@@ -1431,6 +1431,8 @@
             if (usernameEl) usernameEl.focus();
             return;
         }
+        // Escape for safe HTML insertion
+        const safeUsername = username.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         try {
             const res = await fetch('/api/tak_logins/generate_p12', {
                 method: 'POST',
@@ -1443,7 +1445,7 @@
                 area.style.display = 'block';
                 area.innerHTML =
                     '<div style="color:#2ecc71;font-weight:bold;margin-bottom:8px;"><i class="fas fa-file-archive"></i> Certificate Package Generated</div>' +
-                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>User:</strong> ' + username + '</div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>User:</strong> ' + safeUsername + '</div>' +
                     '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Filename:</strong> ' + (body.filename || 'certificate.zip') + '</div>' +
                     '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Certificate Password:</strong> <code style="user-select:all;">' + (body.password || '-') + '</code></div>' +
                     '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Server:</strong> ' + (body.server || '-') + ':' + (body.port || '-') + ' (' + (body.protocol || '-').toUpperCase() + ')</div>' +

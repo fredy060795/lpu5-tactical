@@ -41,6 +41,7 @@ import logging
 import pathlib
 import queue
 import random
+import secrets
 import threading
 import time
 import socket
@@ -6875,9 +6876,9 @@ def api_tak_login_settings_update(data: dict = Body(...)):
 import string as _string
 
 def _generate_tak_password(length: int = 16) -> str:
-    """Generate a random alphanumeric TAK server password."""
+    """Generate a cryptographically random alphanumeric TAK server password."""
     alphabet = _string.ascii_letters + _string.digits
-    return ''.join(random.choices(alphabet, k=length))
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
 def _generate_tak_qr_token() -> str:
@@ -7171,8 +7172,8 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
             zf.writestr(f"{display_name}.pref", pref_xml)
 
         zip_b64 = base64.b64encode(zip_buf.getvalue()).decode("ascii")
-        # Use the user's name in the ZIP filename when available
-        safe_name = re.sub(r'[^\w\-.]', '_', str(cn))
+        # Use the user's name in the ZIP filename; strip all non-alphanumeric/hyphen/underscore chars
+        safe_name = re.sub(r'[^\w\-]', '_', str(cn))
         zip_filename = f"{safe_name}_TAK.zip"
 
         return {
@@ -7317,8 +7318,8 @@ async def api_tak_logins_trusted_register(data: dict = Body(...), db: Session = 
         raise HTTPException(status_code=400, detail="tak_token required")
     if not username:
         raise HTTPException(status_code=400, detail="username required")
-    if not password or len(password) < 6:
-        raise HTTPException(status_code=400, detail="password must be at least 6 characters")
+    if not password or len(password) < 8:
+        raise HTTPException(status_code=400, detail="password must be at least 8 characters")
 
     # Validate the token
     stored_token = _get_tak_qr_token()
