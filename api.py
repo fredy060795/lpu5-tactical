@@ -6892,8 +6892,11 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
     try:
         resp = requests.post(
             f"{mgmt_url}/user-management/api/v1/user/",
-            json={"username": username, "password": tak_password, "enabled": "true"},
+            json={"username": username, "password": tak_password, "enabled": True},
             auth=auth,
+            # OpenTAK Management servers commonly use self-signed certificates;
+            # disable host verification to allow private deployments.  Operators
+            # who need strict TLS validation should proxy through a trusted CA.
             verify=False,
             timeout=10,
         )

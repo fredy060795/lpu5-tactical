@@ -623,7 +623,7 @@
         <h3><i class="fas fa-certificate"></i> ATAK / iTAK Certificate Package</h3>
         <div style="margin-bottom:10px; padding:10px; background:rgba(46,204,113,0.1); border:1px solid rgba(46,204,113,0.3); border-radius:4px; font-size:0.85em;">
             <i class="fas fa-info-circle" style="color:#2ecc71;"></i>
-            Generate a personalised ATAK certificate ZIP for a specific user. The certificate CN and
+            Generate a personalized ATAK certificate ZIP for a specific user. The certificate CN and
             the PKCS#12 password are derived from the user's stored TAK credentials.
             Import the ZIP directly into ATAK or iTAK.
         </div>
@@ -1421,7 +1421,7 @@
         const usernameEl = document.getElementById('takP12Username');
         const username = (usernameEl ? usernameEl.value.trim() : '');
         if (!username) {
-            alert('Please enter a username to generate a personalised certificate.');
+            alert('Please enter a username to generate a personalized certificate.');
             if (usernameEl) usernameEl.focus();
             return;
         }
