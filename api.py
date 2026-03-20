@@ -621,6 +621,7 @@ DB_PATHS: Dict[str, str] = {
     "map_markers": os.path.join(base_path, "map_markers_db.json"),
     "meshtastic_messages": os.path.join(base_path, "meshtastic_messages_db.json"),
     "tak_logins": os.path.join(base_path, "tak_logins_db.json"),
+    "tak_login_settings": os.path.join(base_path, "tak_login_settings.json"),
 }
 
 DEFAULT_DB_CONTENTS: Dict[str, Any] = {
@@ -631,6 +632,13 @@ DEFAULT_DB_CONTENTS: Dict[str, Any] = {
     "map_markers": [],
     "meshtastic_messages": [],
     "tak_logins": [],
+    "tak_login_settings": {
+        "server_name": "TAK Server",
+        "server_host": "",
+        "server_port": 8089,
+        "protocol": "ssl",
+        "display_name": "LPU5",
+    },
 }
 
 # -------------------------
@@ -646,7 +654,7 @@ _json_cache_lock = threading.Lock()
 def load_json(key: str) -> Any:
     path = DB_PATHS.get(key)
     if not path or not os.path.exists(path):
-        return [] if key != "config" else {}
+        return DEFAULT_DB_CONTENTS.get(key, {})
     try:
         mtime = os.path.getmtime(path)
         with _json_cache_lock:
@@ -6768,6 +6776,157 @@ def api_get_qr_codes():
 # TAK Login Management
 # -------------------------
 
+def _get_tak_login_settings() -> dict:
+    """Return the admin-configured TAK login page settings."""
+    settings = load_json("tak_login_settings")
+    if not isinstance(settings, dict) or not settings:
+        settings = DEFAULT_DB_CONTENTS["tak_login_settings"].copy()
+    return settings
+
+
+def _tak_login_info(entry: dict) -> dict:
+    """Build the login info dict returned by claim/check endpoints."""
+    s = _get_tak_login_settings()
+    return {
+        "username": entry["username"],
+        "password": entry["password"],
+        "server": s.get("server_host") or "",
+        "port": int(s.get("server_port", 8089)),
+        "ssl": s.get("protocol", "ssl") == "ssl",
+        "name": s.get("display_name") or "LPU5",
+    }
+
+# --- TAK Login Settings (admin) ---
+
+@app.get("/api/tak_login_settings")
+def api_tak_login_settings_get():
+    """Return the admin-configured TAK login page settings."""
+    return _get_tak_login_settings()
+
+
+@app.put("/api/tak_login_settings")
+def api_tak_login_settings_update(data: dict = Body(...)):
+    """Update TAK login page settings (admin)."""
+    settings = _get_tak_login_settings()
+    if "server_host" in data:
+        host = str(data["server_host"]).strip()
+        host = re.sub(r'^https?://', '', host).rstrip('/')
+        settings["server_host"] = host
+    if "server_port" in data:
+        try:
+            port = int(data["server_port"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="server_port must be numeric")
+        if not (1 <= port <= 65535):
+            raise HTTPException(status_code=400, detail="server_port must be 1-65535")
+        settings["server_port"] = port
+    if "protocol" in data:
+        proto = str(data["protocol"]).lower()
+        if proto not in ("tcp", "udp", "ssl"):
+            raise HTTPException(status_code=400, detail="protocol must be tcp, udp, or ssl")
+        settings["protocol"] = proto
+    if "display_name" in data:
+        settings["display_name"] = str(data["display_name"]).strip()
+    if "server_name" in data:
+        settings["server_name"] = str(data["server_name"]).strip()
+    save_json("tak_login_settings", settings)
+    return {"status": "success", "settings": settings}
+
+
+# --- TAK Login Certificate (.p12) Generation ---
+
+@app.post("/api/tak_logins/generate_p12")
+def api_tak_logins_generate_p12(data: dict = Body(default={})):
+    """Generate a PKCS#12 (.p12) client certificate bundle for ATAK/iTAK.
+
+    The generated .p12 contains a self-signed client certificate and
+    private key that can be imported into ATAK/iTAK for TAK server
+    authentication.  The admin-configured server settings are embedded
+    in the certificate's common name for reference.
+    """
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives.serialization import pkcs12
+        import ipaddress as ipaddr
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="cryptography package not available – cannot generate certificates",
+        )
+
+    settings = _get_tak_login_settings()
+    cn = data.get("username") or settings.get("display_name") or "LPU5-Client"
+    p12_password = data.get("password") or "atakcerts"
+
+    try:
+        # Generate RSA key pair
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+        # Build subject
+        subject = issuer = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, str(cn)),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, settings.get("display_name") or "LPU5"),
+        ])
+
+        # SAN entries
+        san_entries = [x509.DNSName("localhost")]
+        server_host = settings.get("server_host") or ""
+        if server_host:
+            try:
+                san_entries.append(x509.IPAddress(ipaddr.ip_address(server_host)))
+            except ValueError:
+                san_entries.append(x509.DNSName(server_host))
+
+        now = datetime.now(timezone.utc)
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now)
+            .not_valid_after(now + timedelta(days=730))
+            .add_extension(
+                x509.SubjectAlternativeName(san_entries), critical=False,
+            )
+            .add_extension(
+                x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH]),
+                critical=False,
+            )
+            .sign(key, hashes.SHA256())
+        )
+
+        # Serialize to PKCS#12
+        p12_bytes = pkcs12.serialize_key_and_certificates(
+            name=cn.encode("utf-8"),
+            key=key,
+            cert=cert,
+            cas=None,
+            encryption_algorithm=serialization.BestAvailableEncryption(
+                p12_password.encode("utf-8")
+            ),
+        )
+
+        p12_b64 = base64.b64encode(p12_bytes).decode("ascii")
+
+        return {
+            "status": "success",
+            "p12_base64": p12_b64,
+            "filename": f"{cn}.p12",
+            "password": p12_password,
+            "server": settings.get("server_host") or "",
+            "port": int(settings.get("server_port", 8089)),
+            "protocol": settings.get("protocol", "ssl"),
+        }
+
+    except Exception as exc:
+        logger.exception("P12 certificate generation failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Certificate generation failed: " + str(exc))
+
+
 @app.get("/api/tak_logins")
 def api_tak_logins_list():
     """List all TAK login entries (admin view)."""
@@ -6872,14 +7031,7 @@ def api_tak_logins_claim(data: dict = Body(...), request: Request = None):
         save_json("tak_logins", logins)
         return {
             "status": "success",
-            "login": {
-                "username": existing["username"],
-                "password": existing["password"],
-                "server": "persistentsystems.eu",
-                "port": 8089,
-                "ssl": True,
-                "name": "LPU5",
-            },
+            "login": _tak_login_info(existing),
             "message": "Already assigned",
         }
 
@@ -6897,14 +7049,7 @@ def api_tak_logins_claim(data: dict = Body(...), request: Request = None):
 
     return {
         "status": "success",
-        "login": {
-            "username": free["username"],
-            "password": free["password"],
-            "server": "persistentsystems.eu",
-            "port": 8089,
-            "ssl": True,
-            "name": "LPU5",
-        },
+        "login": _tak_login_info(free),
         "message": "Login assigned",
     }
 
@@ -6922,14 +7067,7 @@ def api_tak_logins_check(request: Request):
     if existing:
         return {
             "status": "assigned",
-            "login": {
-                "username": existing["username"],
-                "password": existing["password"],
-                "server": "persistentsystems.eu",
-                "port": 8089,
-                "ssl": True,
-                "name": "LPU5",
-            },
+            "login": _tak_login_info(existing),
             "callsign": existing.get("assigned_to_callsign"),
             "unit": existing.get("assigned_to_unit"),
         }

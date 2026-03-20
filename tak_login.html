@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -144,41 +144,68 @@
         .spinner { display: none; text-align: center; margin: 20px 0; color: var(--muted); }
         .spinner i { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        .cert-download {
+            display: none;
+            margin-top: 16px;
+            padding: 14px;
+            background: rgba(46,204,113,0.1);
+            border: 1px solid rgba(46,204,113,0.3);
+            border-radius: 10px;
+            text-align: center;
+        }
+        .cert-download h4 { color: #2ecc71; margin-bottom: 8px; font-size: 0.95rem; }
+        .cert-download .cert-info { font-size: 0.8rem; color: #999; margin-bottom: 10px; }
+        .btn-cert {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #2ecc71;
+            color: #000;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: none;
+            transition: background .15s ease;
+        }
+        .btn-cert:hover { background: #38df60; }
     </style>
 </head>
 <body>
 <div class="container">
     <h1><i class="fas fa-satellite-dish"></i> TAK SERVER LOGIN</h1>
-    <div class="subtitle">Zugangsdaten für den TAK Server anfordern</div>
+    <div class="subtitle">Request credentials for the TAK Server</div>
 
-    <div class="server-info">
-        <div><span class="label"><i class="fas fa-server"></i> Server:</span> persistentsystems.eu</div>
-        <div><span class="label"><i class="fas fa-plug"></i> Port:</span> 8089 (SSL)</div>
-        <div><span class="label"><i class="fas fa-tag"></i> Name:</span> LPU5</div>
+    <div class="server-info" id="serverInfoBox">
+        <div><span class="label"><i class="fas fa-server"></i> Server:</span> <span id="infoServer">-</span></div>
+        <div><span class="label"><i class="fas fa-plug"></i> Port:</span> <span id="infoPort">-</span> (<span id="infoProto">-</span>)</div>
+        <div><span class="label"><i class="fas fa-tag"></i> Name:</span> <span id="infoName">-</span></div>
     </div>
 
     <div class="already-assigned" id="alreadyAssigned">
-        <i class="fas fa-info-circle"></i> Ihrem Gerät wurde bereits ein Login zugewiesen.
+        <i class="fas fa-info-circle"></i> Your device has already been assigned a login.
     </div>
 
     <div id="claimForm">
         <div class="form-group">
             <label><i class="fas fa-headset"></i> Callsign *</label>
-            <input type="text" id="callsignInput" placeholder="z.B. ALPHA-1" autocomplete="off">
+            <input type="text" id="callsignInput" placeholder="e.g. ALPHA-1" autocomplete="off">
         </div>
         <div class="form-group">
-            <label><i class="fas fa-shield-alt"></i> Einheit *</label>
-            <input type="text" id="unitInput" placeholder="z.B. 1. Zug / Kompanie A" autocomplete="off">
+            <label><i class="fas fa-shield-alt"></i> Unit *</label>
+            <input type="text" id="unitInput" placeholder="e.g. 1st Platoon / Company A" autocomplete="off">
         </div>
         <button class="btn-claim" id="claimBtn" onclick="claimLogin()">
-            <i class="fas fa-key"></i> Zugangsdaten Anfordern
+            <i class="fas fa-key"></i> Request Credentials
         </button>
     </div>
 
-    <div class="spinner" id="spinner"><i class="fas fa-circle-notch"></i> Lade...</div>
+    <div class="spinner" id="spinner"><i class="fas fa-circle-notch"></i> Loading...</div>
 
     <div class="result-box" id="resultBox">
-        <h3><i class="fas fa-check-circle"></i> Ihre TAK Server Zugangsdaten</h3>
+        <h3><i class="fas fa-check-circle"></i> Your TAK Server Credentials</h3>
         <div class="cred-row">
             <span class="cred-label">Server</span>
             <span class="cred-value" id="resServer">-</span>
@@ -192,12 +219,30 @@
             <span class="cred-value" id="resSsl">-</span>
         </div>
         <div class="cred-row">
-            <span class="cred-label">Benutzername</span>
+            <span class="cred-label">Username</span>
             <span class="cred-value" id="resUser">-</span>
         </div>
         <div class="cred-row">
-            <span class="cred-label">Passwort</span>
+            <span class="cred-label">Password</span>
             <span class="cred-value" id="resPass">-</span>
+        </div>
+    </div>
+
+    <!-- Certificate Download Section -->
+    <div class="cert-download" id="certDownloadBox">
+        <h4><i class="fas fa-certificate"></i> ATAK / iTAK Certificate</h4>
+        <div class="cert-info">
+            Download the .p12 certificate to automatically configure your TAK application.
+            Import this file into ATAK or iTAK for secure server connection.
+        </div>
+        <div class="cert-info" id="certPasswordInfo" style="display:none;">
+            <strong>Certificate Password:</strong> <code id="certPasswordValue" style="color:#2ecc71;user-select:all;">-</code>
+        </div>
+        <button class="btn-cert" id="certDownloadBtn" onclick="downloadCert()">
+            <i class="fas fa-download"></i> Download .p12 Certificate
+        </button>
+        <div id="certSpinner" style="display:none;margin-top:8px;color:#999;font-size:0.85em;">
+            <i class="fas fa-circle-notch" style="animation:spin 1s linear infinite;"></i> Generating certificate...
         </div>
     </div>
 
@@ -205,6 +250,23 @@
 </div>
 
 <script>
+    // Load server settings on page load
+    (async function loadServerInfo() {
+        try {
+            const res = await fetch('/api/tak_login_settings');
+            if (!res.ok) return;
+            const s = await res.json();
+            const srv = document.getElementById('infoServer');
+            const port = document.getElementById('infoPort');
+            const proto = document.getElementById('infoProto');
+            const name = document.getElementById('infoName');
+            if (srv) srv.textContent = s.server_host || '(not configured)';
+            if (port) port.textContent = s.server_port || '-';
+            if (proto) proto.textContent = (s.protocol || 'ssl').toUpperCase();
+            if (name) name.textContent = s.display_name || '-';
+        } catch (e) { console.warn('loadServerInfo failed', e); }
+    })();
+
     // On page load, check if this IP already has a login assigned
     (async function checkExisting() {
         try {
@@ -224,7 +286,7 @@
         const callsign = document.getElementById('callsignInput').value.trim();
         const unit = document.getElementById('unitInput').value.trim();
         if (!callsign || !unit) {
-            alert('Bitte Callsign und Einheit eingeben.');
+            alert('Please enter callsign and unit.');
             return;
         }
         const btn = document.getElementById('claimBtn');
@@ -242,7 +304,7 @@
             });
             const body = await res.json().catch(() => null);
             if (!res.ok) {
-                const msg = (body && body.detail) ? body.detail : 'Fehler ' + res.status;
+                const msg = (body && body.detail) ? body.detail : 'Error ' + res.status;
                 errorBox.textContent = msg;
                 errorBox.style.display = 'block';
                 btn.disabled = false;
@@ -255,21 +317,69 @@
             }
         } catch (e) {
             spinner.style.display = 'none';
-            errorBox.textContent = 'Netzwerkfehler: ' + (e.message || e);
+            errorBox.textContent = 'Network error: ' + (e.message || e);
             errorBox.style.display = 'block';
             btn.disabled = false;
         }
     }
 
     function showResult(login) {
-        function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
         document.getElementById('resServer').textContent = login.server || '-';
         document.getElementById('resPort').textContent = login.port || '-';
-        document.getElementById('resSsl').textContent = login.ssl ? 'Ja' : 'Nein';
+        document.getElementById('resSsl').textContent = login.ssl ? 'Yes' : 'No';
         document.getElementById('resUser').textContent = login.username || '-';
         document.getElementById('resPass').textContent = login.password || '-';
         document.getElementById('resultBox').style.display = 'block';
         document.getElementById('claimBtn').disabled = true;
+        // Show certificate download section
+        document.getElementById('certDownloadBox').style.display = 'block';
+        // Store credentials for certificate generation
+        window._takLogin = login;
+    }
+
+    async function downloadCert() {
+        const login = window._takLogin;
+        if (!login) { alert('No credentials available'); return; }
+        const btn = document.getElementById('certDownloadBtn');
+        const spinner = document.getElementById('certSpinner');
+        btn.disabled = true;
+        spinner.style.display = 'block';
+
+        try {
+            const res = await fetch('/api/tak_logins/generate_p12', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: login.username, password: 'atakcerts' })
+            });
+            const body = await res.json().catch(() => null);
+            spinner.style.display = 'none';
+            if (!res.ok) {
+                alert('Certificate generation failed: ' + ((body && body.detail) || res.status));
+                btn.disabled = false;
+                return;
+            }
+            if (body && body.p12_base64) {
+                // Show password info
+                const pwInfo = document.getElementById('certPasswordInfo');
+                const pwVal = document.getElementById('certPasswordValue');
+                if (pwInfo && pwVal) {
+                    pwVal.textContent = body.password || 'atakcerts';
+                    pwInfo.style.display = 'block';
+                }
+                // Trigger download
+                const link = document.createElement('a');
+                link.href = 'data:application/x-pkcs12;base64,' + body.p12_base64;
+                link.download = body.filename || (login.username + '.p12');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            btn.disabled = false;
+        } catch (e) {
+            spinner.style.display = 'none';
+            alert('Error: ' + (e.message || e));
+            btn.disabled = false;
+        }
     }
 </script>
 </body>
