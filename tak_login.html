@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>TAK Server Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --panel-contrast: #0b0b0b;
+            --border: #282828;
+            --accent-green: #28a745;
+            --accent-red: #dc3545;
+            --text-main: #fff;
+            --muted: #999;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Courier New', monospace;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.3rem;
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+        }
+        .subtitle {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+        }
+        .server-info {
+            background: rgba(52,152,219,0.1);
+            border: 1px solid rgba(52,152,219,0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        .server-info div { margin: 4px 0; }
+        .server-info .label { color: #3498db; font-weight: bold; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; color: #bbb; font-size: 0.85rem; margin-bottom: 4px; }
+        .form-group input {
+            width: 100%;
+            background: var(--panel-contrast);
+            color: var(--text-main);
+            border: 1px solid #444;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color .15s ease;
+        }
+        .form-group input:focus { border-color: #666; box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
+
+        .btn-claim {
+            width: 100%;
+            background: var(--accent-green);
+            color: #000;
+            border: 1px solid #166e1f;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background .15s ease, transform .12s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-claim:hover { background: #38df60; transform: translateY(-2px); }
+        .btn-claim:disabled { background: #555; color: #888; cursor: not-allowed; transform: none; border-color: #444; }
+
+        .result-box {
+            display: none;
+            margin-top: 20px;
+            background: rgba(40,167,69,0.1);
+            border: 1px solid rgba(40,167,69,0.4);
+            border-radius: 10px;
+            padding: 18px;
+        }
+        .result-box h3 { color: var(--accent-green); margin-bottom: 10px; font-size: 1rem; }
+        .cred-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #222;
+        }
+        .cred-row:last-child { border-bottom: none; }
+        .cred-label { color: #bbb; font-size: 0.85rem; }
+        .cred-value {
+            color: var(--accent-green);
+            font-weight: bold;
+            font-size: 0.95rem;
+            user-select: all;
+        }
+
+        .error-box {
+            display: none;
+            margin-top: 20px;
+            background: rgba(220,53,69,0.1);
+            border: 1px solid rgba(220,53,69,0.4);
+            border-radius: 10px;
+            padding: 18px;
+            color: var(--accent-red);
+            text-align: center;
+        }
+
+        .already-assigned {
+            display: none;
+            margin-bottom: 20px;
+            background: rgba(243,156,18,0.1);
+            border: 1px solid rgba(243,156,18,0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.9rem;
+            color: #f39c12;
+            text-align: center;
+        }
+
+        .spinner { display: none; text-align: center; margin: 20px 0; color: var(--muted); }
+        .spinner i { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1><i class="fas fa-satellite-dish"></i> TAK SERVER LOGIN</h1>
+    <div class="subtitle">Zugangsdaten für den TAK Server anfordern</div>
+
+    <div class="server-info">
+        <div><span class="label"><i class="fas fa-server"></i> Server:</span> persistentsystems.eu</div>
+        <div><span class="label"><i class="fas fa-plug"></i> Port:</span> 8089 (SSL)</div>
+        <div><span class="label"><i class="fas fa-tag"></i> Name:</span> LPU5</div>
+    </div>
+
+    <div class="already-assigned" id="alreadyAssigned">
+        <i class="fas fa-info-circle"></i> Ihrem Gerät wurde bereits ein Login zugewiesen.
+    </div>
+
+    <div id="claimForm">
+        <div class="form-group">
+            <label><i class="fas fa-headset"></i> Callsign *</label>
+            <input type="text" id="callsignInput" placeholder="z.B. ALPHA-1" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-shield-alt"></i> Einheit *</label>
+            <input type="text" id="unitInput" placeholder="z.B. 1. Zug / Kompanie A" autocomplete="off">
+        </div>
+        <button class="btn-claim" id="claimBtn" onclick="claimLogin()">
+            <i class="fas fa-key"></i> Zugangsdaten Anfordern
+        </button>
+    </div>
+
+    <div class="spinner" id="spinner"><i class="fas fa-circle-notch"></i> Lade...</div>
+
+    <div class="result-box" id="resultBox">
+        <h3><i class="fas fa-check-circle"></i> Ihre TAK Server Zugangsdaten</h3>
+        <div class="cred-row">
+            <span class="cred-label">Server</span>
+            <span class="cred-value" id="resServer">-</span>
+        </div>
+        <div class="cred-row">
+            <span class="cred-label">Port</span>
+            <span class="cred-value" id="resPort">-</span>
+        </div>
+        <div class="cred-row">
+            <span class="cred-label">SSL</span>
+            <span class="cred-value" id="resSsl">-</span>
+        </div>
+        <div class="cred-row">
+            <span class="cred-label">Benutzername</span>
+            <span class="cred-value" id="resUser">-</span>
+        </div>
+        <div class="cred-row">
+            <span class="cred-label">Passwort</span>
+            <span class="cred-value" id="resPass">-</span>
+        </div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+</div>
+
+<script>
+    // On page load, check if this IP already has a login assigned
+    (async function checkExisting() {
+        try {
+            const res = await fetch('/api/tak_logins/check');
+            if (!res.ok) return;
+            const body = await res.json();
+            if (body.status === 'assigned' && body.login) {
+                document.getElementById('alreadyAssigned').style.display = 'block';
+                if (body.callsign) document.getElementById('callsignInput').value = body.callsign;
+                if (body.unit) document.getElementById('unitInput').value = body.unit;
+                showResult(body.login);
+            }
+        } catch (e) { console.warn('check existing failed', e); }
+    })();
+
+    async function claimLogin() {
+        const callsign = document.getElementById('callsignInput').value.trim();
+        const unit = document.getElementById('unitInput').value.trim();
+        if (!callsign || !unit) {
+            alert('Bitte Callsign und Einheit eingeben.');
+            return;
+        }
+        const btn = document.getElementById('claimBtn');
+        const spinner = document.getElementById('spinner');
+        const errorBox = document.getElementById('errorBox');
+        btn.disabled = true;
+        spinner.style.display = 'block';
+        errorBox.style.display = 'none';
+
+        try {
+            const res = await fetch('/api/tak_logins/claim', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ callsign, unit })
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) {
+                const msg = (body && body.detail) ? body.detail : 'Fehler ' + res.status;
+                errorBox.textContent = msg;
+                errorBox.style.display = 'block';
+                btn.disabled = false;
+                spinner.style.display = 'none';
+                return;
+            }
+            spinner.style.display = 'none';
+            if (body.login) {
+                showResult(body.login);
+            }
+        } catch (e) {
+            spinner.style.display = 'none';
+            errorBox.textContent = 'Netzwerkfehler: ' + (e.message || e);
+            errorBox.style.display = 'block';
+            btn.disabled = false;
+        }
+    }
+
+    function showResult(login) {
+        function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        document.getElementById('resServer').textContent = login.server || '-';
+        document.getElementById('resPort').textContent = login.port || '-';
+        document.getElementById('resSsl').textContent = login.ssl ? 'Ja' : 'Nein';
+        document.getElementById('resUser').textContent = login.username || '-';
+        document.getElementById('resPass').textContent = login.password || '-';
+        document.getElementById('resultBox').style.display = 'block';
+        document.getElementById('claimBtn').disabled = true;
+    }
+</script>
+</body>
+</html>

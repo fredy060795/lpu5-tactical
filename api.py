@@ -620,6 +620,7 @@ DB_PATHS: Dict[str, str] = {
     "meshtastic_nodes": os.path.join(base_path, "meshtastic_nodes_db.json"),
     "map_markers": os.path.join(base_path, "map_markers_db.json"),
     "meshtastic_messages": os.path.join(base_path, "meshtastic_messages_db.json"),
+    "tak_logins": os.path.join(base_path, "tak_logins_db.json"),
 }
 
 DEFAULT_DB_CONTENTS: Dict[str, Any] = {
@@ -629,6 +630,7 @@ DEFAULT_DB_CONTENTS: Dict[str, Any] = {
     "meshtastic_nodes": [],
     "map_markers": [],
     "meshtastic_messages": [],
+    "tak_logins": [],
 }
 
 # -------------------------
@@ -6761,6 +6763,224 @@ def api_get_qr_codes():
     # Return all QR codes (both types) or filter by type if needed
     qrs = load_json("qr_codes")
     return qrs if isinstance(qrs, list) else []
+
+# -------------------------
+# TAK Login Management
+# -------------------------
+
+@app.get("/api/tak_logins")
+def api_tak_logins_list():
+    """List all TAK login entries (admin view)."""
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        logins = []
+    return logins
+
+@app.post("/api/tak_logins")
+def api_tak_logins_add(data: dict = Body(...)):
+    """Add one or more TAK login entries."""
+    entries = data.get("entries")
+    if entries and isinstance(entries, list):
+        items = entries
+    else:
+        username = (data.get("username") or "").strip()
+        password = (data.get("password") or "").strip()
+        if not username or not password:
+            raise HTTPException(status_code=400, detail="username and password required")
+        items = [{"username": username, "password": password}]
+
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        logins = []
+
+    added = []
+    for item in items:
+        u = (item.get("username") or "").strip()
+        p = (item.get("password") or "").strip()
+        if not u or not p:
+            continue
+        entry = {
+            "id": str(uuid.uuid4()),
+            "username": u,
+            "password": p,
+            "assigned": False,
+            "assigned_to_ip": None,
+            "assigned_to_callsign": None,
+            "assigned_to_unit": None,
+            "assigned_at": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        logins.append(entry)
+        added.append(entry)
+
+    save_json("tak_logins", logins)
+    return {"status": "success", "added": len(added), "entries": added}
+
+@app.post("/api/tak_logins/qr")
+def api_tak_logins_qr(data: dict = Body(default={}), request: Request = None):
+    """Generate a QR code that links to the TAK login claim page."""
+    caller_base = (data.get("base_url") or "").strip().rstrip("/")
+    if not caller_base:
+        local_ip, _ = get_local_ip()
+        cert_file = os.path.join(base_path, "cert.pem")
+        key_file = os.path.join(base_path, "key.pem")
+        protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
+        caller_base = f"{protocol}://{local_ip}:8101"
+    claim_url = f"{caller_base}/tak_login.html"
+
+    png_b64 = None
+    if qrcode:
+        try:
+            qr_img = qrcode.make(claim_url)
+            from io import BytesIO
+            buf = BytesIO()
+            qr_img.save(buf, format="PNG")
+            png_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        except Exception:
+            logger.exception("TAK Login QR PNG generation failed")
+
+    return {"status": "success", "claim_url": claim_url, "png_base64": png_b64}
+
+@app.post("/api/tak_logins/claim")
+def api_tak_logins_claim(data: dict = Body(...), request: Request = None):
+    """Public endpoint – claim ONE available TAK login.
+
+    Checks the caller IP. If this IP already has a login assigned it
+    returns that same login (no double-claiming). Otherwise assigns
+    the first free entry. The caller must provide callsign and unit.
+    """
+    callsign = (data.get("callsign") or "").strip()
+    unit = (data.get("unit") or "").strip()
+    if not callsign or not unit:
+        raise HTTPException(status_code=400, detail="callsign and unit required")
+
+    client_ip = _get_client_ip(request) if request else "0.0.0.0"
+
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        logins = []
+
+    # Check if this IP already has a login
+    existing = next(
+        (e for e in logins if e.get("assigned") and e.get("assigned_to_ip") == client_ip),
+        None,
+    )
+    if existing:
+        # Update callsign / unit if changed
+        existing["assigned_to_callsign"] = callsign
+        existing["assigned_to_unit"] = unit
+        save_json("tak_logins", logins)
+        return {
+            "status": "success",
+            "login": {
+                "username": existing["username"],
+                "password": existing["password"],
+                "server": "persistentsystems.eu",
+                "port": 8089,
+                "ssl": True,
+                "name": "LPU5",
+            },
+            "message": "Already assigned",
+        }
+
+    # Find first unassigned entry
+    free = next((e for e in logins if not e.get("assigned")), None)
+    if not free:
+        raise HTTPException(status_code=410, detail="No free TAK logins available")
+
+    free["assigned"] = True
+    free["assigned_to_ip"] = client_ip
+    free["assigned_to_callsign"] = callsign
+    free["assigned_to_unit"] = unit
+    free["assigned_at"] = datetime.now(timezone.utc).isoformat()
+    save_json("tak_logins", logins)
+
+    return {
+        "status": "success",
+        "login": {
+            "username": free["username"],
+            "password": free["password"],
+            "server": "persistentsystems.eu",
+            "port": 8089,
+            "ssl": True,
+            "name": "LPU5",
+        },
+        "message": "Login assigned",
+    }
+
+@app.get("/api/tak_logins/check")
+def api_tak_logins_check(request: Request):
+    """Public endpoint – check if the calling IP already has a login."""
+    client_ip = _get_client_ip(request)
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        logins = []
+    existing = next(
+        (e for e in logins if e.get("assigned") and e.get("assigned_to_ip") == client_ip),
+        None,
+    )
+    if existing:
+        return {
+            "status": "assigned",
+            "login": {
+                "username": existing["username"],
+                "password": existing["password"],
+                "server": "persistentsystems.eu",
+                "port": 8089,
+                "ssl": True,
+                "name": "LPU5",
+            },
+            "callsign": existing.get("assigned_to_callsign"),
+            "unit": existing.get("assigned_to_unit"),
+        }
+    return {"status": "available"}
+
+@app.put("/api/tak_logins/{entry_id}")
+def api_tak_logins_update(entry_id: str, data: dict = Body(...)):
+    """Edit a TAK login entry (admin)."""
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        raise HTTPException(status_code=404, detail="Entry not found")
+    entry = next((e for e in logins if e.get("id") == entry_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    if "username" in data:
+        entry["username"] = (data["username"] or "").strip()
+    if "password" in data:
+        entry["password"] = (data["password"] or "").strip()
+    save_json("tak_logins", logins)
+    return {"status": "success", "entry": entry}
+
+@app.delete("/api/tak_logins/{entry_id}")
+def api_tak_logins_delete(entry_id: str):
+    """Delete a TAK login entry (admin)."""
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        raise HTTPException(status_code=404, detail="Entry not found")
+    before = len(logins)
+    logins = [e for e in logins if e.get("id") != entry_id]
+    if len(logins) == before:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    save_json("tak_logins", logins)
+    return {"status": "success"}
+
+@app.post("/api/tak_logins/{entry_id}/release")
+def api_tak_logins_release(entry_id: str):
+    """Release / un-assign a TAK login entry so it becomes available again."""
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        raise HTTPException(status_code=404, detail="Entry not found")
+    entry = next((e for e in logins if e.get("id") == entry_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    entry["assigned"] = False
+    entry["assigned_to_ip"] = None
+    entry["assigned_to_callsign"] = None
+    entry["assigned_to_unit"] = None
+    entry["assigned_at"] = None
+    save_json("tak_logins", logins)
+    return {"status": "success", "entry": entry}
 
 def sync_meshtastic_nodes_to_map_markers_db():
     """
