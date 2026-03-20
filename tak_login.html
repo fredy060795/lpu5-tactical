@@ -349,7 +349,7 @@
             const res = await fetch('/api/tak_logins/generate_p12', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: login.username, password: 'atakcerts' })
+                body: JSON.stringify({ username: login.username, password: login.password })
             });
             const body = await res.json().catch(() => null);
             spinner.style.display = 'none';

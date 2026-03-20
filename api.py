@@ -6990,7 +6990,7 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
             zf.writestr(f"{display_name}.pref", pref_xml)
 
         zip_b64 = base64.b64encode(zip_buf.getvalue()).decode("ascii")
-        zip_filename = f"{display_name}_TAK_Server.zip"
+        zip_filename = f"{cn}_TAK_Server.zip" if data.get("username") else f"{display_name}_TAK_Server.zip"
 
         return {
             "status": "success",
