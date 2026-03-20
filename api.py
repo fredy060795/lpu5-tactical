@@ -6957,6 +6957,8 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
         )
 
         # ── 4. Build ATAK .pref XML ─────────────────────────────────
+        # NOTE: The 'class="class java.lang.…"' attribute syntax is
+        # required by ATAK's preference importer – do not "fix" it.
         connect_string = f"{server_host}:{server_port}:{protocol}"
         safe_cn = _sax_utils.escape(str(cn))
         safe_display = _sax_utils.escape(display_name)
