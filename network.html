@@ -1788,7 +1788,7 @@ async function takLoginSettingsSave() {
     const port     = parseInt((document.getElementById('takSettingsPort') || {}).value) || 8089;
     const proto    = (document.getElementById('takSettingsProtocol')    || {}).value || 'ssl';
     const name     = (document.getElementById('takSettingsDisplayName') || {}).value || '';
-    const mgmtEnabled  = !!(document.getElementById('takMgmtEnabled')  || {}).checked;
+    const mgmtEnabled  = !!(document.getElementById('takMgmtEnabled')  || { checked: false }).checked;
     const mgmtUrl      = (document.getElementById('takMgmtUrl')        || {}).value || '';
     const mgmtUsername  = (document.getElementById('takMgmtUsername')   || {}).value || '';
     const mgmtPasswordEl = document.getElementById('takMgmtPassword');
