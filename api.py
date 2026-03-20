@@ -6956,9 +6956,12 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
     settings = _get_tak_login_settings()
     if not settings.get("mgmt_enabled"):
         return {"skipped": True, "reason": "TAK management sync not enabled"}
-    mgmt_url = (settings.get("mgmt_url") or "").rstrip("/")
+    mgmt_url = (settings.get("mgmt_url") or "").strip().rstrip("/")
     if not mgmt_url:
         return {"skipped": True, "reason": "No management URL configured"}
+    if not mgmt_url.startswith(("http://", "https://")):
+        logger.warning("TAK management URL has no scheme, assuming https:// for '%s'", mgmt_url)
+        mgmt_url = f"https://{mgmt_url}"
     mgmt_user = settings.get("mgmt_username") or ""
     mgmt_pass = settings.get("mgmt_password") or ""
     auth = (mgmt_user, mgmt_pass) if mgmt_user else None
