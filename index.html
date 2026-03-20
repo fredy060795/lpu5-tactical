@@ -7467,6 +7467,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
 <div class="tabs">
     <button class="tab-btn active" onclick="switchTab(event, 'users')"><i class="fas fa-users"></i> USERS</button>
     <button class="tab-btn" onclick="switchTab(event, 'qrcode')"><i class="fas fa-qrcode"></i> CREATE QR CODE</button>
+    <button class="tab-btn" onclick="switchTab(event, 'taklogin')"><i class="fas fa-satellite-dish"></i> TAK-LOGIN</button>
 </div>
 
 <!-- TAB: USERS -->
@@ -7679,6 +7680,177 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             <i class="fas fa-shield-alt" style="color:#2ecc71;"></i>
             Der QR-Code enthält <strong>keine</strong> Benutzerdaten. Erstelle oder ersetze ihn unter <strong>Network Settings → Server Join QR-Code</strong>.
         </div>
+    </div>
+</div>
+
+<!-- TAB: TAK-LOGIN MANAGEMENT -->
+<div id="tab-taklogin" class="tab-content">
+    <!-- TAK Server Settings (Admin) -->
+    <div class="section">
+        <h3><i class="fas fa-cog"></i> TAK Server Settings</h3>
+        <div style="margin-bottom:10px; padding:10px; background:rgba(52,152,219,0.1); border:1px solid rgba(52,152,219,0.3); border-radius:4px; font-size:0.85em;">
+            <i class="fas fa-info-circle" style="color:#3498db;"></i>
+            Configure the TAK server connection details shown to users on the login page. These settings are used when assigning credentials and generating certificates.
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+                <label class="small">Server Host / IP</label>
+                <input type="text" id="takSettingsHost" placeholder="e.g. takserver.example.com" style="width:220px;">
+            </div>
+            <div>
+                <label class="small">Port</label>
+                <input type="number" id="takSettingsPort" placeholder="8089" style="width:100px;" min="1" max="65535">
+            </div>
+            <div>
+                <label class="small">Protocol</label>
+                <select id="takSettingsProtocol" style="padding:6px 8px;background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(52,152,219,0.4);border-radius:4px;">
+                    <option value="ssl">SSL/TLS</option>
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                </select>
+            </div>
+            <div>
+                <label class="small">Display Name</label>
+                <input type="text" id="takSettingsDisplayName" placeholder="e.g. LPU5" style="width:140px;">
+            </div>
+        </div>
+
+        <!-- OpenTAK Management API — auto-register users at approval time -->
+        <div style="margin-top:14px; padding:10px; background:rgba(52,152,219,0.05); border:1px solid rgba(52,152,219,0.2); border-radius:4px;">
+            <div style="font-size:0.85em; color:#3498db; font-weight:bold; margin-bottom:8px;">
+                <i class="fas fa-link"></i> OpenTAK Management API <span style="font-weight:normal;color:#bbb;">(auto-register users on approval)</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <input type="checkbox" id="takMgmtEnabled" style="width:16px;height:16px;cursor:pointer;">
+                    <label class="small" for="takMgmtEnabled" style="cursor:pointer;margin:0;">Enable user auto-registration</label>
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                <div>
+                    <label class="small">Management API URL</label>
+                    <input type="text" id="takMgmtUrl" placeholder="https://192.168.1.100:8446" style="width:280px;">
+                </div>
+                <div>
+                    <label class="small">Admin Username</label>
+                    <input type="text" id="takMgmtUsername" placeholder="admin" style="width:130px;" autocomplete="off">
+                </div>
+                <div>
+                    <label class="small">Admin Password</label>
+                    <input type="password" id="takMgmtPassword" placeholder="••••••••" style="width:130px;" autocomplete="current-password">
+                </div>
+            </div>
+            <div style="margin-top:8px; font-size:0.8em; color:#888;">
+                <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the OpenTAK server via <code>POST &lt;URL&gt;/user-management/api/v1/user/</code>.
+            </div>
+        </div>
+
+        <div style="margin-top:12px;">
+            <button class="btn btn-approve" onclick="takSaveSettings()"><i class="fas fa-save"></i> Save Settings</button>
+            <span id="takSettingsStatus" style="margin-left:10px;font-size:0.85em;color:#28a745;display:none;"><i class="fas fa-check"></i> Saved</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3><i class="fas fa-satellite-dish"></i> TAK Login Management</h3>
+        <div style="margin-bottom:10px; padding:10px; background:rgba(52,152,219,0.1); border:1px solid rgba(52,152,219,0.3); border-radius:4px; font-size:0.85em;" id="takServerInfoBar">
+            <i class="fas fa-info-circle" style="color:#3498db;"></i>
+            <strong>TAK Server:</strong> <span id="takInfoHost">-</span> &nbsp;|&nbsp; <strong>Port:</strong> <span id="takInfoPort">-</span> (<span id="takInfoProto">-</span>) &nbsp;|&nbsp; <strong>Name:</strong> <span id="takInfoName">-</span><br>
+            Manage TAK server credentials here. Users can claim credentials via QR code. Only one login is assigned per device (IP).
+        </div>
+    </div>
+
+    <!-- Add TAK Login Credentials -->
+    <div class="section">
+        <h3><i class="fas fa-user-plus"></i> Add Credentials</h3>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+                <label class="small">Username</label>
+                <input type="text" id="takNewUser" placeholder="TAK Username" style="width:200px;">
+            </div>
+            <div>
+                <label class="small">Password</label>
+                <input type="text" id="takNewPass" placeholder="TAK Password" style="width:200px;">
+            </div>
+            <button class="btn btn-approve" onclick="takAddLogin()"><i class="fas fa-plus"></i> Add</button>
+        </div>
+        <div style="margin-top:6px;">
+            <label class="small">Bulk Import (CSV: username,password per line)</label>
+            <textarea id="takBulkImport" rows="4" style="width:100%;" placeholder="user1,pass1&#10;user2,pass2&#10;user3,pass3"></textarea>
+            <button class="btn" onclick="takBulkAdd()" style="margin-top:6px;"><i class="fas fa-upload"></i> Bulk Import</button>
+        </div>
+    </div>
+
+    <!-- Certificate Generation (ATAK ZIP Package) -->
+    <div class="section">
+        <h3><i class="fas fa-certificate"></i> ATAK / iTAK Certificate Package</h3>
+        <div style="margin-bottom:10px; padding:10px; background:rgba(46,204,113,0.1); border:1px solid rgba(46,204,113,0.3); border-radius:4px; font-size:0.85em;">
+            <i class="fas fa-info-circle" style="color:#2ecc71;"></i>
+            Generate a personalized ATAK certificate ZIP for a specific user. The certificate CN and
+            the PKCS#12 password are derived from the user's stored TAK credentials.
+            Import the ZIP directly into ATAK or iTAK.
+        </div>
+        <div style="margin-bottom:10px; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <div>
+                <label class="small">Username (required)</label>
+                <input type="text" id="takP12Username" placeholder="e.g. john.doe" style="width:200px;">
+            </div>
+        </div>
+        <div style="margin-bottom:10px;">
+            <button class="btn" onclick="takGenerateP12()" style="background:rgba(46,204,113,0.2); border-color:#2ecc71; color:#2ecc71;">
+                <i class="fas fa-file-archive"></i> Generate &amp; Download Certificate ZIP
+            </button>
+        </div>
+        <div id="takP12Result" style="display:none; margin-top:10px; padding:10px; background:rgba(46,204,113,0.05); border:1px solid rgba(46,204,113,0.2); border-radius:4px;"></div>
+    </div>
+
+    <!-- QR Code for TAK Login Page -->
+    <div class="section">
+        <h3><i class="fas fa-qrcode"></i> QR Code for TAK Login Page</h3>
+        <div style="margin-bottom:10px; padding:10px; background:rgba(243,156,18,0.1); border:1px solid rgba(243,156,18,0.3); border-radius:4px; font-size:0.85em;">
+            <i class="fas fa-shield-alt" style="color:#f39c12;"></i>
+            This QR code links to the TAK login page and embeds a <strong>trust token</strong>.
+            Users who scan it can <strong>log in</strong> (existing accounts) <em>or</em> <strong>register a new account instantly</strong> — no admin approval required.
+            Keep this QR code confidential; regenerate the token if it is compromised.
+        </div>
+        <div style="margin-bottom:10px;">
+            <label class="small">Server Address (Domain / IP)</label>
+            <input id="takQrBaseUrl" type="text" placeholder="Loading..." style="width:100%;padding:6px 8px;background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(52,152,219,0.4);border-radius:4px;font-size:0.95em;">
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn" onclick="takGenerateQR()" style="background:rgba(243,156,18,0.2); border-color:#f39c12; color:#f39c12;">
+                <i class="fas fa-qrcode"></i> Generate QR Code
+            </button>
+            <button class="btn" onclick="takRegenerateToken()" style="background:rgba(220,53,69,0.15); border-color:#dc3545; color:#dc3545;" title="Invalidate the current token and create a new one. Existing QR codes will no longer work.">
+                <i class="fas fa-sync-alt"></i> Regenerate Token
+            </button>
+        </div>
+        <div id="takQrPreview" style="display:none; margin-top:12px; text-align:center;"></div>
+    </div>
+
+    <!-- TAK Login List -->
+    <div class="section">
+        <h3><i class="fas fa-list"></i> TAK Login List</h3>
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+            <button class="btn" onclick="takLoadLogins()"><i class="fas fa-sync"></i> Refresh</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Password</th>
+                    <th>Status</th>
+                    <th>Callsign</th>
+                    <th>Unit</th>
+                    <th>IP</th>
+                    <th>Assigned At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="takLoginTable">
+                <tr><td colspan="8" class="empty-state"><i class="fas fa-spinner"></i> Loading...</td></tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -13193,6 +13365,279 @@ window.addEventListener('storage', (e) => {
       }
     }
 
+    // ─── TAK Login Settings ──────────────────────────────────────────
+    async function takLoadSettings() {
+        try {
+            const res = await fetch('/api/tak_login_settings', { headers: getAuthHeaders() });
+            if (!res.ok) return;
+            const s = await res.json();
+            const hostEl = document.getElementById('takSettingsHost');
+            const portEl = document.getElementById('takSettingsPort');
+            const protoEl = document.getElementById('takSettingsProtocol');
+            const nameEl = document.getElementById('takSettingsDisplayName');
+            if (hostEl) hostEl.value = s.server_host || '';
+            if (portEl) portEl.value = s.server_port || 8089;
+            if (protoEl) protoEl.value = s.protocol || 'ssl';
+            if (nameEl) nameEl.value = s.display_name || '';
+            // Management API fields
+            const mgmtEnabledEl = document.getElementById('takMgmtEnabled');
+            const mgmtUrlEl = document.getElementById('takMgmtUrl');
+            const mgmtUserEl = document.getElementById('takMgmtUsername');
+            if (mgmtEnabledEl) mgmtEnabledEl.checked = !!s.mgmt_enabled;
+            if (mgmtUrlEl) mgmtUrlEl.value = s.mgmt_url || '';
+            if (mgmtUserEl) mgmtUserEl.value = s.mgmt_username || '';
+            // Update info bar
+            const ih = document.getElementById('takInfoHost');
+            const ip = document.getElementById('takInfoPort');
+            const ipr = document.getElementById('takInfoProto');
+            const iname = document.getElementById('takInfoName');
+            if (ih) ih.textContent = s.server_host || '(not set)';
+            if (ip) ip.textContent = s.server_port || 8089;
+            if (ipr) ipr.textContent = (s.protocol || 'ssl').toUpperCase();
+            if (iname) iname.textContent = s.display_name || 'LPU5';
+        } catch (e) { console.warn('takLoadSettings', e); }
+    }
+
+    async function takSaveSettings() {
+        const host = (document.getElementById('takSettingsHost') || {}).value || '';
+        const port = parseInt((document.getElementById('takSettingsPort') || {}).value) || 8089;
+        const proto = (document.getElementById('takSettingsProtocol') || {}).value || 'ssl';
+        const name = (document.getElementById('takSettingsDisplayName') || {}).value || '';
+        const mgmtEnabled = !!(document.getElementById('takMgmtEnabled') || {}).checked;
+        const mgmtUrl = (document.getElementById('takMgmtUrl') || {}).value || '';
+        const mgmtUsername = (document.getElementById('takMgmtUsername') || {}).value || '';
+        const mgmtPasswordEl = document.getElementById('takMgmtPassword');
+        const mgmtPassword = mgmtPasswordEl ? mgmtPasswordEl.value : '';
+        const payload = {
+            server_host: host, server_port: port, protocol: proto, display_name: name,
+            mgmt_enabled: mgmtEnabled, mgmt_url: mgmtUrl, mgmt_username: mgmtUsername,
+        };
+        if (mgmtPassword) payload.mgmt_password = mgmtPassword;
+        try {
+            const res = await fetch('/api/tak_login_settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) { alert('Failed to save settings'); return; }
+            if (mgmtPasswordEl) mgmtPasswordEl.value = '';
+            const status = document.getElementById('takSettingsStatus');
+            if (status) { status.style.display = 'inline'; setTimeout(() => status.style.display = 'none', 3000); }
+            await takLoadSettings();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    // ─── TAK Login Management ─────────────────────────────────────────
+    function _takEscHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+    async function takLoadLogins() {
+        const tbody = document.getElementById('takLoginTable');
+        if (!tbody) return;
+        try {
+            const res = await fetch('/api/tak_logins', { headers: getAuthHeaders() });
+            if (!res.ok) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error loading data</td></tr>'; return; }
+            const logins = await res.json();
+            if (!logins || logins.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No TAK login entries found</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            logins.forEach(entry => {
+                const tr = document.createElement('tr');
+                const assigned = entry.assigned;
+                if (assigned) tr.style.opacity = '0.55';
+                const safeId = _takEscHtml(entry.id || '');
+                const safeUser = _takEscHtml(entry.username || '');
+                const safePass = _takEscHtml(entry.password || '');
+                tr.innerHTML =
+                    '<td>' + (safeUser || '-') + '</td>' +
+                    '<td>' + (safePass || '-') + '</td>' +
+                    '<td>' + (assigned
+                        ? '<span style="color:#f39c12;font-weight:bold;"><i class="fas fa-lock"></i> Assigned</span>'
+                        : '<span style="color:#28a745;"><i class="fas fa-lock-open"></i> Available</span>') + '</td>' +
+                    '<td>' + _takEscHtml(entry.assigned_to_callsign || '-') + '</td>' +
+                    '<td>' + _takEscHtml(entry.assigned_to_unit || '-') + '</td>' +
+                    '<td style="font-size:0.8em;color:#888;">' + _takEscHtml(entry.assigned_to_ip || '-') + '</td>' +
+                    '<td style="font-size:0.8em;color:#888;">' + (entry.assigned_at ? new Date(entry.assigned_at).toLocaleString() : '-') + '</td>' +
+                    '<td>' +
+                        (assigned
+                            ? '<button class="btn-icon" title="Release" onclick="takRelease(\'' + safeId + '\')"><i class="fas fa-unlock"></i></button>'
+                            : '') +
+                        '<button class="btn-icon" title="Edit" onclick="takEdit(\'' + safeId + '\',\'' + safeUser + '\',\'' + safePass + '\')"><i class="fas fa-edit"></i></button>' +
+                        '<button class="btn-icon" title="Delete" onclick="takDelete(\'' + safeId + '\')" style="color:#dc3545;"><i class="fas fa-trash"></i></button>' +
+                    '</td>';
+                tbody.appendChild(tr);
+            });
+        } catch (e) {
+            console.error('takLoadLogins', e);
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error: ' + e.message + '</td></tr>';
+        }
+    }
+
+    async function takAddLogin() {
+        const u = (document.getElementById('takNewUser') || {}).value.trim();
+        const p = (document.getElementById('takNewPass') || {}).value.trim();
+        if (!u || !p) { alert('Username and password are required'); return; }
+        try {
+            const res = await fetch('/api/tak_logins', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            if (!res.ok) { alert('Failed to add entry'); return; }
+            document.getElementById('takNewUser').value = '';
+            document.getElementById('takNewPass').value = '';
+            await takLoadLogins();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function takBulkAdd() {
+        const raw = (document.getElementById('takBulkImport') || {}).value.trim();
+        if (!raw) { alert('Please enter CSV data'); return; }
+        const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+        const entries = [];
+        for (const line of lines) {
+            const parts = line.split(',');
+            if (parts.length >= 2) {
+                entries.push({ username: parts[0].trim(), password: parts[1].trim() });
+            }
+        }
+        if (entries.length === 0) { alert('No valid entries found'); return; }
+        try {
+            const res = await fetch('/api/tak_logins', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ entries: entries })
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('Import failed'); return; }
+            alert((body && body.added ? body.added : entries.length) + ' entries imported');
+            document.getElementById('takBulkImport').value = '';
+            await takLoadLogins();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function takDelete(id) {
+        if (!confirm('Really delete this TAK login entry?')) return;
+        try {
+            await fetch('/api/tak_logins/' + id, { method: 'DELETE', headers: getAuthHeaders() });
+            await takLoadLogins();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function takRelease(id) {
+        if (!confirm('Release assignment? The user will lose access.')) return;
+        try {
+            await fetch('/api/tak_logins/' + id + '/release', { method: 'POST', headers: getAuthHeaders() });
+            await takLoadLogins();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    function takEdit(id, username, password) {
+        const newUser = prompt('Username:', username);
+        if (newUser === null) return;
+        const newPass = prompt('Password:', password);
+        if (newPass === null) return;
+        fetch('/api/tak_logins/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            body: JSON.stringify({ username: newUser, password: newPass })
+        }).then(() => takLoadLogins()).catch(e => alert('Error: ' + e.message));
+    }
+
+    async function takGenerateP12() {
+        const area = document.getElementById('takP12Result');
+        const usernameEl = document.getElementById('takP12Username');
+        const username = (usernameEl ? usernameEl.value.trim() : '');
+        if (!username) {
+            alert('Please enter a username to generate a personalized certificate.');
+            if (usernameEl) usernameEl.focus();
+            return;
+        }
+        const safeUsername = username.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        try {
+            const res = await fetch('/api/tak_logins/generate_p12', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ username })
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('Certificate generation failed: ' + ((body && body.detail) || res.status)); return; }
+            if (area && body && body.zip_base64) {
+                area.style.display = 'block';
+                area.innerHTML =
+                    '<div style="color:#2ecc71;font-weight:bold;margin-bottom:8px;"><i class="fas fa-file-archive"></i> Certificate Package Generated</div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>User:</strong> ' + safeUsername + '</div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Filename:</strong> ' + (body.filename || 'certificate.zip') + '</div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Certificate Password:</strong> <code style="user-select:all;">' + (body.password || '-') + '</code></div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;"><strong>Server:</strong> ' + (body.server || '-') + ':' + (body.port || '-') + ' (' + (body.protocol || '-').toUpperCase() + ')</div>' +
+                    '<div style="margin-bottom:6px;font-size:0.85em;color:#999;">Contains: client .p12, truststore-root.p12, connection preferences</div>' +
+                    '<a download="' + (body.filename || 'certificate.zip') + '" href="data:application/zip;base64,' + body.zip_base64 + '" ' +
+                    'style="display:inline-block;margin-top:8px;padding:8px 16px;background:#2ecc71;color:#000;text-decoration:none;border-radius:6px;font-weight:bold;">' +
+                    '<i class="fas fa-download"></i> Download Certificate ZIP</a>';
+            }
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function takGenerateQR() {
+        const baseUrlInput = document.getElementById('takQrBaseUrl');
+        let baseUrl = baseUrlInput ? baseUrlInput.value.trim().replace(/\/+$/, '') : '';
+        try {
+            const res = await fetch('/api/tak_logins/qr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ base_url: baseUrl })
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('QR code generation failed'); return; }
+            const area = document.getElementById('takQrPreview');
+            if (area && body) {
+                area.style.display = '';
+                if (body.png_base64) {
+                    area.innerHTML =
+                        '<div style="color:#f39c12;font-weight:bold;margin-bottom:8px;"><i class="fas fa-satellite-dish"></i> TAK Login / Register QR Code</div>' +
+                        '<a download="tak_login_qr.png" href="data:image/png;base64,' + body.png_base64 + '">' +
+                        '<img src="data:image/png;base64,' + body.png_base64 + '" alt="TAK Login QR" width="260" height="260" style="border:2px solid #f39c12;border-radius:8px;"></a>' +
+                        '<div style="margin-top:8px;color:#3498db;font-size:0.85em;word-break:break-all;"><i class="fas fa-link"></i> ' + (body.claim_url || '') + '</div>' +
+                        '<div style="margin-top:4px;color:#888;font-size:0.8em;">Right-click → Save image to download. Contains trust token — keep confidential.</div>';
+                } else {
+                    area.innerHTML = '<div class="small">QR created (PNG not available — install the <code>qrcode</code> Python package)</div>';
+                }
+            }
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function takRegenerateToken() {
+        if (!confirm('Regenerate the TAK QR trust token?\n\nAll existing QR codes will immediately become invalid. Users who have not yet scanned the code will need the new QR code.')) return;
+        try {
+            const res = await fetch('/api/tak_logins/regenerate_token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('Failed to regenerate token: ' + ((body && body.detail) || res.status)); return; }
+            const area = document.getElementById('takQrPreview');
+            if (area) area.style.display = 'none';
+            alert('Token regenerated successfully. Please generate a new QR code to distribute to users.');
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    // Auto-load TAK data when switching to the taklogin tab
+    const _origSwitchTab = switchTab;
+    switchTab = function(evt, id) {
+        _origSwitchTab(evt, id);
+        if (id === 'taklogin') {
+            takLoadSettings();
+            takLoadLogins();
+            const inp = document.getElementById('takQrBaseUrl');
+            if (inp && !inp.value) {
+                fetch('/api/server_info').then(r => r.json()).then(info => {
+                    if (info && info.base_url) inp.value = info.base_url;
+                }).catch(() => {});
+            }
+        }
+    };
+
     // ─── Expose functions to global scope for inline onclick handlers ─
     window.switchTab = switchTab;
     window.createQRCode = createQRCode;
@@ -13204,6 +13649,17 @@ window.addEventListener('storage', (e) => {
     window.loadPendingRegistrations = loadPendingRegistrations;
     window.approveSelected = approveSelected;
     window.rejectSelected = rejectSelected;
+    window.takLoadSettings = takLoadSettings;
+    window.takSaveSettings = takSaveSettings;
+    window.takLoadLogins = takLoadLogins;
+    window.takAddLogin = takAddLogin;
+    window.takBulkAdd = takBulkAdd;
+    window.takDelete = takDelete;
+    window.takRelease = takRelease;
+    window.takEdit = takEdit;
+    window.takGenerateP12 = takGenerateP12;
+    window.takGenerateQR = takGenerateQR;
+    window.takRegenerateToken = takRegenerateToken;
     };
     </script>
     <!-- Ende JS admin.html -->
