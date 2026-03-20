@@ -437,8 +437,8 @@
                     try { body = await res.json(); } catch(e){ body = null; }
 
                     if (res.ok) {
-                        // Server accepted registration
-                        showStatus('Registration successfully submitted. Please wait for admin approval.', 'ok');
+                        // Registration accepted – redirect to TAK login page
+                        window.location.href = '/tak_login.html?username=' + encodeURIComponent(username) + '&registered=1';
                         return;
                     }
 
