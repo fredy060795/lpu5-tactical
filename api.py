@@ -3333,16 +3333,20 @@ async def approve_registration(data: dict = Body(...), db: Session = Depends(get
     # Auto-sync the new user to the OpenTAK management API if configured.
     # A dedicated TAK password is generated and stored so the user can
     # retrieve it later from the TAK login page.
-    tak_sync_result = {"skipped": True}
-    settings = _get_tak_login_settings()
-    if settings.get("mgmt_enabled") and settings.get("mgmt_url"):
-        tak_password = _generate_tak_password()
-        user_data = dict(new_user.data or {})
-        user_data["tak_server_password"] = tak_password
-        new_user.data = user_data
-        flag_modified(new_user, "data")
-        db.commit()
-        tak_sync_result = _sync_user_to_tak_server(new_user.username, tak_password)
+    # Always generate a TAK password so every user gets TAK credentials,
+    # regardless of whether the management API is configured.
+    tak_password = _generate_tak_password()
+    user_data = dict(new_user.data or {})
+    user_data["tak_server_password"] = tak_password
+    new_user.data = user_data
+    flag_modified(new_user, "data")
+    db.commit()
+
+    tak_sync_result = _sync_user_to_tak_server(new_user.username, tak_password)
+
+    # Also add an entry to the tak_logins JSON list so the admin
+    # TAK login panel displays the user alongside manual entries.
+    _add_tak_login_entry(new_user.username, tak_password, callsign=new_user.callsign, unit=new_user.unit)
 
     log_audit("approve_registration", "system", {"username": username, "user_id": new_user.id})
     return {
@@ -6897,6 +6901,52 @@ def _get_tak_qr_token() -> str:
     return token
 
 
+def _add_tak_login_entry(
+    username: str,
+    password: str,
+    *,
+    callsign: Optional[str] = None,
+    unit: Optional[str] = None,
+) -> dict:
+    """Append a TAK login entry to the JSON list (used by approve / trusted-register).
+
+    If an entry with the same username already exists it is updated
+    instead of duplicated.  Returns the (new or updated) entry dict.
+    """
+    logins = load_json("tak_logins")
+    if not isinstance(logins, list):
+        logins = []
+
+    existing = next(
+        (e for e in logins if (e.get("username") or "").lower() == username.lower()),
+        None,
+    )
+    if existing:
+        existing["password"] = password
+        if callsign:
+            existing["assigned_to_callsign"] = callsign
+        if unit:
+            existing["assigned_to_unit"] = unit
+        save_json("tak_logins", logins)
+        return existing
+
+    entry = {
+        "id": str(uuid.uuid4()),
+        "username": username,
+        "password": password,
+        "assigned": True,
+        "assigned_to_ip": None,
+        "assigned_to_callsign": callsign,
+        "assigned_to_unit": unit,
+        "assigned_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source": "registered",
+    }
+    logins.append(entry)
+    save_json("tak_logins", logins)
+    return entry
+
+
 def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
     """Register a user on the OpenTAK Management API if configured.
 
@@ -6976,6 +7026,8 @@ async def api_tak_logins_auth_claim(data: dict = Body(...), db: Session = Depend
             db.commit()
             # Attempt management sync (best-effort)
             _sync_user_to_tak_server(username, tak_password)
+            # Add to tak_logins JSON so admin panel shows the user
+            _add_tak_login_entry(username, tak_password, callsign=user.callsign, unit=user.unit)
         settings = _get_tak_login_settings()
         return {
             "status": "ok",
@@ -7036,13 +7088,27 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
     settings = _get_tak_login_settings()
     cn = data.get("username") or settings.get("display_name") or "LPU5-Client"
 
-    # Resolve the p12 password: explicit caller value → stored TAK password → fallback
+    # Resolve the p12 password: explicit caller value → stored TAK password → tak_logins JSON → fallback
     p12_password = data.get("password")
     if not p12_password and data.get("username"):
         try:
             user_obj = db.query(User).filter(User.username == data["username"]).first()
             if user_obj:
                 p12_password = (user_obj.data or {}).get("tak_server_password")
+        except Exception:
+            pass
+    if not p12_password and data.get("username"):
+        # Fall back to manually created tak_logins entries
+        try:
+            tak_entries = load_json("tak_logins")
+            if isinstance(tak_entries, list):
+                match = next(
+                    (e for e in tak_entries
+                     if (e.get("username") or "").lower() == data["username"].lower()),
+                    None,
+                )
+                if match:
+                    p12_password = match.get("password")
         except Exception:
             pass
     if not p12_password:
@@ -7192,11 +7258,47 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
 
 
 @app.get("/api/tak_logins")
-def api_tak_logins_list():
-    """List all TAK login entries (admin view)."""
+def api_tak_logins_list(db: Session = Depends(get_db)):
+    """List all TAK login entries (admin view).
+
+    Combines manually created entries from the JSON store **and**
+    registered users from the database who have a TAK server password
+    assigned (via registration approval or auth-claim).  DB-sourced
+    entries are marked with ``source: "registered"`` so the admin UI
+    can distinguish them.
+    """
     logins = load_json("tak_logins")
     if not isinstance(logins, list):
         logins = []
+
+    # Collect usernames already present in the JSON list to avoid duplicates
+    json_usernames = {(e.get("username") or "").lower() for e in logins}
+
+    # Merge registered DB users that have a TAK server password
+    try:
+        db_users = db.query(User).filter(User.is_active == True).all()  # noqa: E712
+        for u in db_users:
+            udata = u.data or {}
+            tak_pw = udata.get("tak_server_password")
+            if not tak_pw:
+                continue
+            if (u.username or "").lower() in json_usernames:
+                continue
+            logins.append({
+                "id": f"db-{u.id}",
+                "username": u.username,
+                "password": tak_pw,
+                "assigned": True,
+                "assigned_to_ip": None,
+                "assigned_to_callsign": u.callsign,
+                "assigned_to_unit": u.unit,
+                "assigned_at": u.created_at.isoformat() if u.created_at else None,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "source": "registered",
+            })
+    except Exception:
+        logger.debug("Could not merge DB users into tak_logins list", exc_info=True)
+
     return logins
 
 @app.post("/api/tak_logins")
@@ -7237,7 +7339,14 @@ def api_tak_logins_add(data: dict = Body(...)):
         added.append(entry)
 
     save_json("tak_logins", logins)
-    return {"status": "success", "added": len(added), "entries": added}
+
+    # Best-effort sync each new user to the OpenTAK management server
+    sync_results = []
+    for entry in added:
+        result = _sync_user_to_tak_server(entry["username"], entry["password"])
+        sync_results.append(result)
+
+    return {"status": "success", "added": len(added), "entries": added, "tak_sync": sync_results}
 
 @app.post("/api/tak_logins/qr")
 def api_tak_logins_qr(data: dict = Body(default={}), request: Request = None):
@@ -7370,6 +7479,14 @@ async def api_tak_logins_trusted_register(data: dict = Body(...), db: Session = 
 
     # Best-effort sync to OpenTAK management server
     _sync_user_to_tak_server(username, tak_password)
+
+    # Add to tak_logins JSON so admin panel shows the user
+    _add_tak_login_entry(
+        username,
+        tak_password,
+        callsign=(data.get("callsign") or "").strip() or None,
+        unit=(data.get("unit") or "General").strip(),
+    )
 
     log_audit("trusted_register", "tak_qr", {"username": username})
 

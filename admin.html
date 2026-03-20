@@ -676,6 +676,7 @@
                 <tr>
                     <th>Username</th>
                     <th>Password</th>
+                    <th>Source</th>
                     <th>Status</th>
                     <th>Callsign</th>
                     <th>Unit</th>
@@ -685,7 +686,7 @@
                 </tr>
             </thead>
             <tbody id="takLoginTable">
-                <tr><td colspan="8" class="empty-state"><i class="fas fa-spinner"></i> Loading...</td></tr>
+                <tr><td colspan="9" class="empty-state"><i class="fas fa-spinner"></i> Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -1312,23 +1313,28 @@
         if (!tbody) return;
         try {
             const res = await fetch('/api/tak_logins', { headers: getAuthHeaders() });
-            if (!res.ok) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error loading data</td></tr>'; return; }
+            if (!res.ok) { tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Error loading data</td></tr>'; return; }
             const logins = await res.json();
             if (!logins || logins.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No TAK login entries found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No TAK login entries found</td></tr>';
                 return;
             }
             tbody.innerHTML = '';
             logins.forEach(entry => {
                 const tr = document.createElement('tr');
                 const assigned = entry.assigned;
-                if (assigned) tr.style.opacity = '0.55';
+                const isRegistered = entry.source === 'registered';
+                if (assigned && !isRegistered) tr.style.opacity = '0.55';
                 const safeId = (entry.id || '').replace(/'/g, "\\'");
                 const safeUser = (entry.username || '').replace(/'/g, "\\'").replace(/</g, '&lt;');
                 const safePass = (entry.password || '').replace(/'/g, "\\'").replace(/</g, '&lt;');
+                const sourceBadge = isRegistered
+                    ? '<span style="color:#3498db;font-weight:bold;" title="Created via user registration"><i class="fas fa-user-check"></i> Registered</span>'
+                    : '<span style="color:#888;" title="Manually added"><i class="fas fa-cog"></i> Manual</span>';
                 tr.innerHTML =
                     '<td>' + (safeUser || '-') + '</td>' +
                     '<td>' + (safePass || '-') + '</td>' +
+                    '<td>' + sourceBadge + '</td>' +
                     '<td>' + (assigned
                         ? '<span style="color:#f39c12;font-weight:bold;"><i class="fas fa-lock"></i> Assigned</span>'
                         : '<span style="color:#28a745;"><i class="fas fa-lock-open"></i> Available</span>') + '</td>' +
@@ -1337,17 +1343,18 @@
                     '<td style="font-size:0.8em;color:#888;">' + ((entry.assigned_to_ip || '-').replace(/</g, '&lt;')) + '</td>' +
                     '<td style="font-size:0.8em;color:#888;">' + (entry.assigned_at ? new Date(entry.assigned_at).toLocaleString() : '-') + '</td>' +
                     '<td>' +
-                        (assigned
+                        (assigned && !isRegistered
                             ? '<button class="btn-icon" title="Release" onclick="takRelease(\'' + safeId + '\')"><i class="fas fa-unlock"></i></button>'
                             : '') +
                         '<button class="btn-icon" title="Edit" onclick="takEdit(\'' + safeId + '\',\'' + safeUser + '\',\'' + safePass + '\')"><i class="fas fa-edit"></i></button>' +
                         '<button class="btn-icon" title="Delete" onclick="takDelete(\'' + safeId + '\')" style="color:#dc3545;"><i class="fas fa-trash"></i></button>' +
+                        '<button class="btn-icon" title="Download Certificate" onclick="takDownloadUserCert(\'' + safeUser + '\')" style="color:#2ecc71;"><i class="fas fa-certificate"></i></button>' +
                     '</td>';
                 tbody.appendChild(tr);
             });
         } catch (e) {
             console.error('takLoadLogins', e);
-            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error: ' + e.message + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Error: ' + e.message + '</td></tr>';
         }
     }
 
@@ -1420,6 +1427,27 @@
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify({ username: newUser, password: newPass })
         }).then(() => takLoadLogins()).catch(e => alert('Error: ' + e.message));
+    }
+
+    async function takDownloadUserCert(username) {
+        if (!username) return;
+        try {
+            const res = await fetch('/api/tak_logins/generate_p12', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify({ username })
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('Certificate generation failed: ' + ((body && body.detail) || res.status)); return; }
+            if (body && body.zip_base64) {
+                const a = document.createElement('a');
+                a.download = body.filename || (username + '_TAK.zip');
+                a.href = 'data:application/zip;base64,' + body.zip_base64;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        } catch (e) { alert('Error generating certificate: ' + e.message); }
     }
 
     async function takGenerateP12() {
