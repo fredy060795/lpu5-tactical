@@ -645,17 +645,23 @@
     <div class="section">
         <h3><i class="fas fa-qrcode"></i> QR Code for TAK Login Page</h3>
         <div style="margin-bottom:10px; padding:10px; background:rgba(243,156,18,0.1); border:1px solid rgba(243,156,18,0.3); border-radius:4px; font-size:0.85em;">
-            <i class="fas fa-info-circle" style="color:#f39c12;"></i>
-            This QR code directs users to the TAK login page where they can request credentials using their callsign and unit.
-            Only <strong>one</strong> login per device/IP is granted.
+            <i class="fas fa-shield-alt" style="color:#f39c12;"></i>
+            This QR code links to the TAK login page and embeds a <strong>trust token</strong>.
+            Users who scan it can <strong>log in</strong> (existing accounts) <em>or</em> <strong>register a new account instantly</strong> — no admin approval required.
+            Keep this QR code confidential; regenerate the token if it is compromised.
         </div>
         <div style="margin-bottom:10px;">
             <label class="small">Server Address (Domain / IP)</label>
             <input id="takQrBaseUrl" type="text" placeholder="Loading..." style="width:100%;padding:6px 8px;background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(52,152,219,0.4);border-radius:4px;font-size:0.95em;">
         </div>
-        <button class="btn" onclick="takGenerateQR()" style="background:rgba(243,156,18,0.2); border-color:#f39c12; color:#f39c12;">
-            <i class="fas fa-qrcode"></i> Generate QR Code
-        </button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn" onclick="takGenerateQR()" style="background:rgba(243,156,18,0.2); border-color:#f39c12; color:#f39c12;">
+                <i class="fas fa-qrcode"></i> Generate QR Code
+            </button>
+            <button class="btn" onclick="takRegenerateToken()" style="background:rgba(220,53,69,0.15); border-color:#dc3545; color:#dc3545;" title="Invalidate the current token and create a new one. Existing QR codes will no longer work.">
+                <i class="fas fa-sync-alt"></i> Regenerate Token
+            </button>
+        </div>
         <div id="takQrPreview" style="display:none; margin-top:12px; text-align:center;"></div>
     </div>
 
@@ -1465,15 +1471,31 @@
                 area.style.display = '';
                 if (body.png_base64) {
                     area.innerHTML =
-                        '<div style="color:#f39c12;font-weight:bold;margin-bottom:8px;"><i class="fas fa-satellite-dish"></i> TAK Login QR Code</div>' +
+                        '<div style="color:#f39c12;font-weight:bold;margin-bottom:8px;"><i class="fas fa-satellite-dish"></i> TAK Login / Register QR Code</div>' +
                         '<a download="tak_login_qr.png" href="data:image/png;base64,' + body.png_base64 + '">' +
                         '<img src="data:image/png;base64,' + body.png_base64 + '" alt="TAK Login QR" width="260" height="260" style="border:2px solid #f39c12;border-radius:8px;"></a>' +
-                        '<div style="margin-top:8px;color:#3498db;font-size:0.85em;"><i class="fas fa-link"></i> ' + (body.claim_url || '') + '</div>' +
-                        '<div style="margin-top:4px;color:#888;font-size:0.8em;">Right-click → Save image to download</div>';
+                        '<div style="margin-top:8px;color:#3498db;font-size:0.85em;word-break:break-all;"><i class="fas fa-link"></i> ' + (body.claim_url || '') + '</div>' +
+                        '<div style="margin-top:4px;color:#888;font-size:0.8em;">Right-click → Save image to download. Contains trust token — keep confidential.</div>';
                 } else {
-                    area.innerHTML = '<div class="small">QR created (PNG not available)</div>';
+                    area.innerHTML = '<div class="small">QR created (PNG not available — install the <code>qrcode</code> Python package)</div>';
                 }
             }
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function takRegenerateToken() {
+        if (!confirm('Regenerate the TAK QR trust token?\n\nAll existing QR codes will immediately become invalid. Users who have not yet scanned the code will need the new QR code.')) return;
+        try {
+            const res = await fetch('/api/tak_logins/regenerate_token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('Failed to regenerate token: ' + ((body && body.detail) || res.status)); return; }
+            // Clear current QR preview and notify user
+            const area = document.getElementById('takQrPreview');
+            if (area) area.style.display = 'none';
+            alert('Token regenerated successfully. Please generate a new QR code to distribute to users.');
         } catch (e) { alert('Error: ' + e.message); }
     }
 
