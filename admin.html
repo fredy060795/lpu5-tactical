@@ -735,6 +735,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+<script src="/assets/qrcode.min.js"></script>
 
 <!-- Einfache Tab-Logik -->
 <script>
@@ -1090,8 +1091,30 @@
         const area = document.getElementById('qrPreviewArea');
         if (area){
           area.style.display = '';
-          if (png){ 
-            let html = `<img src="data:image/png;base64,${png}" alt="QR">`;
+          var qrImgSrc = null;
+          if (png) {
+            qrImgSrc = 'data:image/png;base64,' + png;
+          } else if (qrUrl && typeof qrcode === 'function') {
+            try {
+              var qr = qrcode(0, 'L');
+              qr.addData(qrUrl);
+              qr.make();
+              var modules = qr.getModuleCount();
+              var cellSize = Math.max(4, Math.floor(260 / modules));
+              var sz = modules * cellSize;
+              var cvs = document.createElement('canvas');
+              cvs.width = sz; cvs.height = sz;
+              var ct = cvs.getContext('2d');
+              ct.fillStyle = '#ffffff'; ct.fillRect(0, 0, sz, sz);
+              ct.fillStyle = '#000000';
+              for (var rr = 0; rr < modules; rr++)
+                for (var cc = 0; cc < modules; cc++)
+                  if (qr.isDark(rr, cc)) ct.fillRect(cc * cellSize, rr * cellSize, cellSize, cellSize);
+              qrImgSrc = cvs.toDataURL('image/png');
+            } catch (qrErr) { console.warn('Client-side QR generation failed', qrErr); }
+          }
+          if (qrImgSrc) {
+            let html = `<img src="${qrImgSrc}" alt="QR">`;
             if (qrUrl) {
               html += `<div style="margin-top:8px;color:#3498db;font-size:0.85em;"><i class="fas fa-link"></i> ${qrUrl}</div>`;
             }
@@ -1389,15 +1412,46 @@
             const area = document.getElementById('takQrPreview');
             if (area && body) {
                 area.style.display = '';
+                var imgSrc = null;
                 if (body.png_base64) {
+                    imgSrc = 'data:image/png;base64,' + body.png_base64;
+                } else if (body.claim_url && typeof qrcode === 'function') {
+                    try {
+                        var qr = qrcode(0, 'L');
+                        qr.addData(body.claim_url);
+                        qr.make();
+                        var modules = qr.getModuleCount();
+                        var cellSize = Math.max(4, Math.floor(260 / modules));
+                        var size = modules * cellSize;
+                        var canvas = document.createElement('canvas');
+                        canvas.width = size;
+                        canvas.height = size;
+                        var ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, size, size);
+                        ctx.fillStyle = '#000000';
+                        for (var r = 0; r < modules; r++) {
+                            for (var c = 0; c < modules; c++) {
+                                if (qr.isDark(r, c)) {
+                                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                                }
+                            }
+                        }
+                        imgSrc = canvas.toDataURL('image/png');
+                    } catch (qrErr) { console.warn('Client-side QR generation failed', qrErr); }
+                }
+                if (imgSrc) {
                     area.innerHTML =
                         '<div style="color:#f39c12;font-weight:bold;margin-bottom:8px;"><i class="fas fa-satellite-dish"></i> TAK Login / Register QR Code</div>' +
-                        '<a download="tak_login_qr.png" href="data:image/png;base64,' + body.png_base64 + '">' +
-                        '<img src="data:image/png;base64,' + body.png_base64 + '" alt="TAK Login QR" width="260" height="260" style="border:2px solid #f39c12;border-radius:8px;"></a>' +
+                        '<a download="tak_login_qr.png" href="' + imgSrc + '">' +
+                        '<img src="' + imgSrc + '" alt="TAK Login QR" width="260" height="260" style="border:2px solid #f39c12;border-radius:8px;"></a>' +
                         '<div style="margin-top:8px;color:#3498db;font-size:0.85em;word-break:break-all;"><i class="fas fa-link"></i> ' + (body.claim_url || '') + '</div>' +
                         '<div style="margin-top:4px;color:#888;font-size:0.8em;">Right-click → Save image to download. Contains trust token — keep confidential.</div>';
                 } else {
-                    area.innerHTML = '<div class="small">QR created (PNG not available — install the <code>qrcode</code> Python package)</div>';
+                    area.innerHTML =
+                        '<div style="color:#f39c12;font-weight:bold;margin-bottom:8px;"><i class="fas fa-satellite-dish"></i> TAK Login / Register QR Code</div>' +
+                        '<div style="margin-top:8px;color:#3498db;font-size:0.85em;word-break:break-all;"><i class="fas fa-link"></i> ' + (body.claim_url || '') + '</div>' +
+                        '<div style="margin-top:4px;color:#888;font-size:0.8em;">PNG not available — share the link above directly.</div>';
                 }
             }
         } catch (e) { alert('Error: ' + e.message); }

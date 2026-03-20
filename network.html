@@ -770,7 +770,7 @@
             </div>
 
             <div style="margin-top:6px; font-size:0.8em; color:var(--text-dim);">
-                <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the OpenTAK server via <code>POST &lt;URL&gt;/user-management/api/v1/user/</code>.
+                <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the TAK management server via <code>POST &lt;URL&gt;/user-management/api/v1/user/</code> (falls back to <code>PUT</code> if the server returns 405).
             </div>
         </div>
 
