@@ -654,7 +654,7 @@ _json_cache_lock = threading.Lock()
 def load_json(key: str) -> Any:
     path = DB_PATHS.get(key)
     if not path or not os.path.exists(path):
-        return DEFAULT_DB_CONTENTS.get(key, [] if key != "config" else {})
+        return DEFAULT_DB_CONTENTS.get(key, {})
     try:
         mtime = os.path.getmtime(path)
         with _json_cache_lock:
@@ -6850,7 +6850,7 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.x509.oid import NameOID
         from cryptography.hazmat.primitives.serialization import pkcs12
-        import ipaddress as _ipaddress
+        import ipaddress as ipaddr
     except ImportError:
         raise HTTPException(
             status_code=500,
@@ -6876,7 +6876,7 @@ def api_tak_logins_generate_p12(data: dict = Body(default={})):
         server_host = settings.get("server_host") or ""
         if server_host:
             try:
-                san_entries.append(x509.IPAddress(_ipaddress.ip_address(server_host)))
+                san_entries.append(x509.IPAddress(ipaddr.ip_address(server_host)))
             except ValueError:
                 san_entries.append(x509.DNSName(server_host))
 
