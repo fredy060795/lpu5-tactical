@@ -50,6 +50,8 @@ import asyncio
 import sys
 import xml.sax.saxutils as _sax_utils
 import requests
+import urllib3
+import warnings
 
 # Fix Windows asyncio ProactorEventLoop issue that causes
 # "Exception in callback _ProactorBasePipeTransport._call_connection_lost"
@@ -6965,17 +6967,22 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
     mgmt_user = settings.get("mgmt_username") or ""
     mgmt_pass = settings.get("mgmt_password") or ""
     auth = (mgmt_user, mgmt_pass) if mgmt_user else None
+    api_endpoint = f"{mgmt_url}/user-management/api/v1/user/"
+    payload = {"username": username, "password": tak_password, "enabled": True}
+    # OpenTAK Management servers commonly use self-signed certificates;
+    # disable host verification to allow private deployments.  Operators
+    # who need strict TLS validation should proxy through a trusted CA.
+    req_kwargs = dict(json=payload, auth=auth, verify=False, timeout=10)
     try:
-        resp = requests.post(
-            f"{mgmt_url}/user-management/api/v1/user/",
-            json={"username": username, "password": tak_password, "enabled": True},
-            auth=auth,
-            # OpenTAK Management servers commonly use self-signed certificates;
-            # disable host verification to allow private deployments.  Operators
-            # who need strict TLS validation should proxy through a trusted CA.
-            verify=False,
-            timeout=10,
-        )
+        # Suppress noisy InsecureRequestWarning when using verify=False.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
+            resp = requests.post(api_endpoint, **req_kwargs)
+            # Some management servers (e.g. Persistent Systems) only accept
+            # PUT for user creation/update.  Retry with PUT on 405.
+            if resp.status_code == 405:
+                logger.info("TAK sync: POST returned 405, retrying with PUT for user '%s'", username)
+                resp = requests.put(api_endpoint, **req_kwargs)
         if resp.status_code in (200, 201):
             logger.info("TAK sync: user '%s' created on management server", username)
             return {"success": True}
