@@ -1371,7 +1371,7 @@
                             : '') +
                         '<button class="btn-icon" title="Edit" onclick="takEdit(\'' + safeId + '\',\'' + safeUser + '\',\'' + safePass + '\')"><i class="fas fa-edit"></i></button>' +
                         '<button class="btn-icon" title="Delete" onclick="takDelete(\'' + safeId + '\')" style="color:#dc3545;"><i class="fas fa-trash"></i></button>' +
-                        '<button class="btn-icon" title="Download Certificate" onclick="takDownloadUserCert(\'' + safeUser + '\')" style="color:#2ecc71;"><i class="fas fa-certificate"></i></button>' +
+                        '<button class="btn-icon" title="Download Certificate" onclick="takDownloadUserCert(\'' + safeUser + '\',\'' + safePass + '\')" style="color:#2ecc71;"><i class="fas fa-certificate"></i></button>' +
                     '</td>';
                 tbody.appendChild(tr);
             });
@@ -1452,13 +1452,15 @@
         }).then(() => takLoadLogins()).catch(e => alert('Error: ' + e.message));
     }
 
-    async function takDownloadUserCert(username) {
+    async function takDownloadUserCert(username, password) {
         if (!username) return;
         try {
+            const payload = { username };
+            if (password) payload.password = password;
             const res = await fetch('/api/tak_logins/generate_p12', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                body: JSON.stringify({ username })
+                body: JSON.stringify(payload)
             });
             const body = await res.json().catch(() => null);
             if (!res.ok) { alert('Certificate generation failed: ' + ((body && body.detail) || res.status)); return; }
