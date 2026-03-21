@@ -692,6 +692,98 @@
         </div>
     </div>
 
+    <!-- TAK Server Settings (Login Page & Certificates) -->
+    <div class="section">
+        <div class="section-header">
+            <i class="fas fa-cog"></i>
+            TAK Server Settings
+        </div>
+
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Configure the TAK server connection details shown to users on the login page.
+            These settings are used when assigning credentials and generating certificates.
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <div class="form-group">
+                    <label class="form-label">Server Host / IP</label>
+                    <input type="text" class="form-input" id="takSettingsHost" placeholder="e.g. takserver.example.com">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Port</label>
+                    <input type="number" class="form-input" id="takSettingsPort" placeholder="8089" min="1" max="65535">
+                </div>
+            </div>
+
+            <div>
+                <div class="form-group">
+                    <label class="form-label">Protocol</label>
+                    <select class="form-select" id="takSettingsProtocol">
+                        <option value="ssl">SSL/TLS</option>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Display Name</label>
+                    <input type="text" class="form-input" id="takSettingsDisplayName" placeholder="e.g. LPU5">
+                </div>
+            </div>
+        </div>
+
+        <!-- OpenTAK Management API -->
+        <div style="margin-top:14px; padding:14px; background:rgba(52,152,219,0.05); border:1px solid rgba(52,152,219,0.2); border-radius:4px;">
+            <div style="font-size:0.9em; color:var(--accent-blue); font-weight:bold; margin-bottom:10px;">
+                <i class="fas fa-link"></i> OpenTAK Management API
+                <span style="font-weight:normal;color:var(--text-dim);">(auto-register users on approval)</span>
+            </div>
+
+            <div class="form-group">
+                <div class="form-checkbox">
+                    <input type="checkbox" id="takMgmtEnabled">
+                    <label for="takMgmtEnabled">Enable user auto-registration</label>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div>
+                    <div class="form-group">
+                        <label class="form-label">Management API URL</label>
+                        <input type="text" class="form-input" id="takMgmtUrl" placeholder="https://192.168.1.100:8446">
+                    </div>
+                </div>
+                <div>
+                    <div class="form-group">
+                        <label class="form-label">Admin Username</label>
+                        <input type="text" class="form-input" id="takMgmtUsername" placeholder="admin" autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Admin Password</label>
+                        <input type="password" class="form-input" id="takMgmtPassword" placeholder="••••••••" autocomplete="current-password">
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:6px; font-size:0.8em; color:var(--text-dim);">
+                <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the TAK management server via <code>POST &lt;URL&gt;/user-management/api/v1/user/</code> (falls back to <code>PUT</code> if the server returns 405).
+            </div>
+        </div>
+
+        <div style="margin-top:14px; display:flex; gap:10px; align-items:center;">
+            <button class="btn btn-success" onclick="takLoginSettingsSave()">
+                <i class="fas fa-save"></i> Save TAK Settings
+            </button>
+            <span id="takSettingsStatus" style="font-size:0.85em;color:var(--accent);display:none;">
+                <i class="fas fa-check"></i> Saved
+            </span>
+        </div>
+    </div>
+
     <!-- CoT Listener Section -->
     <div class="section">
         <div class="section-header">
@@ -1664,6 +1756,63 @@ function updateSaMulticastState() {
     }
 }
 
+// ─── TAK Login Settings (Server Host / Port / Protocol / Display Name / OpenTAK Mgmt) ───
+async function takLoginSettingsLoad() {
+    const token = _getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    try {
+        const res = await fetch('/api/tak_login_settings', { headers });
+        if (!res.ok) return;
+        const s = await res.json();
+        const hostEl   = document.getElementById('takSettingsHost');
+        const portEl   = document.getElementById('takSettingsPort');
+        const protoEl  = document.getElementById('takSettingsProtocol');
+        const nameEl   = document.getElementById('takSettingsDisplayName');
+        if (hostEl)  hostEl.value  = s.server_host || '';
+        if (portEl)  portEl.value  = s.server_port || 8089;
+        if (protoEl) protoEl.value = s.protocol    || 'ssl';
+        if (nameEl)  nameEl.value  = s.display_name || '';
+        // Management API fields
+        const mgmtEnabledEl = document.getElementById('takMgmtEnabled');
+        const mgmtUrlEl     = document.getElementById('takMgmtUrl');
+        const mgmtUserEl    = document.getElementById('takMgmtUsername');
+        if (mgmtEnabledEl) mgmtEnabledEl.checked = !!s.mgmt_enabled;
+        if (mgmtUrlEl)     mgmtUrlEl.value        = s.mgmt_url      || '';
+        if (mgmtUserEl)    mgmtUserEl.value        = s.mgmt_username || '';
+    } catch (e) { console.warn('takLoginSettingsLoad', e); }
+}
+
+async function takLoginSettingsSave() {
+    const host     = (document.getElementById('takSettingsHost')        || {}).value || '';
+    const port     = parseInt((document.getElementById('takSettingsPort') || {}).value) || 8089;
+    const proto    = (document.getElementById('takSettingsProtocol')    || {}).value || 'ssl';
+    const name     = (document.getElementById('takSettingsDisplayName') || {}).value || '';
+    const mgmtEnabled  = !!(document.getElementById('takMgmtEnabled')  || { checked: false }).checked;
+    const mgmtUrl      = (document.getElementById('takMgmtUrl')        || {}).value || '';
+    const mgmtUsername  = (document.getElementById('takMgmtUsername')   || {}).value || '';
+    const mgmtPasswordEl = document.getElementById('takMgmtPassword');
+    const mgmtPassword   = mgmtPasswordEl ? mgmtPasswordEl.value : '';
+    const payload = {
+        server_host: host, server_port: port, protocol: proto, display_name: name,
+        mgmt_enabled: mgmtEnabled, mgmt_url: mgmtUrl, mgmt_username: mgmtUsername,
+    };
+    if (mgmtPassword) payload.mgmt_password = mgmtPassword;
+    const token = _getAuthToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    try {
+        const res = await fetch('/api/tak_login_settings', {
+            method: 'PUT', headers, body: JSON.stringify(payload)
+        });
+        if (!res.ok) { alert('Failed to save TAK settings'); return; }
+        if (mgmtPasswordEl) mgmtPasswordEl.value = '';
+        const status = document.getElementById('takSettingsStatus');
+        if (status) { status.style.display = 'inline'; setTimeout(() => status.style.display = 'none', 3000); }
+        await takLoginSettingsLoad();
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
 // Event listeners
 document.getElementById('enableForwarding').addEventListener('change', updateForwardingState);
 document.getElementById('usePublicIp').addEventListener('change', updatePublicIpState);
@@ -2229,6 +2378,7 @@ async function fedRunSync() {
 document.addEventListener('DOMContentLoaded', function() {
     loadServerInfo();
     loadNetworkSettings();
+    takLoginSettingsLoad();
     refreshCotListenerStatus();
     fedLoadServers();
     fedLoadOwnQR();
