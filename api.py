@@ -6383,21 +6383,21 @@ def api_qr_create(data: dict = Body(...), request: Request = None, db: Session =
     qr_id = str(uuid.uuid4())
     expires_at_dt = datetime.now(timezone.utc) + timedelta(days=expires_days)
     
+    # Always compute qr_url so the client-side JS library can generate
+    # a QR code even when the Python qrcode module is not installed.
+    caller_base = (data.get("base_url") or "").strip().rstrip("/")
+    if caller_base:
+        qr_url = f"{caller_base}/qr/{token}"
+    else:
+        local_ip, _ = get_local_ip()
+        cert_file = os.path.join(base_path, "cert.pem")
+        key_file = os.path.join(base_path, "key.pem")
+        protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
+        qr_url = f"{protocol}://{local_ip}:8101/qr/{token}"
+
     png_b64 = None
-    qr_url = None
     if generate_png and qrcode:
         try:
-            # Use caller-supplied base_url when available so the QR code
-            # points to the domain / IP the admin chose in the UI.
-            caller_base = (data.get("base_url") or "").strip().rstrip("/")
-            if caller_base:
-                qr_url = f"{caller_base}/qr/{token}"
-            else:
-                local_ip, _ = get_local_ip()
-                cert_file = os.path.join(base_path, "cert.pem")
-                key_file = os.path.join(base_path, "key.pem")
-                protocol = "https" if (os.path.exists(cert_file) and os.path.exists(key_file)) else "http"
-                qr_url = f"{protocol}://{local_ip}:8101/qr/{token}"
             qr_img = qrcode.make(qr_url)
             from io import BytesIO
             buf = BytesIO()

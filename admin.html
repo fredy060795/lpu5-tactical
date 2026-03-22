@@ -1088,6 +1088,7 @@
         // show PNG preview if present
         const png = body.png_base64 || (body.qr && body.qr.png_base64) || null;
         const qrUrl = body.qr_url || (body.qr && body.qr.qr_url) || null;
+        const redirectUrl = (body.qr && body.qr.redirect_url) || null;
         const area = document.getElementById('qrPreviewArea');
         if (area){
           area.style.display = '';
@@ -1096,12 +1097,13 @@
             qrImgSrc = 'data:image/png;base64,' + png;
           } else if (qrUrl && typeof qrcode === 'function') {
             try {
-              var qr = qrcode(0, 'L');
+              var qr = qrcode(0, 'M');
               qr.addData(qrUrl);
               qr.make();
               var modules = qr.getModuleCount();
               var cellSize = Math.max(4, Math.floor(260 / modules));
-              var sz = modules * cellSize;
+              var margin = 4 * cellSize; // quiet zone required by QR spec
+              var sz = modules * cellSize + 2 * margin;
               var cvs = document.createElement('canvas');
               cvs.width = sz; cvs.height = sz;
               var ct = cvs.getContext('2d');
@@ -1109,15 +1111,19 @@
               ct.fillStyle = '#000000';
               for (var rr = 0; rr < modules; rr++)
                 for (var cc = 0; cc < modules; cc++)
-                  if (qr.isDark(rr, cc)) ct.fillRect(cc * cellSize, rr * cellSize, cellSize, cellSize);
+                  if (qr.isDark(rr, cc)) ct.fillRect(cc * cellSize + margin, rr * cellSize + margin, cellSize, cellSize);
               qrImgSrc = cvs.toDataURL('image/png');
             } catch (qrErr) { console.warn('Client-side QR generation failed', qrErr); }
           }
           if (qrImgSrc) {
-            let html = `<img src="${qrImgSrc}" alt="QR">`;
-            if (qrUrl) {
-              html += `<div style="margin-top:8px;color:#3498db;font-size:0.85em;"><i class="fas fa-link"></i> ${qrUrl}</div>`;
+            let html = `<a download="lpu5_qr.png" href="${qrImgSrc}"><img src="${qrImgSrc}" alt="QR" width="260" height="260" style="border:2px solid #3498db;border-radius:8px;"></a>`;
+            if (redirectUrl) {
+              html += `<div style="margin-top:8px;color:#2ecc71;font-size:0.85em;word-break:break-all;"><i class="fas fa-arrow-right"></i> Target: ${redirectUrl}</div>`;
             }
+            if (qrUrl) {
+              html += `<div style="margin-top:4px;color:#3498db;font-size:0.85em;word-break:break-all;"><i class="fas fa-link"></i> ${qrUrl}</div>`;
+            }
+            html += `<div style="margin-top:4px;color:#888;font-size:0.8em;">Click image to download. Scan with phone camera.</div>`;
             area.innerHTML = html;
           }
           else { area.innerHTML = '<div class="small">QR created (PNG not available)</div>'; }
@@ -1419,12 +1425,13 @@
                     imgSrc = 'data:image/png;base64,' + body.png_base64;
                 } else if (body.claim_url && typeof qrcode === 'function') {
                     try {
-                        var qr = qrcode(0, 'L');
+                        var qr = qrcode(0, 'M');
                         qr.addData(body.claim_url);
                         qr.make();
                         var modules = qr.getModuleCount();
                         var cellSize = Math.max(4, Math.floor(260 / modules));
-                        var size = modules * cellSize;
+                        var margin = 4 * cellSize; // quiet zone required by QR spec
+                        var size = modules * cellSize + 2 * margin;
                         var canvas = document.createElement('canvas');
                         canvas.width = size;
                         canvas.height = size;
@@ -1435,7 +1442,7 @@
                         for (var r = 0; r < modules; r++) {
                             for (var c = 0; c < modules; c++) {
                                 if (qr.isDark(r, c)) {
-                                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                                    ctx.fillRect(c * cellSize + margin, r * cellSize + margin, cellSize, cellSize);
                                 }
                             }
                         }
