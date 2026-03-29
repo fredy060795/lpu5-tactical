@@ -6998,7 +6998,8 @@
         if (!qr) throw new Error('QR library not loaded');
         var modules = qr.getModuleCount();
         var cellSize = Math.max(4, Math.floor(220 / modules));
-        var size = modules * cellSize;
+        var margin = 4 * cellSize; // quiet zone required by QR spec
+        var size = modules * cellSize + 2 * margin;
         var canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
@@ -7009,7 +7010,7 @@
         for (var r = 0; r < modules; r++) {
           for (var c = 0; c < modules; c++) {
             if (qr.isDark(r, c)) {
-              ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+              ctx.fillRect(c * cellSize + margin, r * cellSize + margin, cellSize, cellSize);
             }
           }
         }
