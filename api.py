@@ -7453,10 +7453,18 @@ def api_tak_logins_add(data: dict = Body(...), db: Session = Depends(get_db)):
         logins.append(entry)
         added.append(entry)
 
-        # ── Auto-create a matching LPU5 user with standard rights ──
-        existing_user = db.query(User).filter(User.username == u).first()
-        if not existing_user:
-            new_user = User(
+    # ── Auto-create matching LPU5 users with standard rights ──
+    new_usernames = [e["username"] for e in added]
+    existing_names = set()
+    if new_usernames:
+        existing_names = {
+            row.username
+            for row in db.query(User.username).filter(User.username.in_(new_usernames)).all()
+        }
+    for entry in added:
+        u, p = entry["username"], entry["password"]
+        if u not in existing_names:
+            db.add(User(
                 id=str(uuid.uuid4()),
                 username=u,
                 password_hash=hash_password(p),
@@ -7468,14 +7476,13 @@ def api_tak_logins_add(data: dict = Body(...), db: Session = Depends(get_db)):
                 tak_role="Team Member",
                 tak_display_type="General Ground Unit",
                 data={"tak_server_password": p},
-            )
-            db.add(new_user)
+            ))
             users_created.append(u)
-
-    save_json("tak_logins", logins)
 
     if users_created:
         db.commit()
+
+    save_json("tak_logins", logins)
 
     # Best-effort sync each new user to the OpenTAK management server
     sync_results = []
