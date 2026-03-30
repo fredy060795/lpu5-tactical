@@ -1468,6 +1468,18 @@
         input:focus, textarea:focus, select:focus { box-shadow: 0 4px 14px rgba(255,255,255,0.02); border-color: #666; }
         textarea { min-height: 110px; resize: vertical; }
 
+        /* Override browser autofill white background */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        textarea:-webkit-autofill,
+        select:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 1000px var(--panel-contrast) inset !important;
+            -webkit-text-fill-color: var(--text-main) !important;
+            transition: background-color 5000s ease-in-out 0s;
+            caret-color: var(--text-main);
+        }
+
         /* Buttons */
         .btn {
             background: var(--panel-bg);
@@ -7696,7 +7708,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
             <div>
                 <label class="small">Server Host / IP</label>
-                <input type="text" id="takSettingsHost" placeholder="e.g. takserver.example.com" style="width:220px;">
+                <input type="text" id="takSettingsHost" placeholder="e.g. takserver.example.com" style="width:220px;" autocomplete="off">
             </div>
             <div>
                 <label class="small">Port</label>
@@ -7730,7 +7742,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
                 <div>
                     <label class="small">Management API URL</label>
-                    <input type="text" id="takMgmtUrl" placeholder="https://192.168.1.100:8446" style="width:280px;">
+                    <input type="text" id="takMgmtUrl" placeholder="https://192.168.1.100:8446" style="width:280px;" autocomplete="off">
                 </div>
                 <div>
                     <label class="small">Admin Username</label>
