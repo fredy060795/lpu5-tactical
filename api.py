@@ -7326,7 +7326,7 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
             f'        <entry key="description0" class="class java.lang.String">{safe_display}</entry>\n'
             '        <entry key="enabled0" class="class java.lang.Boolean">true</entry>\n'
             f'        <entry key="connectString0" class="class java.lang.String">{safe_connect}</entry>\n'
-            f'        <entry key="cacheCreds0" class="class java.lang.String">true</entry>\n'
+            f'        <entry key="cacheCreds0" class="class java.lang.Boolean">true</entry>\n'
             f'        <entry key="username0" class="class java.lang.String">{safe_username}</entry>\n'
             f'        <entry key="password0" class="class java.lang.String">{safe_password}</entry>\n'
             '    </preference>\n'
