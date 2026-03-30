@@ -11,6 +11,7 @@ const ASSETS = [
     '/message-queue-manager.js',
     '/manifest.json',
     '/logo.png',
+    '/browser-logo.png',
     '/assets/api-client.js',
     '/assets/ws-client.js',
     'https://unpkg.com/dexie/dist/dexie.js',
