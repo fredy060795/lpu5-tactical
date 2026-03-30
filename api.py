@@ -7189,6 +7189,7 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.x509.oid import NameOID
         from cryptography.hazmat.primitives.serialization import pkcs12
+        from cryptography.hazmat.primitives.serialization.pkcs12 import PKCS12Certificate
         import ipaddress as ipaddr
         import zipfile
         import io
@@ -7260,6 +7261,10 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
                 ),
                 critical=True,
             )
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
+                critical=False,
+            )
             .sign(ca_key, hashes.SHA256())
         )
 
@@ -7293,6 +7298,14 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
                 x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH]),
                 critical=False,
             )
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(client_key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                critical=False,
+            )
             .sign(ca_key, hashes.SHA256())
         )
 
@@ -7309,11 +7322,16 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
         )
 
         # Truststore .p12 (CA cert only, no private key)
+        # Use PKCS12Certificate with a friendly_name so Java/ATAK can locate
+        # the trusted CA entry by its alias when loading the KeyStore.
+        # name=None is intentional: the outer "primary" slot has no key/cert,
+        # so there is nothing to name; the alias comes from PKCS12Certificate.
+        ca_pkcs12_cert = PKCS12Certificate(ca_cert, b"truststore-root")
         truststore_p12 = pkcs12.serialize_key_and_certificates(
-            name=b"truststore-root",
+            name=None,
             key=None,
             cert=None,
-            cas=[ca_cert],
+            cas=[ca_pkcs12_cert],
             encryption_algorithm=enc_algo,
         )
 
@@ -7348,11 +7366,37 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
         )
 
         # ── 5. Pack into ZIP ─────────────────────────────────────────
+        # The MANIFEST/manifest.xml is required by ATAK's Mission Package
+        # importer so it recognises the ZIP as a data package and extracts
+        # the .p12 files into its internal /cert/ directory, which is the
+        # location referenced by certificateLocation / caLocation in the
+        # .pref file.
+        pkg_uid = str(uuid.uuid4())
+        pref_filename = f"{display_name}.pref"
+        client_p12_filename = f"{cn}.p12"
+        # safe_cn and safe_display are already XML-escaped for attribute values.
+        safe_pref_filename = _sax_utils.escape(pref_filename)
+        safe_client_p12_filename = _sax_utils.escape(client_p12_filename)
+        manifest_xml = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<MissionPackageManifest version="2">\n'
+            '    <Configuration>\n'
+            f'        <Parameter name="uid" value="{pkg_uid}"/>\n'
+            f'        <Parameter name="name" value="{safe_display} TAK Certificate"/>\n'
+            '    </Configuration>\n'
+            '    <Contents>\n'
+            f'        <Content ignore="false" zipEntry="{safe_client_p12_filename}"/>\n'
+            '        <Content ignore="false" zipEntry="truststore-root.p12"/>\n'
+            f'        <Content ignore="false" zipEntry="{safe_pref_filename}"/>\n'
+            '    </Contents>\n'
+            '</MissionPackageManifest>\n'
+        )
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr(f"{cn}.p12", client_p12)
+            zf.writestr("MANIFEST/manifest.xml", manifest_xml)
+            zf.writestr(client_p12_filename, client_p12)
             zf.writestr("truststore-root.p12", truststore_p12)
-            zf.writestr(f"{display_name}.pref", pref_xml)
+            zf.writestr(pref_filename, pref_xml)
 
         zip_b64 = base64.b64encode(zip_buf.getvalue()).decode("ascii")
         # Use the user's name in the ZIP filename; strip all non-alphanumeric/hyphen/underscore chars
