@@ -772,6 +772,13 @@
             <div style="margin-top:6px; font-size:0.8em; color:var(--text-dim);">
                 <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the TAK management server via <code>POST &lt;URL&gt;/user-management/api/v1/user/</code> (falls back to <code>PUT</code> if the server returns 405).
             </div>
+
+            <div style="margin-top:10px;">
+                <button class="btn" onclick="testTakMgmtConnection()">
+                    <i class="fas fa-plug"></i> Test Management API
+                </button>
+                <span id="takMgmtTestStatus" style="margin-left:10px;font-size:0.85em;display:none;"></span>
+            </div>
         </div>
 
         <div style="margin-top:14px; display:flex; gap:10px; align-items:center;">
@@ -1811,6 +1818,34 @@ async function takLoginSettingsSave() {
         if (status) { status.style.display = 'inline'; setTimeout(() => status.style.display = 'none', 3000); }
         await takLoginSettingsLoad();
     } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function testTakMgmtConnection() {
+    const statusEl = document.getElementById('takMgmtTestStatus');
+    if (statusEl) { statusEl.style.display = 'inline'; statusEl.style.color = 'var(--text-dim)'; statusEl.textContent = 'Testing…'; }
+    try {
+        const token = _getAuthToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch('/api/tak_mgmt/test', { method: 'POST', headers });
+        const result = await res.json();
+        if (statusEl) {
+            if (result.reachable) {
+                statusEl.style.color = 'var(--accent)';
+                statusEl.innerHTML = '<i class="fas fa-check"></i> ' + result.message;
+            } else {
+                statusEl.style.color = '#e74c3c';
+                statusEl.innerHTML = '<i class="fas fa-times"></i> ' + result.message;
+            }
+            statusEl.style.display = 'inline';
+        }
+    } catch (e) {
+        if (statusEl) {
+            statusEl.style.color = '#e74c3c';
+            statusEl.innerHTML = '<i class="fas fa-times"></i> Error: ' + e.message;
+            statusEl.style.display = 'inline';
+        }
+    }
 }
 
 // Event listeners

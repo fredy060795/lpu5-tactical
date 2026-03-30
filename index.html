@@ -7744,6 +7744,10 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
             <div style="margin-top:8px; font-size:0.8em; color:#888;">
                 <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the OpenTAK server via <code>POST &lt;URL&gt;/user-management/api/v1/user/</code>.
             </div>
+            <div style="margin-top:8px;">
+                <button class="btn" onclick="testTakMgmtConnection()"><i class="fas fa-plug"></i> Test Management API</button>
+                <span id="takMgmtTestStatus" style="margin-left:10px;font-size:0.85em;display:none;"></span>
+            </div>
         </div>
 
         <div style="margin-top:12px;">
@@ -13456,6 +13460,31 @@ window.addEventListener('storage', (e) => {
         } catch (e) { alert('Error: ' + e.message); }
     }
 
+    async function testTakMgmtConnection() {
+        const statusEl = document.getElementById('takMgmtTestStatus');
+        if (statusEl) { statusEl.style.display = 'inline'; statusEl.style.color = '#888'; statusEl.textContent = 'Testing…'; }
+        try {
+            const res = await fetch('/api/tak_mgmt/test', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } });
+            const result = await res.json();
+            if (statusEl) {
+                if (result.reachable) {
+                    statusEl.style.color = '#28a745';
+                    statusEl.innerHTML = '<i class="fas fa-check"></i> ' + result.message;
+                } else {
+                    statusEl.style.color = '#e74c3c';
+                    statusEl.innerHTML = '<i class="fas fa-times"></i> ' + result.message;
+                }
+                statusEl.style.display = 'inline';
+            }
+        } catch (e) {
+            if (statusEl) {
+                statusEl.style.color = '#e74c3c';
+                statusEl.innerHTML = '<i class="fas fa-times"></i> Error: ' + e.message;
+                statusEl.style.display = 'inline';
+            }
+        }
+    }
+
     // ─── TAK Login Management ─────────────────────────────────────────
     function _takEscHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
@@ -13712,6 +13741,7 @@ window.addEventListener('storage', (e) => {
     window.rejectSelected = rejectSelected;
     window.takLoadSettings = takLoadSettings;
     window.takSaveSettings = takSaveSettings;
+    window.testTakMgmtConnection = testTakMgmtConnection;
     window.takLoadLogins = takLoadLogins;
     window.takAddLogin = takAddLogin;
     window.takBulkAdd = takBulkAdd;
