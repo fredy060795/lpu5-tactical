@@ -6995,8 +6995,56 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
         )
         return {"success": False, "error": f"TAK server returned {resp.status_code}: {resp.text[:200]}"}
     except Exception as exc:
-        logger.warning("TAK sync error for user '%s': %s", username, exc)
+        logger.warning("TAK sync error for user '%s' at %s: %s", username, api_endpoint, exc)
         return {"success": False, "error": str(exc)}
+
+
+@app.post("/api/tak_mgmt/test", summary="Test TAK management API connectivity")
+def api_tak_mgmt_test():
+    """Test connectivity to the configured OpenTAK Management API.
+
+    Sends a lightweight GET request to the management API URL and reports
+    whether the server is reachable.  This does NOT create or modify any
+    users – it is a read-only connectivity check.
+    """
+    settings = _get_tak_login_settings()
+    mgmt_url = (settings.get("mgmt_url") or "").strip().rstrip("/")
+    if not mgmt_url:
+        return {"reachable": False, "message": "No management URL configured"}
+    if not mgmt_url.startswith(("http://", "https://")):
+        mgmt_url = f"https://{mgmt_url}"
+    mgmt_user = settings.get("mgmt_username") or ""
+    mgmt_pass = settings.get("mgmt_password") or ""
+    auth = (mgmt_user, mgmt_pass) if mgmt_user else None
+    api_endpoint = f"{mgmt_url}/user-management/api/v1/user/"
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
+            resp = requests.get(api_endpoint, auth=auth, verify=False, timeout=10)
+        return {
+            "reachable": True,
+            "status_code": resp.status_code,
+            "message": f"Management API reachable at {mgmt_url} (HTTP {resp.status_code})",
+            "url": mgmt_url,
+        }
+    except requests.exceptions.ConnectionError as exc:
+        return {
+            "reachable": False,
+            "message": f"Connection failed to {mgmt_url}: {exc}",
+            "url": mgmt_url,
+        }
+    except requests.exceptions.Timeout:
+        return {
+            "reachable": False,
+            "message": f"Connection timed out to {mgmt_url}",
+            "url": mgmt_url,
+        }
+    except Exception as exc:
+        return {
+            "reachable": False,
+            "message": f"Error testing {mgmt_url}: {exc}",
+            "url": mgmt_url,
+        }
 
 
 @app.post("/api/tak_logins/auth_claim")
