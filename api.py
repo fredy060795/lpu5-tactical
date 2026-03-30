@@ -969,6 +969,14 @@ def logo():
     img = base64.b64decode(transparent_png_b64)
     return Response(content=img, media_type="image/png")
 
+@app.get("/browser-logo.png")
+def browser_logo():
+    path = os.path.join(base_path, "browser logo Schwarz.png")
+    if os.path.exists(path) and os.path.isfile(path):
+        return FileResponse(path, media_type="image/png")
+    # Fallback to regular logo if browser logo not found
+    return logo()
+
 # -------------------------
 # Startup tasks
 # -------------------------
