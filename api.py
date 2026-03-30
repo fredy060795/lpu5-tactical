@@ -7188,8 +7188,8 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.x509.oid import NameOID
-        from cryptography.hazmat.primitives.serialization import pkcs12
-        from cryptography.hazmat.primitives.serialization.pkcs12 import PKCS12Certificate
+        from cryptography.hazmat.primitives.serialization import pkcs12, PrivateFormat
+        from cryptography.hazmat.primitives.serialization.pkcs12 import PKCS12Certificate, PBES
         import ipaddress as ipaddr
         import zipfile
         import io
@@ -7295,6 +7295,20 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
                 x509.SubjectAlternativeName(san_entries), critical=False,
             )
             .add_extension(
+                x509.KeyUsage(
+                    digital_signature=True,
+                    key_encipherment=True,
+                    content_commitment=False,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    encipher_only=False,
+                    decipher_only=False,
+                    key_cert_sign=False,
+                    crl_sign=False,
+                ),
+                critical=True,
+            )
+            .add_extension(
                 x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH]),
                 critical=False,
             )
@@ -7310,7 +7324,15 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
         )
 
         # ── 3. Serialize PKCS#12 bundles ─────────────────────────────
-        enc_algo = serialization.BestAvailableEncryption(p12_password.encode("utf-8"))
+        # Use PBESv1/TripleDES legacy encryption for Java/Android compatibility.
+        # BestAvailableEncryption (PBES2/AES256) is rejected by ATAK on many
+        # Android versions because Java's PKCS12 KeyStore only reliably supports
+        # the legacy pbeWithSHA1And3-KeyTripleDESCBC scheme.
+        enc_algo = (
+            PrivateFormat.PKCS12.encryption_builder()
+            .key_cert_algorithm(PBES.PBESv1SHA1And3KeyTripleDESCBC)
+            .build(p12_password.encode("utf-8"))
+        )
 
         # Client .p12 (client key + cert, with CA as additional cert)
         client_p12 = pkcs12.serialize_key_and_certificates(
