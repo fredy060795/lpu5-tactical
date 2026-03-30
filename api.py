@@ -7317,6 +7317,7 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
         safe_display = _sax_utils.escape(display_name)
         safe_connect = _sax_utils.escape(connect_string)
         safe_password = _sax_utils.escape(p12_password)
+        safe_username = _sax_utils.escape(str(data.get("username") or cn))
         pref_xml = (
             '<?xml version=\'1.0\' standalone=\'yes\'?>\n'
             '<preferences>\n'
@@ -7325,6 +7326,9 @@ def api_tak_logins_generate_p12(data: dict = Body(default={}), db: Session = Dep
             f'        <entry key="description0" class="class java.lang.String">{safe_display}</entry>\n'
             '        <entry key="enabled0" class="class java.lang.Boolean">true</entry>\n'
             f'        <entry key="connectString0" class="class java.lang.String">{safe_connect}</entry>\n'
+            f'        <entry key="cacheCreds0" class="class java.lang.String">true</entry>\n'
+            f'        <entry key="username0" class="class java.lang.String">{safe_username}</entry>\n'
+            f'        <entry key="password0" class="class java.lang.String">{safe_password}</entry>\n'
             '    </preference>\n'
             '    <preference version="1" name="com.atakmap.app_preferences">\n'
             f'        <entry key="clientPassword" class="class java.lang.String">{safe_password}</entry>\n'

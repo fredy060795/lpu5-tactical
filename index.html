@@ -7791,6 +7791,13 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
         </div>
         <div style="margin-top:6px;">
             <label class="small">Bulk Import (CSV: username,password per line)</label>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;">
+                <label class="btn" style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:6px;">
+                    <i class="fas fa-file-csv"></i> CSV File Upload
+                    <input type="file" id="takCsvFileInput" accept=".csv,text/csv" style="display:none;" onchange="takCsvFileSelected(this)">
+                </label>
+                <span id="takCsvFileName" style="color:var(--muted);font-size:0.85em;"></span>
+            </div>
             <textarea id="takBulkImport" rows="4" style="width:100%;" placeholder="user1,pass1&#10;user2,pass2&#10;user3,pass3"></textarea>
             <button class="btn" onclick="takBulkAdd()" style="margin-top:6px;"><i class="fas fa-upload"></i> Bulk Import</button>
         </div>
@@ -13559,6 +13566,19 @@ window.addEventListener('storage', (e) => {
         } catch (e) { alert('Error: ' + e.message); }
     }
 
+    function takCsvFileSelected(input) {
+        const nameSpan = document.getElementById('takCsvFileName');
+        if (!input.files || !input.files[0]) { if (nameSpan) nameSpan.textContent = ''; return; }
+        const file = input.files[0];
+        if (nameSpan) nameSpan.textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const ta = document.getElementById('takBulkImport');
+            if (ta) ta.value = e.target.result;
+        };
+        reader.readAsText(file);
+    }
+
     async function takBulkAdd() {
         const raw = (document.getElementById('takBulkImport') || {}).value.trim();
         if (!raw) { alert('Please enter CSV data'); return; }
@@ -13581,6 +13601,10 @@ window.addEventListener('storage', (e) => {
             if (!res.ok) { alert('Import failed'); return; }
             alert((body && body.added ? body.added : entries.length) + ' entries imported');
             document.getElementById('takBulkImport').value = '';
+            const nameSpan = document.getElementById('takCsvFileName');
+            if (nameSpan) nameSpan.textContent = '';
+            const fileInput = document.getElementById('takCsvFileInput');
+            if (fileInput) fileInput.value = '';
             await takLoadLogins();
         } catch (e) { alert('Error: ' + e.message); }
     }
