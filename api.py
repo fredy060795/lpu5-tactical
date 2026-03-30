@@ -7419,8 +7419,13 @@ def api_tak_logins_list(db: Session = Depends(get_db)):
     return logins
 
 @app.post("/api/tak_logins")
-def api_tak_logins_add(data: dict = Body(...)):
-    """Add one or more TAK login entries."""
+def api_tak_logins_add(data: dict = Body(...), db: Session = Depends(get_db)):
+    """Add one or more TAK login entries.
+
+    For every new TAK login entry an LPU5 user account with the default
+    ``"user"`` role is created automatically (if no user with that username
+    exists yet).  This ensures TAK users can log in to LPU5 immediately.
+    """
     entries = data.get("entries")
     if entries and isinstance(entries, list):
         items = entries
@@ -7436,6 +7441,7 @@ def api_tak_logins_add(data: dict = Body(...)):
         logins = []
 
     added = []
+    users_created = []
     for item in items:
         u = (item.get("username") or "").strip()
         p = (item.get("password") or "").strip()
@@ -7455,6 +7461,35 @@ def api_tak_logins_add(data: dict = Body(...)):
         logins.append(entry)
         added.append(entry)
 
+    # ── Auto-create matching LPU5 users with standard rights ──
+    new_usernames = [e["username"] for e in added]
+    existing_names = set()
+    if new_usernames:
+        existing_names = {
+            row.username
+            for row in db.query(User.username).filter(User.username.in_(new_usernames)).all()
+        }
+    for entry in added:
+        u, p = entry["username"], entry["password"]
+        if u not in existing_names:
+            db.add(User(
+                id=str(uuid.uuid4()),
+                username=u,
+                password_hash=hash_password(p),
+                role="user",
+                group_id="users",
+                is_active=True,
+                created_at=datetime.now(timezone.utc),
+                tak_team="Cyan",
+                tak_role="Team Member",
+                tak_display_type="General Ground Unit",
+                data={"tak_server_password": p},
+            ))
+            users_created.append(u)
+
+    if users_created:
+        db.commit()
+
     save_json("tak_logins", logins)
 
     # Best-effort sync each new user to the OpenTAK management server
@@ -7463,7 +7498,7 @@ def api_tak_logins_add(data: dict = Body(...)):
         result = _sync_user_to_tak_server(entry["username"], entry["password"])
         sync_results.append(result)
 
-    return {"status": "success", "added": len(added), "entries": added, "tak_sync": sync_results}
+    return {"status": "success", "added": len(added), "entries": added, "tak_sync": sync_results, "users_created": len(users_created)}
 
 @app.post("/api/tak_logins/qr")
 def api_tak_logins_qr(data: dict = Body(default={}), request: Request = None):
