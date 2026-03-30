@@ -53,6 +53,8 @@ import requests
 import urllib3
 import warnings
 
+from nginx_patch import patch_nginx_for_user_management as _patch_nginx_for_user_management
+
 # Fix Windows asyncio ProactorEventLoop issue that causes
 # "Exception in callback _ProactorBasePipeTransport._call_connection_lost"
 # on shutdown. Use SelectorEventLoop on Windows instead.
@@ -7092,6 +7094,28 @@ def api_tak_mgmt_test():
             "message": f"Error testing {mgmt_url}: {exc}",
             "url": mgmt_url,
         }
+
+
+@app.post("/api/tak_mgmt/fix_nginx", summary="Auto-fix nginx config for TAK user-management proxy")
+def api_tak_mgmt_fix_nginx(authorization: Optional[str] = Header(None)):
+    """Attempt to add a ``/user-management`` location block to the local nginx config.
+
+    This is needed when the OpenTAK Server runs behind nginx and the
+    management API path is not being proxied to the backend.  The endpoint
+    searches common nginx config paths, inserts the proxy block, validates
+    the configuration with ``nginx -t``, and reloads nginx.
+
+    Requires an authenticated admin/operator session.
+    """
+    current = get_current_user(authorization)
+    if not current or current.get("role") not in ("admin", "operator"):
+        raise HTTPException(status_code=403, detail="Admin or operator role required")
+    result = _patch_nginx_for_user_management()
+    if result.get("success"):
+        logger.info("TAK nginx fix: %s", result.get("message"))
+    else:
+        logger.warning("TAK nginx fix failed: %s", result.get("error"))
+    return result
 
 
 @app.post("/api/tak_logins/auth_claim")

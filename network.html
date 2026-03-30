@@ -788,6 +788,9 @@
                 <button class="btn" onclick="testTakMgmtConnection()">
                     <i class="fas fa-plug"></i> Test Management API
                 </button>
+                <button class="btn" id="takMgmtFixNginxBtn" onclick="fixNginxConfig()" style="display:none;margin-left:6px;background:rgba(243,156,18,0.15);border:1px solid rgba(243,156,18,0.4);color:#f59e0b;">
+                    <i class="fas fa-wrench"></i> Fix Nginx Config
+                </button>
                 <span id="takMgmtTestStatus" style="margin-left:10px;font-size:0.85em;display:none;"></span>
             </div>
         </div>
@@ -1833,6 +1836,8 @@ async function takLoginSettingsSave() {
 
 async function testTakMgmtConnection() {
     const statusEl = document.getElementById('takMgmtTestStatus');
+    const fixBtn = document.getElementById('takMgmtFixNginxBtn');
+    if (fixBtn) fixBtn.style.display = 'none';
     if (statusEl) { statusEl.style.display = 'inline'; statusEl.style.color = 'var(--text-dim)'; statusEl.textContent = 'Testing…'; }
     try {
         const token = _getAuthToken();
@@ -1847,6 +1852,9 @@ async function testTakMgmtConnection() {
             } else {
                 statusEl.style.color = '#e74c3c';
                 statusEl.innerHTML = '<i class="fas fa-times"></i> ' + result.message;
+                if (result.message && result.message.toLowerCase().includes('nginx')) {
+                    if (fixBtn) fixBtn.style.display = 'inline-block';
+                }
             }
             statusEl.style.display = 'inline';
         }
@@ -1857,6 +1865,37 @@ async function testTakMgmtConnection() {
             statusEl.style.display = 'inline';
         }
     }
+}
+
+async function fixNginxConfig() {
+    const fixBtn = document.getElementById('takMgmtFixNginxBtn');
+    const statusEl = document.getElementById('takMgmtTestStatus');
+    if (fixBtn) fixBtn.disabled = true;
+    if (statusEl) { statusEl.style.display = 'inline'; statusEl.style.color = 'var(--text-dim)'; statusEl.textContent = 'Fixing nginx config…'; }
+    try {
+        const token = _getAuthToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch('/api/tak_mgmt/fix_nginx', { method: 'POST', headers });
+        const result = await res.json();
+        if (statusEl) {
+            if (result.success) {
+                statusEl.style.color = 'var(--accent)';
+                statusEl.innerHTML = '<i class="fas fa-check"></i> ' + (result.message || 'Nginx config updated');
+                if (fixBtn) fixBtn.style.display = 'none';
+                setTimeout(testTakMgmtConnection, 2000);
+            } else {
+                statusEl.style.color = '#e74c3c';
+                statusEl.innerHTML = '<i class="fas fa-times"></i> ' + (result.error || result.detail || 'Fix failed');
+            }
+        }
+    } catch (e) {
+        if (statusEl) {
+            statusEl.style.color = '#e74c3c';
+            statusEl.innerHTML = '<i class="fas fa-times"></i> Fix error: ' + e.message;
+        }
+    }
+    if (fixBtn) fixBtn.disabled = false;
 }
 
 // Event listeners
