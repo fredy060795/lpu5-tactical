@@ -13552,6 +13552,7 @@ window.addEventListener('storage', (e) => {
                             : '') +
                         '<button class="btn-icon" title="Edit" onclick="takEdit(\'' + safeId + '\',\'' + safeUser + '\',\'' + safePass + '\')"><i class="fas fa-edit"></i></button>' +
                         '<button class="btn-icon" title="Delete" onclick="takDelete(\'' + safeId + '\')" style="color:#dc3545;"><i class="fas fa-trash"></i></button>' +
+                        '<button class="btn-icon" title="Download Certificate" onclick="takDownloadUserCert(\'' + safeUser + '\',\'' + safePass + '\')" style="color:#2ecc71;"><i class="fas fa-certificate"></i></button>' +
                     '</td>';
                 tbody.appendChild(tr);
             });
@@ -13647,6 +13648,29 @@ window.addEventListener('storage', (e) => {
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify({ username: newUser, password: newPass })
         }).then(() => takLoadLogins()).catch(e => alert('Error: ' + e.message));
+    }
+
+    async function takDownloadUserCert(username, password) {
+        if (!username) return;
+        try {
+            const payload = { username };
+            if (password) payload.password = password;
+            const res = await fetch('/api/tak_logins/generate_p12', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                body: JSON.stringify(payload)
+            });
+            const body = await res.json().catch(() => null);
+            if (!res.ok) { alert('Certificate generation failed: ' + ((body && body.detail) || res.status)); return; }
+            if (body && body.zip_base64) {
+                const a = document.createElement('a');
+                a.download = body.filename || (username + '_TAK.zip');
+                a.href = 'data:application/zip;base64,' + body.zip_base64;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        } catch (e) { alert('Error generating certificate: ' + e.message); }
     }
 
     async function takGenerateP12() {
@@ -13794,6 +13818,7 @@ window.addEventListener('storage', (e) => {
     window.takDelete = takDelete;
     window.takRelease = takRelease;
     window.takEdit = takEdit;
+    window.takDownloadUserCert = takDownloadUserCert;
     window.takGenerateP12 = takGenerateP12;
     window.takGenerateQR = takGenerateQR;
     window.takRegenerateToken = takRegenerateToken;
