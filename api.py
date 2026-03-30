@@ -7018,6 +7018,7 @@ def api_tak_mgmt_test():
     auth = (mgmt_user, mgmt_pass) if mgmt_user else None
     api_endpoint = f"{mgmt_url}/user-management/api/v1/user/"
     try:
+        # Self-signed certs are common in OpenTAK deployments (same as _sync_user_to_tak_server).
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
             resp = requests.get(api_endpoint, auth=auth, verify=False, timeout=10)
