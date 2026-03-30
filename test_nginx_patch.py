@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from nginx_patch import (
+    BACKUP_SUFFIX,
     find_nginx_config_files,
     insert_user_mgmt_location,
     patch_nginx_for_user_management,
@@ -252,7 +253,7 @@ class TestPatchNginxForUserManagement(unittest.TestCase):
         self.assertIn("location /user-management {", new_content)
         self.assertIn("proxy_pass http://127.0.0.1:8081;", new_content)
         # Verify backup was created.
-        self.assertTrue(os.path.isfile(path + ".lpu5.bak"))
+        self.assertTrue(os.path.isfile(path + BACKUP_SUFFIX))
 
     def test_prefers_proxy_pass_config(self):
         """When multiple configs exist, prefer the one with proxy_pass."""

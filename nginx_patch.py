@@ -31,6 +31,12 @@ _NGINX_SEARCH_DIRS: List[str] = [
 # Main nginx config path (also checked in find_nginx_config_files).
 _NGINX_MAIN_CONF: str = "/etc/nginx/nginx.conf"
 
+# Suffix appended when creating backups of patched config files.
+BACKUP_SUFFIX: str = ".lpu5.bak"
+
+# Timeout (seconds) for subprocess calls (nginx -t, nginx -s reload, etc.).
+_SUBPROCESS_TIMEOUT: int = 10
+
 
 # ---------------------------------------------------------------------------
 # Public helpers
@@ -188,7 +194,7 @@ def patch_nginx_for_user_management(backend_port: int = 8081) -> Dict:
         }
 
     # Write patched config (with backup).
-    backup_path = target_path + ".lpu5.bak"
+    backup_path = target_path + BACKUP_SUFFIX
     try:
         shutil.copy2(target_path, backup_path)
         pathlib.Path(target_path).write_text(patched, encoding="utf-8")
@@ -207,7 +213,7 @@ def patch_nginx_for_user_management(backend_port: int = 8081) -> Dict:
     # Validate with ``nginx -t``.
     try:
         result = subprocess.run(
-            ["nginx", "-t"], capture_output=True, text=True, timeout=10,
+            ["nginx", "-t"], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT,
         )
         if result.returncode != 0:
             shutil.copy2(backup_path, target_path)
@@ -231,7 +237,7 @@ def patch_nginx_for_user_management(backend_port: int = 8081) -> Dict:
     reloaded = False
     for cmd in (["nginx", "-s", "reload"], ["systemctl", "reload", "nginx"]):
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
             if r.returncode == 0:
                 reloaded = True
                 break
