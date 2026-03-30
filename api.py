@@ -6949,6 +6949,13 @@ def _add_tak_login_entry(
     return entry
 
 
+def _is_nginx_error_page(resp) -> bool:
+    """Return True if the HTTP response looks like an nginx default error page
+    rather than a response from the actual OpenTAK application."""
+    body = (resp.text or "")[:500].lower()
+    return "nginx" in body and ("<html" in body or "<center>" in body)
+
+
 def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
     """Register a user on the OpenTAK Management API if configured.
 
@@ -6980,7 +6987,10 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
             resp = requests.post(api_endpoint, **req_kwargs)
             # Some management servers (e.g. Persistent Systems) only accept
             # PUT for user creation/update.  Retry with PUT on 405.
-            if resp.status_code == 405:
+            # However, do NOT retry when the 405 comes from an nginx reverse
+            # proxy rather than the actual application – that means the
+            # /user-management path is not proxied.
+            if resp.status_code == 405 and not _is_nginx_error_page(resp):
                 logger.info("TAK sync: POST returned 405, retrying with PUT for user '%s'", username)
                 resp = requests.put(api_endpoint, **req_kwargs)
         if resp.status_code in (200, 201):
@@ -6989,6 +6999,17 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
         if resp.status_code == 409:
             logger.info("TAK sync: user '%s' already exists on management server", username)
             return {"success": True, "note": "user already exists on TAK server"}
+        # Provide a clear message when nginx is blocking the request instead
+        # of proxying it to the backend application.
+        if _is_nginx_error_page(resp):
+            nginx_hint = (
+                f"nginx returned HTTP {resp.status_code} – the /user-management "
+                "path is not being proxied to the OpenTAK backend.  Add a "
+                "'location /user-management { proxy_pass http://127.0.0.1:8081; }' "
+                "block to the nginx server config and reload nginx."
+            )
+            logger.warning("TAK sync: nginx error for user '%s': %s", username, nginx_hint)
+            return {"success": False, "error": nginx_hint}
         logger.warning(
             "TAK sync: management server returned %s for user '%s': %s",
             resp.status_code, username, resp.text[:200],
@@ -7028,6 +7049,21 @@ def api_tak_mgmt_test():
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
             resp = requests.get(api_endpoint, auth=auth, verify=False, timeout=10)
+        # Detect nginx error pages that indicate the /user-management path
+        # is not being proxied to the OpenTAK backend.
+        if _is_nginx_error_page(resp):
+            return {
+                "reachable": False,
+                "status_code": resp.status_code,
+                "message": (
+                    f"nginx at {mgmt_url} returned HTTP {resp.status_code} – "
+                    "the /user-management path is not proxied to the OpenTAK "
+                    "backend.  Add 'location /user-management {{ proxy_pass "
+                    "http://127.0.0.1:8081; }}' to the nginx server block and "
+                    "reload nginx."
+                ),
+                "url": mgmt_url,
+            }
         return {
             "reachable": True,
             "status_code": resp.status_code,
