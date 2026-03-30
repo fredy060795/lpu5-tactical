@@ -6996,7 +6996,13 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
         return {"success": False, "error": f"TAK server returned {resp.status_code}: {resp.text[:200]}"}
     except Exception as exc:
         logger.warning("TAK sync error for user '%s' at %s: %s", username, api_endpoint, exc)
-        return {"success": False, "error": str(exc)}
+        return {
+            "success": False,
+            "error": (
+                f"{exc}. If the TAK server is behind nginx, ensure the nginx "
+                "config includes a 'location /user-management' proxy block."
+            ),
+        }
 
 
 @app.post("/api/tak_mgmt/test", summary="Test TAK management API connectivity")
@@ -7031,7 +7037,11 @@ def api_tak_mgmt_test():
     except requests.exceptions.ConnectionError as exc:
         return {
             "reachable": False,
-            "message": f"Connection failed to {mgmt_url}: {exc}",
+            "message": (
+                f"Connection failed to {mgmt_url}: {exc}. "
+                "If the TAK server is behind nginx, ensure the nginx config "
+                "includes a 'location /user-management' proxy block."
+            ),
             "url": mgmt_url,
         }
     except requests.exceptions.Timeout:
