@@ -1297,13 +1297,15 @@ def _throttled_forward_warn(conn_type: str, host: str, port: int, reason: str) -
     """Emit a CoT-forward failure WARNING at most once per _TAK_FORWARD_WARN_INTERVAL seconds."""
     key = f"{conn_type}:{host}:{port}"
     now = time.monotonic()
-    last = _TAK_FORWARD_WARN_TIMES.get(key, 0.0)
-    if now - last >= _TAK_FORWARD_WARN_INTERVAL:
+    with _TAK_FORWARD_WARN_TIMES_LOCK:
+        last = _TAK_FORWARD_WARN_TIMES.get(key, 0.0)
+        if now - last < _TAK_FORWARD_WARN_INTERVAL:
+            return
         _TAK_FORWARD_WARN_TIMES[key] = now
-        logger.warning(
-            "CoT %s forward to TAK server %s:%s failed: %s (further failures suppressed for %ss)",
-            conn_type.upper(), host, port, reason, int(_TAK_FORWARD_WARN_INTERVAL),
-        )
+    logger.warning(
+        "CoT %s forward to TAK server %s:%s failed: %s (further failures suppressed for %ss)",
+        conn_type.upper(), host, port, reason, int(_TAK_FORWARD_WARN_INTERVAL),
+    )
 
 
 def forward_cot_to_tak(cot_xml: str) -> bool:
@@ -1391,7 +1393,7 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
                     _throttled_forward_warn(
                         "ssl", host, port,
                         "server requires a client certificate (TLSV13_ALERT_CERTIFICATE_REQUIRED). "
-                        "Configure tak_client_cert_path / tak_client_key_path in TAK Server settings.",
+                        "Configure tak_client_cert_path / tak_client_key_path on the Network page.",
                     )
                 else:
                     _throttled_forward_warn("ssl", host, port, str(e))
@@ -1417,7 +1419,8 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
         with _TAK_RECEIVER_STATS_LOCK:
             _TAK_RECEIVER_STATS["packets_sent"] += 1
         # Clear throttle so a subsequent failure is logged immediately
-        _TAK_FORWARD_WARN_TIMES.pop(f"{conn_type}:{host}:{port}", None)
+        with _TAK_FORWARD_WARN_TIMES_LOCK:
+            _TAK_FORWARD_WARN_TIMES.pop(f"{conn_type}:{host}:{port}", None)
         return True
     except Exception as e:
         logger.warning("Failed to forward CoT to TAK server: %s", e)
@@ -1777,6 +1780,7 @@ _TAK_FORWARD_CACHE_LOCK = threading.Lock()
 # forward_cot_to_tak so a downed TAK server does not flood the log.
 # Key: "{conn_type}:{host}:{port}", Value: last warning timestamp (float).
 _TAK_FORWARD_WARN_TIMES: Dict[str, float] = {}
+_TAK_FORWARD_WARN_TIMES_LOCK = threading.Lock()
 _TAK_FORWARD_WARN_INTERVAL = 60.0  # seconds between repeated warnings
 
 
