@@ -1015,6 +1015,38 @@ function loadLocalMarkers() {
   }
 }
 
+function getServerMarkerSvg(markerType) {
+  switch (markerType) {
+    case 'tak_maker':
+    case 'friendly':
+    case 'cbt_friendly':
+    case 'cbt_rechteck':
+      return '<svg viewBox="0 0 100 100" width="35" height="22"><rect x="5" y="20" width="90" height="60" fill="#0088ff" stroke="#000" stroke-width="4"/></svg>';
+    case 'hostile':
+    case 'cbt_hostile':
+    case 'cbt_raute':
+      return '<svg viewBox="0 0 100 100" width="28" height="28"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="#000" stroke-width="4"/></svg>';
+    case 'neutral':
+    case 'cbt_neutral':
+    case 'cbt_quadrat':
+      return '<svg viewBox="0 0 100 100" width="28" height="28"><rect x="15" y="15" width="70" height="70" fill="#00cc00" stroke="#000" stroke-width="4"/></svg>';
+    case 'unknown':
+    case 'cbt_unknown':
+    case 'cbt_blume':
+      return '<svg viewBox="0 0 100 100" width="28" height="28"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="#000" stroke-width="4"/></svg>';
+    case 'pending':
+      return '<svg viewBox="0 0 100 100" width="28" height="28"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="#000" stroke-width="4"/></svg>';
+    case 'meshtastic_node':
+    case 'node':
+    case 'gateway':
+      return '<svg viewBox="0 0 100 100" width="28" height="28"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="#000" stroke-width="4"/><text x="50" y="58" font-size="36" fill="#000" text-anchor="middle" font-weight="bold" font-family="sans-serif">M</text></svg>';
+    case 'gps_position':
+      return '<svg viewBox="0 0 32 32" width="28" height="28"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+    default:
+      return null;
+  }
+}
+
 function createMapMarker(data, type) {
   var iconClass = 'lpu5-marker-icon';
   var faIcon = 'fa-map-pin';
@@ -1022,13 +1054,25 @@ function createMapMarker(data, type) {
   else if (type === 'mesh') { iconClass += ' mesh'; faIcon = 'fa-broadcast-tower'; }
   else { faIcon = data.icon || 'fa-circle'; }
 
-  var icon = L.divIcon({
-    className: '',
-    html: '<div class="' + iconClass + '"><i class="fas ' + faIcon + '"></i></div>',
-    iconSize: [28, 28],
-    iconAnchor: [14, 28],
-    popupAnchor: [0, -28]
-  });
+  var serverSvg = (type === 'server') ? getServerMarkerSvg(data.type) : null;
+  var icon;
+  if (serverSvg) {
+    icon = L.divIcon({
+      className: 'custom-sym',
+      html: '<div style="display:flex;align-items:center;justify-content:center;width:35px;height:35px;">' + serverSvg + '</div>',
+      iconSize: [35, 35],
+      iconAnchor: [17, 35],
+      popupAnchor: [0, -35]
+    });
+  } else {
+    icon = L.divIcon({
+      className: '',
+      html: '<div class="' + iconClass + '"><i class="fas ' + faIcon + '"></i></div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+      popupAnchor: [0, -28]
+    });
+  }
 
   var marker = L.marker([data.lat, data.lng], { icon: icon }).addTo(map);
 
