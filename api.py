@@ -9860,6 +9860,71 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     }
 
 
+_TAK_CERT_ALLOWED_EXT = {".pem", ".crt", ".cer", ".key", ".p12", ".pfx"}
+_TAK_CERTS_SUBDIR = "tak_certs"
+
+
+@app.post("/api/tak/upload_cert", summary="Upload TAK client certificate or key file")
+async def upload_tak_cert(
+    file: UploadFile = File(...),
+    file_type: str = Form(...),
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Upload a TAK client certificate (PEM/CRT) or private key file and store it
+    on the server.  Returns the absolute path of the saved file so it can be
+    written into ``tak_client_cert_path`` / ``tak_client_key_path`` in the TAK
+    forwarding configuration.
+
+    ``file_type`` must be ``"cert"`` or ``"key"``.
+    """
+    payload = None
+    if authorization and authorization.startswith("Bearer "):
+        payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        if PERMISSIONS_AVAILABLE:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        payload = {"username": "system"}
+
+    if file_type not in ("cert", "key"):
+        raise HTTPException(status_code=400, detail="file_type must be 'cert' or 'key'")
+
+    original_name = file.filename or ("client.pem" if file_type == "cert" else "client.key")
+    _, ext = os.path.splitext(os.path.basename(original_name))
+    ext_lower = ext.lower()
+
+    if not ext_lower:
+        ext_lower = ".pem" if file_type == "cert" else ".key"
+
+    if ext_lower not in _TAK_CERT_ALLOWED_EXT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type '{ext_lower}' is not allowed. Allowed: {', '.join(sorted(_TAK_CERT_ALLOWED_EXT))}",
+        )
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    if len(content) > 1 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 1 MB.")
+
+    certs_dir = os.path.join(base_path, _TAK_CERTS_SUBDIR)
+    os.makedirs(certs_dir, exist_ok=True)
+
+    safe_name = f"{file_type}_{uuid.uuid4().hex}{ext_lower}"
+    dest_path = os.path.join(certs_dir, safe_name)
+    with open(dest_path, "wb") as fh:
+        fh.write(content)
+
+    logger.info(
+        "TAK cert uploaded by %s: %s -> %s",
+        payload.get("username"),
+        original_name,
+        dest_path,
+    )
+    return {"status": "success", "path": dest_path, "file_type": file_type}
+
+
 @app.get("/api/tak/test", summary="Test TAK server connectivity")
 def test_tak_connection():
     """
@@ -10054,12 +10119,12 @@ def get_tak_marker_diff(db: Session = Depends(get_db)):
     'cot_ingest').
 
     Response fields:
-    - lpu5_only: markers that exist in LPU5 but have never been received
-      back from any ATAK/WinTAK client (potentially missing on the TAK side).
+    - lpu5_only: markers that exist in LPU5 but have not yet been forwarded
+      to any ATAK/WinTAK client (need to be pushed).
     - tak_only: markers received from ATAK/WinTAK that have no matching
       LPU5-originated counterpart (TAK-sourced data).
-    - synced: LPU5 markers whose UID was also echoed back from an ATAK/WinTAK
-      client (confirmed present on both sides).
+    - synced: LPU5 markers that have been successfully forwarded to the
+      configured TAK server (tracked via the internal forward cache).
     - total_lpu5: total LPU5-originated marker count (excludes meshtastic).
     - total_tak: total markers received from ATAK/WinTAK.
     """
@@ -10072,12 +10137,18 @@ def get_tak_marker_diff(db: Session = Depends(get_db)):
         and m.created_by not in _MESHTASTIC_CREATED_BY
     ]
 
-    tak_uids = {m.id for m in tak_markers}
     lpu5_uids = {m.id for m in lpu5_markers}
-
-    lpu5_only = [m for m in lpu5_markers if m.id not in tak_uids]
     tak_only = [m for m in tak_markers if m.id not in lpu5_uids]
-    synced = [m for m in lpu5_markers if m.id in tak_uids]
+
+    # Use the forward cache to determine which LPU5 markers have been
+    # successfully forwarded to TAK — echo-backs are filtered in
+    # _process_incoming_cot() so they never create duplicate DB entries,
+    # making a UID-overlap check permanently return 0.
+    with _TAK_FORWARD_CACHE_LOCK:
+        forwarded_ids = set(_TAK_FORWARD_CACHE.keys())
+
+    synced = [m for m in lpu5_markers if m.id in forwarded_ids]
+    lpu5_only = [m for m in lpu5_markers if m.id not in forwarded_ids]
 
     def _m(m: MapMarker) -> dict:
         return {
@@ -10101,14 +10172,14 @@ def get_tak_marker_diff(db: Session = Depends(get_db)):
 @app.post("/api/tak/push-missing", summary="Push LPU5-only markers to connected ATAK/WinTAK clients")
 def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     """
-    Push all LPU5 markers that have not been received back from any ATAK/WinTAK
-    client to every currently connected ATAK/WinTAK client (TCP + multicast +
-    configured TAK server).
+    Push all LPU5 markers that have not yet been forwarded to the configured
+    TAK server.  Also broadcasts each CoT event to TCP CoT clients and the SA
+    multicast group.
 
     Requires a valid Bearer token.
 
     Response fields:
-    - pushed: number of markers successfully forwarded.
+    - pushed: number of markers successfully forwarded to the TAK server.
     - failed: number of markers that could not be converted or sent.
     - total_missing: total LPU5-only markers considered for pushing.
     """
@@ -10124,17 +10195,18 @@ def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session
     if not AUTONOMOUS_MODULES_AVAILABLE:
         raise HTTPException(status_code=501, detail="CoT protocol module not available")
 
-    tak_uids = {
-        m.id for m in db.query(MapMarker).filter(
-            MapMarker.created_by.in_(list(_TAK_INGEST_SOURCES))
-        ).all()
-    }
+    # Fetch LPU5-originated markers that have not yet been forwarded to TAK.
+    # The echo-back dedup in _process_incoming_cot() prevents LPU5 marker IDs
+    # from ever appearing in the TAK-ingested set, so the correct source of
+    # truth for "has been forwarded" is _TAK_FORWARD_CACHE.
+    with _TAK_FORWARD_CACHE_LOCK:
+        forwarded_ids = set(_TAK_FORWARD_CACHE.keys())
 
     lpu5_only = db.query(MapMarker).filter(
         ~MapMarker.created_by.in_(list(_TAK_INGEST_SOURCES)),
         ~MapMarker.created_by.in_(list(_MESHTASTIC_CREATED_BY)),
     ).all()
-    lpu5_only = [m for m in lpu5_only if m.id not in tak_uids]
+    lpu5_only = [m for m in lpu5_only if m.id not in forwarded_ids]
 
     pushed = 0
     failed = 0
@@ -10156,8 +10228,12 @@ def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session
                 _forward_cot_to_tcp_clients(cot_xml)
                 _forward_cot_multicast(cot_xml)
                 _forward_cot_to_itak_bridge(cot_xml)
-                forward_cot_to_tak(cot_xml)
-                pushed += 1
+                if forward_cot_to_tak(cot_xml):
+                    with _TAK_FORWARD_CACHE_LOCK:
+                        _TAK_FORWARD_CACHE[m.id] = (m.lat, m.lng, m.name, m.type)
+                    pushed += 1
+                else:
+                    failed += 1
             else:
                 failed += 1
         except Exception as _push_err:
