@@ -2191,7 +2191,23 @@ def _tak_receiver_loop() -> None:
                         continue  # No data yet; check stop event and SA refresh timer
                     except (OSError, Exception) as recv_err:
                         if not _TAK_RECEIVER_STOP.is_set():
-                            logger.error("TAK receiver read error: %s", recv_err)
+                            if isinstance(recv_err, ssl.SSLError) and "CERTIFICATE_REQUIRED" in str(recv_err).upper():
+                                logger.warning(
+                                    "TAK receiver: server %s:%s requires a client certificate "
+                                    "(TLSV13_ALERT_CERTIFICATE_REQUIRED). "
+                                    "Configure tak_client_cert_path / tak_client_key_path on the "
+                                    "Network page, or switch to connection type 'tcp' (port 8087) "
+                                    "if the server allows unauthenticated TCP. "
+                                    "Retrying in %ss.",
+                                    host, port, backoff_delays[-1],
+                                )
+                                # Retrying every 5 s will never help without a client cert.
+                                # Jump to max backoff to avoid log spam.
+                                attempt = len(backoff_delays) - 1
+                            else:
+                                logger.error("TAK receiver read error: %s", recv_err)
+                        with _TAK_RECEIVER_STATS_LOCK:
+                            _TAK_RECEIVER_STATS["last_error"] = str(recv_err)
                         break
 
             except (socket.timeout, socket.gaierror, ConnectionRefusedError, ssl.SSLError, OSError) as conn_err:
