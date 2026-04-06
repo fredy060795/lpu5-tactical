@@ -2,7 +2,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#1a1a1a">
   <link rel="apple-touch-icon" sizes="180x180" href="/pwa/icon-ios-180.png">
   <link rel="icon" type="image/png" href="/browser-logo.png">
@@ -268,6 +268,9 @@
         right: 10px;
         left: auto;
         width: 220px;
+      }
+      #tsb-compass {
+        left: max(60px, env(safe-area-inset-left));
       }
     }
 
@@ -769,12 +772,16 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 54px;
+      /* Base height 54px + extra space for device status bar (safe-area-inset-top) */
+      height: calc(54px + env(safe-area-inset-top));
       background: rgba(0, 0, 0, 0.82);
       z-index: 6010;
       display: flex;
       align-items: center;
-      padding: 0 10px;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: 0;
+      padding-left: max(10px, env(safe-area-inset-left));
+      padding-right: max(10px, env(safe-area-inset-right));
       gap: 8px;
       color: #fff;
       font-size: 0.75rem;
@@ -1010,8 +1017,8 @@
     /* Floating compass (top-left, below header) */
     #tsb-compass {
       position: fixed;
-      top: 60px;
-      left: 10px;
+      top: calc(60px + env(safe-area-inset-top));
+      left: max(10px, env(safe-area-inset-left));
       width: 104px;
       height: 104px;
       background: transparent;
