@@ -9771,6 +9771,69 @@ def update_tak_config(data: Dict = Body(...), authorization: Optional[str] = Hea
     }
 
 
+_TAK_CERT_ALLOWED_EXT = {".pem", ".crt", ".cer", ".key", ".p12", ".pfx"}
+_TAK_CERTS_SUBDIR = "tak_certs"
+
+
+@app.post("/api/tak/upload_cert", summary="Upload TAK client certificate or key file")
+async def upload_tak_cert(
+    file: UploadFile = File(...),
+    file_type: str = Form(...),
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Upload a TAK client certificate (PEM/CRT) or private key file and store it
+    on the server.  Returns the absolute path of the saved file so it can be
+    written into ``tak_client_cert_path`` / ``tak_client_key_path`` in the TAK
+    forwarding configuration.
+
+    ``file_type`` must be ``"cert"`` or ``"key"``.
+    """
+    payload = None
+    if authorization and authorization.startswith("Bearer "):
+        payload = verify_token(authorization.split(" ")[1])
+    if payload is None:
+        if PERMISSIONS_AVAILABLE:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        payload = {"username": "system"}
+
+    if file_type not in ("cert", "key"):
+        raise HTTPException(status_code=400, detail="file_type must be 'cert' or 'key'")
+
+    original_name = file.filename or ("client.pem" if file_type == "cert" else "client.key")
+    _, ext = os.path.splitext(os.path.basename(original_name))
+    ext_lower = ext.lower()
+
+    if not ext_lower:
+        ext_lower = ".pem" if file_type == "cert" else ".key"
+
+    if ext_lower not in _TAK_CERT_ALLOWED_EXT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type '{ext_lower}' is not allowed. Allowed: {', '.join(sorted(_TAK_CERT_ALLOWED_EXT))}",
+        )
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    if len(content) > 1 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 1 MB.")
+    os.makedirs(certs_dir, exist_ok=True)
+
+    safe_name = f"{file_type}_{uuid.uuid4().hex}{ext_lower}"
+    dest_path = os.path.join(certs_dir, safe_name)
+    with open(dest_path, "wb") as fh:
+        fh.write(content)
+
+    logger.info(
+        "TAK cert uploaded by %s: %s -> %s",
+        payload.get("username"),
+        original_name,
+        dest_path,
+    )
+    return {"status": "success", "path": dest_path, "file_type": file_type}
+
+
 @app.get("/api/tak/test", summary="Test TAK server connectivity")
 def test_tak_connection():
     """

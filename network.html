@@ -676,12 +676,24 @@
 
                 <div class="form-group">
                     <label class="form-label">Client Certificate Path (mTLS)</label>
-                    <input type="text" class="form-input" id="takClientCertPath" placeholder="/path/to/client.pem (required when server demands a certificate)" disabled>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <input type="text" class="form-input" id="takClientCertPath" placeholder="/path/to/client.pem (required when server demands a certificate)" disabled style="flex:1;">
+                        <button type="button" class="btn btn-sm" id="takCertUploadBtn" onclick="takUploadCertFile('cert')" disabled title="Upload certificate file" style="white-space:nowrap;">
+                            <i class="fas fa-upload"></i> Upload
+                        </button>
+                        <input type="file" id="takCertFileInput" accept=".pem,.crt,.cer,.p12,.pfx" style="display:none;" onchange="takHandleCertFile(this,'cert')">
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Client Key Path (mTLS)</label>
-                    <input type="text" class="form-input" id="takClientKeyPath" placeholder="/path/to/client.key" disabled>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <input type="text" class="form-input" id="takClientKeyPath" placeholder="/path/to/client.key" disabled style="flex:1;">
+                        <button type="button" class="btn btn-sm" id="takKeyUploadBtn" onclick="takUploadCertFile('key')" disabled title="Upload key file" style="white-space:nowrap;">
+                            <i class="fas fa-upload"></i> Upload
+                        </button>
+                        <input type="file" id="takKeyFileInput" accept=".pem,.key,.p12,.pfx" style="display:none;" onchange="takHandleCertFile(this,'key')">
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -1742,6 +1754,37 @@ function updatePublicIpState() {
     document.getElementById('publicPort').disabled = !enabled;
 }
 
+// Upload TAK certificate / key file to the server and populate the path field
+function takUploadCertFile(fileType) {
+    const inputId = fileType === 'cert' ? 'takCertFileInput' : 'takKeyFileInput';
+    document.getElementById(inputId).click();
+}
+
+async function takHandleCertFile(input, fileType) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const token = _getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('file_type', fileType);
+    const headers = {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    try {
+        const resp = await fetch('/api/tak/upload_cert', { method: 'POST', headers, body: formData });
+        const data = await resp.json();
+        if (resp.ok && data.path) {
+            const pathId = fileType === 'cert' ? 'takClientCertPath' : 'takClientKeyPath';
+            document.getElementById(pathId).value = data.path;
+        } else {
+            alert('Upload failed: ' + (data.detail || resp.statusText));
+        }
+    } catch (err) {
+        alert('Upload error: ' + err);
+    }
+    // Reset so the same file can be re-selected if needed
+    input.value = '';
+}
+
 // Update TAK integration state
 function updateTakIntegrationState() {
     const enabled = document.getElementById('enableTakIntegration').checked;
@@ -1753,6 +1796,8 @@ function updateTakIntegrationState() {
     document.getElementById('takPassword').disabled = !enabled;
     document.getElementById('takClientCertPath').disabled = !enabled;
     document.getElementById('takClientKeyPath').disabled = !enabled;
+    document.getElementById('takCertUploadBtn').disabled = !enabled;
+    document.getElementById('takKeyUploadBtn').disabled = !enabled;
     document.getElementById('takTestBtn').disabled = !enabled;
 }
 
