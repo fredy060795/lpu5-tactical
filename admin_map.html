@@ -2749,7 +2749,7 @@
         });
         // Drag-and-drop: drag symbol button onto the map to place it at the drop position
         b.addEventListener('dragstart', (e) => {
-          e.dataTransfer.setData('text/plain', b.dataset.sym);
+          e.dataTransfer.setData('application/x-map-symbol', b.dataset.sym);
           e.dataTransfer.effectAllowed = 'copy';
         });
       });
@@ -2761,7 +2761,7 @@
       });
       map.getContainer().addEventListener('drop', async (e) => {
         e.preventDefault();
-        const sym = e.dataTransfer.getData('text/plain');
+        const sym = e.dataTransfer.getData('application/x-map-symbol');
         if (!sym) return;
         const rect = map.getContainer().getBoundingClientRect();
         const latlng = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
