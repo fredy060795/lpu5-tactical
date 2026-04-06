@@ -5370,7 +5370,17 @@
       if (!popup || !titleEl || !bodyEl) return;
 
       const isLoggedIn = !!currentUserName;
-      const currentStatus = document.getElementById('out-status')?.innerText || 'BASE';
+      let currentStatus = 'BASE';
+      try {
+        const savedStatus = JSON.parse(localStorage.getItem('lpu5_status') || 'null');
+        if (savedStatus && savedStatus.type === 'status-change' && savedStatus.status) {
+          currentStatus = savedStatus.status;
+        } else {
+          currentStatus = document.getElementById('out-status')?.innerText || 'BASE';
+        }
+      } catch (e) {
+        currentStatus = document.getElementById('out-status')?.innerText || 'BASE';
+      }
       const currentInterval = (gpsUpdateInterval / 1000) || 5;
 
       const sections = {
