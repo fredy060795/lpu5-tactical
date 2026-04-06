@@ -250,23 +250,28 @@ class DataServerConnectionManager:
         if "timestamp" not in message:
             message["timestamp"] = datetime.now(timezone.utc).isoformat()
 
-        connection_ids = list(self.active_connections.keys())
-        if not connection_ids:
-            return
-
-        results = await asyncio.gather(
-            *[
+        # Build (connection_id, coroutine) pairs so the zip stays aligned.
+        targets = [
+            (
+                cid,
                 asyncio.wait_for(
                     self.active_connections[cid].send_json(message),
                     timeout=self._SEND_TIMEOUT,
-                )
-                for cid in connection_ids
-                if cid in self.active_connections
-            ],
+                ),
+            )
+            for cid in list(self.active_connections.keys())
+            if cid in self.active_connections
+        ]
+
+        if not targets:
+            return
+
+        results = await asyncio.gather(
+            *[coro for _, coro in targets],
             return_exceptions=True,
         )
 
-        for connection_id, result in zip(connection_ids, results):
+        for (connection_id, _), result in zip(targets, results):
             if isinstance(result, Exception):
                 logger.error(f"Failed to broadcast to {connection_id}: {result}")
                 self.disconnect(connection_id)
