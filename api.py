@@ -2014,12 +2014,27 @@ def _process_incoming_cot(cot_xml: str) -> None:
                     and not _has_mesh_detail
                     and effective_type not in _MESHTASTIC_DB_TYPES):
                 effective_type = marker.type
+            # Also preserve the marker type for LPU5-user-created markers to
+            # prevent ATAK's CBT remapping (e.g. "hostile" → "cbt_hostile") from
+            # overwriting a user's original classification when the TAK server
+            # echoes back an LPU5-originated CoT event.  Position updates are
+            # still applied so the marker stays current.
+            elif (marker
+                    and marker.created_by not in _TAK_INGEST_SOURCES
+                    and effective_type != marker.type):
+                effective_type = marker.type
 
             if marker:
-                if uid.startswith("mesh-") or marker.created_by not in _TAK_INGEST_SOURCES:
-                    # ATAK is echoing back a marker that LPU5 (or Meshtastic) originated.
-                    # Skip the update entirely to prevent the native LPU5 type from being
-                    # overwritten with a CBT variant (e.g. "hostile" → "cbt_hostile").
+                if uid.startswith("mesh-"):
+                    # Meshtastic node — skip the update to prevent echo-backs from
+                    # ATAK (which may strip the <meshtastic> element) from
+                    # downgrading the icon.  Still relay to local TCP clients.
+                    try:
+                        _forward_cot_to_tcp_clients(cot_xml)
+                        _forward_cot_multicast(cot_xml)
+                        _forward_cot_to_itak_bridge(cot_xml)
+                    except Exception:
+                        pass
                     return
                 marker.lat = lat
                 marker.lng = lng
@@ -2147,6 +2162,12 @@ def _tak_receiver_loop() -> None:
                     _TAK_RECEIVER_STATS["connected"] = True
                     _TAK_RECEIVER_STATS["connected_since"] = datetime.now(timezone.utc).isoformat()
                     _TAK_RECEIVER_STATS["last_error"] = None
+
+                # Clear the deduplication cache on each new connection so that
+                # stationary ATAK users are not silently dropped after a
+                # reconnect due to stale cache entries from the previous session.
+                with _TAK_INCOMING_CACHE_LOCK:
+                    _TAK_INCOMING_CACHE.clear()
 
                 logger.info("TAK receiver connected to %s:%s (%s)", host, port, conn_type.upper())
                 attempt = 0  # Reset backoff on successful connection
@@ -9042,11 +9063,14 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
         with SessionLocal() as db:
             existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
             if existing:
-                if (marker_dict["id"].startswith("mesh-")
-                        or existing.created_by not in _TAK_INGEST_SOURCES):
-                    # Echo-back of an LPU5-originated marker — skip the update to
-                    # prevent the native LPU5 type from being overwritten with a
-                    # CBT variant (e.g. "hostile" → "cbt_hostile").
+                if marker_dict["id"].startswith("mesh-"):
+                    # Meshtastic node — skip the position update since ATAK may
+                    # forward these without the <meshtastic> element, which would
+                    # cause the node to lose its Meshtastic icon.  Still relay so
+                    # other connected ATAK clients receive the position.
+                    _forward_cot_to_tcp_clients(xml_string)
+                    _forward_cot_multicast(xml_string)
+                    _forward_cot_to_itak_bridge(xml_string)
                     return
                 # Guard: don't downgrade a meshtastic_node/node/gateway marker to
                 # cbt_friendly or tak_maker when the incoming CoT echo lacks a
@@ -9059,6 +9083,18 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
                         and not cot_event.has_meshtastic_detail
                         and incoming_type not in _MESH_DB_TYPES):
                     incoming_type = existing.type
+                # Preserve the existing marker type for markers created by LPU5
+                # users (not via a TAK ingest path) so that ATAK's CBT remapping
+                # (e.g. "hostile" → "cbt_hostile") does not overwrite the user's
+                # original classification.  Position and callsign are still updated
+                # so the marker stays current on the map.
+                elif existing.created_by not in _TAK_INGEST_SOURCES and incoming_type != existing.type:
+                    incoming_type = existing.type
+                logger.info(
+                    "CoT listener: updating marker %s (%s) @ %.6f, %.6f",
+                    marker_dict.get("id"), incoming_type,
+                    marker_dict.get("lat", 0), marker_dict.get("lng", 0),
+                )
                 existing.lat = marker_dict["lat"]
                 existing.lng = marker_dict["lng"]
                 existing.name = marker_dict.get("name") or marker_dict["id"]
@@ -9083,6 +9119,11 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
                 # For "mesh-" UID markers from ATAK/WinTAK SA/COT import, always
                 # use type "node" so they render with the Meshtastic blue-circle icon.
                 new_type = "node" if marker_dict["id"].startswith("mesh-") else marker_dict.get("type", "unknown")
+                logger.info(
+                    "CoT listener: new marker %s (%s) @ %.6f, %.6f",
+                    marker_dict.get("id"), new_type,
+                    marker_dict.get("lat", 0), marker_dict.get("lng", 0),
+                )
                 new_marker = MapMarker(
                     id=marker_dict["id"],
                     lat=marker_dict["lat"],
@@ -9651,16 +9692,15 @@ async def ingest_cot_xml(request: Request):
         with SessionLocal() as db:
             existing = db.query(MapMarker).filter(MapMarker.id == marker_dict["id"]).first()
             if existing:
-                # Guard: never overwrite a marker that was created by a native LPU5
-                # user or Meshtastic ingest.  ATAK echo-backs for LPU5-originated
-                # markers would otherwise corrupt the marker type (e.g. "hostile" →
-                # "cbt_hostile") and lose the original user-set label.
-                if marker_dict["id"].startswith("mesh-") or existing.created_by not in _TAK_INGEST_SOURCES:
+                if marker_dict["id"].startswith("mesh-"):
+                    # Meshtastic node — skip the update to prevent echo-backs from
+                    # ATAK (which may strip the <meshtastic> element) from
+                    # downgrading the icon.
                     logger.debug(
-                        "ingest_cot_xml: skipping echo-back update for LPU5-originated marker %s",
+                        "ingest_cot_xml: skipping mesh-node update for %s",
                         marker_dict["id"],
                     )
-                    return {"status": "skipped", "reason": "echo-back of LPU5-originated marker"}
+                    return {"status": "skipped", "reason": "meshtastic node – type preserved"}
                 # Guard: don't downgrade a meshtastic_node/node/gateway marker to
                 # cbt_friendly or tak_maker when the incoming CoT echo lacks a
                 # <meshtastic> element.  ATAK may strip custom detail elements when
@@ -9671,6 +9711,11 @@ async def ingest_cot_xml(request: Request):
                 if (existing.type in _MESH_DB_TYPES
                         and not cot_event.has_meshtastic_detail
                         and incoming_type not in _MESH_DB_TYPES):
+                    incoming_type = existing.type
+                # Preserve the marker type for LPU5-user-created markers to prevent
+                # ATAK's CBT remapping (e.g. "hostile" → "cbt_hostile") from
+                # overwriting user classifications.  Position is still updated.
+                elif existing.created_by not in _TAK_INGEST_SOURCES and incoming_type != existing.type:
                     incoming_type = existing.type
                 existing.lat   = marker_dict["lat"]
                 existing.lng   = marker_dict["lng"]
