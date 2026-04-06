@@ -162,46 +162,117 @@ class DataServerConnectionManager:
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     
+    # Per-message send timeout (seconds). Prevents a dead or slow WebSocket from
+    # blocking the event loop while iterating over all channel subscribers.
+    _SEND_TIMEOUT = 5.0
+
     async def send_to_connection(self, connection_id: str, message: dict):
-        """Send a message to a specific connection"""
-        if connection_id in self.active_connections:
-            try:
-                await self.active_connections[connection_id].send_json(message)
-                if connection_id in self.connection_metadata:
-                    self.connection_metadata[connection_id]["messages_sent"] += 1
-                    self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
-            except Exception as e:
-                logger.error(f"Failed to send message to {connection_id}: {e}")
-                # Connection may be dead, will be cleaned up on next interaction
-    
+        """Send a message to a specific connection.
+
+        A per-send timeout of ``_SEND_TIMEOUT`` seconds is applied so that a
+        dead or unresponsive WebSocket does not block the asyncio event loop.
+        On timeout or any send error the connection is disconnected immediately.
+        """
+        if connection_id not in self.active_connections:
+            return
+        try:
+            await asyncio.wait_for(
+                self.active_connections[connection_id].send_json(message),
+                timeout=self._SEND_TIMEOUT,
+            )
+            if connection_id in self.connection_metadata:
+                self.connection_metadata[connection_id]["messages_sent"] += 1
+                self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
+        except asyncio.TimeoutError:
+            logger.warning(f"Send timeout for connection {connection_id}, disconnecting")
+            self.disconnect(connection_id)
+        except Exception as e:
+            logger.error(f"Failed to send message to {connection_id}: {e}")
+            self.disconnect(connection_id)
+
     async def broadcast_to_channel(self, channel: str, message: dict, exclude: Optional[str] = None):
-        """Broadcast a message to all subscribers of a channel"""
+        """Broadcast a message to all subscribers of a channel.
+
+        Sends to all subscribers in parallel using ``asyncio.gather`` so that
+        a single slow or dead connection cannot delay delivery to the others.
+        Dead connections detected during the send are removed immediately.
+        """
         if channel not in self.subscriptions:
             return
-        
+
         subscribers = list(self.subscriptions[channel])
         logger.debug(f"Broadcasting to channel '{channel}': {len(subscribers)} subscribers")
-        
+
         # Add metadata to message
         message["channel"] = channel
         if "timestamp" not in message:
             message["timestamp"] = datetime.now(timezone.utc).isoformat()
-        
-        # Send to all subscribers (optionally excluding the sender)
+
+        # Build list of (connection_id, send-coroutine) for active subscribers only.
+        targets = []
         for connection_id in subscribers:
             if exclude and connection_id == exclude:
                 continue
-            await self.send_to_connection(connection_id, message)
-    
+            if connection_id in self.active_connections:
+                targets.append((
+                    connection_id,
+                    asyncio.wait_for(
+                        self.active_connections[connection_id].send_json(message),
+                        timeout=self._SEND_TIMEOUT,
+                    ),
+                ))
+
+        if not targets:
+            return
+
+        # Send to all targets in parallel; collect exceptions rather than raising.
+        results = await asyncio.gather(
+            *[coro for _, coro in targets],
+            return_exceptions=True,
+        )
+
+        for (connection_id, _), result in zip(targets, results):
+            if isinstance(result, Exception):
+                logger.error(f"Failed to broadcast to {connection_id}: {result}")
+                self.disconnect(connection_id)
+            elif connection_id in self.connection_metadata:
+                self.connection_metadata[connection_id]["messages_sent"] += 1
+                self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
+
     async def broadcast_to_all(self, message: dict):
-        """Broadcast a message to all connected clients"""
+        """Broadcast a message to all connected clients.
+
+        Uses parallel sends via ``asyncio.gather`` so a single dead connection
+        cannot block delivery to the rest.
+        """
         logger.debug(f"Broadcasting to all: {len(self.active_connections)} connections")
-        
+
         if "timestamp" not in message:
             message["timestamp"] = datetime.now(timezone.utc).isoformat()
-        
-        for connection_id in list(self.active_connections.keys()):
-            await self.send_to_connection(connection_id, message)
+
+        connection_ids = list(self.active_connections.keys())
+        if not connection_ids:
+            return
+
+        results = await asyncio.gather(
+            *[
+                asyncio.wait_for(
+                    self.active_connections[cid].send_json(message),
+                    timeout=self._SEND_TIMEOUT,
+                )
+                for cid in connection_ids
+                if cid in self.active_connections
+            ],
+            return_exceptions=True,
+        )
+
+        for connection_id, result in zip(connection_ids, results):
+            if isinstance(result, Exception):
+                logger.error(f"Failed to broadcast to {connection_id}: {result}")
+                self.disconnect(connection_id)
+            elif connection_id in self.connection_metadata:
+                self.connection_metadata[connection_id]["messages_sent"] += 1
+                self.connection_metadata[connection_id]["last_activity"] = datetime.now(timezone.utc).isoformat()
     
     async def join_group(self, connection_id: str, group_name: str):
         """
