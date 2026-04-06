@@ -1329,6 +1329,28 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
         host = tak_cfg["tak_server_host"]
         port = tak_cfg["tak_server_port"]
         conn_type = tak_cfg.get("tak_connection_type", "udp")
+
+        # Self-loop guard: refuse to forward when the TAK server is configured
+        # to point at one of LPU5's own listener ports on localhost.  This
+        # would create an infinite feedback loop:
+        #   forward_cot_to_tak → LPU5 TCP listener → _cot_listener_ingest_callback
+        #   → forward_cot_to_tak → … (and the persistent TAK socket floods the
+        #   data-server broadcast queue causing WebSocket timeouts so markers
+        #   never reach WinTAK's map).
+        _LOCALHOST_NAMES = {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+        if host.lower() in _LOCALHOST_NAMES:
+            _own_cfg = load_json("config") or {}
+            _own_tcp_port  = int(_own_cfg.get("cot_listener_tcp_port", 8088))
+            _own_ssl_port  = int(_own_cfg.get("itak_bridge_port", 8089))
+            if port in (_own_tcp_port, _own_ssl_port):
+                _throttled_forward_warn(
+                    conn_type, host, port,
+                    f"TAK server is set to {host}:{port} which is LPU5's own listener port. "
+                    "This creates a feedback loop and prevents markers from reaching WinTAK. "
+                    "Disable TAK forwarding or point it at a real TAK server on the Network page",
+                )
+                return False
+
         data = cot_xml.encode("utf-8")
         username = tak_cfg.get("tak_username", "")
         password = tak_cfg.get("tak_password", "")
