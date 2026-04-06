@@ -436,7 +436,7 @@ class COTProtocolHandler {
         } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
             lpu5Type = 'tak_maker';
         } else if (lpu5Type === 'friendly') {
-            lpu5Type = 'node';
+            lpu5Type = 'tak_maker';
         } else if (_ATAK_TO_CBT[lpu5Type]) {
             lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }
