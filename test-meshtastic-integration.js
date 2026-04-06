@@ -149,8 +149,8 @@ test('COT to map marker conversion', () => {
   assert(marker.id === 'TEST-001', 'Marker should have correct ID');
   assert(marker.lat === 47.1234, 'Marker should have correct latitude');
   assert(marker.lng === 8.5678, 'Marker should have correct longitude');
-  // Friendly ATAK events (default how='m-g') are now treated as Meshtastic nodes
-  assert(marker.status === 'node', 'Should identify as node (Meshtastic node relayed by ATAK)');
+  // Friendly ATAK events (default how='m-g') without <meshtastic> detail are TAK clients
+  assert(marker.status === 'tak_maker', 'Should identify as tak_maker (TAK client without meshtastic detail)');
   assert(marker.source === 'cot', 'Should mark as COT source');
 });
 
@@ -246,10 +246,11 @@ test('Coordinate bounds validation', () => {
 
 // Test Affiliation Parsing
 test('Affiliation parsing from COT type', () => {
-  // Machine-generated (how='m-g') friendly ATAK events are Meshtastic nodes.
+  // Machine-generated (how='m-g') friendly ATAK events without <meshtastic> detail
+  // are TAK clients (e.g. iTAK/WinTAK SA beacons).
   // Use explicit non-mesh UIDs to avoid the mesh UID detection.
   const friendly = COTProtocolHandler.cotToMarker(new COTEvent({ uid: 'ATAK-F-1', type: 'a-f-G-U-C' }));
-  assert(friendly.status === 'node', 'Should parse as node (Meshtastic node relayed by ATAK)');
+  assert(friendly.status === 'tak_maker', 'Should parse as tak_maker (TAK client without meshtastic detail)');
   
   const hostile = COTProtocolHandler.cotToMarker(new COTEvent({ uid: 'ATAK-H-1', type: 'a-h-G-U-C' }));
   assert(hostile.status === 'cbt_hostile', 'Should parse as cbt_hostile (ATAK machine-generated)');
