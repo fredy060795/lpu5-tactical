@@ -6964,8 +6964,45 @@ def _is_nginx_error_page(resp) -> bool:
     return "nginx" in body and ("<html" in body or "<center>" in body)
 
 
+def _ots_get_auth_headers(session: "requests.Session", mgmt_url: str, mgmt_user: str, mgmt_pass: str) -> Optional[dict]:
+    """Login to OpenTAKServer and return auth headers with Bearer token.
+
+    Returns a dict with the Authorization header on success, or None on failure.
+    The session's cookies are also populated so cookie-based auth works as a
+    fallback if the server does not return a token in the response body.
+    """
+    if not mgmt_user:
+        return None
+    login_endpoint = f"{mgmt_url}/api/users/login"
+    try:
+        resp = session.post(
+            login_endpoint,
+            json={"username": mgmt_user, "password": mgmt_pass},
+            verify=False,
+            timeout=10,
+        )
+        if resp.status_code not in (200, 201):
+            logger.warning("TAK sync: OTS login failed with HTTP %s", resp.status_code)
+            return None
+        try:
+            body = resp.json()
+            token = body.get("token") or body.get("access_token")
+        except Exception:
+            token = None
+        if token:
+            return {"Authorization": f"Bearer {token}"}
+        # No explicit token – rely on the session cookie set by the server.
+        return {}
+    except Exception as exc:
+        logger.warning("TAK sync: OTS login request failed: %s", exc)
+        return None
+
+
 def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
-    """Register a user on the OpenTAK Management API if configured.
+    """Register a user on the OpenTAKServer (OTS) API if configured.
+
+    Authenticates against the OTS admin API via ``POST /api/users/login``
+    and then creates the user via ``POST /api/users``.
 
     Returns a dict with either ``{"skipped": True}`` when management
     sync is disabled/unconfigured or ``{"success": True/False, ...}``.
@@ -6981,66 +7018,65 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
         mgmt_url = f"https://{mgmt_url}"
     mgmt_user = settings.get("mgmt_username") or ""
     mgmt_pass = settings.get("mgmt_password") or ""
-    auth = (mgmt_user, mgmt_pass) if mgmt_user else None
-    api_endpoint = f"{mgmt_url}/user-management/api/v1/user/"
-    payload = {"username": username, "password": tak_password, "enabled": True}
-    # OpenTAK Management servers commonly use self-signed certificates;
-    # disable host verification to allow private deployments.  Operators
-    # who need strict TLS validation should proxy through a trusted CA.
-    req_kwargs = dict(json=payload, auth=auth, verify=False, timeout=10)
+    # OpenTAKServer uses token-based auth; use a Session to carry cookies.
+    session = requests.Session()
+    # OpenTAK servers commonly use self-signed certificates; disable host
+    # verification to allow private deployments.
     try:
-        # Suppress noisy InsecureRequestWarning when using verify=False.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
-            resp = requests.post(api_endpoint, **req_kwargs)
-            # Some management servers (e.g. Persistent Systems) only accept
-            # PUT for user creation/update.  Retry with PUT on 405.
-            # However, do NOT retry when the 405 comes from an nginx reverse
-            # proxy rather than the actual application – that means the
-            # /user-management path is not proxied.
-            if resp.status_code == 405 and not _is_nginx_error_page(resp):
-                logger.info("TAK sync: POST returned 405, retrying with PUT for user '%s'", username)
-                resp = requests.put(api_endpoint, **req_kwargs)
+            auth_headers = _ots_get_auth_headers(session, mgmt_url, mgmt_user, mgmt_pass)
+            if auth_headers is None:
+                return {"success": False, "error": "OTS login failed – check admin credentials"}
+            api_endpoint = f"{mgmt_url}/api/users"
+            payload = {"username": username, "password": tak_password, "active": True}
+            resp = session.post(
+                api_endpoint,
+                json=payload,
+                headers=auth_headers,
+                verify=False,
+                timeout=10,
+            )
         if resp.status_code in (200, 201):
-            logger.info("TAK sync: user '%s' created on management server", username)
+            logger.info("TAK sync: user '%s' created on OTS server", username)
             return {"success": True}
         if resp.status_code == 409:
-            logger.info("TAK sync: user '%s' already exists on management server", username)
+            logger.info("TAK sync: user '%s' already exists on OTS server", username)
             return {"success": True, "note": "user already exists on TAK server"}
         # Provide a clear message when nginx is blocking the request instead
         # of proxying it to the backend application.
         if _is_nginx_error_page(resp):
             nginx_hint = (
-                f"nginx returned HTTP {resp.status_code} – the /user-management "
-                "path is not being proxied to the OpenTAK backend.  Add a "
-                "'location /user-management { proxy_pass http://127.0.0.1:8081; }' "
+                f"nginx returned HTTP {resp.status_code} – the /api path is not "
+                "being proxied to the OpenTAKServer backend.  Add a "
+                "'location /api { proxy_pass http://127.0.0.1:8081; }' "
                 "block to the nginx server config and reload nginx."
             )
             logger.warning("TAK sync: nginx error for user '%s': %s", username, nginx_hint)
             return {"success": False, "error": nginx_hint}
         logger.warning(
-            "TAK sync: management server returned %s for user '%s': %s",
+            "TAK sync: OTS server returned %s for user '%s': %s",
             resp.status_code, username, resp.text[:200],
         )
         return {"success": False, "error": f"TAK server returned {resp.status_code}: {resp.text[:200]}"}
     except Exception as exc:
-        logger.warning("TAK sync error for user '%s' at %s: %s", username, api_endpoint, exc)
+        logger.warning("TAK sync error for user '%s' at %s: %s", username, mgmt_url, exc)
         return {
             "success": False,
             "error": (
-                f"{exc}. If the TAK server is behind nginx, ensure the nginx "
-                "config includes a 'location /user-management' proxy block."
+                f"{exc}. Check that the OTS server is running on port 8081 and "
+                "the nginx config proxies /api to http://127.0.0.1:8081."
             ),
         }
 
 
 @app.post("/api/tak_mgmt/test", summary="Test TAK management API connectivity")
 def api_tak_mgmt_test():
-    """Test connectivity to the configured OpenTAK Management API.
+    """Test connectivity to the configured OpenTAKServer (OTS) API.
 
-    Sends a lightweight GET request to the management API URL and reports
-    whether the server is reachable.  This does NOT create or modify any
-    users – it is a read-only connectivity check.
+    Authenticates via ``POST /api/users/login`` and then sends a GET to
+    ``/api/users`` to confirm admin access.  This does NOT create or modify
+    any users – it is a read-only connectivity check.
     """
     settings = _get_tak_login_settings()
     mgmt_url = (settings.get("mgmt_url") or "").strip().rstrip("/")
@@ -7050,32 +7086,40 @@ def api_tak_mgmt_test():
         mgmt_url = f"https://{mgmt_url}"
     mgmt_user = settings.get("mgmt_username") or ""
     mgmt_pass = settings.get("mgmt_password") or ""
-    auth = (mgmt_user, mgmt_pass) if mgmt_user else None
-    api_endpoint = f"{mgmt_url}/user-management/api/v1/user/"
+    api_endpoint = f"{mgmt_url}/api/users"
+    session = requests.Session()
     try:
-        # Self-signed certs are common in OpenTAK deployments (same as _sync_user_to_tak_server).
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
-            resp = requests.get(api_endpoint, auth=auth, verify=False, timeout=10)
-        # Detect nginx error pages that indicate the /user-management path
-        # is not being proxied to the OpenTAK backend.
+            # Authenticate first so we can access the admin-only /api/users endpoint.
+            auth_headers = _ots_get_auth_headers(session, mgmt_url, mgmt_user, mgmt_pass)
+            if auth_headers is None:
+                return {
+                    "reachable": False,
+                    "message": (
+                        f"OTS login failed at {mgmt_url}/api/users/login – "
+                        "check admin username/password."
+                    ),
+                    "url": mgmt_url,
+                }
+            resp = session.get(api_endpoint, headers=auth_headers, verify=False, timeout=10)
+        # Detect nginx error pages that indicate the /api path is not proxied.
         if _is_nginx_error_page(resp):
             return {
                 "reachable": False,
                 "status_code": resp.status_code,
                 "message": (
                     f"nginx at {mgmt_url} returned HTTP {resp.status_code} – "
-                    "the /user-management path is not proxied to the OpenTAK "
-                    "backend.  Add 'location /user-management {{ proxy_pass "
-                    "http://127.0.0.1:8081; }}' to the nginx server block and "
-                    "reload nginx."
+                    "the /api path is not proxied to the OpenTAKServer backend. "
+                    "Add 'location /api {{ proxy_pass http://127.0.0.1:8081; }}' "
+                    "to the nginx server block and reload nginx."
                 ),
                 "url": mgmt_url,
             }
         return {
             "reachable": True,
             "status_code": resp.status_code,
-            "message": f"Management API reachable at {mgmt_url} (HTTP {resp.status_code})",
+            "message": f"OTS API reachable at {mgmt_url} (HTTP {resp.status_code})",
             "url": mgmt_url,
         }
     except requests.exceptions.ConnectionError as exc:
@@ -7083,8 +7127,8 @@ def api_tak_mgmt_test():
             "reachable": False,
             "message": (
                 f"Connection failed to {mgmt_url}: {exc}. "
-                "If the TAK server is behind nginx, ensure the nginx config "
-                "includes a 'location /user-management' proxy block."
+                "Check that the OTS server is running on port 8081 and "
+                "the nginx config proxies /api to http://127.0.0.1:8081."
             ),
             "url": mgmt_url,
         }
