@@ -2206,6 +2206,7 @@ def _tak_receiver_loop() -> None:
                                 attempt = len(backoff_delays) - 1
                             else:
                                 logger.error("TAK receiver read error: %s", recv_err)
+                        # Always record the error regardless of stop state.
                         with _TAK_RECEIVER_STATS_LOCK:
                             _TAK_RECEIVER_STATS["last_error"] = str(recv_err)
                         break
