@@ -1652,12 +1652,12 @@ async function checkMarkerDiff() {
         const lpu5Only = data.lpu5_only || [];
         const takOnly = data.tak_only || [];
         const synced = data.synced || [];
-        let html = `<strong>Summary:</strong> LPU5 total: ${data.total_lpu5} &nbsp;|&nbsp; ATAK/WinTAK received: ${data.total_tak} &nbsp;|&nbsp; Synced: ${synced.length}<br><br>`;
+        let html = `<strong>Summary:</strong> LPU5 total: ${data.total_lpu5} &nbsp;|&nbsp; ATAK/WinTAK received: ${data.total_tak} &nbsp;|&nbsp; Forwarded: ${synced.length}<br><br>`;
         if (lpu5Only.length === 0) {
-            html += '<span style="color:#2ecc71;"><i class="fas fa-check-circle"></i> All LPU5 markers have been received by ATAK/WinTAK.</span>';
+            html += '<span style="color:#2ecc71;"><i class="fas fa-check-circle"></i> All LPU5 markers have been forwarded to ATAK/WinTAK.</span>';
             document.getElementById('pushMissingBtn').style.display = 'none';
         } else {
-            html += `<strong style="color:#f39c12;"><i class="fas fa-exclamation-triangle"></i> ${lpu5Only.length} LPU5 marker(s) not yet received by ATAK/WinTAK:</strong><ul style="margin:6px 0 0 18px;padding:0;">`;
+            html += `<strong style="color:#f39c12;"><i class="fas fa-exclamation-triangle"></i> ${lpu5Only.length} LPU5 marker(s) not yet forwarded to ATAK/WinTAK:</strong><ul style="margin:6px 0 0 18px;padding:0;">`;
             lpu5Only.forEach(m => {
                 html += `<li>${_escHtml(m.name || m.id)} &nbsp;<span style="color:#888;">(${m.type}, ${(m.lat ?? 0).toFixed(5)}, ${(m.lng ?? 0).toFixed(5)})</span></li>`;
             });
