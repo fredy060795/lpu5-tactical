@@ -87,6 +87,12 @@
     .port-device { font-weight:bold; color:#fff; }
 
     .port-selected { border-left:4px solid var(--accent-blue); background:#111; }
+    .port-check { width:18px; height:18px; accent-color:var(--nav-accent); cursor:pointer; flex-shrink:0; }
+
+    .port-selection-badge {
+      display:inline-block; background:var(--nav-accent); color:#000;
+      border-radius:12px; padding:2px 10px; font-size:0.8rem; font-weight:bold; margin-left:8px;
+    }
 
     .node-preview {
       background:#0a0a0a; padding:12px; margin-bottom:8px; border:1px solid #333; border-radius:4px;
@@ -165,14 +171,16 @@
     </div>
 
     <div class="form-section">
-      <h2><i class="fas fa-plug"></i> Select COM Port</h2>
+      <h2><i class="fas fa-plug"></i> Select COM Port(s) <span id="portSelectionBadge" class="port-selection-badge" style="display:none">0 selected</span></h2>
 
-      <label for="portSelect">Available Ports</label>
+      <label for="portSelect">Available Ports (check one or more)</label>
       <select id="portSelect" aria-label="Select COM Port"><option value="">-- Scan first --</option></select>
 
       <div style="display:flex; gap:8px; margin-bottom:10px;">
         <button class="btn" id="scanBtn" style="flex:1"><i class="fas fa-search"></i> SCAN PORTS</button>
-        <button class="small-action" id="copyPortBtn" title="Copy selected port">Copy</button>
+        <button class="small-action" id="selectAllPortsBtn" title="Select all ports" style="display:none">All</button>
+        <button class="small-action" id="deselectAllPortsBtn" title="Deselect all ports" style="display:none">None</button>
+        <button class="small-action" id="copyPortBtn" title="Copy selected port(s)">Copy</button>
       </div>
 
       <div id="portList" style="margin-top:8px;"></div>
@@ -457,6 +465,8 @@
       const list = document.getElementById('portList');
       select.innerHTML = '<option value="">-- Select port --</option>';
       list.innerHTML = '';
+      _selectedPorts.clear();
+      _updatePortBadge();
       if (!rawPorts || rawPorts.length === 0){
         list.innerHTML = '<div class="empty-state"><i class="fas fa-info-circle"></i><br>No ports found</div>';
         return;
@@ -474,7 +484,6 @@
       ports.forEach((p, idx) => {
         const opt = document.createElement('option');
         opt.value = p.device;
-        // readable label: device + description (short)
         const shortDesc = p.description ? (' — ' + p.description) : '';
         opt.textContent = `${p.device}${shortDesc}`;
         select.appendChild(opt);
@@ -488,6 +497,13 @@
           p.hwid && `HWID: ${p.hwid}`,
           (p.vid || p.pid) && `VID: ${p.vid || '-'} PID: ${p.pid || '-'}`
         ].filter(Boolean).join(' | ');
+
+        // Checkbox for multi-selection
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'port-check';
+        cb.title = 'Select this port';
+        cb.onclick = (ev) => { ev.stopPropagation(); _togglePortSelection(p.device, div, cb, select); };
 
         // left column with device & meta
         const left = document.createElement('div');
@@ -513,46 +529,58 @@
         };
 
         right.appendChild(more);
+        div.appendChild(cb);
         div.appendChild(left);
         div.appendChild(right);
 
-        // click to select
-        div.onclick = () => {
-          // mark selection visually
-          document.querySelectorAll('.port-item').forEach(e=>e.classList.remove('port-selected'));
-          div.classList.add('port-selected');
-          select.value = p.device;
-          // Auto-connect when port is selected
-          connectMeshtasticGateway(p.device);
+        // clicking the row (not the checkbox) also toggles
+        div.onclick = (ev) => {
+          if (ev.target === cb) return;
+          cb.checked = !cb.checked;
+          _togglePortSelection(p.device, div, cb, select);
         };
 
         list.appendChild(div);
 
-        // auto-select first entry if none selected
-        if (idx === 0 && !select.value) {
-          select.value = p.device;
-          div.classList.add('port-selected');
-          // Auto-connect to first port
-          setTimeout(() => connectMeshtasticGateway(p.device), 500);
+        // Auto-select (check) the first port
+        if (idx === 0) {
+          cb.checked = true;
+          _togglePortSelection(p.device, div, cb, select);
         }
       });
-      
-      // Add change listener to select dropdown
+
+      // Add change listener to select dropdown (syncs with checkbox list)
       select.addEventListener('change', (e) => {
         if (e.target.value) {
-          // Update visual selection in list
+          // Find matching list item checkbox and toggle it
           document.querySelectorAll('.port-item').forEach(item => {
             const deviceDiv = item.querySelector('.port-device');
-            if (deviceDiv && deviceDiv.textContent === e.target.value) {
-              item.classList.add('port-selected');
-            } else {
-              item.classList.remove('port-selected');
+            const itemCb = item.querySelector('.port-check');
+            if (deviceDiv && deviceDiv.textContent === e.target.value && itemCb) {
+              itemCb.checked = true;
+              _togglePortSelection(e.target.value, item, itemCb, select);
             }
           });
-          // Auto-connect when port is selected from dropdown
-          connectMeshtasticGateway(e.target.value);
         }
       });
+    }
+
+    function _togglePortSelection(device, div, cb, select) {
+      if (cb.checked) {
+        _selectedPorts.add(device);
+        div.classList.add('port-selected');
+        // keep select in sync with last checked port
+        if (select) select.value = device;
+      } else {
+        _selectedPorts.delete(device);
+        div.classList.remove('port-selected');
+        // update select to another selected port or empty
+        if (select && select.value === device) {
+          const remaining = [..._selectedPorts];
+          select.value = remaining.length > 0 ? remaining[remaining.length - 1] : '';
+        }
+      }
+      _updatePortBadge();
     }
 
     // HTML-escape helper
@@ -564,6 +592,20 @@
     // Connect to Meshtastic Gateway
     let _isGatewayConnected = false;
     let _connectedPort = null;
+    // Multi-port selection set
+    let _selectedPorts = new Set();
+
+    function _updatePortBadge() {
+      const badge = document.getElementById('portSelectionBadge');
+      const allBtn = document.getElementById('selectAllPortsBtn');
+      const noneBtn = document.getElementById('deselectAllPortsBtn');
+      if (!badge) return;
+      const count = _selectedPorts.size;
+      badge.textContent = `${count} selected`;
+      badge.style.display = count > 0 ? 'inline-block' : 'none';
+      if (allBtn) allBtn.style.display = count > 0 ? 'inline-block' : 'none';
+      if (noneBtn) noneBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    }
     
     async function connectMeshtasticGateway(port){
       if (!port || port === '') {
@@ -670,24 +712,24 @@ Possible solutions:
       return { connected: false, port: null };
     }
 
-    // Preview (non-persistent): POST /api/preview_meshtastic { port, friendly_names?, default_name_pattern? }
+    // Preview (non-persistent): POST /api/preview_meshtastic { ports, friendly_names?, default_name_pattern? }
     async function previewNodes(){
-      const port = document.getElementById('portSelect').value;
+      const ports = [..._selectedPorts];
       const nodesList = document.getElementById('nodesList');
       
-      if (!port){ 
-        nodesList.innerHTML = '<div class="empty-state"><i class="fas fa-info-circle"></i><br>Please select a COM port first</div>'; 
+      if (ports.length === 0){ 
+        nodesList.innerHTML = '<div class="empty-state"><i class="fas fa-info-circle"></i><br>Please select at least one COM port first</div>'; 
         return; 
       }
       
       nodesList.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading preview...</div>';
       
       try {
-        showToast(`Loading nodes from ${port}...`, 'info');
+        showToast(`Loading nodes from ${ports.join(', ')}...`, 'info');
         const res = await fetch('/api/preview_meshtastic', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ port })
+          body: JSON.stringify({ ports })
         });
         
         const body = await safeJson(res);
@@ -711,24 +753,28 @@ Possible solutions:
           border-radius: 6px;
           font-weight: bold;
         `;
+
+        const portsInfo = body.ports || [];
+        const portsSummary = portsInfo.map(pi => pi.error
+          ? `${pi.port}: ❌ ${pi.error}`
+          : `${pi.port}: ${pi.node_count} node(s)${pi.is_simulated ? ' (sim)' : ''}`
+        ).join(' | ');
         
         if (!body.is_simulated && body.node_count > 0) {
-          // Real device connected successfully
           statusDiv.style.cssText += 'background: #003d00; border: 2px solid #00aa00; color: #00ff00;';
           statusDiv.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px;">
-              <div>✅ Device connected (${body.node_count || 0} nodes found)</div>
-              <div style="color: #888; font-size: 0.85rem; font-weight: normal;">Port: ${escapeHtml(body.port || port)}</div>
+              <div>✅ Device(s) connected (${body.node_count || 0} nodes total)</div>
             </div>
+            <div style="color: #888; font-size: 0.85rem; font-weight: normal; margin-top: 4px;">${escapeHtml(portsSummary)}</div>
           `;
         } else {
-          // No device connected or no nodes found
           statusDiv.style.cssText += 'background: #3d0000; border: 2px solid #aa0000; color: #ff4444;';
           statusDiv.innerHTML = `
-            <div>❌ No nodes found - Please connect a Meshtastic device</div>
-            <div style="color: #bbb; font-size: 0.85rem; margin-top: 6px; font-weight: normal;">Port: ${escapeHtml(body.port || port)}</div>
+            <div>❌ No nodes found - Please connect Meshtastic device(s)</div>
+            <div style="color: #bbb; font-size: 0.85rem; margin-top: 6px; font-weight: normal;">${escapeHtml(portsSummary)}</div>
             <div style="color: #bbb; font-size: 0.85rem; margin-top: 6px; font-weight: normal;">
-              Connection to Meshtastic device failed. Please ensure a device is connected and properly configured.
+              Connection to Meshtastic device(s) failed. Please ensure device(s) are connected and properly configured.
             </div>
           `;
         }
@@ -860,8 +906,8 @@ Possible solutions:
 
     // Collect friendly map from last preview and send import request
     async function doImport(){
-      const port = document.getElementById('portSelect').value;
-      if (!port){ alert('Please select port'); return; }
+      const ports = [..._selectedPorts];
+      if (ports.length === 0){ alert('Please select at least one port'); return; }
       if (!window._lastPreview || !Array.isArray(window._lastPreview) || window._lastPreview.length === 0){
         alert('No preview available. Please create preview.');
         return;
@@ -906,7 +952,7 @@ Possible solutions:
         const res = await fetch('/api/import_meshtastic', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ port, friendly_names, nodes: enriched_nodes })
+          body: JSON.stringify({ ports, friendly_names, nodes: enriched_nodes })
         });
         const body = await safeJson(res);
         if (!res.ok){
@@ -933,9 +979,8 @@ Possible solutions:
         await previewNodes();
         // if autoImport enabled, perform import with current friendly names
         if (document.getElementById('autoImport').checked){
-          // automatically commit import silently
-          const port = document.getElementById('portSelect').value;
-          if (port && window._lastPreview && window._lastPreview.length){
+          const ports = [..._selectedPorts];
+          if (ports.length > 0 && window._lastPreview && window._lastPreview.length){
             const friendly_names = {};
             window._lastPreview.forEach(n => {
               const id = n.mesh_id || n.id;
@@ -945,9 +990,8 @@ Possible solutions:
               await fetch('/api/import_meshtastic', {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ port, friendly_names, nodes: window._lastPreview })
+                body: JSON.stringify({ ports, friendly_names, nodes: window._lastPreview })
               });
-              // after import, previewNodes will update on next cycle
             } catch(e){
               console.warn('auto-import failed', e);
             }
@@ -961,20 +1005,24 @@ Possible solutions:
 
     // UI wiring
     async function copySelectedPort(){
-      const select = document.getElementById('portSelect');
-      const val = select.value;
-      if (!val) { alert('No port selected'); return; }
+      const ports = [..._selectedPorts];
+      if (ports.length === 0) {
+        const val = document.getElementById('portSelect').value;
+        if (!val) { alert('No port selected'); return; }
+        ports.push(val);
+      }
+      const text = ports.join(', ');
       try {
-        await navigator.clipboard.writeText(val);
-        alert('Port kopiert: ' + val);
+        await navigator.clipboard.writeText(text);
+        alert('Port(s) copied: ' + text);
       } catch(e){
         const ta = document.createElement('textarea');
-        ta.value = val;
+        ta.value = text;
         document.body.appendChild(ta);
         ta.select();
         document.execCommand('copy');
         ta.remove();
-        alert('Port kopiert: ' + val);
+        alert('Port(s) copied: ' + text);
       }
     }
 
@@ -1073,6 +1121,28 @@ Possible solutions:
       document.getElementById('copyPortBtn').addEventListener('click', copySelectedPort);
       document.getElementById('cleanupBtn').addEventListener('click', cleanupMeshDatabases);
 
+      // Select-all / deselect-all buttons
+      document.getElementById('selectAllPortsBtn').addEventListener('click', () => {
+        document.querySelectorAll('.port-item').forEach(item => {
+          const cb = item.querySelector('.port-check');
+          const deviceDiv = item.querySelector('.port-device');
+          if (cb && deviceDiv && !cb.checked) {
+            cb.checked = true;
+            _togglePortSelection(deviceDiv.textContent, item, cb, document.getElementById('portSelect'));
+          }
+        });
+      });
+      document.getElementById('deselectAllPortsBtn').addEventListener('click', () => {
+        document.querySelectorAll('.port-item').forEach(item => {
+          const cb = item.querySelector('.port-check');
+          const deviceDiv = item.querySelector('.port-device');
+          if (cb && deviceDiv && cb.checked) {
+            cb.checked = false;
+            _togglePortSelection(deviceDiv.textContent, item, cb, document.getElementById('portSelect'));
+          }
+        });
+      });
+
       // Auto preview/import toggle
       document.getElementById('autoPreview').addEventListener('change', (e)=>{
         const enabled = e.target.checked;
@@ -1095,8 +1165,7 @@ Possible solutions:
       // Run scan first, then preview after scan completes
       scanPorts().then(() => {
         // Check if a port was found and selected
-        const portSelect = document.getElementById('portSelect');
-        if (portSelect && portSelect.value) {
+        if (_selectedPorts.size > 0) {
           // Auto-preview if a port is available
           setTimeout(() => previewNodes(), 500);
         }

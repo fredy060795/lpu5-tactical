@@ -475,16 +475,17 @@ async def lifespan(application):
     except Exception as e:
         logger.error("Error stopping iTAK CoT bridge: %s", e)
 
-    # Stop gateway service
-    global _gateway_service
-    if _gateway_service:
+    # Stop gateway service(s)
+    global _gateway_services
+    for _gw_port, _gw_svc in list(_gateway_services.items()):
         try:
-            logger.info("Stopping gateway service...")
-            _gateway_service.stop()
-            _gateway_service = None
-            logger.info("✅ Gateway service stopped")
+            logger.info(f"Stopping gateway service on {_gw_port}...")
+            _gw_svc.stop()
+            logger.info(f"✅ Gateway service stopped on {_gw_port}")
         except Exception as e:
-            logger.error(f"Error stopping gateway service: {e}")
+            logger.error(f"Error stopping gateway service on {_gw_port}: {e}")
+    _gateway_services.clear()
+    _gateway_threads.clear()
 
     # Stop meshtastic sync thread
     try:
@@ -4979,7 +4980,10 @@ _active_meshtastic_port = None
 _meshtastic_connection_lock = threading.Lock()
 _meshtastic_port_operation_lock = threading.Lock()  # Lock for exclusive port operations (preview/import)
 
-# Global gateway service instance (runs in separate thread)
+# Global gateway service instances (one per port, runs in separate threads)
+_gateway_services: dict = {}   # port → MeshtasticGatewayService
+_gateway_threads: dict = {}    # port → threading.Thread
+# Keep deprecated aliases so any stale references return a falsy value safely
 _gateway_service = None
 _gateway_thread = None
 _gateway_service_lock = threading.Lock()
@@ -5086,7 +5090,7 @@ async def meshtastic_connect(data: dict = Body(...)):
     - Uses connection lock to prevent concurrent access
     - Properly closes any existing connection first
     """
-    global _active_meshtastic_connection, _active_meshtastic_port, _gateway_service
+    global _active_meshtastic_connection, _active_meshtastic_port, _gateway_services
     
     port = data.get("port")
     if not port:
@@ -5102,11 +5106,13 @@ async def meshtastic_connect(data: dict = Body(...)):
     # This prevents PermissionError when import_nodes.html tries to connect
     # to a port that the gateway service (started by meshtastic.html) holds open
     with _gateway_service_lock:
-        if _gateway_service and _gateway_service.running and _gateway_service.port == port:
+        svc = _gateway_services.get(port)
+        if svc and svc.running:
             logger.warning(f"[Port:{port}] Gateway service is running on this port — stopping it to allow direct connection")
             try:
-                _gateway_service.stop()
-                _gateway_service = None
+                svc.stop()
+                _gateway_services.pop(port, None)
+                _gateway_threads.pop(port, None)
                 logger.info(f"[Port:{port}] Gateway service stopped, waiting for OS to release port")
                 time.sleep(1.5)  # Wait for OS to release serial port (Windows needs ~1s)
             except Exception as e:
@@ -5422,12 +5428,13 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
             
             # Also check if gateway service is running on this port and stop it
             with _gateway_service_lock:
-                global _gateway_service
-                if _gateway_service and _gateway_service.running and _gateway_service.port == port:
+                svc = _gateway_services.get(port)
+                if svc and svc.running:
                     logger.warning(f"[Port:{port}] Gateway service is running on this port — stopping it for preview/import")
                     try:
-                        _gateway_service.stop()
-                        _gateway_service = None
+                        svc.stop()
+                        _gateway_services.pop(port, None)
+                        _gateway_threads.pop(port, None)
                         logger.info(f"[Port:{port}] Gateway service stopped for preview/import")
                     except Exception as e:
                         logger.error(f"[Port:{port}] Failed to stop gateway service: {e}")
@@ -5651,30 +5658,55 @@ def _build_nodes_from_serial(port: str, friendly_map: Dict[str, str], default_pa
 
 @app.post("/api/preview_meshtastic")
 def api_preview_meshtastic(data: dict = Body(...)):
-    port = (data.get("port") or data.get("device") or "unknown")
+    port_param = data.get("ports") or data.get("port") or data.get("device") or "unknown"
+    # Accept either a single port string or a list of ports
+    if isinstance(port_param, list):
+        ports = [p for p in port_param if p]
+    else:
+        ports = [port_param]
+    if not ports:
+        raise HTTPException(status_code=400, detail="At least one port must be provided")
+
     friendly_map = data.get("friendly_names") if isinstance(data.get("friendly_names"), dict) else {}
     default_pattern = data.get("default_name_pattern")
-    
-    # Use context manager for exclusive port operation lock
-    with PortOperationLock(port, "preview operation"):
-        try:
-            nodes, is_simulated = _build_nodes_from_serial(port, friendly_map, default_pattern, use_real_if_available=True)
-            
-            response = {
-                "status": "success",
-                "nodes": nodes,
-                "is_simulated": is_simulated,
-                "node_count": len(nodes),
-                "device_connected": not is_simulated,
-                "port": port
-            }
-            
-            logger.info(f"[Port:{port}] Preview completed: {len(nodes)} nodes found")
-            return response
-            
-        except Exception as e:
-            logger.exception(f"[Port:{port}] Preview failed: %s", e)
-            raise HTTPException(status_code=500, detail=f"Preview failed: {str(e)}")
+
+    all_nodes: list = []
+    seen_mesh_ids: set = set()
+    any_simulated = True
+    ports_info = []
+
+    for port in ports:
+        with PortOperationLock(port, "preview operation"):
+            try:
+                nodes, is_simulated = _build_nodes_from_serial(port, friendly_map, default_pattern, use_real_if_available=True)
+                if not is_simulated:
+                    any_simulated = False
+                added = 0
+                for node in nodes:
+                    mesh_id = node.get("mesh_id") or node.get("id")
+                    if mesh_id and mesh_id in seen_mesh_ids:
+                        continue
+                    if mesh_id:
+                        seen_mesh_ids.add(mesh_id)
+                    node["_source_port"] = port
+                    all_nodes.append(node)
+                    added += 1
+                ports_info.append({"port": port, "node_count": added, "is_simulated": is_simulated})
+                logger.info(f"[Port:{port}] Preview completed: {len(nodes)} nodes found ({added} unique)")
+            except Exception as e:
+                logger.exception(f"[Port:{port}] Preview failed: %s", e)
+                ports_info.append({"port": port, "error": "Preview failed for this port — check server logs"})
+
+    primary_port = ports[0] if len(ports) == 1 else ",".join(ports)
+    return {
+        "status": "success",
+        "nodes": all_nodes,
+        "is_simulated": any_simulated,
+        "node_count": len(all_nodes),
+        "device_connected": not any_simulated,
+        "port": primary_port,
+        "ports": ports_info,
+    }
 
 @app.post("/api/import_meshtastic")
 def api_import_meshtastic(data: dict = Body(...)):
@@ -5688,12 +5720,19 @@ def api_import_meshtastic(data: dict = Body(...)):
     - Only accesses port if no nodes provided
     - Properly closes connection after use
     """
-    port = (data.get("port") or data.get("device") or "unknown")
+    port_param = data.get("ports") or data.get("port") or data.get("device") or "unknown"
+    # Accept a single port string or a list of ports
+    if isinstance(port_param, list):
+        ports = [p for p in port_param if p]
+    else:
+        ports = [port_param]
+    # Primary port label for logging / backward compat fields
+    port = ports[0] if ports else "unknown"
     friendly_map = data.get("friendly_names") if isinstance(data.get("friendly_names"), dict) else {}
     default_pattern = data.get("default_name_pattern")
     provided_nodes = data.get("nodes") if isinstance(data.get("nodes"), list) else None
 
-    logger.info(f"[Port:{port}] Import request received (provided_nodes: {len(provided_nodes) if provided_nodes else 0})")
+    logger.info(f"[Port:{','.join(ports)}] Import request received (provided_nodes: {len(provided_nodes) if provided_nodes else 0})")
 
     try:
         nodes_db = load_json("meshtastic_nodes")
@@ -5810,18 +5849,27 @@ def api_import_meshtastic(data: dict = Body(...)):
             return node_rec
 
         # If nodes are provided (from preview), use them directly
-        # Otherwise, read from port (requires exclusive lock)
+        # Otherwise, read from each port (requires exclusive lock per port)
         if provided_nodes:
-            logger.info(f"[Port:{port}] Using {len(provided_nodes)} provided nodes (no port access needed)")
+            logger.info(f"[Port:{','.join(ports)}] Using {len(provided_nodes)} provided nodes (no port access needed)")
             nodes_to_import = [_normalize_node(r) for r in provided_nodes]
         else:
-            logger.info(f"[Port:{port}] No nodes provided, will read from port")
-            
-            # Use context manager for exclusive port operation lock
-            with PortOperationLock(port, "import operation"):
-                raw_nodes, _ = _build_nodes_from_serial(port, friendly_map, default_pattern, use_real_if_available=True)
-                nodes_to_import = [_normalize_node(n) for n in raw_nodes]
-                logger.info(f"[Port:{port}] Read {len(nodes_to_import)} nodes from port")
+            logger.info(f"[Port:{','.join(ports)}] No nodes provided, will read from port(s)")
+            seen_mesh_ids_import: set = set()
+            nodes_to_import = []
+            for _port in ports:
+                # Use context manager for exclusive port operation lock
+                with PortOperationLock(_port, "import operation"):
+                    raw_nodes, _ = _build_nodes_from_serial(_port, friendly_map, default_pattern, use_real_if_available=True)
+                    for _n in raw_nodes:
+                        _mid = _n.get("mesh_id") or _n.get("id")
+                        if _mid and _mid in seen_mesh_ids_import:
+                            continue
+                        if _mid:
+                            seen_mesh_ids_import.add(_mid)
+                        _n["_source_port"] = _port
+                        nodes_to_import.append(_normalize_node(_n))
+                    logger.info(f"[Port:{_port}] Read {len(raw_nodes)} nodes from port")
 
         for node_rec in nodes_to_import:
             mesh = node_rec.get("mesh_id")
@@ -8224,183 +8272,227 @@ def _gateway_broadcast_callback(event_type: str, data: Dict):
 @app.post("/api/gateway/start")
 async def gateway_start(data: dict = Body(...)):
     """
-    Start the Meshtastic Gateway Service
-    
+    Start the Meshtastic Gateway Service on one or more ports.
+
     Body:
-        port: COM port (e.g., "COM7", "/dev/ttyUSB0")
+        port: single COM port (e.g., "COM7", "/dev/ttyUSB0")  — OR —
+        ports: list of COM ports (e.g., ["COM7", "COM3"])
         auto_sync: Enable automatic sync (default: True)
         sync_interval: Sync interval in seconds (default: 300)
     """
     if not GATEWAY_SERVICE_AVAILABLE:
         raise HTTPException(status_code=501, detail="Gateway service not available - meshtastic/pyserial/pubsub required")
-    
-    global _gateway_service, _gateway_thread
-    
-    port = data.get("port")
-    if not port:
-        raise HTTPException(status_code=400, detail="Port is required")
-    
+
+    # Accept single port or list of ports
+    port_param = data.get("ports") or data.get("port")
+    if isinstance(port_param, list):
+        ports = [p for p in port_param if p]
+    elif port_param:
+        ports = [port_param]
+    else:
+        raise HTTPException(status_code=400, detail="'port' or 'ports' is required")
+
+    if not ports:
+        raise HTTPException(status_code=400, detail="At least one port must be provided")
+
     auto_sync = data.get("auto_sync", True)
     sync_interval = data.get("sync_interval", 300)
-    
+
+    results = []
     with _gateway_service_lock:
-        # Check if already running
-        if _gateway_service and _gateway_service.running:
-            return {
-                "status": "already_running",
-                "message": "Gateway service is already running",
-                "current_port": _gateway_service.port
-            }
-        
-        try:
-            # Create gateway service instance with broadcast callback
-            _gateway_service = MeshtasticGatewayService(
-                port, 
-                base_path=base_path,
-                broadcast_callback=_gateway_broadcast_callback
-            )
-            
-            # Start in background thread
-            def run_gateway():
-                success = _gateway_service.start(auto_sync=auto_sync, sync_interval=sync_interval)
-                if not success:
-                    logger.error("Gateway service failed to start")
-            
-            _gateway_thread = threading.Thread(target=run_gateway, daemon=True, name="GatewayServiceThread")
-            _gateway_thread.start()
-            
-            # Wait a bit to check if connection succeeded
-            time.sleep(2)
-            
-            if _gateway_service.stats["connected"]:
-                logger.info(f"Gateway service started on {port}")
-                
-                # Broadcast status update via WebSocket
-                if websocket_manager:
-                    try:
-                        asyncio.create_task(websocket_manager.broadcast({
-                            "type": "gateway_status",
-                            "status": "started",
-                            "port": port,
-                            "timestamp": datetime.now(timezone.utc).isoformat()
-                        }))
-                    except Exception as e:
-                        logger.warning(f"Failed to broadcast gateway status: {e}")
-                
-                return {
-                    "status": "success",
-                    "message": f"Gateway service started on {port}",
-                    "port": port,
-                    "auto_sync": auto_sync,
-                    "sync_interval": sync_interval
-                }
-            else:
-                _gateway_service = None
-                _gateway_thread = None
-                raise HTTPException(status_code=500, detail=f"Failed to connect to device on {port}")
-                
-        except Exception as e:
-            logger.error(f"Failed to start gateway service: {e}")
-            _gateway_service = None
-            _gateway_thread = None
-            raise HTTPException(status_code=500, detail=f"Failed to start gateway: {str(e)}")
+        for port in ports:
+            # Already running on this port?
+            if port in _gateway_services and _gateway_services[port].running:
+                results.append({"port": port, "status": "already_running", "message": f"Gateway service already running on {port}"})
+                continue
+
+            try:
+                svc = MeshtasticGatewayService(
+                    port,
+                    base_path=base_path,
+                    broadcast_callback=_gateway_broadcast_callback
+                )
+
+                def run_gateway(service=svc, p=port):
+                    success = service.start(auto_sync=auto_sync, sync_interval=sync_interval)
+                    if not success:
+                        logger.error(f"Gateway service on {p} failed to start")
+
+                t = threading.Thread(target=run_gateway, daemon=True, name=f"GatewayServiceThread-{port}")
+                t.start()
+
+                _gateway_services[port] = svc
+                _gateway_threads[port] = t
+
+                # Wait briefly to confirm connection
+                time.sleep(2)
+
+                if svc.stats["connected"]:
+                    logger.info(f"Gateway service started on {port}")
+                    results.append({"port": port, "status": "success", "message": f"Gateway service started on {port}"})
+                    # Broadcast status update
+                    if websocket_manager:
+                        try:
+                            asyncio.create_task(websocket_manager.broadcast({
+                                "type": "gateway_status",
+                                "status": "started",
+                                "port": port,
+                                "timestamp": datetime.now(timezone.utc).isoformat()
+                            }))
+                        except Exception as e:
+                            logger.warning(f"Failed to broadcast gateway status for {port}: {e}")
+                else:
+                    _gateway_services.pop(port, None)
+                    _gateway_threads.pop(port, None)
+                    results.append({"port": port, "status": "error", "message": f"Failed to connect to device on {port}"})
+
+            except Exception as e:
+                logger.error(f"Failed to start gateway service on {port}: {e}")
+                _gateway_services.pop(port, None)
+                _gateway_threads.pop(port, None)
+                results.append({"port": port, "status": "error", "message": f"Failed to start gateway on {port} — check server logs"})
+
+    successful = [r for r in results if r["status"] == "success"]
+    primary_port = ports[0] if ports else ""
+
+    if successful:
+        overall_status = "success"
+        overall_message = f"Gateway service(s) started on {', '.join(r['port'] for r in successful)}"
+    elif results and all(r["status"] == "already_running" for r in results):
+        overall_status = "already_running"
+        overall_message = results[0]["message"]
+    else:
+        overall_status = "error"
+        overall_message = results[0]["message"] if results else "No ports provided"
+
+    return {
+        "status": overall_status,
+        "message": overall_message,
+        "port": primary_port,
+        "ports": [r["port"] for r in successful],
+        "results": results,
+        "auto_sync": auto_sync,
+        "sync_interval": sync_interval,
+    }
 
 
 @app.post("/api/gateway/stop")
-async def gateway_stop():
-    """Stop the Meshtastic Gateway Service"""
+async def gateway_stop(data: Optional[dict] = Body(None)):
+    """Stop one or all Meshtastic Gateway Service instances.
+
+    Optional body:
+        port: specific port to stop (omit to stop all)
+    """
     if not GATEWAY_SERVICE_AVAILABLE:
         raise HTTPException(status_code=501, detail="Gateway service not available")
-    
-    global _gateway_service, _gateway_thread
-    
+
+    target_port = (data or {}).get("port") if data else None
+
     with _gateway_service_lock:
-        if not _gateway_service:
-            return {"status": "not_running", "message": "Gateway service is not running"}
-        
-        try:
-            port = _gateway_service.port
-            _gateway_service.stop()
-            
-            # Wait for thread to finish
-            if _gateway_thread and _gateway_thread.is_alive():
-                _gateway_thread.join(timeout=5)
-            
-            _gateway_service = None
-            _gateway_thread = None
-            
-            logger.info(f"Gateway service stopped")
-            
-            # Broadcast status update via WebSocket
-            if websocket_manager:
-                try:
-                    asyncio.create_task(websocket_manager.broadcast({
-                        "type": "gateway_status",
-                        "status": "stopped",
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    }))
-                except Exception as e:
-                    logger.warning(f"Failed to broadcast gateway status: {e}")
-            
-            return {
-                "status": "success",
-                "message": "Gateway service stopped",
-                "port": port
-            }
-        except Exception as e:
-            logger.error(f"Error stopping gateway service: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to stop gateway: {str(e)}")
+        if not _gateway_services:
+            return {"status": "not_running", "message": "No gateway services are running"}
+
+        stopped_ports = []
+        ports_to_stop = [target_port] if target_port else list(_gateway_services.keys())
+
+        for port in ports_to_stop:
+            svc = _gateway_services.get(port)
+            if not svc:
+                continue
+            try:
+                svc.stop()
+                t = _gateway_threads.get(port)
+                if t and t.is_alive():
+                    t.join(timeout=5)
+                _gateway_services.pop(port, None)
+                _gateway_threads.pop(port, None)
+                stopped_ports.append(port)
+                logger.info(f"Gateway service stopped on {port}")
+            except Exception as e:
+                logger.error(f"Error stopping gateway service on {port}: {e}")
+
+        if stopped_ports and websocket_manager:
+            try:
+                asyncio.create_task(websocket_manager.broadcast({
+                    "type": "gateway_status",
+                    "status": "stopped",
+                    "ports": stopped_ports,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }))
+            except Exception as e:
+                logger.warning(f"Failed to broadcast gateway status: {e}")
+
+        primary_port = stopped_ports[0] if stopped_ports else (target_port or "")
+        return {
+            "status": "success" if stopped_ports else "not_running",
+            "message": f"Gateway service(s) stopped on {', '.join(stopped_ports)}" if stopped_ports else f"No service running on {target_port}",
+            "port": primary_port,
+            "ports": stopped_ports,
+        }
 
 
 @app.get("/api/gateway/status")
 def gateway_status():
-    """Get current gateway service status"""
+    """Get current gateway service status (all active ports)"""
     if not GATEWAY_SERVICE_AVAILABLE:
         return {
             "available": False,
             "message": "Gateway service not available - meshtastic/pyserial/pubsub required"
         }
-    
+
     with _gateway_service_lock:
-        if not _gateway_service:
+        if not _gateway_services:
             return {
                 "available": True,
                 "running": False,
                 "connected": False,
-                "message": "Gateway service not started"
+                "message": "No gateway services running"
             }
-        
-        status = _gateway_service.get_status()
-        status["available"] = True
-        
-        # Calculate uptime
-        if status.get("uptime_start"):
-            try:
-                start_time = datetime.fromisoformat(status["uptime_start"].replace('Z', '+00:00'))
-                uptime_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
-                status["uptime_seconds"] = int(uptime_seconds)
-            except:
-                status["uptime_seconds"] = 0
-        
-        return status
+
+        all_status: dict = {}
+        for port, svc in _gateway_services.items():
+            s = svc.get_status()
+            if s.get("uptime_start"):
+                try:
+                    start_time = datetime.fromisoformat(s["uptime_start"].replace('Z', '+00:00'))
+                    s["uptime_seconds"] = int((datetime.now(timezone.utc) - start_time).total_seconds())
+                except Exception:
+                    s["uptime_seconds"] = 0
+            all_status[port] = s
+
+        # Backward-compat: expose top-level fields for the first (primary) service
+        first_port = next(iter(_gateway_services))
+        first_svc = _gateway_services[first_port]
+        first_status = all_status[first_port]
+        first_status["available"] = True
+
+        return {
+            **first_status,
+            "port": first_port,
+            "ports": all_status,
+        }
 
 
 @app.post("/api/gateway/sync")
 def gateway_sync():
-    """Trigger manual synchronization of all nodes"""
+    """Trigger manual synchronization of all nodes across all active gateway services"""
     if not GATEWAY_SERVICE_AVAILABLE:
         raise HTTPException(status_code=501, detail="Gateway service not available")
-    
+
     with _gateway_service_lock:
-        if not _gateway_service or not _gateway_service.running:
-            raise HTTPException(status_code=400, detail="Gateway service is not running")
-        
+        if not _gateway_services:
+            raise HTTPException(status_code=400, detail="No gateway services are running")
+
+        total_synced = 0
         try:
-            _gateway_service.full_sync()
+            for port, svc in _gateway_services.items():
+                if svc.running:
+                    svc.full_sync()
+                    total_synced += svc.stats.get("nodes_synced", 0)
             return {
                 "status": "success",
                 "message": "Manual sync completed",
-                "nodes_synced": _gateway_service.stats["nodes_synced"]
+                "nodes_synced": total_synced
             }
         except Exception as e:
             logger.error(f"Manual sync failed: {e}")
@@ -8517,44 +8609,41 @@ def gateway_messages(limit: int = 100):
 
 @app.post("/api/gateway/send-message")
 async def gateway_send_message(data: dict = Body(...)):
-    """Send a message via gateway service"""
+    """Send a message via gateway service (uses the first available active interface)"""
     if not GATEWAY_SERVICE_AVAILABLE:
         raise HTTPException(status_code=501, detail="Gateway service not available")
-    
+
     with _gateway_service_lock:
-        if not _gateway_service or not _gateway_service.running:
-            raise HTTPException(status_code=400, detail="Gateway service is not running")
-        
+        gw = next((s for s in _gateway_services.values() if s.running and s.interface), None)
+        if not gw:
+            raise HTTPException(status_code=400, detail="No gateway service with an active interface is running")
+
         text = data.get("text")
         if not text:
             raise HTTPException(status_code=400, detail="Message text is required")
-        
+
         try:
-            # Send via gateway's interface
-            if _gateway_service.interface:
-                _gateway_service.interface.sendText(text)
-                
-                logger.info(f"Message sent via gateway: {text[:50]}...")
-                
-                # Broadcast message via WebSocket
-                if websocket_manager:
-                    try:
-                        asyncio.create_task(websocket_manager.broadcast({
-                            "type": "gateway_message",
-                            "direction": "outgoing",
-                            "text": text,
-                            "timestamp": datetime.now(timezone.utc).isoformat()
-                        }))
-                    except Exception as e:
-                        logger.warning(f"Failed to broadcast message: {e}")
-                
-                return {
-                    "status": "success",
-                    "message": "Message sent",
-                    "text": text
-                }
-            else:
-                raise HTTPException(status_code=500, detail="Gateway interface not available")
+            gw.interface.sendText(text)
+
+            logger.info(f"Message sent via gateway: {text[:50]}...")
+
+            # Broadcast message via WebSocket
+            if websocket_manager:
+                try:
+                    asyncio.create_task(websocket_manager.broadcast({
+                        "type": "gateway_message",
+                        "direction": "outgoing",
+                        "text": text,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }))
+                except Exception as e:
+                    logger.warning(f"Failed to broadcast message: {e}")
+
+            return {
+                "status": "success",
+                "message": "Message sent",
+                "text": text
+            }
         except Exception as e:
             logger.error(f"Failed to send message via gateway: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
@@ -10621,8 +10710,8 @@ async def send_chat_message(message: Dict = Body(...), authorization: str = Head
         # Forward to Meshtastic mesh when the message is on the bridged channel
         if channel_id == MESH_CHAT_CHANNEL:
             with _gateway_service_lock:
-                gw = _gateway_service
-            if gw and gw.running and gw.interface:
+                gw = next((s for s in _gateway_services.values() if s.running and s.interface), None)
+            if gw:
                 try:
                     # Strip ASCII control characters before transmitting
                     safe_username = "".join(c for c in username if c >= " ")
