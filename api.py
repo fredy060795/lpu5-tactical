@@ -7064,7 +7064,7 @@ def _sync_user_to_tak_server(username: str, tak_password: str) -> dict:
     """Register a user on the OpenTAKServer (OTS) API if configured.
 
     Authenticates against the OTS admin API via ``POST /api/login``
-    and then creates the user via ``POST /api/users``.
+    and then creates the user via ``POST /api/user/add``.
 
     Returns a dict with either ``{"skipped": True}`` when management
     sync is disabled/unconfigured or ``{"success": True/False, ...}``.
@@ -7109,7 +7109,7 @@ def _ots_create_user(session: "requests.Session", mgmt_url: str, auth_headers: d
     Separated from ``_sync_user_to_tak_server`` so that batch operations can
     share one login session instead of authenticating once per user.
     """
-    api_endpoint = f"{mgmt_url}/api/users"
+    api_endpoint = f"{mgmt_url}/api/user/add"
     payload = {"username": username, "password": tak_password, "active": True}
     try:
         resp = session.post(
