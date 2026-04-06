@@ -9909,12 +9909,14 @@ def push_missing_to_tak(authorization: Optional[str] = Header(None), db: Session
     - failed: number of markers that could not be converted or sent.
     - total_missing: total LPU5-only markers considered for pushing.
     """
+    payload: Dict[str, Any] = {}
     if PERMISSIONS_AVAILABLE:
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Authentication required")
         payload = verify_token(authorization.split(" ")[1])
         if payload is None:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
+        payload = payload or {}
 
     if not AUTONOMOUS_MODULES_AVAILABLE:
         raise HTTPException(status_code=501, detail="CoT protocol module not available")
