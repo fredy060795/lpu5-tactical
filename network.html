@@ -771,13 +771,13 @@
             </div>
 
             <div style="margin-top:6px; font-size:0.8em; color:var(--text-dim);">
-                <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the TAK management server via <code>POST &lt;URL&gt;/user-management/api/v1/user/</code> (falls back to <code>PUT</code> if the server returns 405).
+                <i class="fas fa-info-circle"></i> When enabled, each approved user is automatically created on the OpenTAKServer (OTS) via <code>POST &lt;URL&gt;/api/users</code> using token-based authentication (<code>POST &lt;URL&gt;/api/users/login</code>).
             </div>
 
             <div style="margin-top:8px; font-size:0.8em; color:var(--text-dim); background:rgba(255,193,7,0.08); border:1px solid rgba(255,193,7,0.25); border-radius:4px; padding:8px;">
                 <i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i>
-                <strong>Nginx reverse proxy:</strong> If your TAK server runs behind nginx (e.g.&nbsp;port&nbsp;8446 instead of the old default 5000), you must add a <code>/user-management</code> location to the nginx config so the management API is reachable:
-                <pre style="background:#1a1a2e;color:#e0e0e0;padding:6px 8px;border-radius:4px;margin:6px 0 0;overflow-x:auto;font-size:0.9em;">location /user-management {
+                <strong>Nginx reverse proxy:</strong> If your OTS runs behind nginx (e.g.&nbsp;port&nbsp;8446), you must add a <code>/api</code> location to the nginx config so the OTS API is reachable:
+                <pre style="background:#1a1a2e;color:#e0e0e0;padding:6px 8px;border-radius:4px;margin:6px 0 0;overflow-x:auto;font-size:0.9em;">location /api {
     proxy_pass http://127.0.0.1:8081;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
