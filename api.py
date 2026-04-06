@@ -1293,6 +1293,19 @@ def _build_lpu5_sa_xml() -> str:
     )
 
 
+def _throttled_forward_warn(conn_type: str, host: str, port: int, reason: str) -> None:
+    """Emit a CoT-forward failure WARNING at most once per _TAK_FORWARD_WARN_INTERVAL seconds."""
+    key = f"{conn_type}:{host}:{port}"
+    now = time.monotonic()
+    last = _TAK_FORWARD_WARN_TIMES.get(key, 0.0)
+    if now - last >= _TAK_FORWARD_WARN_INTERVAL:
+        _TAK_FORWARD_WARN_TIMES[key] = now
+        logger.warning(
+            "CoT %s forward to TAK server %s:%s failed: %s (further failures suppressed for %ss)",
+            conn_type.upper(), host, port, reason, int(_TAK_FORWARD_WARN_INTERVAL),
+        )
+
+
 def forward_cot_to_tak(cot_xml: str) -> bool:
     """
     Forward a CoT XML string to the configured ATAK/TAK server.
@@ -1353,10 +1366,10 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
                     sock.sendall(auth_data)
                 sock.sendall(data)
             except socket.timeout:
-                logger.warning("CoT TCP forward to TAK server %s:%s timed out", host, port)
+                _throttled_forward_warn("tcp", host, port, "timed out")
                 return False
             except (socket.gaierror, ConnectionRefusedError, OSError) as e:
-                logger.warning("CoT TCP forward to TAK server %s:%s failed: %s", host, port, e)
+                _throttled_forward_warn("tcp", host, port, str(e))
                 return False
             finally:
                 sock.close()
@@ -1371,21 +1384,17 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
                     sock.sendall(auth_data)
                 sock.sendall(data)
             except socket.timeout:
-                logger.warning("CoT SSL forward to TAK server %s:%s timed out", host, port)
+                _throttled_forward_warn("ssl", host, port, "timed out")
                 return False
             except (socket.gaierror, ConnectionRefusedError, ssl.SSLError, OSError) as e:
                 if isinstance(e, ssl.SSLError) and "CERTIFICATE_REQUIRED" in str(e).upper():
-                    logger.warning(
-                        "CoT SSL forward to %s:%s failed – the server requires a client certificate "
-                        "(TLSV13_ALERT_CERTIFICATE_REQUIRED). "
-                        "For WinTAK/ATAK running on the same machine use connection type 'tcp' with "
-                        "port 8087 (no certificate needed). "
-                        "For remote SSL servers configure tak_client_cert_path / tak_client_key_path "
-                        "in the TAK Server settings.",
-                        host, port,
+                    _throttled_forward_warn(
+                        "ssl", host, port,
+                        "server requires a client certificate (TLSV13_ALERT_CERTIFICATE_REQUIRED). "
+                        "Configure tak_client_cert_path / tak_client_key_path in TAK Server settings.",
                     )
                 else:
-                    logger.warning("CoT SSL forward to TAK server %s:%s failed: %s", host, port, e)
+                    _throttled_forward_warn("ssl", host, port, str(e))
                 return False
             finally:
                 sock.close()
@@ -1407,6 +1416,8 @@ def forward_cot_to_tak(cot_xml: str) -> bool:
         logger.info("Forwarded CoT to TAK server %s:%s (%s, %d bytes)", host, port, conn_type, len(data))
         with _TAK_RECEIVER_STATS_LOCK:
             _TAK_RECEIVER_STATS["packets_sent"] += 1
+        # Clear throttle so a subsequent failure is logged immediately
+        _TAK_FORWARD_WARN_TIMES.pop(f"{conn_type}:{host}:{port}", None)
         return True
     except Exception as e:
         logger.warning("Failed to forward CoT to TAK server: %s", e)
@@ -1761,6 +1772,12 @@ _TAK_INCOMING_CACHE_LOCK = threading.Lock()
 # Only changed markers are re-sent during each sync cycle.
 _TAK_FORWARD_CACHE: Dict[str, tuple] = {}
 _TAK_FORWARD_CACHE_LOCK = threading.Lock()
+
+# Rate-limit repeated "connection refused / timed out" warnings in
+# forward_cot_to_tak so a downed TAK server does not flood the log.
+# Key: "{conn_type}:{host}:{port}", Value: last warning timestamp (float).
+_TAK_FORWARD_WARN_TIMES: Dict[str, float] = {}
+_TAK_FORWARD_WARN_INTERVAL = 60.0  # seconds between repeated warnings
 
 
 # ---------------------------------------------------------------------------
