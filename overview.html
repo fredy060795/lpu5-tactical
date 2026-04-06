@@ -772,16 +772,16 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 54px;
+      /* Base height 54px + extra space for device status bar (safe-area-inset-top) */
+      height: calc(54px + env(safe-area-inset-top));
       background: rgba(0, 0, 0, 0.82);
       z-index: 6010;
       display: flex;
       align-items: center;
-      padding: 0 10px;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: 0;
       padding-left: max(10px, env(safe-area-inset-left));
       padding-right: max(10px, env(safe-area-inset-right));
-      padding-top: env(safe-area-inset-top);
-      height: calc(54px + env(safe-area-inset-top));
       gap: 8px;
       color: #fff;
       font-size: 0.75rem;
