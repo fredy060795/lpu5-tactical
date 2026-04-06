@@ -6978,7 +6978,7 @@ def _ots_get_auth_headers(session: "requests.Session", mgmt_url: str, mgmt_user:
     try:
         resp = session.post(
             login_endpoint,
-            params={"include_auth_token": ""},
+            params={"include_auth_token": "true"},
             json={"username": mgmt_user, "password": mgmt_pass},
             verify=False,
             timeout=10,
@@ -7654,11 +7654,11 @@ def api_tak_logins_add(data: dict = Body(...), db: Session = Depends(get_db)):
     if added:
         settings = _get_tak_login_settings()
         if not settings.get("mgmt_enabled"):
-            sync_results = [{"skipped": True, "reason": "TAK management sync not enabled"}] * len(added)
+            sync_results = [{"skipped": True, "reason": "TAK management sync not enabled"} for _ in added]
         else:
             mgmt_url = (settings.get("mgmt_url") or "").strip().rstrip("/")
             if not mgmt_url:
-                sync_results = [{"skipped": True, "reason": "No management URL configured"}] * len(added)
+                sync_results = [{"skipped": True, "reason": "No management URL configured"} for _ in added]
             else:
                 if not mgmt_url.startswith(("http://", "https://")):
                     mgmt_url = f"https://{mgmt_url}"
@@ -7672,7 +7672,8 @@ def api_tak_logins_add(data: dict = Body(...), db: Session = Depends(get_db)):
                         if auth_headers is None:
                             sync_results = [
                                 {"success": False, "error": "OTS login failed – check admin credentials"}
-                            ] * len(added)
+                                for _ in added
+                            ]
                         else:
                             for entry in added:
                                 result = _ots_create_user(
@@ -7681,7 +7682,7 @@ def api_tak_logins_add(data: dict = Body(...), db: Session = Depends(get_db)):
                                 )
                                 sync_results.append(result)
                 except Exception as exc:
-                    sync_results = [{"success": False, "error": str(exc)}] * len(added)
+                    sync_results = [{"success": False, "error": str(exc)} for _ in added]
 
     return {"status": "success", "added": len(added), "entries": added, "tak_sync": sync_results, "users_created": len(users_created)}
 
