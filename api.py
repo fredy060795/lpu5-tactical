@@ -5695,7 +5695,7 @@ def api_preview_meshtastic(data: dict = Body(...)):
                 logger.info(f"[Port:{port}] Preview completed: {len(nodes)} nodes found ({added} unique)")
             except Exception as e:
                 logger.exception(f"[Port:{port}] Preview failed: %s", e)
-                ports_info.append({"port": port, "error": str(e)})
+                ports_info.append({"port": port, "error": "Preview failed for this port — check server logs"})
 
     primary_port = ports[0] if len(ports) == 1 else ",".join(ports)
     return {
@@ -8350,13 +8350,24 @@ async def gateway_start(data: dict = Body(...)):
                 logger.error(f"Failed to start gateway service on {port}: {e}")
                 _gateway_services.pop(port, None)
                 _gateway_threads.pop(port, None)
-                results.append({"port": port, "status": "error", "message": str(e)})
+                results.append({"port": port, "status": "error", "message": f"Failed to start gateway on {port} — check server logs"})
 
     successful = [r for r in results if r["status"] == "success"]
     primary_port = ports[0] if ports else ""
+
+    if successful:
+        overall_status = "success"
+        overall_message = f"Gateway service(s) started on {', '.join(r['port'] for r in successful)}"
+    elif results and all(r["status"] == "already_running" for r in results):
+        overall_status = "already_running"
+        overall_message = results[0]["message"]
+    else:
+        overall_status = "error"
+        overall_message = results[0]["message"] if results else "No ports provided"
+
     return {
-        "status": "success" if successful else ("already_running" if all(r["status"] == "already_running" for r in results) else "error"),
-        "message": f"Gateway service(s) started on {', '.join(r['port'] for r in successful)}" if successful else results[0]["message"],
+        "status": overall_status,
+        "message": overall_message,
         "port": primary_port,
         "ports": [r["port"] for r in successful],
         "results": results,
