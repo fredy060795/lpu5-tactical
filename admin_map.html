@@ -1087,7 +1087,7 @@
   </div>
 
   <!-- Compass -->
-  <div id="mapCompass" title="Kompass · Klick = Nord · Vertikal ziehen = Neigung · Horizontal ziehen = Drehung">
+  <div id="mapCompass" title="Kompass – Klick = Nord – Vertikal ziehen = Neigung – Horizontal ziehen = Drehung">
     <svg id="compassNeedle" viewBox="0 0 24 24" width="22" height="22">
       <path d="M12 2 L14 11 L12 13 L10 11 Z" fill="#e74c3c"/>
       <path d="M12 22 L14 13 L12 11 L10 13 Z" fill="#eee"/>
@@ -4118,6 +4118,7 @@
           let _compassPitch0   = 0;
           let _compassBearing0 = 0;
           let _compassDragAxis = null; // 'x' (bearing) or 'y' (pitch)
+          const MIN_DRAG_PX    = 4;   // px before drag vs. click is distinguished
 
           compassEl.addEventListener('pointerdown', function(e) {
             e.preventDefault();
@@ -4134,7 +4135,7 @@
             const dx = e.clientX - _compassDragX;
             const dy = _compassDragY - e.clientY; // drag up → higher pitch
             _compassDragDist = Math.sqrt(dx * dx + dy * dy);
-            if (_compassDragDist < 3) return;
+            if (_compassDragDist < MIN_DRAG_PX) return;
 
             // Lock drag axis on first significant movement
             if (!_compassDragAxis) {
@@ -4157,7 +4158,7 @@
           // If movement was negligible → treat as click (toggle rotate / reset north)
           compassEl.addEventListener('pointerup', function() {
             _compassDragAxis = null;
-            if (_compassDragDist < 4) {
+            if (_compassDragDist < MIN_DRAG_PX) {
               // click behaviour
               _rotateActive = !_rotateActive;
               compassEl.classList.toggle('active', _rotateActive);

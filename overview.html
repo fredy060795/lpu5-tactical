@@ -2635,6 +2635,7 @@
     (function () {
       const btn = document.getElementById('tsb-compass');
       if (!btn) return;
+      const MIN_DRAG_PX   = 5; // px before drag vs. tap is distinguished
       let _dragging  = false;
       let _startX    = 0;
       let _startY    = 0;
@@ -2660,7 +2661,7 @@
         const dx = e.clientX - _startX;
         const dy = _startY - e.clientY; // up = positive
         _dragDist = Math.sqrt(dx * dx + dy * dy);
-        if (_dragDist < 5) return;
+        if (_dragDist < MIN_DRAG_PX) return;
 
         if (!_axis) {
           _axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
@@ -2682,8 +2683,8 @@
       btn.addEventListener('pointerup', function (e) {
         _dragging = false;
         _axis = null;
-        // Small movement = click → toggle compass lock
-        if (_dragDist < 5) {
+        // Small movement = tap/click → toggle compass lock
+        if (_dragDist < MIN_DRAG_PX) {
           handleToolInteraction(toggleCompassLock, e);
         }
       });
