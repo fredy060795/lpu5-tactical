@@ -14986,6 +14986,7 @@ window.addEventListener('storage', (e) => {
 
       // ---------------- Overlay editor (rotation hidden) ----------------
       let currentOverlayEdit = null;
+      let _overlayMoveCleanup = null;
       function openOverlayEditor(id) {
         closeOverlayEditor();
         const obj = overlays.find(o => o.id === id);
@@ -14998,7 +14999,7 @@ window.addEventListener('storage', (e) => {
         <div><strong>${escapeHtml(obj.name || obj.id)}</strong></div>
         <div style="font-size:.85rem;color:#999;margin-bottom:8px">by ${escapeHtml(obj.creator || 'unknown')}</div>
 
-        <label>Move: Click "Move" and click target position on map</label>
+        <label>Move: Click "Move", then hold and drag on the map</label>
         <div style="display:flex; gap:8px; margin-bottom:8px;">
           <button id="ovMoveBtn" class="btn ghost">Move</button>
           <button id="ovCenterBtn" class="btn ghost">Center on Map</button>
@@ -15069,7 +15070,41 @@ window.addEventListener('storage', (e) => {
 
         document.getElementById('ovReplaceFile').addEventListener('change', (ev) => { const f = ev.target.files && ev.target.files[0]; if (!f) return; currentOverlayEdit.file = f; panel.querySelector('#ovEditorMsg').textContent = `New file: ${f.name} (will be applied on save)`; });
 
-        document.getElementById('ovMoveBtn').addEventListener('click', () => { panel.querySelector('#ovEditorMsg').textContent = 'Now click on the map to move overlay.'; const moveHandler = function (ev) { const o = overlays.find(x => x.id === currentOverlayEdit.id); if (!o) { map.off('click', moveHandler); return; } const oldBounds = o.overlay.getBounds(); const latSpan2 = Math.abs(oldBounds.getNorth() - oldBounds.getSouth()); const lngSpan2 = Math.abs(oldBounds.getEast() - oldBounds.getWest()); const c = ev.latlng; const newBounds = [[c.lat - latSpan2 / 2, c.lng - lngSpan2 / 2], [c.lat + latSpan2 / 2, c.lng + lngSpan2 / 2]]; o.overlay.setBounds(newBounds); currentOverlayEdit.tempBounds = newBounds; panel.querySelector('#ovEditorMsg').textContent = 'Overlay moved (not saved yet).'; map.off('click', moveHandler); ensureMapVisible(); }; map.once('click', moveHandler); });
+        document.getElementById('ovMoveBtn').addEventListener('click', () => {
+          const btn = document.getElementById('ovMoveBtn');
+          const msgEl = panel.querySelector('#ovEditorMsg');
+          if (btn.classList.contains('active')) {
+            if (_overlayMoveCleanup) { _overlayMoveCleanup(); _overlayMoveCleanup = null; }
+            msgEl.textContent = 'Move cancelled.';
+            return;
+          }
+          btn.classList.add('active');
+          map.dragging.disable();
+          map.getContainer().style.cursor = 'grab';
+          msgEl.textContent = 'Hold mouse button and drag on the map to move overlay.';
+          let isDragging = false;
+          const onMoveMouseDown = function() { isDragging = true; map.getContainer().style.cursor = 'grabbing'; };
+          const onMoveMouseMove = function(ev) {
+            if (!isDragging) return;
+            const o = overlays.find(x => x.id === currentOverlayEdit.id); if (!o) return;
+            const oldBounds = o.overlay.getBounds();
+            const latSpan2 = Math.abs(oldBounds.getNorth() - oldBounds.getSouth());
+            const lngSpan2 = Math.abs(oldBounds.getEast() - oldBounds.getWest());
+            const c = ev.latlng;
+            const newBounds = [[c.lat - latSpan2 / 2, c.lng - lngSpan2 / 2], [c.lat + latSpan2 / 2, c.lng + lngSpan2 / 2]];
+            o.overlay.setBounds(newBounds); currentOverlayEdit.tempBounds = newBounds;
+          };
+          const onMoveMouseUp = function() {
+            if (!isDragging) return; isDragging = false;
+            if (_overlayMoveCleanup) { _overlayMoveCleanup(); _overlayMoveCleanup = null; }
+            msgEl.textContent = 'Overlay moved (not saved yet).'; ensureMapVisible();
+          };
+          _overlayMoveCleanup = function() {
+            map.off('mousedown', onMoveMouseDown); map.off('mousemove', onMoveMouseMove); map.off('mouseup', onMoveMouseUp);
+            map.dragging.enable(); map.getContainer().style.cursor = ''; btn.classList.remove('active');
+          };
+          map.on('mousedown', onMoveMouseDown); map.on('mousemove', onMoveMouseMove); map.on('mouseup', onMoveMouseUp);
+        });
 
         document.getElementById('ovCenterBtn').addEventListener('click', () => { const o = overlays.find(x => x.id === currentOverlayEdit.id); if (!o) return; map.setView(o.overlay.getBounds().getCenter(), Math.max(map.getZoom(), 16)); });
 
@@ -15144,7 +15179,7 @@ window.addEventListener('storage', (e) => {
         document.getElementById('ovReenableBtn').addEventListener('click', () => { closeOverlayEditor(); });
       }
 
-      function closeOverlayEditor() { const ex = document.getElementById('overlayEditorPanel'); if (ex) ex.remove(); currentOverlayEdit = null; }
+      function closeOverlayEditor() { if (_overlayMoveCleanup) { _overlayMoveCleanup(); _overlayMoveCleanup = null; } const ex = document.getElementById('overlayEditorPanel'); if (ex) ex.remove(); currentOverlayEdit = null; }
 
       // ---------------- Drawing ----------------
       let drawing = false, drawingPoints = [], drawingLine = null;
