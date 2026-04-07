@@ -2592,7 +2592,7 @@
       position: fixed;
       left: calc(var(--sb-collapsed) + 10px);
       top: 120px; /* below MapLibre zoom control */
-      z-index: 1000;
+      z-index: 999; /* below sidebar (1000) so sidebar covers it when expanded */
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -2661,7 +2661,7 @@
       position: fixed;
       left: calc(var(--sb-collapsed) + 10px);
       top: 230px; /* below pitch slider */
-      z-index: 1000;
+      z-index: 999; /* below sidebar (1000) so sidebar covers it when expanded */
       width: 36px;
       height: 36px;
       border-radius: 50%;
@@ -2683,7 +2683,7 @@
       position: fixed;
       left: calc(var(--sb-collapsed) + 10px);
       top: 268px;
-      z-index: 1000;
+      z-index: 999; /* below sidebar (1000) so sidebar covers it when expanded */
       color: #bbb;
       font-size: 8px;
       text-align: center;
@@ -18135,11 +18135,13 @@ window.addEventListener('storage', (e) => {
           });
         }
 
-        _mlMap.on('pitch', function() {
+        function _syncPitchUI() {
           const pitch = _mlMap.getPitch();
           if (slider) slider.value = Math.round(pitch);
           updateThumb(pitch);
-        });
+        }
+        _mlMap.on('pitch', _syncPitchUI);
+        _mlMap.on('pitchend', _syncPitchUI);
       }());
 
       // ── Compass ─────────────────────────────────────────────────────────
@@ -18150,7 +18152,7 @@ window.addEventListener('storage', (e) => {
         let _rotateActive = false;
 
         function updateCompassDisplay(bearing) {
-          if (needleEl) needleEl.style.transform = 'rotate(' + bearing + 'deg)';
+          if (needleEl) needleEl.style.transform = 'rotate(' + (-bearing) + 'deg)';
           if (degTextEl) {
             const dirs = ['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];
             const idx = Math.round(((bearing % 360) + 360) % 360 / 22.5) % 16;
