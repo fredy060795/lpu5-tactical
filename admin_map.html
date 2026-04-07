@@ -1605,10 +1605,19 @@
       const _origOff = mlMap.off.bind(mlMap);
       const _origOnce = mlMap.once.bind(mlMap);
       const _wrapHandlers = new Map();
+      function _haversineDist(a, b) {
+        const R = 6371000, toRad = d => d * Math.PI / 180;
+        const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+        const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+      }
+      function _mkLatLng(lat, lng) {
+        return { lat, lng, distanceTo: function(other) { return _haversineDist(this, other); } };
+      }
       function _wrapH(fn) {
         if (!fn || fn._latlngWrapped) return fn;
         const w = function(e) {
-          if (e && e.lngLat && !e.latlng) e.latlng = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+          if (e && e.lngLat && !e.latlng) e.latlng = _mkLatLng(e.lngLat.lat, e.lngLat.lng);
           return fn.call(this, e);
         };
         w._latlngWrapped = true; fn._mlWrapped = w;
