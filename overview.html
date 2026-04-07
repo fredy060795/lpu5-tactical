@@ -1314,28 +1314,28 @@
     }
 
     const SYMBOLS = {
-      hostile: getMilSymbolSvg('SHGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
-      friendly: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
-      neutral: getMilSymbolSvg('SNGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
-      unknown: getMilSymbolSvg('SUGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
+      hostile: getMilSymbolSvg('SHGPU----------', 26) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
+      friendly: getMilSymbolSvg('SFGPU----------', 26) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
+      neutral: getMilSymbolSvg('SNGPU----------', 26) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
+      unknown: getMilSymbolSvg('SUGPU----------', 26) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
       marker: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>',
-      pending: getMilSymbolSvg('SPGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>',
+      pending: getMilSymbolSvg('SPGPU----------', 26) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>',
       // tak_maker: ATAK SA / GPS position markers rendered as cyan circle with callsign abbreviation (like meshtastic_node)
-      tak_maker: '<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="#1a1a1a" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">?</text></svg>',
+      tak_maker: '<svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="#1a1a1a" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">?</text></svg>',
       // Meshtastic node types rendered as cyan circle with shortName
-      meshtastic_node: '<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
-      node: '<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
-      gateway: '<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
-      gps_position: '<svg viewBox="0 0 32 32" width="35" height="35"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>',
-      cbt_hostile: getMilSymbolSvg('SHGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
-      cbt_friendly: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
-      cbt_neutral: getMilSymbolSvg('SNGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
-      cbt_unknown: getMilSymbolSvg('SUGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
+      meshtastic_node: '<svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
+      node: '<svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
+      gateway: '<svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
+      gps_position: '<svg viewBox="0 0 32 32" width="26" height="26"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+      cbt_hostile: getMilSymbolSvg('SHGPU----------', 26) || '<svg viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
+      cbt_friendly: getMilSymbolSvg('SFGPU----------', 26) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
+      cbt_neutral: getMilSymbolSvg('SNGPU----------', 26) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
+      cbt_unknown: getMilSymbolSvg('SUGPU----------', 26) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
       // CBT shape symbols
-      cbt_raute: getMilSymbolSvg('SHGPU----------', 35) || '<svg viewBox="0 0 100 100" width="35" height="35"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
-      cbt_rechteck: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100" width="35" height="35"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
-      cbt_quadrat: getMilSymbolSvg('SNGPU----------', 35) || '<svg viewBox="0 0 100 100" width="35" height="35"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
-      cbt_blume: getMilSymbolSvg('SUGPU----------', 35) || '<svg viewBox="0 0 100 100" width="35" height="35"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>'
+      cbt_raute: getMilSymbolSvg('SHGPU----------', 26) || '<svg viewBox="0 0 100 100" width="26" height="26"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>',
+      cbt_rechteck: getMilSymbolSvg('SFGPU----------', 26) || '<svg viewBox="0 0 100 100" width="26" height="26"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
+      cbt_quadrat: getMilSymbolSvg('SNGPU----------', 26) || '<svg viewBox="0 0 100 100" width="26" height="26"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
+      cbt_blume: getMilSymbolSvg('SUGPU----------', 26) || '<svg viewBox="0 0 100 100" width="26" height="26"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>'
     };
 
     // Team name → hex color mapping for ATAK SA markers (tak_maker).
@@ -1372,7 +1372,7 @@
       // Round circle with short callsign inside and team color fill (like node/meshtastic).
       // MilSymbol is intentionally skipped so the team color always takes precedence
       // over the standard MIL-STD affiliation color (friendly = blue).
-      return `<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="${color}" stroke="#333" stroke-width="4"/><text x="50" y="50" font-size="28" fill="${textColor}" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="sans-serif">${label}</text></svg>`;
+      return `<svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="${color}" stroke="#333" stroke-width="4"/><text x="50" y="50" font-size="28" fill="${textColor}" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="sans-serif">${label}</text></svg>`;
     }
 
     // Replace toolbar button icons with real MilSymbol SVGs at runtime so the
@@ -1477,7 +1477,7 @@
                   'display:flex;align-items:center;justify-content:center;font-size:14px;' +
                   'box-shadow:0 0 8px ' + color + '66;cursor:pointer" title="' + (data.title||'').replace(/"/g,'&quot;') + '">' +
                   '<i class="fas ' + iconClass + '" style="color:' + color + '"></i></div>',
-            iconSize: [32, 32], iconAnchor: [16, 16]
+            iconSize: [24, 24], iconAnchor: [12, 12]
           });
           window.L.marker([data.lat, data.lon], { icon: icon })
             .bindPopup('<b style="color:' + color + '">' + (data.title||'Intel') + '</b><br>' +
@@ -2704,8 +2704,8 @@
         icon: L.divIcon({
           className: 'gps-marker-arrow',
           html: createGpsArrowIconHtml('#007bff'),
-          iconSize: [50, 50],
-          iconAnchor: [25, 25]
+          iconSize: [38, 38],
+          iconAnchor: [19, 19]
         }),
         pane: 'gpsPane'
       }).addTo(map).bindPopup('GPS Position (Manual)', { closeButton: true });
@@ -2739,9 +2739,9 @@
       addPendingLocal(pending);
       const icon = L.divIcon({
         className: 'pending-marker',
-        html: `<div class="pending-icon" style="width:45px;height:45px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[pending.name] || SYMBOLS.hostile}</div>`,
-        iconSize: [45, 45],
-        iconAnchor: [23, 23]
+        html: `<div class="pending-icon" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[pending.name] || SYMBOLS.hostile}</div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
       });
       const layer = L.marker([pending.lat, pending.lng], { icon, pane: 'pendingPane' }).addTo(map);
       layer._cid = cid;
@@ -2777,9 +2777,9 @@
         if (pendingLayers.has(p._cid)) continue;
         const icon = L.divIcon({
           className: 'pending-marker',
-          html: `<div class="pending-icon" style="width:45px;height:45px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[p.name] || SYMBOLS.hostile}</div>`,
-          iconSize: [45, 45],
-          iconAnchor: [23, 23]
+          html: `<div class="pending-icon" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;">${SYMBOLS[p.name] || SYMBOLS.hostile}</div>`,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
         });
         const layer = L.marker([p.lat, p.lng], { icon, pane: 'pendingPane' }).addTo(map);
         layer._cid = p._cid;
@@ -3078,16 +3078,16 @@
             // Other users' GPS positions shown as Meshtastic node icons.
             // Own GPS position is already excluded above and shown locally as a GPS arrow.
             iconHtml = SYMBOLS.meshtastic_node;
-            iconHtml = `<div style="width:40px;height:40px;">${iconHtml}</div>`;
+            iconHtml = `<div style="width:30px;height:30px;">${iconHtml}</div>`;
           } else {
             iconHtml = SYMBOLS[symType] || SYMBOLS[s.label] || SYMBOLS.hostile;
-            iconHtml = `<div style="width:40px;height:40px;">${iconHtml}</div>`;
+            iconHtml = `<div style="width:30px;height:30px;">${iconHtml}</div>`;
           }
           const icon = L.divIcon({
             className: 'server-symbol',
             html: iconHtml,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
           });
           const marker = L.marker([s.lat, s.lng], { icon, pane: 'drawPane' }).addTo(map);
 
@@ -3245,7 +3245,7 @@
 
           // Build cyan circle icon for Meshtastic node with shortName (max 4 chars)
           const iconLabel = _escapeHtml((shortName || '').substring(0, 4)) || 'M';
-          const iconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${iconLabel}</text></svg></div>`;
+          const iconHtml = `<div style="width:26px;height:26px;"><svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${iconLabel}</text></svg></div>`;
 
           // Update existing marker or create new
           if (meshtasticMarkers.has(mesh)) {
@@ -3256,8 +3256,8 @@
             const newIcon = L.divIcon({
               className: 'meshtastic-marker',
               html: iconHtml,
-              iconSize: [35, 35],
-              iconAnchor: [18, 18]
+              iconSize: [26, 26],
+              iconAnchor: [14, 14]
             });
             entry.marker.setIcon(newIcon);
 
@@ -3268,8 +3268,8 @@
             const icon = L.divIcon({
               className: 'meshtastic-marker',
               html: iconHtml,
-              iconSize: [35, 35],
-              iconAnchor: [18, 18]
+              iconSize: [26, 26],
+              iconAnchor: [14, 14]
             });
 
             const marker = L.marker([lat, lng], {
@@ -3396,7 +3396,7 @@
 
     function createGpsArrowIconHtml(color) {
       const safeColor = /^[#a-zA-Z0-9().,% ]+$/.test(color) ? color : '#007bff';
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${safeColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="24" height="24"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="${safeColor}" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
     }
 
     // Rotate GPS marker arrow to reflect actual device heading
@@ -3474,8 +3474,8 @@
               icon: L.divIcon({
                 className: 'gps-marker-arrow',
                 html: createGpsArrowIconHtml('#007bff'),
-                iconSize: [50, 50],
-                iconAnchor: [25, 25]
+                iconSize: [38, 38],
+                iconAnchor: [19, 19]
               }),
               pane: 'gpsPane'
             }).addTo(map).bindPopup('GPS Position (Auto-tracking)', {
@@ -3543,8 +3543,8 @@
           icon: L.divIcon({
             className: 'gps-marker-arrow',
             html: createGpsArrowIconHtml('#007bff'),
-            iconSize: [50, 50],
-            iconAnchor: [25, 25]
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
           }),
           pane: 'gpsPane'
         }).addTo(map).bindPopup('GPS Position (Manual)', {
@@ -3586,8 +3586,8 @@
           icon: L.divIcon({
             className: 'gps-marker-arrow',
             html: createGpsArrowIconHtml('#007bff'),
-            iconSize: [50, 50],
-            iconAnchor: [25, 25]
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
           }),
           pane: 'gpsPane'
         }).addTo(map).bindPopup('GPS Position', {
@@ -3642,8 +3642,8 @@
             icon: L.divIcon({
               className: 'gps-marker-arrow',
               html: createGpsArrowIconHtml('#ffaa00'),
-              iconSize: [50, 50],
-              iconAnchor: [25, 25]
+              iconSize: [38, 38],
+              iconAnchor: [19, 19]
             }),
             pane: 'gpsPane'
           }).addTo(map).bindPopup('IP-based position (approximate)', {
@@ -3690,8 +3690,8 @@
           icon: L.divIcon({
             className: 'gps-marker-arrow',
             html: createGpsArrowIconHtml('#ffcc00'),
-            iconSize: [50, 50],
-            iconAnchor: [25, 25]
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
           }),
           pane: 'gpsPane'
         }).addTo(map).bindPopup('Manually entered position', {
@@ -7128,12 +7128,12 @@
         const color = data.color || '#9b59b6';
         const icon = L.divIcon({
           className: '',
-          html: `<div style="width:35px;height:35px;border-radius:50%;background:${color}33;border:2px solid ${color};
+          html: `<div style="width:26px;height:26px;border-radius:50%;background:${color}33;border:2px solid ${color};
                       display:flex;align-items:center;justify-content:center;font-size:15px;
                       box-shadow:0 0 10px ${color}88;cursor:pointer" title="${(data.title||'').replace(/"/g,'&quot;')}">
                    <i class="fas ${data.icon||'fa-map-marker-alt'}" style="color:${color}"></i></div>`,
-          iconSize: [35, 35],
-          iconAnchor: [18, 18],
+          iconSize: [26, 26],
+          iconAnchor: [14, 14],
         });
         const marker = L.marker([data.lat, data.lon], { icon })
           .bindPopup(
@@ -7666,15 +7666,15 @@
       let svgHtml;
       if (_MESH_MARKER_TYPES.has(markerType)) {
         const _sn = _escapeHtml((markerData.shortName || markerData.short_name || markerData.callsign || '').substring(0, 4)) || 'M';
-        svgHtml = `<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${_sn}</text></svg>`;
+        svgHtml = `<svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${_sn}</text></svg>`;
       } else {
         svgHtml = SYMBOLS[markerType] || SYMBOLS.meshtastic_node;
       }
       const icon = L.divIcon({
         className: 'mesh-marker',
-        html: `<div style="width:35px;height:35px;">${svgHtml}</div>`,
-        iconSize: [35, 35],
-        iconAnchor: [18, 18]
+        html: `<div style="width:26px;height:26px;">${svgHtml}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [14, 14]
       });
 
       const marker = L.marker([markerData.lat, markerData.lng], { icon: icon })
@@ -7694,11 +7694,11 @@
 
       const _rawLabel = (node.user && (node.user.shortName || node.user.shortname)) || node.shortName || node.short_name || '';
       const nodeLabel = _escapeHtml(_rawLabel.substring(0, 4)) || 'M';
-      const nodeIconHtml = `<div style="width:35px;height:35px;"><svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${nodeLabel}</text></svg></div>`;
+      const nodeIconHtml = `<div style="width:26px;height:26px;"><svg viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">${nodeLabel}</text></svg></div>`;
       const icon = L.divIcon({
         className: 'mesh-node-marker',
         html: nodeIconHtml,
-        iconSize: [35, 35]
+        iconSize: [26, 26]
       });
 
       const marker = L.marker([node.lat, node.lon], { icon: icon })
