@@ -800,8 +800,8 @@
       cbt_friendly: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
       cbt_neutral: getMilSymbolSvg('SNGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>',
       cbt_unknown: getMilSymbolSvg('SUGPU----------', 35) || '<svg viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>',
-      // tak_maker: ATAK SA / GPS position markers rendered as CBT-designated friendly
-      tak_maker: getMilSymbolSvg('SFGPU----------', 35) || '<svg viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>',
+      // tak_maker: ATAK SA / GPS position markers rendered as round circle with "T"
+      tak_maker: '<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#0088ff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="white" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">T</text></svg>',
       // Meshtastic node types rendered as cyan circle with shortName
       meshtastic_node: '<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
       node: '<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>',
@@ -846,10 +846,10 @@
       // Dark text on light colors, white text on dark colors
       const lightColors = new Set(['#00ffff', '#ffff00', '#ffffff', '#00c800']);
       const textColor = lightColors.has(color) ? '#1a1a1a' : '#ffffff';
-      // ATAK-style map-pin (teardrop) with short callsign inside and team color fill.
+      // ATAK-style round circle with short callsign inside and team color fill (like node/meshtastic).
       // MilSymbol is intentionally skipped so the team color always takes precedence
       // over the standard MIL-STD affiliation color (friendly = blue).
-      return `<svg viewBox="0 0 100 120" width="35" height="42"><path d="M50 8 C28 8 10 26 10 48 C10 72 50 112 50 112 C50 112 90 72 90 48 C90 26 72 8 50 8 Z" fill="${color}" stroke="#333" stroke-width="4"/><text x="50" y="57" font-size="30" fill="${textColor}" text-anchor="middle" font-weight="bold" font-family="sans-serif">${label}</text></svg>`;
+      return `<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="${color}" stroke="#333" stroke-width="4"/><text x="50" y="50" font-size="28" fill="${textColor}" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="sans-serif">${label}</text></svg>`;
     }
 
     // Replace toolbar button icons with real MilSymbol SVGs at runtime so the
@@ -1828,7 +1828,7 @@
           if (m.created_by !== 'tak_server' && m.created_by !== 'cot_ingest') return;
 
           serverIds.add(m.id);
-          // tak_maker markers use a personalised ATAK-style person icon with
+          // tak_maker markers use a round circle icon (like node/meshtastic) with
           // the callsign short label and the configured team color.
           let iconHtml;
           if (m.type === 'tak_maker') {
@@ -1840,8 +1840,8 @@
             iconHtml = SYMBOLS[iconType] || SYMBOLS[m.name] || SYMBOLS[m.type] || SYMBOLS.hostile;
           }
           const iconW = m.type === 'tak_maker' ? 35 : 45;
-          const iconH = m.type === 'tak_maker' ? 42 : 45;
-          const iconA = m.type === 'tak_maker' ? [17, 42] : [23, 23];
+          const iconH = m.type === 'tak_maker' ? 35 : 45;
+          const iconA = m.type === 'tak_maker' ? [17, 17] : [23, 23];
           const icon = L.divIcon({
             className: 'server-marker',
             html: `<div style="width:${iconW}px;height:${iconH}px;">${iconHtml}</div>`,
