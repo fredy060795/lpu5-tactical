@@ -18375,17 +18375,19 @@ window.addEventListener('storage', (e) => {
           let _bDragging = false;
           let _bStartX   = 0;
           let _bStart    = 0;
+          let _bDegPerPx = 0;
           bCont.addEventListener('pointerdown', function(e) {
             e.preventDefault();
             _bDragging = true;
             _bStartX   = e.clientX;
             _bStart    = _mlMap.getBearing();
+            _bDegPerPx = 360 / (bCont.offsetWidth || 48); // pre-compute sensitivity
             bCont.setPointerCapture(e.pointerId);
           });
           bCont.addEventListener('pointermove', function(e) {
             if (!_bDragging) return;
             const dx = e.clientX - _bStartX;
-            const newBearing = _bStart + dx * (360 / bCont.offsetWidth);
+            const newBearing = _bStart + dx * _bDegPerPx;
             _mlMap.setBearing(newBearing);
             if (!_rotateActive && compassEl) { _rotateActive = true; compassEl.classList.add('active'); }
           });
