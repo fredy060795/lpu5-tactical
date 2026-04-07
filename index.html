@@ -2624,6 +2624,9 @@
       width: 100%;
       height: 100%;
     }
+    #pitchSliderContainer {
+      touch-action: none;
+    }
     #pitchSlider {
       position: absolute;
       left: 0; right: 0; top: 0; bottom: 0;
@@ -2631,11 +2634,11 @@
       height: 100%;
       opacity: 0;
       cursor: ns-resize;
-      -webkit-appearance: slider-vertical;
-      appearance: slider-vertical;
       writing-mode: vertical-lr;
       direction: rtl;
       margin: 0;
+      touch-action: none;
+      pointer-events: none;
     }
     #pitchThumb {
       position: absolute;
@@ -2676,7 +2679,8 @@
     }
     #mapCompass:hover { border-color: #007bff; }
     #mapCompass.active { border-color: #ffd700; background: rgba(40,30,0,0.9); }
-    #compassNeedle {
+    #compassNeedleGroup {
+      transform-origin: 12px 12px;
       transition: transform 0.15s;
     }
     #compassDegText {
@@ -8144,9 +8148,11 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
   <!-- Compass -->
   <div id="mapCompass" title="Kompass · Klick = Nord zurücksetzen">
     <svg id="compassNeedle" viewBox="0 0 24 24" width="22" height="22">
-      <path d="M12 2 L14 11 L12 13 L10 11 Z" fill="#e74c3c"/>
-      <path d="M12 22 L14 13 L12 11 L10 13 Z" fill="#eee"/>
-      <circle cx="12" cy="12" r="2" fill="#ccc"/>
+      <g id="compassNeedleGroup">
+        <path d="M12 2 L14 11 L12 13 L10 11 Z" fill="#e74c3c"/>
+        <path d="M12 22 L14 13 L12 11 L10 13 Z" fill="#eee"/>
+        <circle cx="12" cy="12" r="2" fill="#ccc"/>
+      </g>
     </svg>
   </div>
   <div id="compassDegText">N</div>
@@ -18112,7 +18118,7 @@ window.addEventListener('storage', (e) => {
         const container = document.getElementById('pitchSliderContainer');
 
         function updateThumb(pitch) {
-          if (!slider || !thumb) return;
+          if (!thumb) return;
           const frac = pitch / 60; // 0..1, 0=bottom, 1=top
           const h = container ? container.offsetHeight - 8 : 82;
           const thumbTop = (1 - frac) * h;
@@ -18125,42 +18131,62 @@ window.addEventListener('storage', (e) => {
           }
         }
 
-        if (slider) {
-          slider.value = 0;
-          updateThumb(0);
-          slider.addEventListener('input', function() {
-            const pitch = parseInt(this.value, 10);
-            _mlMap.setPitch(pitch);
-            updateThumb(pitch);
+        // Pointer-event drag handler on the container (reliable on touch + desktop)
+        if (container) {
+          let _pitchDragging = false;
+          let _pitchStartY   = 0;
+          let _pitchStartVal = 0;
+
+          container.addEventListener('pointerdown', function(e) {
+            e.preventDefault();
+            _pitchDragging = true;
+            _pitchStartY   = e.clientY;
+            _pitchStartVal = _mlMap.getPitch();
+            container.setPointerCapture(e.pointerId);
           });
+
+          container.addEventListener('pointermove', function(e) {
+            if (!_pitchDragging) return;
+            const dy = _pitchStartY - e.clientY; // drag up → higher pitch
+            const newPitch = Math.max(0, Math.min(60, _pitchStartVal + dy * 0.6));
+            _mlMap.setPitch(newPitch);
+            if (slider) slider.value = Math.round(newPitch);
+            updateThumb(newPitch);
+          });
+
+          container.addEventListener('pointerup',     function() { _pitchDragging = false; });
+          container.addEventListener('pointercancel', function() { _pitchDragging = false; });
         }
 
-        function _syncPitchUI() {
+        // Sync thumb whenever the map's pitch changes (e.g. right-click drag, two-finger drag)
+        _mlMap.on('pitch', function() {
           const pitch = _mlMap.getPitch();
           if (slider) slider.value = Math.round(pitch);
           updateThumb(pitch);
-        }
-        _mlMap.on('pitch', _syncPitchUI);
-        _mlMap.on('pitchend', _syncPitchUI);
+        });
+
+        updateThumb(0);
       }());
 
       // ── Compass ─────────────────────────────────────────────────────────
       (function() {
         const compassEl  = document.getElementById('mapCompass');
-        const needleEl   = document.getElementById('compassNeedle');
+        const needleEl   = document.getElementById('compassNeedleGroup');
         const degTextEl  = document.getElementById('compassDegText');
         let _rotateActive = false;
 
         function updateCompassDisplay(bearing) {
-          if (needleEl) needleEl.style.transform = 'rotate(' + (-bearing) + 'deg)';
+          const norm = ((bearing % 360) + 360) % 360;
+          if (needleEl) needleEl.style.transform = 'rotate(' + (-norm) + 'deg)';
           if (degTextEl) {
             const dirs = ['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-            const idx = Math.round(((bearing % 360) + 360) % 360 / 22.5) % 16;
+            const idx = Math.round(norm / 22.5) % 16;
             degTextEl.textContent = dirs[idx];
           }
         }
 
-        _mlMap.on('rotate', function() { updateCompassDisplay(_mlMap.getBearing()); });
+        _mlMap.on('move',      function() { updateCompassDisplay(_mlMap.getBearing()); });
+        _mlMap.on('rotate',    function() { updateCompassDisplay(_mlMap.getBearing()); });
         _mlMap.on('rotateend', function() { updateCompassDisplay(_mlMap.getBearing()); });
 
         if (compassEl) {
