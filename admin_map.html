@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" href="/browser-logo.png">
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 
   <style>
@@ -886,6 +886,112 @@
         font-size: 1rem;
       }
     }
+
+    /* ── Pitch Slider ─────────────────────────────── */
+    #pitchSliderWrap {
+      position: fixed;
+      left: 10px;
+      top: 120px; /* below MapLibre zoom control */
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+    }
+    #pitchSliderWrap label {
+      color: #bbb;
+      font-size: 9px;
+      pointer-events: none;
+      letter-spacing: 0.5px;
+    }
+    #pitchSliderContainer {
+      position: relative;
+      width: 32px;
+      height: 90px;
+      pointer-events: all;
+      cursor: ns-resize;
+    }
+    /* Trapezoid track: thick at bottom (0°), thin at top (60°) */
+    #pitchTrack {
+      position: absolute;
+      left: 50%;
+      top: 4px;
+      bottom: 4px;
+      transform: translateX(-50%);
+      width: 100%;
+    }
+    #pitchTrack svg {
+      width: 100%;
+      height: 100%;
+    }
+    #pitchSlider {
+      position: absolute;
+      left: 0; right: 0; top: 0; bottom: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: ns-resize;
+      -webkit-appearance: slider-vertical;
+      appearance: slider-vertical;
+      writing-mode: vertical-lr;
+      direction: rtl;
+      margin: 0;
+    }
+    #pitchThumb {
+      position: absolute;
+      left: 50%;
+      width: 20px;
+      height: 6px;
+      background: #007bff;
+      border-radius: 3px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      transition: top 0.05s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+    #pitchDegLabel {
+      color: #9ad1ff;
+      font-size: 9px;
+      pointer-events: none;
+      font-weight: bold;
+    }
+
+    /* ── Compass ──────────────────────────────────── */
+    #mapCompass {
+      position: fixed;
+      left: 10px;
+      top: 230px; /* below pitch slider */
+      z-index: 1000;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(20,20,20,0.88);
+      border: 2px solid #444;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.2s;
+    }
+    #mapCompass:hover { border-color: #007bff; }
+    #mapCompass.active { border-color: #ffd700; background: rgba(40,30,0,0.9); }
+    #compassNeedle {
+      transition: transform 0.15s;
+    }
+    #compassDegText {
+      position: fixed;
+      left: 10px;
+      top: 268px;
+      z-index: 1000;
+      color: #bbb;
+      font-size: 8px;
+      text-align: center;
+      width: 36px;
+      pointer-events: none;
+      letter-spacing: 0.3px;
+    }
   </style>
 </head>
 
@@ -897,6 +1003,33 @@
   <div id="map"></div>
   <div id="crosshair" aria-hidden="true"></div>
   <button id="set-btn" onclick="placeSymbolFromCrosshair()">SET POINT</button>
+
+  <!-- Pitch Slider (below zoom +/- controls) -->
+  <div id="pitchSliderWrap">
+    <label>60°</label>
+    <div id="pitchSliderContainer" title="Karte kippen (0°–60°)">
+      <div id="pitchTrack">
+        <svg viewBox="0 0 32 82" preserveAspectRatio="none">
+          <polygon points="10,2 22,2 30,80 2,80" fill="rgba(255,255,255,0.08)" stroke="#555" stroke-width="1"/>
+          <polygon id="pitchFill" points="10,2 22,2 30,80 2,80" fill="rgba(0,123,255,0.18)" stroke="none"/>
+        </svg>
+      </div>
+      <input type="range" id="pitchSlider" min="0" max="60" value="0" step="1" />
+      <div id="pitchThumb" style="top:82px;"></div>
+    </div>
+    <label>0°</label>
+    <div id="pitchDegLabel">0°</div>
+  </div>
+
+  <!-- Compass -->
+  <div id="mapCompass" title="Kompass · Klick = Nord zurücksetzen">
+    <svg id="compassNeedle" viewBox="0 0 24 24" width="22" height="22">
+      <path d="M12 2 L14 11 L12 13 L10 11 Z" fill="#e74c3c"/>
+      <path d="M12 22 L14 13 L12 11 L10 13 Z" fill="#eee"/>
+      <circle cx="12" cy="12" r="2" fill="#ccc"/>
+    </svg>
+  </div>
+  <div id="compassDegText">N</div>
 
   <div id="iconBar" aria-hidden="false">
     <!-- Existing buttons WITHOUT duplicate life status icons -->
@@ -1175,12 +1308,367 @@
     <input id="ovFile" type="file" accept="image/*" />
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <!-- MilSymbol: spatialillusions/milsymbol for dynamic military symbol SVG generation -->
   <script src="https://cdn.jsdelivr.net/npm/milsymbol@2.2.0/dist/milsymbol.js"></script>
   <!-- <script src="intel-data.js"></script> -->
 
   <script>
+    // =====================================================================
+    // MapLibre / Leaflet compatibility shim
+    // Provides an L namespace wrapping MapLibre GL JS so that existing
+    // Leaflet-style code works with minimal changes.
+    // =====================================================================
+    let _mlSrcCount = 0;
+    function _mlNewId(prefix) { return (prefix || 'ml') + '_' + (++_mlSrcCount) + '_' + Math.random().toString(36).slice(2,6); }
+
+    // Convert Leaflet [lat,lng] or {lat,lng} to MapLibre [lng,lat]
+    function _ll2ml(ll) {
+      if (Array.isArray(ll)) return [ll[1], ll[0]];
+      return [ll.lng != null ? ll.lng : ll[1], ll.lat != null ? ll.lat : ll[0]];
+    }
+    // Make a Leaflet-like bounds object from s,w,n,e
+    function _mkBounds(s, w, n, e) {
+      return {
+        getNorth: () => n, getSouth: () => s, getEast: () => e, getWest: () => w,
+        getCenter: () => ({ lat: (s + n) / 2, lng: (w + e) / 2 }),
+        getSouthWest: () => ({ lat: s, lng: w }),
+        getNorthEast: () => ({ lat: n, lng: e })
+      };
+    }
+
+    const L = {
+      divIcon: function({ html, iconSize, iconAnchor, className } = {}) {
+        const el = document.createElement('div');
+        if (className) el.className = className;
+        el.innerHTML = html || '';
+        if (iconAnchor) {
+          el.style.marginLeft = (-iconAnchor[0]) + 'px';
+          el.style.marginTop  = (-iconAnchor[1]) + 'px';
+        }
+        return { element: el, _iconAnchor: iconAnchor, _iconSize: iconSize };
+      },
+
+      marker: function(latlng, opts) {
+        const icon = opts && opts.icon;
+        const el = (icon && icon.element) ? icon.element : document.createElement('div');
+        el.style.position = 'absolute';
+        const mlMarker = new maplibregl.Marker({ element: el, anchor: 'top-left' })
+          .setLngLat(_ll2ml(latlng));
+        let _popupHtml = null, _mlPopup = null;
+        const wrapper = {
+          _marker: mlMarker, _el: el, _isMLMarker: true,
+          addTo(m) { mlMarker.addTo(m); return this; },
+          remove() { mlMarker.remove(); return this; },
+          setLatLng(ll) { mlMarker.setLngLat(_ll2ml(ll)); return this; },
+          getLatLng() { const c = mlMarker.getLngLat(); return { lat: c.lat, lng: c.lng }; },
+          setIcon(icon) {
+            if (icon && icon.element) {
+              el.innerHTML = icon.element.innerHTML;
+              el.className = icon.element.className;
+              if (icon._iconAnchor) {
+                el.style.marginLeft = (-icon._iconAnchor[0]) + 'px';
+                el.style.marginTop  = (-icon._iconAnchor[1]) + 'px';
+              }
+            }
+            return this;
+          },
+          bindPopup(html) {
+            _popupHtml = html;
+            _mlPopup = new maplibregl.Popup({ closeButton: true, maxWidth: '320px' }).setHTML(html);
+            mlMarker.setPopup(_mlPopup);
+            return this;
+          },
+          unbindPopup() { mlMarker.setPopup(null); _mlPopup = null; _popupHtml = null; return this; },
+          getPopup() {
+            if (!_mlPopup) return null;
+            return { getContent: () => _popupHtml, getElement: () => (_mlPopup.isOpen() ? _mlPopup.getElement() : null) };
+          },
+          on(event, handler) {
+            if ((event === 'popupopen') && _mlPopup) _mlPopup.on('open', handler);
+            return this;
+          },
+          closePopup() { if (_mlPopup && _mlPopup.isOpen()) _mlPopup.remove(); return this; }
+        };
+        return wrapper;
+      },
+
+      polyline: function(pts, opts) {
+        const id = _mlNewId('poly');
+        opts = opts || {};
+        let _pts = (pts || []).map(p => Array.isArray(p) ? [p[1], p[0]] : [p.lng, p.lat]);
+        let _map = null;
+        const paintObj = { 'line-color': opts.color || '#0088ff', 'line-width': opts.weight || 3, 'line-opacity': opts.opacity != null ? opts.opacity : 1 };
+        if (opts.dashArray) { const parts = (typeof opts.dashArray === 'string') ? opts.dashArray.trim().split(/[\s,]+/).map(Number) : opts.dashArray; paintObj['line-dasharray'] = parts; }
+        const wrapper = {
+          _id: id, _isPolyline: true,
+          addTo(m) {
+            _map = m;
+            if (_pts.length < 2) _pts = [[0,0],[0,0]];
+            m.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: _pts }, properties: {} } });
+            m.addLayer({ id: id + '_l', type: 'line', source: id, paint: paintObj });
+            return this;
+          },
+          remove() {
+            if (_map) { try { _map.removeLayer(id + '_l'); } catch(e) {} try { _map.removeSource(id); } catch(e) {} }
+            return this;
+          },
+          setLatLngs(pts) {
+            _pts = pts.map(p => Array.isArray(p) ? [p[1], p[0]] : [p.lng, p.lat]);
+            if (_map && _map.getSource(id)) { _map.getSource(id).setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: _pts.length >= 2 ? _pts : [[0,0],[0,0]] }, properties: {} }); }
+            return this;
+          },
+          toGeoJSON() { return { type: 'Feature', geometry: { type: 'LineString', coordinates: _pts }, properties: {} }; },
+          getBounds() {
+            if (!_pts.length) return _mkBounds(0,0,0,0);
+            const lngs = _pts.map(p => p[0]), lats = _pts.map(p => p[1]);
+            return _mkBounds(Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs));
+          },
+          bindPopup() { return this; }
+        };
+        return wrapper;
+      },
+
+      polygon: function(pts, opts) {
+        const id = _mlNewId('pgon');
+        opts = opts || {};
+        let coords = (pts || []).map(p => Array.isArray(p) ? [p[1], p[0]] : [p.lng, p.lat]);
+        if (coords.length && (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1])) coords.push(coords[0]);
+        let _map = null;
+        const wrapper = {
+          _id: id, _isPolygon: true,
+          addTo(m) {
+            _map = m;
+            m.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} } });
+            m.addLayer({ id: id + '_fill', type: 'fill', source: id, paint: { 'fill-color': opts.color || '#0088ff', 'fill-opacity': opts.fillOpacity != null ? opts.fillOpacity : 0.3 } });
+            m.addLayer({ id: id + '_stroke', type: 'line', source: id, paint: { 'line-color': opts.color || '#0088ff', 'line-width': opts.weight || 3 } });
+            return this;
+          },
+          remove() {
+            if (_map) { try { _map.removeLayer(id + '_fill'); } catch(e) {} try { _map.removeLayer(id + '_stroke'); } catch(e) {} try { _map.removeSource(id); } catch(e) {} }
+            return this;
+          },
+          toGeoJSON() { return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} }; },
+          getBounds() {
+            const lngs = coords.map(p => p[0]), lats = coords.map(p => p[1]);
+            return _mkBounds(Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs));
+          },
+          bindPopup() { return this; }
+        };
+        return wrapper;
+      },
+
+      geoJSON: function(data, opts) {
+        const id = _mlNewId('geoj');
+        opts = opts || {};
+        let _map = null;
+        const geomType = data && (data.geometry ? data.geometry.type : (data.features && data.features[0] && data.features[0].geometry && data.features[0].geometry.type));
+        const wrapper = {
+          _id: id, _isGeoJSON: true,
+          addTo(m) {
+            _map = m;
+            m.addSource(id, { type: 'geojson', data: data });
+            const style = (opts.style && typeof opts.style === 'function') ? opts.style({}) : (opts.style || {});
+            if (geomType === 'Point' || geomType === 'MultiPoint') {
+              m.addLayer({ id: id + '_l', type: 'circle', source: id, paint: { 'circle-color': style.color || '#0088ff', 'circle-radius': 5 } });
+            } else {
+              m.addLayer({ id: id + '_l', type: 'line', source: id, paint: { 'line-color': style.color || '#0088ff', 'line-width': style.weight || 3 } });
+            }
+            return this;
+          },
+          remove() {
+            if (_map) { try { _map.removeLayer(id + '_l'); } catch(e) {} try { _map.removeSource(id); } catch(e) {} }
+            return this;
+          },
+          toGeoJSON() { return data; },
+          getBounds() {
+            const coords = [];
+            function collect(g) { if (!g) return; if (g.type === 'Point') { coords.push(g.coordinates); } else if (g.coordinates) { (Array.isArray(g.coordinates[0]) ? g.coordinates.flat() : g.coordinates).forEach(c => { if (typeof c[0] === 'number') coords.push(c); }); } }
+            if (data && data.geometry) collect(data.geometry);
+            if (data && data.features) data.features.forEach(f => collect(f.geometry));
+            if (!coords.length) return _mkBounds(0,0,0,0);
+            const lngs = coords.map(c => c[0]), lats = coords.map(c => c[1]);
+            return _mkBounds(Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs));
+          },
+          bindPopup() { return this; }
+        };
+        return wrapper;
+      },
+
+      imageOverlay: function(url, bounds, opts) {
+        // bounds: [[south,west],[north,east]] Leaflet format
+        const id = _mlNewId('imov');
+        opts = opts || {};
+        let s = bounds[0][0], w = bounds[0][1], n = bounds[1][0], e = bounds[1][1];
+        let _opacity = (opts.opacity != null ? opts.opacity : 1);
+        let _map = null;
+        function _coords() { return [[w,n],[e,n],[e,s],[w,s]]; }
+        const wrapper = {
+          _id: id, _isImageOverlay: true,
+          addTo(m) {
+            _map = m;
+            try {
+              m.addSource(id, { type: 'image', url: url, coordinates: _coords() });
+              m.addLayer({ id: id + '_l', type: 'raster', source: id, paint: { 'raster-opacity': _opacity } });
+            } catch(ex) { console.warn('imageOverlay addTo error', ex); }
+            return this;
+          },
+          remove() {
+            if (_map) { try { _map.removeLayer(id + '_l'); } catch(e2) {} try { _map.removeSource(id); } catch(e2) {} }
+            return this;
+          },
+          setOpacity(val) {
+            _opacity = val;
+            if (_map) { try { _map.setPaintProperty(id + '_l', 'raster-opacity', val); } catch(e) {} }
+            return this;
+          },
+          setZIndex() { return this; },
+          getBounds() { return _mkBounds(s, w, n, e); },
+          setBounds(nb) {
+            // nb: [[s,w],[n,e]]
+            s = nb[0][0]; w = nb[0][1]; n = nb[1][0]; e = nb[1][1];
+            if (_map) { try { _map.getSource(id).setCoordinates(_coords()); } catch(ex) {} }
+            return this;
+          },
+          getElement() { return null; },
+          once(event, handler) { if (event === 'load') setTimeout(handler, 100); return this; }
+        };
+        return wrapper;
+      },
+
+      circleMarker: function(latlng, opts) {
+        opts = opts || {};
+        const r = opts.radius || 5;
+        const el = document.createElement('div');
+        el.style.cssText = `width:${r*2}px;height:${r*2}px;border-radius:50%;background:${opts.fillColor||'#ffd700'};border:${opts.weight||2}px solid ${opts.color||'#ffd700'};box-sizing:border-box;`;
+        el.style.marginLeft = `-${r}px`; el.style.marginTop = `-${r}px`;
+        const mlMarker = new maplibregl.Marker({ element: el, anchor: 'top-left' }).setLngLat(_ll2ml(latlng));
+        const wrapper = {
+          _isDistLabel: false,
+          _marker: mlMarker,
+          addTo(m) { mlMarker.addTo(m); return this; },
+          remove() { mlMarker.remove(); return this; },
+          setLatLng(ll) { mlMarker.setLngLat(_ll2ml(ll)); return this; },
+          getLatLng() { const c = mlMarker.getLngLat(); return { lat: c.lat, lng: c.lng }; }
+        };
+        return wrapper;
+      },
+
+      point: function(x, y) { return { x, y }; }
+    };
+
+    // Wrap maplibregl.Map to add Leaflet-compatible API methods
+    function _wrapMapForLeafletCompat(mlMap) {
+      // Override removeLayer to handle shim objects
+      const _origRemoveLayer = mlMap.removeLayer.bind(mlMap);
+      mlMap.removeLayer = function(obj) {
+        if (!obj) return this;
+        if (typeof obj.remove === 'function') { obj.remove(); return this; }
+        try { _origRemoveLayer(obj); } catch(e) {}
+        return this;
+      };
+      // Leaflet-style setView
+      mlMap.setView = function(latlng, zoom, opts) {
+        const center = Array.isArray(latlng) ? [latlng[1], latlng[0]] : [latlng.lng, latlng.lat];
+        const z = zoom != null ? zoom : mlMap.getZoom();
+        if (opts && opts.animate === false) { mlMap.jumpTo({ center, zoom: z }); }
+        else { mlMap.flyTo({ center, zoom: z, duration: 600 }); }
+        return mlMap;
+      };
+      // Leaflet-style fitBounds([[s,w],[n,e]])
+      const _origFitBounds = mlMap.fitBounds.bind(mlMap);
+      mlMap.fitBounds = function(bounds, opts) {
+        let sw, ne;
+        if (bounds && typeof bounds.getSouthWest === 'function') {
+          sw = [bounds.getSouthWest().lng, bounds.getSouthWest().lat];
+          ne = [bounds.getNorthEast().lng, bounds.getNorthEast().lat];
+        } else if (Array.isArray(bounds) && Array.isArray(bounds[0])) {
+          sw = [bounds[0][1], bounds[0][0]]; // [w,s] from [s,w]
+          ne = [bounds[1][1], bounds[1][0]]; // [e,n] from [n,e]
+        } else { return this; }
+        _origFitBounds([sw, ne], opts || { padding: 20 });
+        return mlMap;
+      };
+      // Leaflet-like invalidateSize
+      mlMap.invalidateSize = function() { setTimeout(() => { try { mlMap.resize(); } catch(e) {} }, 0); return mlMap; };
+      // Dragging compat
+      mlMap.dragging = { disable: () => mlMap.dragPan.disable(), enable: () => mlMap.dragPan.enable() };
+      // Pane system (no-op – MapLibre doesn't use panes)
+      mlMap.getPane = function() { return { style: { display: '', zIndex: 0 } }; };
+      mlMap.createPane = function() { return { style: { display: '', zIndex: 0 } }; };
+      // attributionControl compat
+      mlMap.attributionControl = { setPosition: function() {} };
+      // closePopup – remove all open popups
+      mlMap.closePopup = function() { document.querySelectorAll('.maplibregl-popup').forEach(el => el.remove()); return mlMap; };
+      // Wrap on/off/once to add e.latlng from e.lngLat on map events
+      const _origOn = mlMap.on.bind(mlMap);
+      const _origOff = mlMap.off.bind(mlMap);
+      const _origOnce = mlMap.once.bind(mlMap);
+      const _wrapHandlers = new Map();
+      function _haversineDist(a, b) {
+        const R = 6371000, toRad = d => d * Math.PI / 180;
+        const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+        const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+      }
+      function _mkLatLng(lat, lng) {
+        return { lat, lng, distanceTo: function(other) { return _haversineDist(this, other); } };
+      }
+      function _wrapH(fn) {
+        if (!fn || fn._latlngWrapped) return fn;
+        const w = function(e) {
+          if (e && e.lngLat && !e.latlng) e.latlng = _mkLatLng(e.lngLat.lat, e.lngLat.lng);
+          return fn.call(this, e);
+        };
+        w._latlngWrapped = true; fn._mlWrapped = w;
+        return w;
+      }
+      mlMap.on = function(event, fn) {
+        if (['click','dblclick','mousemove','mousedown','mouseup','contextmenu'].includes(event)) {
+          const w = _wrapH(fn); _wrapHandlers.set(fn, w); return _origOn(event, w);
+        }
+        return _origOn(event, fn);
+      };
+      mlMap.off = function(event, fn) {
+        if (fn && _wrapHandlers.has(fn)) { const w = _wrapHandlers.get(fn); _wrapHandlers.delete(fn); return _origOff(event, w); }
+        return _origOff(event, fn);
+      };
+      mlMap.once = function(event, fn) {
+        if (['click','dblclick','mousemove','mousedown','mouseup'].includes(event)) {
+          const w = _wrapH(fn); return _origOnce(event, w);
+        }
+        return _origOnce(event, fn);
+      };
+      // getContainer cursor proxy: redirect .style.cursor to canvas
+      const _origGetContainer = mlMap.getContainer.bind(mlMap);
+      mlMap.getContainer = function() {
+        const el = _origGetContainer();
+        if (!el._lpu5Proxy) {
+          const canvas = mlMap.getCanvas();
+          el._lpu5Proxy = new Proxy(el, {
+            get(t, k) {
+              if (k === 'style') {
+                return new Proxy(t.style, {
+                  set(s, sk, v) { if (sk === 'cursor') { canvas.style.cursor = v; return true; } s[sk] = v; return true; },
+                  get(s, sk) { if (sk === 'cursor') return canvas.style.cursor; return typeof s[sk] === 'function' ? s[sk].bind(s) : s[sk]; }
+                });
+              }
+              const v = t[k]; return typeof v === 'function' ? v.bind(t) : v;
+            }
+          });
+        }
+        return el._lpu5Proxy;
+      };
+      // whenReady compat
+      mlMap.whenReady = function(fn) { if (mlMap.loaded()) fn(); else mlMap.once('load', fn); return mlMap; };
+      // containerPointToLatLng compat
+      mlMap.containerPointToLatLng = function(point) {
+        const lngLat = mlMap.unproject(point);
+        return { lat: lngLat.lat, lng: lngLat.lng };
+      };
+      return mlMap;
+    }
+
     // MilSymbol helper – generates a military symbol SVG via spatialillusions/milsymbol.
     // Falls back gracefully when the library is unavailable (e.g. offline / no CDN).
     // Optional `options` parameter is merged into the milsymbol options (e.g. { uniqueDesignation: 'CBT' }).
@@ -1208,42 +1696,63 @@
         if (svg) el.innerHTML = svg;
       });
 
-      // --- Map init & panes ---
-      const defaultCenter = [51.1657, 10.4515];
+      // --- Map init (MapLibre GL JS) ---
+      const defaultCenter = [51.1657, 10.4515]; // [lat, lng]
       const defaultZoom = 6;
 
-      const basemaps = {
-        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }),
-        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri', maxZoom: 19 }),
-        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: 'OpenTopoMap', maxZoom: 17 })
+      const _savedBase = localStorage.getItem('lpu5_basemap') || 'street';
+      let activeBaseKey = ['street','sat','terrain'].includes(_savedBase) ? _savedBase : 'street';
+
+      const _basemapSources = {
+        street:  { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],         tileSize: 256, attribution: '© OpenStreetMap contributors', maxzoom: 19 },
+        sat:     { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: 'Tiles © Esri', maxzoom: 19 },
+        terrain: { type: 'raster', tiles: ['https://tile.opentopomap.org/{z}/{x}/{y}.png'],            tileSize: 256, attribution: 'OpenTopoMap', maxzoom: 17 }
       };
 
-      const map = L.map('map', { center: defaultCenter, zoom: defaultZoom, layers: [] });
+      const _mlMap = new maplibregl.Map({
+        container: 'map',
+        style: {
+          version: 8,
+          sources: {
+            street:  _basemapSources.street,
+            sat:     _basemapSources.sat,
+            terrain: _basemapSources.terrain
+          },
+          layers: [
+            { id: 'street-layer',  type: 'raster', source: 'street',  layout: { visibility: activeBaseKey === 'street'  ? 'visible' : 'none' } },
+            { id: 'sat-layer',     type: 'raster', source: 'sat',     layout: { visibility: activeBaseKey === 'sat'     ? 'visible' : 'none' } },
+            { id: 'terrain-layer', type: 'raster', source: 'terrain', layout: { visibility: activeBaseKey === 'terrain' ? 'visible' : 'none' } }
+          ],
+          glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
+        },
+        center: [defaultCenter[1], defaultCenter[0]], // MapLibre: [lng, lat]
+        zoom: defaultZoom,
+        pitchWithRotate: true,
+        dragRotate: true,
+        touchPitch: true
+      });
+
+      // Add zoom navigation control (top-left)
+      _mlMap.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), 'top-left');
+
+      const map = _wrapMapForLeafletCompat(_mlMap);
       window.map = map;
 
-      // ensure proper layer stacking
-      // Order: paneOverlays (450) < paneDrawings (550) < paneMeshtastic (600) < paneSymbols (650)
-      // This places Meshtastic devices above drawings but below user-placed symbols
-      if (!map.getPane('paneOverlays')) { map.createPane('paneOverlays'); map.getPane('paneOverlays').style.zIndex = 450; }
-      if (!map.getPane('paneDrawings')) { map.createPane('paneDrawings'); map.getPane('paneDrawings').style.zIndex = 550; }
-      if (!map.getPane('paneSymbols')) { map.createPane('paneSymbols'); map.getPane('paneSymbols').style.zIndex = 650; }
-      if (!map.getPane('paneMeshtastic')) { map.createPane('paneMeshtastic'); map.getPane('paneMeshtastic').style.zIndex = 600; }
+      // Basemap compat object (fake, for ensureMapVisible etc.)
+      const basemaps = {
+        street:  { redraw: () => {} },
+        sat:     { redraw: () => {} },
+        terrain: { redraw: () => {} }
+      };
 
-      const savedBase = localStorage.getItem('lpu5_basemap') || 'street';
-      let activeBaseKey = (savedBase in basemaps) ? savedBase : 'street';
-      basemaps[activeBaseKey].addTo(map);
+      // Pane system is a no-op in MapLibre (layer z-order controlled differently)
+      // We keep these as dummy calls to avoid breaking existing code
 
       // ensure map visible (fix blank tiles)
       function ensureMapVisible() {
-        try { map.invalidateSize(); } catch (e) { console.warn('invalidateSize', e); }
-        try { if (basemaps && basemaps[activeBaseKey] && typeof basemaps[activeBaseKey].redraw === 'function') basemaps[activeBaseKey].redraw(); } catch (e) { }
-        try { const c = map.getCenter(); map.setView(c, map.getZoom(), { animate: false }); } catch (e) { }
+        try { _mlMap.resize(); } catch (e) { console.warn('resize', e); }
       }
-      ensureMapVisible();
-      setTimeout(ensureMapVisible, 80);
-      setTimeout(ensureMapVisible, 300);
-      setTimeout(ensureMapVisible, 800);
-      map.whenReady(() => { ensureMapVisible(); setTimeout(ensureMapVisible, 200); });
+      _mlMap.once('load', () => { ensureMapVisible(); setTimeout(ensureMapVisible, 200); });
       window.addEventListener('resize', () => setTimeout(ensureMapVisible, 120));
 
       // Request GPS once at startup and silently pan the map to the real device location.
@@ -1252,7 +1761,7 @@
         if (!navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(
           function (pos) {
-            map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), 15));
+            _mlMap.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: Math.max(_mlMap.getZoom(), 15) });
           },
           function (err) {
             // This is an optional startup call to silently pan the map.
@@ -1277,19 +1786,20 @@
       centerMapOnOwnLocation();
 
       // basemap radio wiring
+      const _basemapLayerIds = { street: 'street-layer', sat: 'sat-layer', terrain: 'terrain-layer' };
       document.querySelectorAll('input[name="basemap"]').forEach(r => {
         r.checked = (r.value === activeBaseKey);
         r.addEventListener('change', (e) => {
           if (e.target.checked) {
-            Object.values(basemaps).forEach(l => { try { map.removeLayer(l); } catch (e) { } });
-            basemaps[e.target.value].addTo(map);
-            activeBaseKey = e.target.value;
+            const newKey = e.target.value;
+            Object.keys(_basemapLayerIds).forEach(k => {
+              try { _mlMap.setLayoutProperty(_basemapLayerIds[k], 'visibility', k === newKey ? 'visible' : 'none'); } catch(ex) {}
+            });
+            activeBaseKey = newKey;
             localStorage.setItem('lpu5_basemap', activeBaseKey);
-            ensureMapVisible();
           }
         });
       });
-      map.attributionControl.setPosition('bottomleft');
 
       // user detection (creator) - exposed globally for chat IIFE access
       // Prioritise JWT username (same source the server uses) to avoid chat echo
@@ -2624,7 +3134,8 @@
             }
             try {
               const bounds2 = o.overlay.getBounds();
-              const newOverlay = L.imageOverlay(newImageUrl, bounds2, { pane: 'paneOverlays', interactive: true }).addTo(map);
+              const _b2 = [[bounds2.getSouth(), bounds2.getWest()],[bounds2.getNorth(), bounds2.getEast()]];
+              const newOverlay = L.imageOverlay(newImageUrl, _b2, { pane: 'paneOverlays', interactive: true }).addTo(map);
               newOverlay.setOpacity(o.opacity);
               newOverlay.once('load', () => {
                 const ni = newOverlay.getElement();
@@ -2809,18 +3320,18 @@
       });
 
       // Accept drops onto the map container
-      map.getContainer().addEventListener('dragover', (e) => {
+      _mlMap.getContainer().addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
       });
-      map.getContainer().addEventListener('drop', async (e) => {
+      _mlMap.getContainer().addEventListener('drop', async (e) => {
         e.preventDefault();
         const sym = e.dataTransfer.getData('application/x-map-symbol');
         if (!sym) return;
-        const rect = map.getContainer().getBoundingClientRect();
-        const latlng = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
+        const rect = _mlMap.getContainer().getBoundingClientRect();
+        const lngLat = _mlMap.unproject([e.clientX - rect.left, e.clientY - rect.top]);
         activeSymbol = sym;
-        await placeSymbolAt(latlng);
+        await placeSymbolAt({ lat: lngLat.lat, lng: lngLat.lng });
       });
 
       // ---- Distance Measurement Tool ----
@@ -3087,7 +3598,7 @@
                     });
                     if (dres.ok) {
                       map.closePopup();
-                      map.removeLayer(marker);
+                      marker.remove();
                       const idx = symbols.findIndex(x => x.id === s.id);
                       if (idx !== -1) symbols.splice(idx, 1);
                       renderSettingsList();
@@ -3396,9 +3907,109 @@
       // ensure map resize after sidebar transitions
       const sidebarEl = document.getElementById('sidebar');
       if (sidebarEl) {
-        sidebarEl.addEventListener('mouseenter', () => setTimeout(() => { try { map.invalidateSize(); } catch (e) { } }, 320));
-        sidebarEl.addEventListener('mouseleave', () => setTimeout(() => { try { map.invalidateSize(); } catch (e) { } }, 320));
+        sidebarEl.addEventListener('mouseenter', () => setTimeout(() => { try { _mlMap.resize(); } catch (e) { } }, 320));
+        sidebarEl.addEventListener('mouseleave', () => setTimeout(() => { try { _mlMap.resize(); } catch (e) { } }, 320));
       }
+
+      // ── Pitch Slider ────────────────────────────────────────────────────
+      (function() {
+        const slider = document.getElementById('pitchSlider');
+        const thumb  = document.getElementById('pitchThumb');
+        const degLbl = document.getElementById('pitchDegLabel');
+        const fillEl = document.getElementById('pitchFill');
+        const container = document.getElementById('pitchSliderContainer');
+
+        function updateThumb(pitch) {
+          if (!slider || !thumb) return;
+          const frac = pitch / 60; // 0..1, 0=bottom, 1=top
+          const h = container ? container.offsetHeight - 8 : 82;
+          const thumbTop = (1 - frac) * h;
+          thumb.style.top = thumbTop + 'px';
+          if (degLbl) degLbl.textContent = Math.round(pitch) + '°';
+          if (fillEl) {
+            const topW = 10 + (1-frac)*12; const botW = 30;
+            const cx = 16;
+            fillEl.setAttribute('points', `${cx-topW/2},2 ${cx+topW/2},2 ${botW/2+2},80 ${2},80`);
+          }
+        }
+
+        if (slider) {
+          slider.value = 0;
+          updateThumb(0);
+          slider.addEventListener('input', function() {
+            const pitch = parseInt(this.value, 10);
+            _mlMap.setPitch(pitch);
+            updateThumb(pitch);
+          });
+        }
+
+        _mlMap.on('pitch', function() {
+          const pitch = _mlMap.getPitch();
+          if (slider) slider.value = Math.round(pitch);
+          updateThumb(pitch);
+        });
+      }());
+
+      // ── Compass ─────────────────────────────────────────────────────────
+      (function() {
+        const compassEl  = document.getElementById('mapCompass');
+        const needleEl   = document.getElementById('compassNeedle');
+        const degTextEl  = document.getElementById('compassDegText');
+        let _rotateActive = false;
+
+        function updateCompassDisplay(bearing) {
+          if (needleEl) needleEl.style.transform = 'rotate(' + bearing + 'deg)';
+          if (degTextEl) {
+            const dirs = ['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+            const idx = Math.round(((bearing % 360) + 360) % 360 / 22.5) % 16;
+            degTextEl.textContent = dirs[idx];
+          }
+        }
+
+        _mlMap.on('rotate', function() { updateCompassDisplay(_mlMap.getBearing()); });
+        _mlMap.on('rotateend', function() { updateCompassDisplay(_mlMap.getBearing()); });
+
+        if (compassEl) {
+          compassEl.addEventListener('click', function() {
+            _rotateActive = !_rotateActive;
+            compassEl.classList.toggle('active', _rotateActive);
+            if (_rotateActive) {
+              _mlMap.dragRotate.enable();
+              _mlMap.touchZoomRotate.enableRotation();
+            } else {
+              _mlMap.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+              const slider = document.getElementById('pitchSlider');
+              if (slider) slider.value = 0;
+              const thumbEl = document.getElementById('pitchThumb');
+              const contEl  = document.getElementById('pitchSliderContainer');
+              if (thumbEl && contEl) thumbEl.style.top = (contEl.offsetHeight - 8) + 'px';
+              const lblEl = document.getElementById('pitchDegLabel');
+              if (lblEl) lblEl.textContent = '0°';
+            }
+            updateCompassDisplay(_mlMap.getBearing());
+          });
+        }
+
+        // Ctrl+left-drag rotation handler
+        (function() {
+          let _ctrlDragging = false;
+          let _lastX = 0;
+          const canvas = _mlMap.getCanvas();
+          canvas.addEventListener('mousedown', function(e) {
+            if (e.ctrlKey && e.button === 0) { _ctrlDragging = true; _lastX = e.clientX; e.preventDefault(); }
+          });
+          window.addEventListener('mousemove', function(e) {
+            if (!_ctrlDragging) return;
+            const dx = e.clientX - _lastX;
+            _lastX = e.clientX;
+            _mlMap.setBearing(_mlMap.getBearing() + dx * 0.5);
+            if (!_rotateActive && compassEl) { _rotateActive = true; compassEl.classList.add('active'); }
+          });
+          window.addEventListener('mouseup', function() { _ctrlDragging = false; });
+        }());
+
+        updateCompassDisplay(0);
+      }());
 
       // ---------------- Meshtastic Devices ----------------
       const meshtasticMarkers = new Map(); // mesh_id -> { marker, data }
@@ -4309,9 +4920,31 @@
             if (typeof window._applyIntelLayerVisibility === 'function') window._applyIntelLayerVisibility(visible);
             return;
           } */
-          if (!window.map) return;
-          var pane = window.map.getPane(key);
-          if (pane) pane.style.display = visible ? '' : 'none';
+          // MapLibre doesn't use CSS panes - track visibility state for markers
+          window._paneVis = window._paneVis || { paneOverlays: true, paneDrawings: true, paneSymbols: true, paneMeshtastic: true };
+          window._paneVis[key] = visible;
+          if (window.map) {
+            // For symbols/meshtastic: show/hide marker DOM elements
+            var markerClass = { paneSymbols: 'custom-sym', paneMeshtastic: 'meshtastic-marker' }[key];
+            if (markerClass) {
+              document.querySelectorAll('.' + markerClass).forEach(function(el) {
+                var m = el.closest('.maplibregl-marker');
+                if (m) m.style.display = visible ? '' : 'none';
+              });
+            }
+            // For overlays: toggle raster layer opacity
+            if (key === 'paneOverlays') {
+              (window.LPU5_state && window.LPU5_state.overlays || []).forEach(function(o) {
+                if (o.overlay) o.overlay.setOpacity(visible ? (o.opacity || 1) : 0);
+              });
+            }
+            if (key === 'paneDrawings') {
+              (window.LPU5_state && window.LPU5_state.drawings || []).forEach(function(d) {
+                if (!d.layer || !d.layer._id) return;
+                try { window.map.setLayoutProperty(d.layer._id + '_l', 'visibility', visible ? 'visible' : 'none'); } catch(e) {}
+              });
+            }
+          }
         }
 
         function _saveVis() {
@@ -4346,7 +4979,7 @@
         window.addEventListener('load', function() {
           setTimeout(function() {
             LAYERS.forEach(function(l) { if (!_vis[l.key]) _applyPaneVis(l.key, false); });
-          }, 1200); // 1200ms: allow Leaflet pane creation + initial overlays to be added
+          }, 2000); // 2000ms: allow MapLibre to initialize
         });
 
         // Re-render list whenever the flyout is opened
