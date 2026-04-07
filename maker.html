@@ -263,10 +263,6 @@ const FALLBACK = {
   cbt_friendly:   `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`,
   cbt_neutral:    `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`,
   cbt_unknown:    `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`,
-  cbt_raute:      `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`,
-  cbt_rechteck:   `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`,
-  cbt_quadrat:    `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`,
-  cbt_blume:      `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`,
 };
 
 // ── Full marker definitions ────────────────────────────────────────────────
@@ -287,14 +283,10 @@ const MARKERS = [
   { type: 'gateway',         group: 'meshtastic', sidc: null,            desc: 'Meshtastic Gateway – cyan Kreis mit „M"' },
   { type: 'gps_position',    group: 'meshtastic', sidc: null,            desc: 'GPS-Position – blauer Navigationspfeil' },
   // ── CBT (ATAK) ──
-  { type: 'cbt_hostile',     group: 'cbt',      sidc: 'SHGPU----------', desc: 'CBT Feindlich – roter Diamant mit „CBT"-Label' },
-  { type: 'cbt_friendly',    group: 'cbt',      sidc: 'SFGPU----------', desc: 'CBT Freundlich – blaues Rechteck mit „CBT"-Label' },
-  { type: 'cbt_neutral',     group: 'cbt',      sidc: 'SNGPU----------', desc: 'CBT Neutral – grünes Quadrat mit „CBT"-Label' },
-  { type: 'cbt_unknown',     group: 'cbt',      sidc: 'SUGPU----------', desc: 'CBT Unbekannt – gelbe Blüte mit „CBT"-Label' },
-  { type: 'cbt_raute',       group: 'cbt',      sidc: 'SHGPU----------', desc: 'CBT Raute – roter Diamant mit „CBT"-Label (= cbt_hostile)' },
-  { type: 'cbt_rechteck',    group: 'cbt',      sidc: 'SFGPU----------', desc: 'CBT Rechteck – blaues Rechteck mit „CBT"-Label (= cbt_friendly)' },
-  { type: 'cbt_quadrat',     group: 'cbt',      sidc: 'SNGPU----------', desc: 'CBT Quadrat – grünes Quadrat mit „CBT"-Label (= cbt_neutral)' },
-  { type: 'cbt_blume',       group: 'cbt',      sidc: 'SUGPU----------', desc: 'CBT Blume – gelbe Blüte mit „CBT"-Label (= cbt_unknown)' },
+  { type: 'cbt_hostile',     group: 'cbt',      sidc: 'SHGPU----------', desc: 'CBT Feindlich – roter Diamant' },
+  { type: 'cbt_friendly',    group: 'cbt',      sidc: 'SFGPU----------', desc: 'CBT Freundlich – blaues Rechteck' },
+  { type: 'cbt_neutral',     group: 'cbt',      sidc: 'SNGPU----------', desc: 'CBT Neutral – grünes Quadrat' },
+  { type: 'cbt_unknown',     group: 'cbt',      sidc: 'SUGPU----------', desc: 'CBT Unbekannt – gelbe Blüte' },
 ];
 
 // ── Render helper ──────────────────────────────────────────────────────────
@@ -390,10 +382,7 @@ function buildTextOutput() {
   lines.push("  case 'cbt_friendly'    → getMilSymbolSvg('SFGPU----------', 35)  || <Rechteck #0088ff>");
   lines.push("  case 'cbt_neutral'     → getMilSymbolSvg('SNGPU----------', 35)  || <Quadrat #00ff00>");
   lines.push("  case 'cbt_unknown'     → getMilSymbolSvg('SUGPU----------', 35)  || <Blüte #ffff00>");
-  lines.push("  case 'cbt_raute'       → getMilSymbolSvg('SHGPU----------', 35)  || <Diamant #ff4444>");
-  lines.push("  case 'cbt_rechteck'    → getMilSymbolSvg('SFGPU----------', 35)  || <Rechteck #0088ff>");
-  lines.push("  case 'cbt_quadrat'     → getMilSymbolSvg('SNGPU----------', 35)  || <Quadrat #00ff00>");
-  lines.push("  case 'cbt_blume'       → getMilSymbolSvg('SUGPU----------', 35)  || <Blüte #ffff00>");
+  lines.push("  (Aliase cbt_raute / cbt_rechteck / cbt_quadrat / cbt_blume zeigen dasselbe Icon)");
   lines.push("  default                → <Kreis #3498db>");
   lines.push('');
   lines.push('HINWEIS: CBT-Marker nutzen milsymbol (ohne CBT-Label). Der SVG-Fallback');
