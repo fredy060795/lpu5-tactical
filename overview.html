@@ -1046,6 +1046,65 @@
       filter: drop-shadow(0 0 4px #ffd700);
     }
 
+    /* ── EUD Pitch Slider (right side, same height as compass) ─── */
+    #eud-pitch-wrap {
+      position: fixed;
+      top: calc(60px + env(safe-area-inset-top));
+      right: max(10px, env(safe-area-inset-right));
+      z-index: 6010;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+    }
+    #eud-pitch-wrap label {
+      color: #bbb;
+      font-size: 9px;
+      pointer-events: none;
+      letter-spacing: 0.5px;
+      font-family: 'Courier New', monospace;
+    }
+    #eud-pitch-container {
+      position: relative;
+      width: 34px;
+      height: 96px;
+      pointer-events: all;
+      cursor: ns-resize;
+      touch-action: none;
+    }
+    #eud-pitch-track {
+      position: absolute;
+      left: 50%;
+      top: 4px;
+      bottom: 4px;
+      transform: translateX(-50%);
+      width: 100%;
+    }
+    #eud-pitch-track svg {
+      width: 100%;
+      height: 100%;
+    }
+    #eud-pitch-thumb {
+      position: absolute;
+      left: 50%;
+      width: 22px;
+      height: 6px;
+      background: #007bff;
+      border-radius: 3px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      transition: top 0.05s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+    #eud-pitch-deg-label {
+      color: #9ad1ff;
+      font-size: 9px;
+      pointer-events: none;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+    }
+
   </style>
 </head>
 
@@ -1138,6 +1197,22 @@
       <span id="tsb-compass-bearing">000°</span>
     </div>
   </button>
+
+  <!-- Pitch slider (top-right, same height as compass) -->
+  <div id="eud-pitch-wrap">
+    <label>60°</label>
+    <div id="eud-pitch-container" title="Karte kippen (0°–60°)">
+      <div id="eud-pitch-track">
+        <svg viewBox="0 0 34 88" preserveAspectRatio="none">
+          <polygon points="12,2 22,2 32,86 2,86" fill="rgba(255,255,255,0.08)" stroke="#555" stroke-width="1"/>
+          <polygon id="eud-pitch-fill" points="12,2 22,2 32,86 2,86" fill="rgba(0,123,255,0.18)" stroke="none"/>
+        </svg>
+      </div>
+      <div id="eud-pitch-thumb" style="top:88px;"></div>
+    </div>
+    <label>0°</label>
+    <div id="eud-pitch-deg-label">0°</div>
+  </div>
 
   <div id="measure-hint">📏 Karte antippen zum Messen · Erneut tippen zum Beenden</div>
 
@@ -2450,15 +2525,27 @@
 
     // ---- Compass / Map Rotation ----
     let mapBearing = 0;
-    let rotationLocked = true; // Map always stays north-up
-    let deviceHeading = null; // Device compass heading (0-360, 0=north, clockwise)
-    let gpsHeading = null;    // GPS movement heading fallback (from coords.heading)
+    let mapPitch   = 0;           // 0–60° CSS-perspective tilt
+    let rotationLocked = true;    // true = north-up fixed; false = follows device heading
+    let deviceHeading = null;     // Device compass heading (0–360, 0=north, clockwise)
+    let gpsHeading = null;        // GPS movement heading fallback (from coords.heading)
     let _deviceOrientationActive = false;
+
+    // Apply combined bearing + pitch CSS transform to the map element
+    function _applyMapTransform() {
+      const mapEl = document.getElementById('map');
+      if (!mapEl) return;
+      if (mapPitch > 0) {
+        mapEl.style.transform = 'perspective(600px) rotateX(' + mapPitch + 'deg) rotate(' + mapBearing + 'deg)';
+      } else {
+        mapEl.style.transform = 'rotate(' + mapBearing + 'deg)';
+      }
+    }
 
     function setMapBearing(deg) {
       mapBearing = ((deg % 360) + 360) % 360;
-      const mapEl = document.getElementById('map');
-      if (mapEl) mapEl.style.transform = 'rotate(' + mapBearing + 'deg)';
+      _applyMapTransform();
+      // Compass needle always counter-rotates to point to geographic north
       const needle = document.getElementById('compass-needle-group');
       if (needle) needle.style.transform = 'rotate(' + (-mapBearing) + 'deg)';
       const bearingEl = document.getElementById('tsb-compass-bearing');
@@ -2466,13 +2553,38 @@
       updateGpsMarkerHeading();
     }
 
+    // Update pitch slider thumb UI
+    function _updateEudPitchThumb(pitch) {
+      const thumb  = document.getElementById('eud-pitch-thumb');
+      const cont   = document.getElementById('eud-pitch-container');
+      const degLbl = document.getElementById('eud-pitch-deg-label');
+      const fillEl = document.getElementById('eud-pitch-fill');
+      if (!thumb || !cont) return;
+      const frac     = pitch / 60;
+      const h        = cont.offsetHeight - 8;
+      thumb.style.top = ((1 - frac) * h) + 'px';
+      if (degLbl) degLbl.textContent = Math.round(pitch) + '°';
+      if (fillEl) {
+        const cx = 17; const topW = 10 + (1 - frac) * 12; const botW = 30;
+        fillEl.setAttribute('points', `${cx - topW / 2},2 ${cx + topW / 2},2 ${botW / 2 + 2},86 ${2},86`);
+      }
+    }
+
+    function setMapPitch(pitch) {
+      mapPitch = Math.max(0, Math.min(60, pitch));
+      _applyMapTransform();
+      _updateEudPitchThumb(mapPitch);
+    }
+
     function resetNorth() { setMapBearing(0); }
 
     function toggleCompassLock() {
-      // Map always stays north-up. Compass tap ensures device orientation is
-      // active so the GPS arrow and bearing display work (iOS 13+ needs a user
-      // gesture to grant permission).
-      if (!_deviceOrientationActive) {
+      rotationLocked = !rotationLocked;
+      const btn = document.getElementById('tsb-compass');
+      if (btn) btn.classList.toggle('rotation-unlocked', !rotationLocked);
+
+      if (!rotationLocked) {
+        // Unlock: enable free rotation via device orientation
         if (typeof DeviceOrientationEvent !== 'undefined' &&
             typeof DeviceOrientationEvent.requestPermission === 'function') {
           DeviceOrientationEvent.requestPermission()
@@ -2480,6 +2592,16 @@
             .catch(function () {});
         } else {
           startDeviceOrientation();
+        }
+      } else {
+        // Lock: snap map back to north
+        setMapBearing(0);
+        // Show device heading in bearing display (compass stays pointing north)
+        const bearingEl = document.getElementById('tsb-compass-bearing');
+        if (bearingEl && deviceHeading !== null) {
+          bearingEl.textContent = String(Math.round(((deviceHeading % 360) + 360) % 360)).padStart(3, '0') + '°';
+        } else if (bearingEl) {
+          bearingEl.textContent = '000°';
         }
       }
     }
@@ -2508,6 +2630,32 @@
       }, { passive: true });
     }());
 
+    // ---- EUD Pitch Slider (pointer-event drag) ----
+    (function () {
+      const cont = document.getElementById('eud-pitch-container');
+      if (!cont) return;
+      let _dragging  = false;
+      let _startY    = 0;
+      let _startPitch = 0;
+
+      cont.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        _dragging   = true;
+        _startY     = e.clientY;
+        _startPitch = mapPitch;
+        cont.setPointerCapture(e.pointerId);
+      });
+      cont.addEventListener('pointermove', function (e) {
+        if (!_dragging) return;
+        const dy = _startY - e.clientY; // drag up → higher pitch
+        setMapPitch(_startPitch + dy * 0.6);
+      });
+      cont.addEventListener('pointerup',     function () { _dragging = false; });
+      cont.addEventListener('pointercancel', function () { _dragging = false; });
+      _updateEudPitchThumb(0);
+    }());
+    // ---- End EUD Pitch Slider ----
+
     // ---- Device Orientation / Compass Heading ----
     let _hasAbsoluteOrientation = false;
     function _onDeviceOrientation(e) {
@@ -2526,11 +2674,17 @@
       }
       if (heading === null || !Number.isFinite(heading)) return;
       deviceHeading = heading;
-      // Show device heading on compass bearing display
-      var bearingEl = document.getElementById('tsb-compass-bearing');
-      if (bearingEl) bearingEl.textContent = String(Math.round(((heading % 360) + 360) % 360)).padStart(3, '0') + '°';
-      // Map always stays north-up – only rotate the GPS marker arrow
-      updateGpsMarkerHeading();
+
+      if (!rotationLocked) {
+        // Free-rotation mode: map follows device heading
+        setMapBearing(heading);
+      } else {
+        // Locked (north-up) mode: show device heading in bearing display,
+        // map stays north-up, only GPS arrow rotates
+        var bearingEl = document.getElementById('tsb-compass-bearing');
+        if (bearingEl) bearingEl.textContent = String(Math.round(((heading % 360) + 360) % 360)).padStart(3, '0') + '°';
+        updateGpsMarkerHeading();
+      }
     }
 
     function startDeviceOrientation() {
