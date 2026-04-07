@@ -677,9 +677,9 @@ def _parse_cot_event(xml_str: str) -> Optional[Dict[str, Any]]:
             "<meshtastic> detail present" if has_meshtastic
             else f"CoT type '{cot_type}' prefix-matches meshtastic_node"
         )
-    elif base_lpu5_type == "friendly" and (how.startswith("h-g") or how == "m-g"):
+    elif base_lpu5_type == "friendly" and how == "h-e":
         detected_type = "tak_maker"
-        detection_reason = f"friendly + how='{how}' → tak_maker (ATAK/iTAK/WinTAK user SA beacon)"
+        detection_reason = f"friendly + how='{how}' → tak_maker (WinTAK/ATAK device with manually entered position)"
     else:
         cbt = _ATAK_TO_CBT_TYPE.get(base_lpu5_type)
         if cbt:

@@ -424,19 +424,19 @@ class COTProtocolHandler {
         // like regular ATAK GPS SA beacons.  The <meshtastic> element is checked
         // first as the authoritative signal that this is a Meshtastic node.
         //   • <meshtastic> in detail → Meshtastic node forwarded by ATAK plugin
-        //   • friendly + how="h-g*" → tak_maker (ATAK GPS SA position)
-        //   • friendly (any other how) → node (Meshtastic node relayed by ATAK)
+        //   • friendly + how="h-e" (human-entered, e.g. WinTAK PC with manually
+        //     configured position such as HQ PC) → tak_maker (device SA beacon)
+        //   • friendly (GPS/machine-generated how) → cbt_friendly (GPS-tracked unit)
         //   • Other ATAK-sourced shapes → CBT variant for visual distinction
         const _ATAK_TO_CBT = {
             hostile: 'cbt_hostile',
+            friendly: 'cbt_friendly',
             neutral: 'cbt_neutral', unknown: 'cbt_unknown'
         };
         if (cotEvent.hasMeshtasticDetail || lpu5Type === 'node' || cotEvent.type === 'a-f-G-E-S-U-M') {
             lpu5Type = 'node';
-        } else if (lpu5Type === 'friendly' && cotEvent.how && cotEvent.how.startsWith('h-g')) {
+        } else if (lpu5Type === 'friendly' && cotEvent.how === 'h-e') {
             lpu5Type = 'tak_maker';
-        } else if (lpu5Type === 'friendly') {
-            lpu5Type = 'node';
         } else if (_ATAK_TO_CBT[lpu5Type]) {
             lpu5Type = _ATAK_TO_CBT[lpu5Type];
         }

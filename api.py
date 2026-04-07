@@ -1950,14 +1950,16 @@ def _process_incoming_cot(cot_xml: str) -> None:
         # ATAK GPS SA beacons; the <meshtastic> element is the authoritative
         # signal that this is a Meshtastic node, not a human ATAK user.
         #   • <meshtastic> in detail  → Meshtastic node forwarded by ATAK plugin
-        #   • Friendly CoT with how="h-g*" (GPS SA beacon) or how="m-g"
-        #     (machine-generated, e.g. WinTAK/iTAK) → tak_maker (ATAK user position)
-        #   • Friendly CoT with how="h-e" (human-entered on map) → cbt_friendly
-        #     (manually placed CBT marker, same treatment as hostile/neutral/unknown)
+        #   • Friendly CoT with how="h-e" (human-entered position, e.g. WinTAK PC
+        #     with manually configured location such as HQ PC) → tak_maker
+        #     (the operator's device SA beacon rendered with the node/device icon)
+        #   • Friendly CoT with how="h-g*" (GPS-derived) or how="m-g"
+        #     (machine-generated, e.g. automated GPS unit position report) →
+        #     cbt_friendly (GPS-tracked friendly unit, CBT marker icon)
         #     LPU5's own GPS positions use UIDs "GPS-*" and are filtered above)
         if _has_mesh_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly" and (how.startswith("h-g") or how == "m-g"):
+        elif lpu5_type == "friendly" and how == "h-e":
             lpu5_type = "tak_maker"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
@@ -8906,9 +8908,9 @@ def _cot_monitor_record(cot_xml: str, direction: str, source: str) -> None:
             detected_type = "meshtastic_node"
             detection_reason = f"CoT type {event_type} (equipment)"
         elif event_type.startswith("a-f"):
-            if how.startswith("h-g"):
+            if how == "h-e":
                 detected_type = "tak_maker"
-                detection_reason = f"friendly + how={how} (human-originated)"
+                detection_reason = f"friendly + how={how} (human-entered, WinTAK device beacon)"
             else:
                 detected_type = "friendly"
                 detection_reason = f"CoT type {event_type}"
