@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LPU5 Maker / Icon Referenz</title>
+  <script src="https://cdn.jsdelivr.net/npm/milsymbol@2.2.0/dist/milsymbol.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --blue: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --purple: #bc8cff;
+      --cyan: #39d353;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--blue);
+    }
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 24px;
+      font-size: 13px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 28px 0 10px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    thead th {
+      background: #21262d;
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:not(:last-child) td {
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:hover { background: #1c2128; }
+    td {
+      padding: 10px 16px;
+      vertical-align: middle;
+    }
+    td.name-col {
+      font-family: 'Cascadia Code', 'Consolas', monospace;
+      font-size: 13px;
+      color: var(--blue);
+      width: 200px;
+    }
+    td.icon-col {
+      width: 60px;
+      text-align: center;
+    }
+    td.icon-col svg, td.icon-col img {
+      display: inline-block;
+      vertical-align: middle;
+    }
+    td.desc-col {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    td.sidc-col {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--yellow);
+      width: 170px;
+    }
+    .group-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-standard { background: rgba(88,166,255,.15); color: var(--blue); }
+    .badge-atak     { background: rgba(248,81,73,.15);  color: var(--red); }
+    .badge-mesh     { background: rgba(57,211,83,.15);  color: var(--green); }
+    .badge-cbt      { background: rgba(188,140,255,.15);color: var(--purple); }
+
+    /* text output */
+    #output-box {
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Cascadia Code', 'Consolas', monospace;
+      font-size: 12px;
+      white-space: pre;
+      overflow-x: auto;
+      color: #e6edf3;
+      max-height: 420px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+    .copy-btn {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-bottom: 8px;
+      transition: background .15s;
+    }
+    .copy-btn:hover { background: #30363d; }
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      background: #1c2128;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+    }
+    .note code {
+      background: #21262d;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--yellow);
+    }
+  </style>
+</head>
+<body>
+
+<h1>🗺️ LPU5 Maker / Icon Referenz</h1>
+<p class="subtitle">Vollständige Liste aller Maker-Typen mit visuellem Icon und Text-Ausgabe</p>
+
+<div class="note">
+  ℹ️ Icons mit SIDC nutzen <code>milsymbol@2.2.0</code> (APP-6C / MIL-STD-2525C).
+  Steht die Bibliothek nicht zur Verfügung (offline), wird automatisch der SVG-Fallback angezeigt.
+  Die Spalte <b>Darstellung</b> zeigt exakt das Icon, wie es auf der Karte erscheint.
+</div>
+
+<!-- ── Standard ── -->
+<div class="section-title">Standard-Marker</div>
+<table>
+  <thead>
+    <tr>
+      <th>Maker-Name (type)</th>
+      <th>Darstellung</th>
+      <th>Beschreibung</th>
+      <th>SIDC / Quelle</th>
+      <th>Gruppe</th>
+    </tr>
+  </thead>
+  <tbody id="tbody-standard"></tbody>
+</table>
+
+<!-- ── ATAK ── -->
+<div class="section-title">ATAK-Marker</div>
+<table>
+  <thead>
+    <tr>
+      <th>Maker-Name (type)</th>
+      <th>Darstellung</th>
+      <th>Beschreibung</th>
+      <th>SIDC / Quelle</th>
+      <th>Gruppe</th>
+    </tr>
+  </thead>
+  <tbody id="tbody-atak"></tbody>
+</table>
+
+<!-- ── Meshtastic ── -->
+<div class="section-title">Meshtastic-Marker</div>
+<table>
+  <thead>
+    <tr>
+      <th>Maker-Name (type)</th>
+      <th>Darstellung</th>
+      <th>Beschreibung</th>
+      <th>SIDC / Quelle</th>
+      <th>Gruppe</th>
+    </tr>
+  </thead>
+  <tbody id="tbody-meshtastic"></tbody>
+</table>
+
+<!-- ── CBT ── -->
+<div class="section-title">CBT-Marker (ATAK)</div>
+<table>
+  <thead>
+    <tr>
+      <th>Maker-Name (type)</th>
+      <th>Darstellung</th>
+      <th>Beschreibung</th>
+      <th>SIDC / Quelle</th>
+      <th>Gruppe</th>
+    </tr>
+  </thead>
+  <tbody id="tbody-cbt"></tbody>
+</table>
+
+<!-- ── Text Output ── -->
+<div class="section-title">Text-Ausgabe (für Debugging / Copy-Paste)</div>
+<button class="copy-btn" onclick="copyOutput()">📋 Kopieren</button>
+<div id="output-box"></div>
+
+<script>
+// ── MilSymbol helper (same as index.html) ──────────────────────────────────
+function getMilSymbolSvg(sidc, size, options) {
+  if (typeof ms !== 'undefined') {
+    try {
+      var opts = Object.assign({ size: size || 35 }, options || {});
+      return new ms.Symbol(sidc, opts).asSVG();
+    } catch (e) {}
+  }
+  return null;
+}
+
+// ── Fallback SVGs (exact copies from index.html getSymbolSvg) ─────────────
+const FALLBACK = {
+  hostile:        `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`,
+  friendly:       `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`,
+  neutral:        `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`,
+  unknown:        `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`,
+  pending:        `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#9b59b6" stroke="black" stroke-width="3"/></svg>`,
+  marker:         `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#3498db" stroke="black" stroke-width="3"/></svg>`,
+  meshtastic_node:`<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>`,
+  node:           `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>`,
+  gateway:        `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>`,
+  gps_position:   `<svg width="35" height="35" viewBox="0 0 32 32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+  tak_maker:      `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`,
+  cbt_hostile:    `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`,
+  cbt_friendly:   `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`,
+  cbt_neutral:    `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`,
+  cbt_unknown:    `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`,
+  cbt_raute:      `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`,
+  cbt_rechteck:   `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`,
+  cbt_quadrat:    `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`,
+  cbt_blume:      `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 20 Q65 0 80 20 Q100 35 80 50 Q100 65 80 80 Q65 100 50 80 Q35 100 20 80 Q0 65 20 50 Q0 35 20 20 Q35 0 50 20" fill="#ffff00" stroke="black" stroke-width="3"/></svg>`,
+};
+
+// ── Full marker definitions ────────────────────────────────────────────────
+// sidc: MIL-STD-2525C SIDC for milsymbol, or null for SVG-only icons
+const MARKERS = [
+  // ── Standard ──
+  { type: 'hostile',         group: 'standard', sidc: 'SHGPU----------', desc: 'Feindlich – roter Diamant (MIL-STD-2525C Hostile)' },
+  { type: 'friendly',        group: 'standard', sidc: 'SFGPU----------', desc: 'Freundlich – blaues Rechteck (MIL-STD-2525C Friendly)' },
+  { type: 'neutral',         group: 'standard', sidc: 'SNGPU----------', desc: 'Neutral – grünes Quadrat (MIL-STD-2525C Neutral)' },
+  { type: 'unknown',         group: 'standard', sidc: 'SUGPU----------', desc: 'Unbekannt – gelbe Blütenform (MIL-STD-2525C Unknown)' },
+  { type: 'pending',         group: 'standard', sidc: 'SPGPU----------', desc: 'Ausstehend – lila Diamant (MIL-STD-2525C Pending)' },
+  { type: 'marker',          group: 'standard', sidc: null,              desc: 'Generischer Marker – blauer Kreis (kein SIDC)' },
+  // ── ATAK ──
+  { type: 'tak_maker',       group: 'atak',     sidc: 'SFGPU----------', desc: 'ATAK GPS SA-Einheit – wie friendly (blaues Rechteck)' },
+  // ── Meshtastic ──
+  { type: 'meshtastic_node', group: 'meshtastic', sidc: null,            desc: 'Meshtastic Knoten – cyan Kreis mit „M"' },
+  { type: 'node',            group: 'meshtastic', sidc: null,            desc: 'Meshtastic Knoten (Alias) – cyan Kreis mit „M"' },
+  { type: 'gateway',         group: 'meshtastic', sidc: null,            desc: 'Meshtastic Gateway – cyan Kreis mit „M"' },
+  { type: 'gps_position',    group: 'meshtastic', sidc: null,            desc: 'GPS-Position – blauer Navigationspfeil' },
+  // ── CBT (ATAK) ──
+  { type: 'cbt_hostile',     group: 'cbt',      sidc: 'SHGPU----------', desc: 'CBT Feindlich – roter Diamant mit „CBT"-Label' },
+  { type: 'cbt_friendly',    group: 'cbt',      sidc: 'SFGPU----------', desc: 'CBT Freundlich – blaues Rechteck mit „CBT"-Label' },
+  { type: 'cbt_neutral',     group: 'cbt',      sidc: 'SNGPU----------', desc: 'CBT Neutral – grünes Quadrat mit „CBT"-Label' },
+  { type: 'cbt_unknown',     group: 'cbt',      sidc: 'SUGPU----------', desc: 'CBT Unbekannt – gelbe Blüte mit „CBT"-Label' },
+  { type: 'cbt_raute',       group: 'cbt',      sidc: 'SHGPU----------', desc: 'CBT Raute – roter Diamant mit „CBT"-Label (= cbt_hostile)' },
+  { type: 'cbt_rechteck',    group: 'cbt',      sidc: 'SFGPU----------', desc: 'CBT Rechteck – blaues Rechteck mit „CBT"-Label (= cbt_friendly)' },
+  { type: 'cbt_quadrat',     group: 'cbt',      sidc: 'SNGPU----------', desc: 'CBT Quadrat – grünes Quadrat mit „CBT"-Label (= cbt_neutral)' },
+  { type: 'cbt_blume',       group: 'cbt',      sidc: 'SUGPU----------', desc: 'CBT Blume – gelbe Blüte mit „CBT"-Label (= cbt_unknown)' },
+];
+
+// ── Render helper ──────────────────────────────────────────────────────────
+function getIconSvg(m) {
+  if (m.sidc) {
+    const svg = getMilSymbolSvg(m.sidc, 35);
+    if (svg) return svg;
+  }
+  return FALLBACK[m.type] || FALLBACK['marker'];
+}
+
+function groupBadge(g) {
+  const map = {
+    standard:   ['badge-standard', 'Standard'],
+    atak:       ['badge-atak',     'ATAK'],
+    meshtastic: ['badge-mesh',     'Meshtastic'],
+    cbt:        ['badge-cbt',      'CBT'],
+  };
+  const [cls, label] = map[g] || ['badge-standard', g];
+  return `<span class="group-badge ${cls}">${label}</span>`;
+}
+
+function sidcCell(m) {
+  if (m.sidc) return m.sidc;
+  return '<span style="color:#8b949e">SVG-Fallback</span>';
+}
+
+function buildTable(tbodyId, groupName) {
+  const tbody = document.getElementById(tbodyId);
+  MARKERS.filter(m => m.group === groupName).forEach(m => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name-col">${m.type}</td>
+      <td class="icon-col">${getIconSvg(m)}</td>
+      <td class="desc-col">${m.desc}</td>
+      <td class="sidc-col">${sidcCell(m)}</td>
+      <td>${groupBadge(m.group)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Text output ────────────────────────────────────────────────────────────
+function buildTextOutput() {
+  const milOk = typeof ms !== 'undefined';
+  const lines = [];
+  lines.push('═══════════════════════════════════════════════════════════════════════════');
+  lines.push('  LPU5 MAKER / ICON REFERENZ – Text-Ausgabe');
+  lines.push(`  milsymbol: ${milOk ? '✔ geladen (milsymbol@2.2.0)' : '✘ nicht verfügbar – SVG-Fallback aktiv'}`);
+  lines.push('═══════════════════════════════════════════════════════════════════════════');
+  lines.push('');
+
+  const groups = [
+    { id: 'standard',   label: '── STANDARD-MARKER ──' },
+    { id: 'atak',       label: '── ATAK-MARKER ──' },
+    { id: 'meshtastic', label: '── MESHTASTIC-MARKER ──' },
+    { id: 'cbt',        label: '── CBT-MARKER (ATAK) ──' },
+  ];
+
+  groups.forEach(g => {
+    lines.push(g.label);
+    lines.push('');
+    const col1 = 'type'.padEnd(20);
+    const col2 = 'SIDC'.padEnd(18);
+    const col3 = 'Icon-Quelle'.padEnd(14);
+    const col4 = 'Beschreibung';
+    lines.push(`  ${col1}  ${col2}  ${col3}  ${col4}`);
+    lines.push('  ' + '─'.repeat(90));
+    MARKERS.filter(m => m.group === g.id).forEach(m => {
+      const svgAvail = m.sidc && milOk;
+      const src = svgAvail ? 'milsymbol   ' : 'SVG-Fallback';
+      const sidc = (m.sidc || '—').padEnd(18);
+      lines.push(`  ${m.type.padEnd(20)}  ${sidc}  ${src}    ${m.desc}`);
+    });
+    lines.push('');
+  });
+
+  lines.push('═══════════════════════════════════════════════════════════════════════════');
+  lines.push('');
+  lines.push('getSymbolSvg() Mapping (index.html):');
+  lines.push('');
+  lines.push("  case 'hostile'         → getMilSymbolSvg('SHGPU----------', 35)  || <Diamant #ff4444>");
+  lines.push("  case 'friendly'        → getMilSymbolSvg('SFGPU----------', 35)  || <Rechteck #0088ff>");
+  lines.push("  case 'neutral'         → getMilSymbolSvg('SNGPU----------', 35)  || <Quadrat #00ff00>");
+  lines.push("  case 'unknown'         → getMilSymbolSvg('SUGPU----------', 35)  || <Blüte #ffff00>");
+  lines.push("  case 'pending'         → getMilSymbolSvg('SPGPU----------', 35)  || <Diamant #9b59b6>");
+  lines.push("  case 'marker'          → <Kreis #3498db> (kein milsymbol)");
+  lines.push("  case 'meshtastic_node' → <Cyan-Kreis 'M'> (kein milsymbol)");
+  lines.push("  case 'node'            → <Cyan-Kreis 'M'> (Alias)");
+  lines.push("  case 'gateway'         → <Cyan-Kreis 'M'> (Alias)");
+  lines.push("  case 'gps_position'    → <Blauer Pfeil> (kein milsymbol)");
+  lines.push("  case 'tak_maker'       → getMilSymbolSvg('SFGPU----------', 35)  || <Rechteck #0088ff>");
+  lines.push("  case 'cbt_hostile'     → getMilSymbolSvg('SHGPU----------', 35)  || <Diamant #ff4444>");
+  lines.push("  case 'cbt_friendly'    → getMilSymbolSvg('SFGPU----------', 35)  || <Rechteck #0088ff>");
+  lines.push("  case 'cbt_neutral'     → getMilSymbolSvg('SNGPU----------', 35)  || <Quadrat #00ff00>");
+  lines.push("  case 'cbt_unknown'     → getMilSymbolSvg('SUGPU----------', 35)  || <Blüte #ffff00>");
+  lines.push("  case 'cbt_raute'       → getMilSymbolSvg('SHGPU----------', 35)  || <Diamant #ff4444>");
+  lines.push("  case 'cbt_rechteck'    → getMilSymbolSvg('SFGPU----------', 35)  || <Rechteck #0088ff>");
+  lines.push("  case 'cbt_quadrat'     → getMilSymbolSvg('SNGPU----------', 35)  || <Quadrat #00ff00>");
+  lines.push("  case 'cbt_blume'       → getMilSymbolSvg('SUGPU----------', 35)  || <Blüte #ffff00>");
+  lines.push("  default                → <Kreis #3498db>");
+  lines.push('');
+  lines.push('HINWEIS: CBT-Marker nutzen milsymbol (ohne CBT-Label). Der SVG-Fallback');
+  lines.push('  in assets/symbols/ enthält den „CBT"-Schriftzug, milsymbol-Icons nicht.');
+  lines.push('');
+  lines.push('═══════════════════════════════════════════════════════════════════════════');
+
+  return lines.join('\n');
+}
+
+function copyOutput() {
+  const text = document.getElementById('output-box').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✔ Kopiert!';
+    setTimeout(() => { btn.textContent = '📋 Kopieren'; }, 1800);
+  }).catch(() => {
+    alert('Bitte manuell kopieren (Ctrl+A, Ctrl+C).');
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  buildTable('tbody-standard',   'standard');
+  buildTable('tbody-atak',       'atak');
+  buildTable('tbody-meshtastic', 'meshtastic');
+  buildTable('tbody-cbt',        'cbt');
+  document.getElementById('output-box').textContent = buildTextOutput();
+});
+</script>
+</body>
+</html>
