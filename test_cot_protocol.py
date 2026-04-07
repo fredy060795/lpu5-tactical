@@ -544,28 +544,30 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         self.assertEqual(marker["type"], "meshtastic_node")
 
     def test_cot_to_marker_cbt_friendly_type_human_entered(self):
-        # "h-e" (human-entered, manually placed CBT marker) without <meshtastic>
-        # → cbt_friendly (same treatment as hostile→cbt_hostile, neutral→cbt_neutral, etc.)
+        # "h-e" (human-entered position, e.g. WinTAK PC with manually configured
+        # location such as HQ PC) → tak_maker (device SA beacon with node/device icon)
         xml = self._make_cot_xml(how="h-e")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "cbt_friendly")
+        self.assertEqual(marker["type"], "tak_maker")
 
     def test_cot_to_marker_gps_position_type_gps_how(self):
-        # "h-g-i-g-o" (GPS-derived) → tak_maker (ATAK user SA beacon)
+        # "h-g-i-g-o" (GPS-derived, e.g. automated GPS unit position report) →
+        # cbt_friendly (GPS-tracked friendly unit rendered with CBT marker).
         # LPU5's own GPS positions are created directly via /api/map/symbols
         # and never pass through CoT type detection.
         xml = self._make_cot_xml(how="h-g-i-g-o")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_maker")
+        self.assertEqual(marker["type"], "cbt_friendly")
 
     def test_cot_to_marker_friendly_for_machine_generated(self):
-        # "m-g" without <meshtastic> → tak_maker (e.g. iTAK/WinTAK SA beacons)
+        # "m-g" without <meshtastic> → cbt_friendly (machine-generated GPS unit
+        # position report, e.g. automated tracking system reporting unit position)
         xml = self._make_cot_xml(how="m-g")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_maker")
+        self.assertEqual(marker["type"], "cbt_friendly")
 
     def test_meshtastic_detail_takes_precedence_over_human_how(self):
         # how="h-e" (human-entered) + <meshtastic> in detail must produce
