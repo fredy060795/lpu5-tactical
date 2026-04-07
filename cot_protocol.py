@@ -729,7 +729,7 @@ class CoTProtocolHandler:
         if cot_event.uid.startswith("mesh-"):
             lpu5_type = "node"
 
-        # Derive the shortName for meshtastic_node markers (max 4 characters).
+        # Derive the shortName for meshtastic_node markers (max 2 characters).
         # Priority: <meshtastic shortName> from XML > callsign[:4].
         _MESH_TYPES = ("meshtastic_node", "node", "gateway", "gps_position")
         short_name: Optional[str] = None
