@@ -5032,6 +5032,14 @@ _gateway_service_lock = threading.Lock()
 _cot_listener_service = None
 _cot_listener_lock = threading.Lock()
 
+# Per-marker throttle: track the last DB-update timestamp so that rapidly
+# broadcasting TAK clients (e.g. tak_maker SA beacons every few seconds) do
+# not hammer the database.  Only the DB write + WebSocket broadcast are
+# throttled; CoT forwarding to TAK/TCP/multicast still happens every time.
+_COT_MARKER_UPDATE_INTERVAL = 30  # seconds
+_cot_marker_last_update: Dict[str, float] = {}
+_cot_marker_last_update_lock = threading.Lock()
+
 # Global iTAK CoT bridge service (SSL TCP on 127.0.0.1:8089)
 _itak_bridge_service = None
 _itak_bridge_lock = threading.Lock()
@@ -9087,6 +9095,31 @@ def _cot_listener_ingest_callback(xml_string: str) -> None:
                 # so the marker stays current on the map.
                 elif existing.created_by not in _TAK_INGEST_SOURCES and incoming_type != existing.type:
                     incoming_type = existing.type
+                # Throttle DB writes: only update once per _COT_MARKER_UPDATE_INTERVAL
+                # seconds per marker to avoid hammering the database when TAK clients
+                # broadcast SA beacons at a high rate (e.g. every few seconds).
+                _now = time.time()
+                _marker_id = marker_dict["id"]
+                with _cot_marker_last_update_lock:
+                    _last = _cot_marker_last_update.get(_marker_id, 0.0)
+                    _due = (_now - _last) >= _COT_MARKER_UPDATE_INTERVAL
+                    if _due:
+                        _cot_marker_last_update[_marker_id] = _now
+                        # Periodically evict entries that haven't been seen for
+                        # more than 5 minutes to prevent unbounded memory growth.
+                        if len(_cot_marker_last_update) > 500:
+                            _cutoff = _now - 300
+                            _stale = [k for k, v in _cot_marker_last_update.items() if v < _cutoff]
+                            for k in _stale:
+                                del _cot_marker_last_update[k]
+                if not _due:
+                    # Forward to TAK/TCP/multicast so SA data still flows between
+                    # clients, but skip the expensive DB write and WS broadcast.
+                    _forward_cot_to_tcp_clients(xml_string)
+                    _forward_cot_multicast(xml_string)
+                    _forward_cot_to_itak_bridge(xml_string)
+                    forward_cot_to_tak(xml_string)
+                    return
                 logger.info(
                     "CoT listener: updating marker %s (%s) @ %.6f, %.6f",
                     marker_dict.get("id"), incoming_type,
