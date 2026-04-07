@@ -1972,11 +1972,11 @@ def _process_incoming_cot(cot_xml: str) -> None:
                 }.get(lpu5_type, lpu5_type)
 
         # "mesh-<node_id>" UIDs are Meshtastic nodes imported back via
-        # ATAK/WinTAK SA/COT import.  Always assign type "meshtastic_node" so
-        # they render with the Meshtastic blue-circle icon instead of a generic
-        # ground marker.
+        # ATAK/WinTAK SA/COT import.  Always assign type "node" so they render
+        # with the Meshtastic blue-circle icon and match the type stored in the
+        # DB for LPU5-forwarded Meshtastic nodes.
         if uid.startswith("mesh-"):
-            lpu5_type = "meshtastic_node"
+            lpu5_type = "node"
 
         # Deduplication: skip identical events to avoid redundant DB writes,
         # WebSocket broadcasts, and log spam when the TAK server re-sends the

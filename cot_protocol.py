@@ -200,7 +200,7 @@ class CoTEvent:
         if self.is_meshtastic_node and self.callsign:
             mesh_elem = ET.SubElement(detail, "meshtastic")
             mesh_elem.set("longName", self.callsign)
-            short = (self.meshtastic_short_name or self.callsign[:4])[:4]
+            short = (self.meshtastic_short_name or self.callsign[:2])[:2]
             mesh_elem.set("shortName", short)
 
         # Remarks
@@ -724,12 +724,12 @@ class CoTProtocolHandler:
 
         # CoT events with a "mesh-" UID prefix are LPU5 Meshtastic node forwards
         # imported back via ATAK/WinTAK SA/COT import.  Always map them to type
-        # "meshtastic_node" so they render with the Meshtastic blue-circle icon
-        # instead of a generic ground marker.
+        # "node" so they render with the Meshtastic blue-circle icon and match
+        # the type stored in the DB for LPU5-forwarded Meshtastic nodes.
         if cot_event.uid.startswith("mesh-"):
-            lpu5_type = "meshtastic_node"
+            lpu5_type = "node"
 
-        # Derive the shortName for meshtastic_node markers (max 4 characters).
+        # Derive the shortName for meshtastic_node markers (max 2 characters).
         # Priority: <meshtastic shortName> from XML > callsign[:4].
         _MESH_TYPES = ("meshtastic_node", "node", "gateway", "gps_position")
         short_name: Optional[str] = None
