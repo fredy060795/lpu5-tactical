@@ -2675,6 +2675,7 @@
       justify-content: center;
       cursor: pointer;
       user-select: none;
+      touch-action: none;
       transition: border-color 0.2s;
     }
     #mapCompass:hover { border-color: #007bff; }
@@ -2692,6 +2693,64 @@
       font-size: 8px;
       text-align: center;
       width: 36px;
+      pointer-events: none;
+      letter-spacing: 0.3px;
+    }
+    #bearingSliderWrap {
+      position: fixed;
+      left: calc(var(--sb-collapsed) + 4px);
+      top: 284px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+    }
+    #bearingSliderContainer {
+      position: relative;
+      width: 48px;
+      height: 18px;
+      pointer-events: all;
+      cursor: ew-resize;
+      touch-action: none;
+      background: rgba(20,20,20,0.7);
+      border: 1px solid #444;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #bearingSlider {
+      position: absolute;
+      left: 0; right: 0; top: 0; bottom: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: ew-resize;
+      margin: 0;
+      touch-action: none;
+    }
+    #bearingTrackFill {
+      position: absolute;
+      left: 0; top: 0; height: 100%;
+      background: rgba(0,123,255,0.35);
+      pointer-events: none;
+      transition: width 0.05s;
+    }
+    #bearingThumb {
+      position: absolute;
+      top: 50%;
+      width: 4px;
+      height: 12px;
+      background: #007bff;
+      border-radius: 2px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    #bearingDegLabel {
+      color: #9ad1ff;
+      font-size: 8px;
+      font-weight: bold;
       pointer-events: none;
       letter-spacing: 0.3px;
     }
@@ -8146,7 +8205,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
   </div>
 
   <!-- Compass -->
-  <div id="mapCompass" title="Kompass · Klick = Nord zurücksetzen">
+  <div id="mapCompass" title="Kompass · Klick = Nord zurücksetzen · Horizontal ziehen = Drehen · Vertikal ziehen = Neigung">
     <svg id="compassNeedle" viewBox="0 0 24 24" width="22" height="22">
       <g id="compassNeedleGroup">
         <path d="M12 2 L14 11 L12 13 L10 11 Z" fill="#e74c3c"/>
@@ -8156,6 +8215,16 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
     </svg>
   </div>
   <div id="compassDegText">N</div>
+
+  <!-- Bearing Slider (Karten-Grad-Winkel) -->
+  <div id="bearingSliderWrap">
+    <div id="bearingSliderContainer" title="Karte drehen (0°–359°) – Ziehen zum Drehen">
+      <div id="bearingTrackFill"></div>
+      <div id="bearingThumb"></div>
+      <input type="range" id="bearingSlider" min="0" max="359" value="0" step="1" />
+    </div>
+    <div id="bearingDegLabel">0°</div>
+  </div>
 
   <div id="iconBar" aria-hidden="false">
     <!-- Existing buttons WITHOUT duplicate life status icons -->
@@ -18183,32 +18252,146 @@ window.addEventListener('storage', (e) => {
             const idx = Math.round(norm / 22.5) % 16;
             degTextEl.textContent = dirs[idx];
           }
+          // Update bearing slider input and visual thumb
+          const bSlider = document.getElementById('bearingSlider');
+          if (bSlider && document.activeElement !== bSlider) bSlider.value = Math.round(norm);
+          const bLbl = document.getElementById('bearingDegLabel');
+          if (bLbl) bLbl.textContent = Math.round(norm) + '°';
+          const bCont  = document.getElementById('bearingSliderContainer');
+          const bFill  = document.getElementById('bearingTrackFill');
+          const bThumb = document.getElementById('bearingThumb');
+          if (bCont && bFill && bThumb) {
+            const pct = norm / 359;
+            const w = bCont.offsetWidth || 48;
+            bFill.style.width  = (pct * w) + 'px';
+            bThumb.style.left  = (pct * w) + 'px';
+          }
         }
 
+        // Helper to reset pitch slider UI to a given pitch value
+        function _syncPitchSliderUI(pitch) {
+          const slider = document.getElementById('pitchSlider');
+          if (slider) slider.value = Math.round(pitch);
+          const thumb  = document.getElementById('pitchThumb');
+          const cont   = document.getElementById('pitchSliderContainer');
+          if (thumb && cont) {
+            const frac = pitch / 60;
+            thumb.style.top = ((1 - frac) * (cont.offsetHeight - 8)) + 'px';
+          }
+          const lbl = document.getElementById('pitchDegLabel');
+          if (lbl) lbl.textContent = Math.round(pitch) + '°';
+          const fillEl = document.getElementById('pitchFill');
+          if (fillEl) {
+            const topW = 10 + (1 - pitch / 60) * 12; const botW = 30; const cx = 16;
+            fillEl.setAttribute('points', `${cx - topW / 2},2 ${cx + topW / 2},2 ${botW / 2 + 2},80 ${2},80`);
+          }
+        }
+
+        // Sync compass on every map move (rotate, pan, programmatic) so the
+        // needle always matches the actual bearing.
         _mlMap.on('move',      function() { updateCompassDisplay(_mlMap.getBearing()); });
         _mlMap.on('rotate',    function() { updateCompassDisplay(_mlMap.getBearing()); });
         _mlMap.on('rotateend', function() { updateCompassDisplay(_mlMap.getBearing()); });
 
         if (compassEl) {
-          compassEl.addEventListener('click', function() {
-            _rotateActive = !_rotateActive;
-            compassEl.classList.toggle('active', _rotateActive);
-            if (_rotateActive) {
-              _mlMap.dragRotate.enable();
-              _mlMap.touchZoomRotate.enableRotation();
-            } else {
-              _mlMap.easeTo({ bearing: 0, pitch: 0, duration: 500 });
-              const slider = document.getElementById('pitchSlider');
-              if (slider) slider.value = 0;
-              const thumbEl = document.getElementById('pitchThumb');
-              const contEl  = document.getElementById('pitchSliderContainer');
-              if (thumbEl && contEl) thumbEl.style.top = (contEl.offsetHeight - 8) + 'px';
-              const lblEl = document.getElementById('pitchDegLabel');
-              if (lblEl) lblEl.textContent = '0°';
+          let _compassDragDist = 0;
+          let _compassDragX    = 0;
+          let _compassDragY    = 0;
+          let _compassPitch0   = 0;
+          let _compassBearing0 = 0;
+          let _compassDragAxis = null; // 'x' (bearing) or 'y' (pitch)
+          const MIN_DRAG_PX    = 4;   // px before drag vs. click is distinguished
+
+          compassEl.addEventListener('pointerdown', function(e) {
+            e.preventDefault();
+            _compassDragDist = 0;
+            _compassDragX    = e.clientX;
+            _compassDragY    = e.clientY;
+            _compassPitch0   = _mlMap.getPitch();
+            _compassBearing0 = _mlMap.getBearing();
+            _compassDragAxis = null;
+            compassEl.setPointerCapture(e.pointerId);
+          });
+
+          compassEl.addEventListener('pointermove', function(e) {
+            const dx = e.clientX - _compassDragX;
+            const dy = _compassDragY - e.clientY; // drag up → higher pitch
+            _compassDragDist = Math.sqrt(dx * dx + dy * dy);
+            if (_compassDragDist < MIN_DRAG_PX) return;
+
+            // Lock drag axis on first significant movement
+            if (!_compassDragAxis) {
+              _compassDragAxis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
             }
-            updateCompassDisplay(_mlMap.getBearing());
+
+            if (_compassDragAxis === 'x') {
+              // Horizontal drag → change map bearing
+              const newBearing = _compassBearing0 + dx * 1.0;
+              _mlMap.setBearing(newBearing);
+              if (!_rotateActive) { _rotateActive = true; compassEl.classList.add('active'); }
+            } else {
+              // Vertical drag → change map pitch (tilt)
+              const newPitch = Math.max(0, Math.min(60, _compassPitch0 + dy * 0.6));
+              _mlMap.setPitch(newPitch);
+              _syncPitchSliderUI(newPitch);
+            }
+          });
+
+          // If movement was negligible → treat as click (toggle rotate / reset north)
+          compassEl.addEventListener('pointerup', function() {
+            _compassDragAxis = null;
+            if (_compassDragDist < MIN_DRAG_PX) {
+              // click behaviour
+              _rotateActive = !_rotateActive;
+              compassEl.classList.toggle('active', _rotateActive);
+              if (_rotateActive) {
+                _mlMap.dragRotate.enable();
+                _mlMap.touchZoomRotate.enableRotation();
+              } else {
+                _mlMap.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+                _syncPitchSliderUI(0);
+              }
+              updateCompassDisplay(_mlMap.getBearing());
+            }
           });
         }
+
+        // ── Bearing Slider (Karten-Grad-Winkel-Schieber) ────────────────
+        (function() {
+          const bSlider = document.getElementById('bearingSlider');
+          const bCont   = document.getElementById('bearingSliderContainer');
+          if (!bSlider || !bCont) return;
+
+          bSlider.value = 0;
+
+          // Dragging the slider changes the map bearing
+          bSlider.addEventListener('input', function() {
+            const deg = parseInt(this.value, 10);
+            _mlMap.setBearing(deg);
+            if (!_rotateActive && compassEl) { _rotateActive = true; compassEl.classList.add('active'); }
+          });
+
+          // Pointer drag directly on the container (for custom thumb feel)
+          let _bDragging = false;
+          let _bStartX   = 0;
+          let _bStart    = 0;
+          bCont.addEventListener('pointerdown', function(e) {
+            e.preventDefault();
+            _bDragging = true;
+            _bStartX   = e.clientX;
+            _bStart    = _mlMap.getBearing();
+            bCont.setPointerCapture(e.pointerId);
+          });
+          bCont.addEventListener('pointermove', function(e) {
+            if (!_bDragging) return;
+            const dx = e.clientX - _bStartX;
+            const newBearing = _bStart + dx * (360 / bCont.offsetWidth);
+            _mlMap.setBearing(newBearing);
+            if (!_rotateActive && compassEl) { _rotateActive = true; compassEl.classList.add('active'); }
+          });
+          bCont.addEventListener('pointerup',     function() { _bDragging = false; });
+          bCont.addEventListener('pointercancel', function() { _bDragging = false; });
+        }());
 
         // Ctrl+left-drag rotation handler
         (function() {
@@ -18227,6 +18410,8 @@ window.addEventListener('storage', (e) => {
           });
           window.addEventListener('mouseup', function() { _ctrlDragging = false; });
         }());
+
+        updateCompassDisplay(0);
       }());
 
     })();
