@@ -940,7 +940,8 @@
     }
 
     #compass-needle-group {
-      transform-origin: 14px 14px;
+      transform-box: fill-box;
+      transform-origin: center center;
       transition: transform 0.25s ease;
     }
 
@@ -1178,7 +1179,7 @@
   </div>
 
   <!-- Compass floating button (top-left, below header) -->
-  <button id="tsb-compass" ontouchstart="handleToolInteraction(toggleCompassLock, event)" onclick="handleToolInteraction(toggleCompassLock, event)" title="Kompass – Tippen zum Drehen sperren/entsperren">
+  <button id="tsb-compass" title="Kompass – Tippen zum Drehen sperren/entsperren · Horizontal ziehen = Karte drehen · Vertikal ziehen = Neigung">
     <div id="tsb-compass-inner">
       <svg id="tsb-compass-svg" viewBox="0 0 28 28" fill="none">
         <circle cx="14" cy="14" r="13" fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
@@ -2630,6 +2631,70 @@
       }, { passive: true });
     }());
 
+    // Compass drag: horizontal → bearing, vertical → pitch
+    (function () {
+      const btn = document.getElementById('tsb-compass');
+      if (!btn) return;
+      const MIN_DRAG_PX   = 5; // px before drag vs. tap is distinguished
+      let _dragging  = false;
+      let _startX    = 0;
+      let _startY    = 0;
+      let _dragDist  = 0;
+      let _startBear = 0;
+      let _startPitchDrag = 0;
+      let _axis      = null; // 'x' or 'y'
+
+      btn.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+        _dragging  = true;
+        _startX    = e.clientX;
+        _startY    = e.clientY;
+        _dragDist  = 0;
+        _startBear = mapBearing;
+        _startPitchDrag = mapPitch;
+        _axis      = null;
+        btn.setPointerCapture(e.pointerId);
+      });
+
+      btn.addEventListener('pointermove', function (e) {
+        if (!_dragging) return;
+        const dx = e.clientX - _startX;
+        const dy = _startY - e.clientY; // up = positive
+        _dragDist = Math.sqrt(dx * dx + dy * dy);
+        if (_dragDist < MIN_DRAG_PX) return;
+
+        if (!_axis) {
+          _axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+        }
+
+        if (_axis === 'x') {
+          // Horizontal drag → rotate map (Karten-Grad-Winkel)
+          setMapBearing(_startBear + dx * 0.8);
+          if (rotationLocked) {
+            rotationLocked = false;
+            btn.classList.add('rotation-unlocked');
+          }
+        } else {
+          // Vertical drag → tilt map (pitch)
+          setMapPitch(_startPitchDrag + dy * 0.5);
+        }
+      });
+
+      btn.addEventListener('pointerup', function (e) {
+        _dragging = false;
+        _axis = null;
+        // Small movement = tap/click → toggle compass lock
+        if (_dragDist < MIN_DRAG_PX) {
+          handleToolInteraction(toggleCompassLock, e);
+        }
+      });
+
+      btn.addEventListener('pointercancel', function () {
+        _dragging = false;
+        _axis = null;
+      });
+    }());
+
     // ---- EUD Pitch Slider (pointer-event drag) ----
     (function () {
       const cont = document.getElementById('eud-pitch-container');
@@ -2655,6 +2720,39 @@
       _updateEudPitchThumb(0);
     }());
     // ---- End EUD Pitch Slider ----
+
+    // ---- Desktop rotation: Ctrl+left-drag on the map element ----
+    (function () {
+      const mapEl = document.getElementById('map');
+      if (!mapEl) return;
+      let _ctrlDragging  = false;
+      let _lastX         = 0;
+      let _lastBearing   = 0;
+
+      mapEl.addEventListener('mousedown', function (e) {
+        if (e.ctrlKey && e.button === 0) {
+          e.preventDefault();
+          _ctrlDragging = true;
+          _lastX        = e.clientX;
+          _lastBearing  = mapBearing;
+        }
+      });
+      window.addEventListener('mousemove', function (e) {
+        if (!_ctrlDragging) return;
+        const dx = e.clientX - _lastX;
+        _lastX = e.clientX;
+        setMapBearing(_lastBearing + dx * 0.5);
+        _lastBearing = mapBearing;
+        // Unlock rotation so the manual drag is reflected
+        if (rotationLocked) {
+          rotationLocked = false;
+          const btn = document.getElementById('tsb-compass');
+          if (btn) btn.classList.add('rotation-unlocked');
+        }
+      });
+      window.addEventListener('mouseup', function () { _ctrlDragging = false; });
+    }());
+    // ---- End desktop rotation ----
 
     // ---- Device Orientation / Compass Heading ----
     let _hasAbsoluteOrientation = false;
