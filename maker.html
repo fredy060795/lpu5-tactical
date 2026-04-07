@@ -258,7 +258,7 @@ const FALLBACK = {
   node:           `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>`,
   gateway:        `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>`,
   gps_position:   `<svg width="35" height="35" viewBox="0 0 32 32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
-  tak_maker:      `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#0088ff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="white" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">T</text></svg>`,
+  tak_maker:      `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="#1a1a1a" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">?</text></svg>`,
   cbt_hostile:    `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`,
   cbt_friendly:   `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`,
   cbt_neutral:    `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`,
@@ -280,7 +280,7 @@ const MARKERS = [
   { type: 'pending',         group: 'standard', sidc: 'SPGPU----------', desc: 'Ausstehend – lila Diamant (MIL-STD-2525C Pending)' },
   { type: 'marker',          group: 'standard', sidc: null,              desc: 'Generischer Marker – blauer Kreis (kein SIDC)' },
   // ── ATAK ──
-  { type: 'tak_maker',       group: 'atak',     sidc: null,              desc: 'ATAK GPS SA-Einheit – blauer Kreis mit „T" (wie node/meshtastic)' },
+  { type: 'tak_maker',       group: 'atak',     sidc: null,              desc: 'ATAK GPS SA-Einheit – cyan Kreis mit Rufzeichen-Kürzel (wie meshtastic_node)' },
   // ── Meshtastic ──
   { type: 'meshtastic_node', group: 'meshtastic', sidc: null,            desc: 'Meshtastic Knoten – cyan Kreis mit „M"' },
   { type: 'node',            group: 'meshtastic', sidc: null,            desc: 'Meshtastic Knoten (Alias) – cyan Kreis mit „M"' },
@@ -385,7 +385,7 @@ function buildTextOutput() {
   lines.push("  case 'node'            → <Cyan-Kreis 'M'> (Alias)");
   lines.push("  case 'gateway'         → <Cyan-Kreis 'M'> (Alias)");
   lines.push("  case 'gps_position'    → <Blauer Pfeil> (kein milsymbol)");
-  lines.push("  case 'tak_maker'       → <Blauer Kreis 'T'> (wie node/meshtastic)");
+  lines.push("  case 'tak_maker'       → <Cyan-Kreis Rufzeichen-Kürzel> (wie node/meshtastic)");
   lines.push("  case 'cbt_hostile'     → getMilSymbolSvg('SHGPU----------', 35)  || <Diamant #ff4444>");
   lines.push("  case 'cbt_friendly'    → getMilSymbolSvg('SFGPU----------', 35)  || <Rechteck #0088ff>");
   lines.push("  case 'cbt_neutral'     → getMilSymbolSvg('SNGPU----------', 35)  || <Quadrat #00ff00>");

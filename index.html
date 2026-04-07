@@ -15274,6 +15274,13 @@ window.addEventListener('storage', (e) => {
         'Yellow': '#ffff00', 'Green': '#00c800', 'Purple': '#800080',
         'Maroon': '#800000', 'Teal': '#008080', 'Orange': '#ff8000', 'White': '#ffffff'
       };
+      function getTakMakerSvg(callsign, teamName) {
+        const color = TAK_TEAM_COLORS[teamName] || '#00ffff';
+        const label = escapeHtml((callsign || '?').substring(0, 4));
+        const lightColors = new Set(['#00ffff', '#ffff00', '#ffffff', '#00c800']);
+        const textColor = lightColors.has(color) ? '#1a1a1a' : '#ffffff';
+        return `<svg viewBox="0 0 100 100" width="35" height="35"><circle cx="50" cy="50" r="45" fill="${color}" stroke="#333" stroke-width="4"/><text x="50" y="50" font-size="28" fill="${textColor}" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="sans-serif">${label}</text></svg>`;
+      }
       let activeSymbol = null; let placingSymbol = false;
       function getSymbolSvg(sym) {
         switch (sym) {
@@ -15287,7 +15294,7 @@ window.addEventListener('storage', (e) => {
           case 'node':
           case 'gateway': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="black" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">M</text></svg>`;
           case 'gps_position': return `<svg width="35" height="35" viewBox="0 0 32 32"><path d="M16 2 L30 30 L16 23 L2 30 Z" fill="#007bff" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
-          case 'tak_maker': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#0088ff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="white" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">T</text></svg>`;
+          case 'tak_maker': return `<svg width="35" height="35" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#00ffff" stroke="black" stroke-width="4"/><text x="50" y="50" font-size="28" fill="#1a1a1a" text-anchor="middle" dominant-baseline="central" font-weight="bold" font-family="Arial, sans-serif">?</text></svg>`;
           case 'cbt_hostile': return getMilSymbolSvg('SHGPU----------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><path d="M50 5 L95 50 L50 95 L5 50 Z" fill="#ff4444" stroke="black" stroke-width="3"/></svg>`;
           case 'cbt_friendly': return getMilSymbolSvg('SFGPU----------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="10" y="30" width="80" height="40" fill="#0088ff" stroke="black" stroke-width="3"/></svg>`;
           case 'cbt_neutral': return getMilSymbolSvg('SNGPU----------', 35) || `<svg width="35" height="35" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#00ff00" stroke="black" stroke-width="3"/></svg>`;
@@ -15516,6 +15523,7 @@ window.addEventListener('storage', (e) => {
             if (s.type === 'gps_position' && s.username && s.username === getCurrentUsername()) return;
 
             const isGps = (s.type === 'gps_position');
+            const isTakMaker = (s.type === 'tak_maker');
             let icon;
             if (isGps) {
               // Other users' GPS positions shown as Meshtastic node icons.
@@ -15526,6 +15534,15 @@ window.addEventListener('storage', (e) => {
                 html: svgHtml,
                 iconSize: [40, 40],
                 iconAnchor: [20, 20]
+              });
+            } else if (isTakMaker) {
+              // tak_maker: cyan circle with callsign abbreviation and team color (like meshtastic_node)
+              const svgHtml = getTakMakerSvg(s.label, s.team);
+              icon = L.divIcon({
+                className: 'custom-sym',
+                html: svgHtml,
+                iconSize: [35, 35],
+                iconAnchor: [17, 17]
               });
             } else {
               const svgHtml = getSymbolSvg(s.type || s.sym || 'hostile');
