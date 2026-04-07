@@ -890,7 +890,7 @@
     /* ── Pitch Slider ─────────────────────────────── */
     #pitchSliderWrap {
       position: fixed;
-      left: 10px;
+      left: calc(var(--sb-collapsed) + 10px);
       top: 120px; /* below MapLibre zoom control */
       z-index: 1000;
       display: flex;
@@ -960,7 +960,7 @@
     /* ── Compass ──────────────────────────────────── */
     #mapCompass {
       position: fixed;
-      left: 10px;
+      left: calc(var(--sb-collapsed) + 10px);
       top: 230px; /* below pitch slider */
       z-index: 1000;
       width: 36px;
@@ -982,7 +982,7 @@
     }
     #compassDegText {
       position: fixed;
-      left: 10px;
+      left: calc(var(--sb-collapsed) + 10px);
       top: 268px;
       z-index: 1000;
       color: #bbb;
