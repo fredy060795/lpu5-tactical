@@ -2585,7 +2585,9 @@
       if (btn) btn.classList.toggle('rotation-unlocked', !rotationLocked);
 
       if (!rotationLocked) {
-        // Unlock: enable free rotation via device orientation
+        // Unlock: allow manual map rotation. Try to start device orientation tracking
+        // (needed for GPS heading indicator) if not already active, e.g. on iOS where
+        // permission must be requested from a user gesture.
         if (typeof DeviceOrientationEvent !== 'undefined' &&
             typeof DeviceOrientationEvent.requestPermission === 'function') {
           DeviceOrientationEvent.requestPermission()
@@ -2773,16 +2775,15 @@
       if (heading === null || !Number.isFinite(heading)) return;
       deviceHeading = heading;
 
-      if (!rotationLocked) {
-        // Free-rotation mode: map follows device heading
-        setMapBearing(heading);
-      } else {
-        // Locked (north-up) mode: show device heading in bearing display,
-        // map stays north-up, only GPS arrow rotates
+      // Map rotation is manual only – never auto-rotate from device heading.
+      // When the map is locked to north, show device heading in the bearing display
+      // so the user can see which direction they are facing.
+      if (rotationLocked) {
         var bearingEl = document.getElementById('tsb-compass-bearing');
         if (bearingEl) bearingEl.textContent = String(Math.round(((heading % 360) + 360) % 360)).padStart(3, '0') + '°';
-        updateGpsMarkerHeading();
       }
+      // Always keep the GPS marker heading indicator in sync with device heading.
+      updateGpsMarkerHeading();
     }
 
     function startDeviceOrientation() {

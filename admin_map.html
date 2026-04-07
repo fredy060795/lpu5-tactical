@@ -936,6 +936,7 @@
       direction: rtl;
       margin: 0;
       touch-action: none;
+      pointer-events: none;
     }
     #pitchSliderContainer {
       touch-action: none;
@@ -980,9 +981,8 @@
     }
     #mapCompass:hover { border-color: #007bff; }
     #mapCompass.active { border-color: #ffd700; background: rgba(40,30,0,0.9); }
-    #compassNeedle {
-      transform-box: fill-box;
-      transform-origin: center center;
+    #compassNeedleGroup {
+      transform-origin: 12px 12px;
       transition: transform 0.15s;
     }
     #compassDegText {
@@ -1089,9 +1089,11 @@
   <!-- Compass -->
   <div id="mapCompass" title="Kompass – Klick = Nord – Vertikal ziehen = Neigung – Horizontal ziehen = Drehung">
     <svg id="compassNeedle" viewBox="0 0 24 24" width="22" height="22">
-      <path d="M12 2 L14 11 L12 13 L10 11 Z" fill="#e74c3c"/>
-      <path d="M12 22 L14 13 L12 11 L10 13 Z" fill="#eee"/>
-      <circle cx="12" cy="12" r="2" fill="#ccc"/>
+      <g id="compassNeedleGroup">
+        <path d="M12 2 L14 11 L12 13 L10 11 Z" fill="#e74c3c"/>
+        <path d="M12 22 L14 13 L12 11 L10 13 Z" fill="#eee"/>
+        <circle cx="12" cy="12" r="2" fill="#ccc"/>
+      </g>
     </svg>
   </div>
   <div id="compassDegText">0°</div>
@@ -4059,7 +4061,7 @@
       // ── Compass ─────────────────────────────────────────────────────────
       (function() {
         const compassEl  = document.getElementById('mapCompass');
-        const needleEl   = document.getElementById('compassNeedle');
+        const needleEl   = document.getElementById('compassNeedleGroup');
         const degTextEl  = document.getElementById('compassDegText');
         let _rotateActive = false;
 
