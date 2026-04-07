@@ -708,13 +708,17 @@ class CoTProtocolHandler:
         #     because ATAK Meshtastic SA beacons use how="h-g-*" just like regular
         #     ATAK GPS SA beacons; the <meshtastic> element is the authoritative
         #     signal that this is a Meshtastic node, not a human ATAK user.
-        #   • All other friendly CoT events without a <meshtastic> element → tak_maker
-        #     (covers ATAK h-g GPS SA, ATAK h-e human-entry, iTAK/WinTAK m-g, etc.)
+        #   • Friendly CoT with how="h-g*" (GPS-derived SA beacon) or how="m-g"
+        #     (machine-generated, e.g. WinTAK/iTAK) → tak_maker (ATAK user position)
+        #   • Friendly CoT with how="h-e" (human-entered on map) → cbt_friendly
+        #     (manually placed CBT marker, treated like hostile/neutral/unknown CBT types)
         #     LPU5's own GPS positions are created directly via /api/map/symbols
         #     and never pass through CoT type detection.
         if cot_event.has_meshtastic_detail or lpu5_type == "meshtastic_node":
             lpu5_type = "meshtastic_node"
-        elif lpu5_type == "friendly":
+        elif lpu5_type == "friendly" and (
+            cot_event.how.startswith("h-g") or cot_event.how == "m-g"
+        ):
             lpu5_type = "tak_maker"
         else:
             # All CoT events originate from ATAK/WinTAK. Remap the four basic
