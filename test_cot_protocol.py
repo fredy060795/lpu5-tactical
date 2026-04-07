@@ -543,13 +543,13 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
         marker = CoTProtocolHandler.cot_to_marker(evt)
         self.assertEqual(marker["type"], "meshtastic_node")
 
-    def test_cot_to_marker_tak_maker_type_human_how(self):
-        # "h-e" (human-entered) without <meshtastic> → tak_maker
-        # (all friendly CoT without Meshtastic detail is from TAK clients)
+    def test_cot_to_marker_cbt_friendly_type_human_entered(self):
+        # "h-e" (human-entered, manually placed CBT marker) without <meshtastic>
+        # → cbt_friendly (same treatment as hostile→cbt_hostile, neutral→cbt_neutral, etc.)
         xml = self._make_cot_xml(how="h-e")
         evt = CoTEvent.from_xml(xml)
         marker = CoTProtocolHandler.cot_to_marker(evt)
-        self.assertEqual(marker["type"], "tak_maker")
+        self.assertEqual(marker["type"], "cbt_friendly")
 
     def test_cot_to_marker_gps_position_type_gps_how(self):
         # "h-g-i-g-o" (GPS-derived) → tak_maker (ATAK user SA beacon)
