@@ -341,6 +341,21 @@ class TestAtakSymbolTypeMappings(unittest.TestCase):
     def test_hostile_subtype_resolves_to_hostile(self):
         self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-h-G-U-C-I"), "hostile")
 
+    def test_spot_map_friendly_subtype_maps_to_cbt_friendly(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("b-m-p-s-m-f"), "cbt_friendly")
+
+    def test_spot_map_hostile_subtype_maps_to_cbt_hostile(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("b-m-p-s-m-h"), "cbt_hostile")
+
+    def test_spot_map_neutral_subtype_maps_to_cbt_neutral(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("b-m-p-s-m-n"), "cbt_neutral")
+
+    def test_spot_map_unknown_subtype_maps_to_cbt_unknown(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("b-m-p-s-m-u"), "cbt_unknown")
+
+    def test_pending_cot_maps_to_pending(self):
+        self.assertEqual(CoTProtocolHandler.cot_type_to_lpu5("a-p-G-U-C"), "pending")
+
     # --- Archive element present for military-affiliation types ---
 
     def test_friendly_event_has_archive_element(self):
@@ -467,7 +482,7 @@ class TestMeshtasticNodeAndTakUnit(unittest.TestCase):
 
     def test_cbt_friendly_in_lpu5_to_cot(self):
         self.assertIn("cbt_friendly", CoTProtocolHandler.LPU5_TO_COT_TYPE)
-        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["cbt_friendly"], "a-f-G-U-C")
+        self.assertEqual(CoTProtocolHandler.LPU5_TO_COT_TYPE["cbt_friendly"], "a-f-G-U-C-I")
 
     def test_meshtastic_node_marker_produces_meshtastic_equipment_cot(self):
         # meshtastic_node uses a-f-G-E-S-U-M (Meshtastic equipment) so ATAK
@@ -845,6 +860,23 @@ class TestMeshtasticCotTypeNotCorruptedByEcho(unittest.TestCase):
             evt.cot_type,
             "a-f-G-E-S-U-M",
             "gateway marker must use a-f-G-E-S-U-M regardless of stored cot_type",
+        )
+
+    def test_cbt_friendly_marker_uses_specific_atak_subtype(self):
+        """Server-side CoT generation must keep the ATAK/iTAK friendly subtype."""
+        marker = {
+            "id": "cbt-friendly-1",
+            "lat": 48.0,
+            "lng": 11.0,
+            "type": "cbt_friendly",
+            "name": "Friendly Spot",
+        }
+        evt = CoTProtocolHandler.marker_to_cot(marker)
+        self.assertIsNotNone(evt)
+        self.assertEqual(
+            evt.cot_type,
+            "a-f-G-U-C-I",
+            "cbt_friendly marker should export as a-f-G-U-C-I for TAK/iTAK compatibility",
         )
 
     def test_non_meshtastic_marker_still_uses_stored_cot_type(self):

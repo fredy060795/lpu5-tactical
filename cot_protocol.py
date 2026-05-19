@@ -388,7 +388,7 @@ class CoTProtocolHandler:
         # CBT variants: ATAK-sourced markers rendered with "CBT" label to
         # distinguish them from natively created LPU5 markers.
         "cbt_hostile":      "a-h-G-U-C",   # ATAK hostile (red diamond + CBT)
-        "cbt_friendly":     "a-f-G-U-C",        # ATAK friendly (blue rectangle + CBT)
+        "cbt_friendly":     "a-f-G-U-C-I",      # ATAK friendly subtype preserved for TAK/iTAK round-trip
         "cbt_neutral":      "a-n-G-U-C",   # ATAK neutral (green square + CBT)
         "cbt_unknown":      "a-u-G-U-C",   # ATAK unknown (yellow flower + CBT)
     }
@@ -441,7 +441,11 @@ class CoTProtocolHandler:
     #   a-n (Neutral, green)   → neutral  (green square)
     #   a-h (Hostile, red)     → hostile  (red diamond)
     COT_TO_LPU5_TYPE: List[tuple] = [
-        ("b-m-p-s-m", "hostile"),   # TAK spot-map marker (all shapes)
+        ("b-m-p-s-m-f", "cbt_friendly"),  # TAK spot-map marker friendly
+        ("b-m-p-s-m-h", "cbt_hostile"),   # TAK spot-map marker hostile
+        ("b-m-p-s-m-n", "cbt_neutral"),   # TAK spot-map marker neutral
+        ("b-m-p-s-m-u", "cbt_unknown"),   # TAK spot-map marker unknown
+        ("b-m-p-s-m", "cbt_hostile"),     # TAK spot-map marker (generic fallback)
         ("u-d-c-e",   "hostile"),   # TAK drawing ellipse → diamond
         ("u-d-c-c",   "hostile"),   # TAK drawing circle → diamond
         ("u-d-r",     "friendly"),  # TAK drawing rectangle
@@ -453,7 +457,7 @@ class CoTProtocolHandler:
         ("a-h",       "hostile"),   # hostile affiliation → red diamond
         ("a-n",       "neutral"),   # neutral affiliation → green square
         ("a-u",       "unknown"),   # unknown affiliation → yellow flower
-        ("a-p",       "hostile"),   # pending affiliation → red diamond
+        ("a-p",       "pending"),   # pending affiliation → pending
     ]
 
     @classmethod
