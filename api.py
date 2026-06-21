@@ -8259,7 +8259,7 @@ def _gateway_broadcast_callback(event_type: str, data: Dict):
             try:
                 _cot_listener_ingest_callback(str(data["xml"]))
             except Exception as _cot_err:
-                logger.debug("Gateway mesh CoT ingest error for %s: %s", data.get("from"), _cot_err)
+                logger.warning("Gateway mesh CoT ingest error for %s: %s", data.get("from"), _cot_err)
 
         # Bridge incoming Meshtastic messages into the general chat channel
         if event_type == "gateway_message" and data.get("direction") == "incoming":
@@ -8683,6 +8683,7 @@ async def gateway_send_message(data: dict = Body(...)):
                 and isinstance(text, str)
                 and MeshtasticGatewayService is not None
                 and MeshtasticGatewayService._is_probably_cot_xml(text)):
+            logger.warning("gateway_send_message received mode='cot' without cot_xml; falling back to text payload detection")
             cot_xml = text
 
         if cot_xml:

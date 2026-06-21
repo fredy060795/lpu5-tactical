@@ -73,6 +73,7 @@ class MeshtasticGatewayService:
         self.running = False
         self.sync_thread: Optional[threading.Thread] = None
         self.broadcast_callback = broadcast_callback  # Optional callback for WebSocket broadcasts
+        self._send_data_port_kwarg: Optional[str] = None
         
         # Database paths
         self.nodes_db_path = os.path.join(self.base_path, "meshtastic_nodes_db.json")
@@ -151,6 +152,9 @@ class MeshtasticGatewayService:
                 decode_candidates.append(payload_bytes[1:])
 
         for candidate in decode_candidates:
+            # Some senders wrap the compressed CoT payload in a normal zlib stream,
+            # others emit raw deflate bytes without the zlib header. Try both so
+            # the gateway can decode packets from both formats.
             for wbits in (zlib.MAX_WBITS, -zlib.MAX_WBITS):
                 try:
                     decoded = zlib.decompress(candidate, wbits).decode("utf-8", errors="strict")
@@ -193,12 +197,13 @@ class MeshtasticGatewayService:
 
         if hasattr(self.interface, "sendData"):
             send_errors = []
-            for kwargs in (
-                {"portNum": MESHTASTIC_ATAK_FORWARDER_PORTNUM},
-                {"portnum": MESHTASTIC_ATAK_FORWARDER_PORTNUM},
-            ):
+            kwarg_names = [self._send_data_port_kwarg] if self._send_data_port_kwarg else ["portNum", "portnum"]
+            for kwarg_name in kwarg_names:
+                if not kwarg_name:
+                    continue
                 try:
-                    self.interface.sendData(payload, **kwargs)
+                    self.interface.sendData(payload, **{kwarg_name: MESHTASTIC_ATAK_FORWARDER_PORTNUM})
+                    self._send_data_port_kwarg = kwarg_name
                     return "ATAK_FORWARDER"
                 except TypeError as exc:
                     send_errors.append(exc)
