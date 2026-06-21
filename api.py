@@ -8678,7 +8678,11 @@ async def gateway_send_message(data: dict = Body(...)):
         cot_xml = data.get("cot_xml")
         mode = str(data.get("mode") or "").strip().lower()
 
-        if mode == "cot" and not cot_xml and isinstance(text, str):
+        if (mode == "cot"
+                and not cot_xml
+                and isinstance(text, str)
+                and MeshtasticGatewayService is not None
+                and MeshtasticGatewayService._is_probably_cot_xml(text)):
             cot_xml = text
 
         if cot_xml:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import zlib
 import tempfile
 import unittest
 
@@ -50,6 +51,7 @@ class TestMeshtasticGatewayService(unittest.TestCase):
         payload = self.service.encode_cot_payload(cot_xml)
 
         self.assertEqual(payload[0], MESHTASTIC_TRANSFER_TYPE_COT)
+        self.assertEqual(zlib.decompress(payload[1:]).decode("utf-8"), cot_xml)
         self.assertEqual(self.service.decode_cot_payload(payload), cot_xml)
 
     def test_decode_accepts_unprefixed_payload(self):

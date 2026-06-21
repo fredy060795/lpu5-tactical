@@ -133,7 +133,7 @@ class MeshtasticGatewayService:
     @classmethod
     def encode_cot_payload(cls, cot_xml: str) -> bytes:
         """Encode CoT XML using the ATAK_FORWARDER-compatible single-packet format."""
-        xml_bytes = (cot_xml or "").encode("utf-8").strip()
+        xml_bytes = (cot_xml or "").strip().encode("utf-8")
         if not xml_bytes:
             return b""
         return bytes([MESHTASTIC_TRANSFER_TYPE_COT]) + zlib.compress(xml_bytes)
@@ -141,15 +141,14 @@ class MeshtasticGatewayService:
     @classmethod
     def decode_cot_payload(cls, payload: Any) -> Optional[str]:
         """Decode an ATAK_FORWARDER-compatible CoT payload back to XML text."""
-        payload_bytes = cls._normalize_payload_bytes(payload).strip()
+        payload_bytes = cls._normalize_payload_bytes(payload)
         if not payload_bytes:
             return None
 
         decode_candidates = [payload_bytes]
         if payload_bytes[:1] == bytes([MESHTASTIC_TRANSFER_TYPE_COT]):
-            stripped = payload_bytes[1:].strip()
-            if stripped:
-                decode_candidates.append(stripped)
+            if payload_bytes[1:]:
+                decode_candidates.append(payload_bytes[1:])
 
         for candidate in decode_candidates:
             for wbits in (zlib.MAX_WBITS, -zlib.MAX_WBITS):
