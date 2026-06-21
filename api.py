@@ -8255,6 +8255,12 @@ def _gateway_broadcast_callback(event_type: str, data: Dict):
             except Exception as _tak_err:
                 logger.debug("Gateway→TAK forward error for %s: %s", data.get("mesh_id"), _tak_err)
 
+        if event_type == "gateway_cot" and data.get("xml"):
+            try:
+                _cot_listener_ingest_callback(str(data["xml"]))
+            except Exception as _cot_err:
+                logger.warning("Gateway mesh CoT ingest error for %s: %s", data.get("from"), _cot_err)
+
         # Bridge incoming Meshtastic messages into the general chat channel
         if event_type == "gateway_message" and data.get("direction") == "incoming":
             db = None
@@ -8657,6 +8663,31 @@ def gateway_messages(limit: int = 100):
         raise HTTPException(status_code=500, detail=f"Failed to load messages: {str(e)}")
 
 
+def _should_infer_gateway_cot_from_text(mode: str, text: object, cot_xml: object) -> bool:
+    """Return True when the gateway should treat text as an omitted CoT XML payload."""
+    return (
+        mode == "cot"
+        and not cot_xml
+        and isinstance(text, str)
+        and MeshtasticGatewayService is not None
+        and MeshtasticGatewayService.is_probably_cot_xml(text)
+    )
+
+
+def _schedule_gateway_websocket_broadcast(payload: Dict[str, Any], label: str) -> None:
+    """Dispatch a gateway WebSocket broadcast without blocking the API response."""
+    if not websocket_manager:
+        return
+    try:
+        task = asyncio.create_task(websocket_manager.broadcast(payload))
+        task.add_done_callback(
+            lambda t: logger.warning("Failed to broadcast %s: %s", label, t.exception())
+            if t.exception() else None
+        )
+    except Exception as e:
+        logger.warning("Failed to schedule %s broadcast: %s", label, e)
+
+
 @app.post("/api/gateway/send-message")
 async def gateway_send_message(data: dict = Body(...)):
     """Send a message via gateway service (uses the first available active interface)"""
@@ -8669,25 +8700,50 @@ async def gateway_send_message(data: dict = Body(...)):
             raise HTTPException(status_code=400, detail="No gateway service with an active interface is running")
 
         text = data.get("text")
+        cot_xml = data.get("cot_xml")
+        mode = str(data.get("mode") or "").strip().lower()
+
+        if _should_infer_gateway_cot_from_text(mode, text, cot_xml):
+            logger.warning("gateway_send_message received mode='cot' without cot_xml; falling back to text payload detection")
+            cot_xml = text
+
+        if cot_xml:
+            try:
+                transport = gw.send_cot(str(cot_xml))
+
+                logger.info("CoT sent via gateway transport=%s", transport)
+                _schedule_gateway_websocket_broadcast({
+                    "type": "gateway_cot",
+                    "direction": "outgoing",
+                    "xml": cot_xml,
+                    "transport": transport,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }, "gateway_cot")
+
+                return {
+                    "status": "success",
+                    "message": "CoT sent",
+                    "transport": transport,
+                    "mode": "cot"
+                }
+            except Exception as e:
+                logger.error(f"Failed to send CoT via gateway: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to send CoT: {str(e)}")
+
         if not text:
             raise HTTPException(status_code=400, detail="Message text is required")
 
         try:
-            gw.interface.sendText(text)
+            gw.send_text(text)
 
             logger.info(f"Message sent via gateway: {text[:50]}...")
 
-            # Broadcast message via WebSocket
-            if websocket_manager:
-                try:
-                    asyncio.create_task(websocket_manager.broadcast({
-                        "type": "gateway_message",
-                        "direction": "outgoing",
-                        "text": text,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    }))
-                except Exception as e:
-                    logger.warning(f"Failed to broadcast message: {e}")
+            _schedule_gateway_websocket_broadcast({
+                "type": "gateway_message",
+                "direction": "outgoing",
+                "text": text,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, "gateway_message")
 
             return {
                 "status": "success",
