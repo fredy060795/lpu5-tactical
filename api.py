@@ -8255,6 +8255,12 @@ def _gateway_broadcast_callback(event_type: str, data: Dict):
             except Exception as _tak_err:
                 logger.debug("Gateway→TAK forward error for %s: %s", data.get("mesh_id"), _tak_err)
 
+        if event_type == "gateway_cot" and data.get("xml"):
+            try:
+                _cot_listener_ingest_callback(str(data["xml"]))
+            except Exception as _cot_err:
+                logger.debug("Gateway mesh CoT ingest error for %s: %s", data.get("from"), _cot_err)
+
         # Bridge incoming Meshtastic messages into the general chat channel
         if event_type == "gateway_message" and data.get("direction") == "incoming":
             db = None
@@ -8669,11 +8675,45 @@ async def gateway_send_message(data: dict = Body(...)):
             raise HTTPException(status_code=400, detail="No gateway service with an active interface is running")
 
         text = data.get("text")
+        cot_xml = data.get("cot_xml")
+        mode = str(data.get("mode") or "").strip().lower()
+
+        if mode == "cot" and not cot_xml and isinstance(text, str):
+            cot_xml = text
+
+        if cot_xml:
+            try:
+                transport = gw.send_cot(str(cot_xml))
+
+                logger.info("CoT sent via gateway transport=%s", transport)
+
+                if websocket_manager:
+                    try:
+                        asyncio.create_task(websocket_manager.broadcast({
+                            "type": "gateway_cot",
+                            "direction": "outgoing",
+                            "xml": cot_xml,
+                            "transport": transport,
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        }))
+                    except Exception as e:
+                        logger.warning(f"Failed to broadcast CoT send event: {e}")
+
+                return {
+                    "status": "success",
+                    "message": "CoT sent",
+                    "transport": transport,
+                    "mode": "cot"
+                }
+            except Exception as e:
+                logger.error(f"Failed to send CoT via gateway: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to send CoT: {str(e)}")
+
         if not text:
             raise HTTPException(status_code=400, detail="Message text is required")
 
         try:
-            gw.interface.sendText(text)
+            gw.send_text(text)
 
             logger.info(f"Message sent via gateway: {text[:50]}...")
 

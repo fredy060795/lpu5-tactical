@@ -1220,10 +1220,14 @@
 
             // Also try gateway/meshtastic send (best-effort for mesh relay)
             try {
+                const gatewayPayload = { text: text, mode: messageMode };
+                if (messageMode === 'cot') {
+                    gatewayPayload.cot_xml = text;
+                }
                 await fetch('/api/gateway/send-message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text })
+                    body: JSON.stringify(gatewayPayload)
                 });
             } catch (gwErr) {
                 console.debug('Gateway relay not available:', gwErr);

@@ -22,8 +22,9 @@ import time
 import logging
 import argparse
 import threading
+import zlib
 from datetime import datetime, timezone
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 
 # Optional imports (graceful fallback)
 try:
@@ -54,6 +55,9 @@ logging.basicConfig(
     datefmt='%H:%M:%S'
 )
 logger = logging.getLogger('MeshtasticGateway')
+
+MESHTASTIC_ATAK_FORWARDER_PORTNUM = 257
+MESHTASTIC_TRANSFER_TYPE_COT = 0x00
 
 
 class MeshtasticGatewayService:
@@ -93,6 +97,120 @@ class MeshtasticGatewayService:
                 self.broadcast_callback(event_type, data)
             except Exception as e:
                 logger.error(f"Broadcast callback error: {e}")
+
+    @staticmethod
+    def _is_probably_cot_xml(value: Any) -> bool:
+        """Return True when the provided payload looks like a CoT XML event."""
+        if isinstance(value, bytes):
+            try:
+                value = value.decode("utf-8", errors="strict")
+            except Exception:
+                return False
+        if not isinstance(value, str):
+            return False
+        stripped = value.strip()
+        if not stripped:
+            return False
+        return (
+            ("<event" in stripped and "<point" in stripped)
+            or (stripped.startswith("<?xml") and "<event" in stripped)
+        )
+
+    @staticmethod
+    def _normalize_payload_bytes(payload: Any) -> bytes:
+        """Convert Meshtastic SDK payload variants to bytes."""
+        if isinstance(payload, bytes):
+            return payload
+        if isinstance(payload, bytearray):
+            return bytes(payload)
+        if isinstance(payload, list):
+            try:
+                return bytes(payload)
+            except Exception:
+                return b""
+        return b""
+
+    @classmethod
+    def encode_cot_payload(cls, cot_xml: str) -> bytes:
+        """Encode CoT XML using the ATAK_FORWARDER-compatible single-packet format."""
+        xml_bytes = (cot_xml or "").encode("utf-8").strip()
+        if not xml_bytes:
+            return b""
+        return bytes([MESHTASTIC_TRANSFER_TYPE_COT]) + zlib.compress(xml_bytes)
+
+    @classmethod
+    def decode_cot_payload(cls, payload: Any) -> Optional[str]:
+        """Decode an ATAK_FORWARDER-compatible CoT payload back to XML text."""
+        payload_bytes = cls._normalize_payload_bytes(payload).strip()
+        if not payload_bytes:
+            return None
+
+        decode_candidates = [payload_bytes]
+        if payload_bytes[:1] == bytes([MESHTASTIC_TRANSFER_TYPE_COT]):
+            stripped = payload_bytes[1:].strip()
+            if stripped:
+                decode_candidates.append(stripped)
+
+        for candidate in decode_candidates:
+            for wbits in (zlib.MAX_WBITS, -zlib.MAX_WBITS):
+                try:
+                    decoded = zlib.decompress(candidate, wbits).decode("utf-8", errors="strict")
+                    if cls._is_probably_cot_xml(decoded):
+                        return decoded
+                except Exception:
+                    continue
+            try:
+                decoded = candidate.decode("utf-8", errors="strict")
+            except Exception:
+                continue
+            if cls._is_probably_cot_xml(decoded):
+                return decoded
+        return None
+
+    @staticmethod
+    def _extract_sender_name(interface: Optional[object], from_id: Any) -> Any:
+        """Resolve a human-readable sender name from the interface node cache."""
+        sender_name = from_id
+        if interface and hasattr(interface, "nodes") and from_id in interface.nodes:
+            node = interface.nodes[from_id]
+            user = node.get("user", {})
+            sender_name = user.get("longName") or user.get("shortName") or from_id
+        return sender_name
+
+    def send_text(self, text: str):
+        """Send a plain Meshtastic text message."""
+        if not self.interface or not hasattr(self.interface, "sendText"):
+            raise RuntimeError("Meshtastic interface does not support sendText")
+        self.interface.sendText(text)
+
+    def send_cot(self, cot_xml: str):
+        """Send a CoT XML payload via Meshtastic data transport, with text fallback."""
+        if not self.interface:
+            raise RuntimeError("Meshtastic interface is not connected")
+
+        payload = self.encode_cot_payload(cot_xml)
+        if not payload:
+            raise ValueError("CoT XML is empty")
+
+        if hasattr(self.interface, "sendData"):
+            send_errors = []
+            for kwargs in (
+                {"portNum": MESHTASTIC_ATAK_FORWARDER_PORTNUM},
+                {"portnum": MESHTASTIC_ATAK_FORWARDER_PORTNUM},
+            ):
+                try:
+                    self.interface.sendData(payload, **kwargs)
+                    return "ATAK_FORWARDER"
+                except TypeError as exc:
+                    send_errors.append(exc)
+                    continue
+                except Exception as exc:
+                    send_errors.append(exc)
+                    break
+            logger.warning("sendData failed for CoT payload, falling back to sendText: %s", send_errors[-1] if send_errors else "unknown error")
+
+        self.send_text(cot_xml)
+        return "TEXT_FALLBACK"
     
     def connect(self) -> bool:
         """Establish connection to Meshtastic hardware"""
@@ -161,13 +279,15 @@ class MeshtasticGatewayService:
                 return
             
             # Update node data
-            node = self.interface.nodes.get(from_id)
+            node = self.interface.nodes.get(from_id) if self.interface and hasattr(self.interface, "nodes") else None
             if node:
                 self.process_node(node, force_update=True)
             
-            # Process messages
             decoded = packet.get('decoded')
-            if decoded and decoded.get('portnum') == 'TEXT_MESSAGE_APP':
+            cot_xml = self.decode_cot_payload((decoded or {}).get("payload")) if decoded else None
+            if cot_xml:
+                self.process_cot_packet(packet, cot_xml)
+            elif decoded and decoded.get('portnum') == 'TEXT_MESSAGE_APP':
                 self.process_message(packet)
             
             self.stats["messages_received"] += 1
@@ -281,13 +401,11 @@ class MeshtasticGatewayService:
             
             from_id = packet.get('fromId') or packet.get('from')
             to_id = packet.get('toId') or packet.get('to')
-            
-            # Get sender name
-            sender_name = from_id
-            if self.interface and from_id in self.interface.nodes:
-                node = self.interface.nodes[from_id]
-                user = node.get('user', {})
-                sender_name = user.get('longName') or user.get('shortName') or from_id
+            sender_name = self._extract_sender_name(self.interface, from_id)
+
+            if self._is_probably_cot_xml(text):
+                self.process_cot_packet(packet, text, sender_name=sender_name)
+                return
             
             message_record = {
                 "id": f"msg-{int(time.time() * 1000)}",
@@ -324,6 +442,26 @@ class MeshtasticGatewayService:
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+
+    def process_cot_packet(self, packet: Dict, cot_xml: str, sender_name: Optional[str] = None):
+        """Process an incoming CoT payload from the mesh network."""
+        try:
+            from_id = packet.get('fromId') or packet.get('from')
+            to_id = packet.get('toId') or packet.get('to')
+            sender_name = sender_name or self._extract_sender_name(self.interface, from_id)
+
+            logger.info("COT: %s sent CoT payload (%d bytes)", sender_name, len(cot_xml))
+            self._broadcast("gateway_cot", {
+                "direction": "incoming",
+                "from": from_id,
+                "to": to_id,
+                "sender_name": sender_name,
+                "xml": cot_xml,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "packet_id": packet.get("id"),
+            })
+        except Exception as e:
+            logger.error(f"Error processing CoT packet: {e}")
     
     def full_sync(self):
         """Perform full sync of all nodes"""
