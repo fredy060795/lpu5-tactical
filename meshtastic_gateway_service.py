@@ -102,7 +102,7 @@ class MeshtasticGatewayService:
 
     @staticmethod
     def _is_probably_cot_xml(value: Any) -> bool:
-        """Return True when the provided payload looks like a CoT XML event."""
+        """Heuristically detect CoT XML via <?xml>/<event> and <point> markers."""
         if isinstance(value, bytes):
             try:
                 value = value.decode("utf-8", errors="strict")
@@ -232,7 +232,11 @@ class MeshtasticGatewayService:
                 except Exception as exc:
                     send_errors.append(exc)
                     break
-            logger.warning("sendData failed for CoT payload, falling back to sendText: %s", send_errors[-1] if send_errors else "unknown error")
+            logger.warning(
+                "sendData failed for CoT payload (tried %s), falling back to sendText: %s",
+                kwarg_names,
+                send_errors[-1] if send_errors else "unknown error",
+            )
 
         self.send_text(cot_xml)
         return "TEXT_FALLBACK"

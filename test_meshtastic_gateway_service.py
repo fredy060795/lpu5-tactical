@@ -60,6 +60,11 @@ class TestMeshtasticGatewayService(unittest.TestCase):
 
         self.assertEqual(self.service.decode_cot_payload(payload), cot_xml)
 
+    def test_decode_rejects_empty_and_invalid_payloads(self):
+        self.assertIsNone(self.service.decode_cot_payload(b""))
+        self.assertIsNone(self.service.decode_cot_payload(None))
+        self.assertIsNone(self.service.decode_cot_payload(b"not-cot"))
+
     def test_process_message_routes_cot_text_to_gateway_cot(self):
         packet = {
             "from": "!abcd1234",
@@ -74,6 +79,21 @@ class TestMeshtasticGatewayService(unittest.TestCase):
         event_type, payload = self.events[0]
         self.assertEqual(event_type, "gateway_cot")
         self.assertIn('uid="mesh-3"', payload["xml"])
+
+    def test_process_message_keeps_regular_text_flow(self):
+        packet = {
+            "from": "!abcd1234",
+            "decoded": {
+                "text": "hello mesh"
+            },
+        }
+
+        self.service.process_message(packet)
+
+        self.assertEqual(len(self.events), 1)
+        event_type, payload = self.events[0]
+        self.assertEqual(event_type, "gateway_message")
+        self.assertEqual(payload["text"], "hello mesh")
 
     def test_on_receive_packet_routes_binary_cot_payload(self):
         cot_xml = '<event version="2.0" uid="mesh-4" type="a-f-G-E-S-U-M"><point lat="1" lon="2"/></event>'
