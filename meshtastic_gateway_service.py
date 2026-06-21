@@ -22,6 +22,7 @@ import time
 import logging
 import argparse
 import threading
+import inspect
 import zlib
 from datetime import datetime, timezone
 from typing import Optional, Dict, List, Any
@@ -117,6 +118,11 @@ class MeshtasticGatewayService:
             or (stripped.startswith("<?xml") and "<event" in stripped)
         )
 
+    @classmethod
+    def is_probably_cot_xml(cls, value: Any) -> bool:
+        """Public wrapper for CoT XML detection used by the API layer."""
+        return cls._is_probably_cot_xml(value)
+
     @staticmethod
     def _normalize_payload_bytes(payload: Any) -> bytes:
         """Convert Meshtastic SDK payload variants to bytes."""
@@ -152,9 +158,9 @@ class MeshtasticGatewayService:
                 decode_candidates.append(payload_bytes[1:])
 
         for candidate in decode_candidates:
-            # Some senders wrap the compressed CoT payload in a normal zlib stream,
-            # others emit raw deflate bytes without the zlib header. Try both so
-            # the gateway can decode packets from both formats.
+            # zlib.MAX_WBITS expects a regular zlib-wrapped stream with headers,
+            # while -zlib.MAX_WBITS expects raw deflate bytes without headers.
+            # Try both so the gateway can decode either sender format.
             for wbits in (zlib.MAX_WBITS, -zlib.MAX_WBITS):
                 try:
                     decoded = zlib.decompress(candidate, wbits).decode("utf-8", errors="strict")
@@ -186,6 +192,20 @@ class MeshtasticGatewayService:
             raise RuntimeError("Meshtastic interface does not support sendText")
         self.interface.sendText(text)
 
+    def _resolve_send_data_port_kwarg(self) -> Optional[str]:
+        """Detect the keyword name used by the installed Meshtastic SDK."""
+        if self._send_data_port_kwarg or not self.interface or not hasattr(self.interface, "sendData"):
+            return self._send_data_port_kwarg
+        try:
+            signature = inspect.signature(self.interface.sendData)
+            if "portNum" in signature.parameters:
+                self._send_data_port_kwarg = "portNum"
+            elif "portnum" in signature.parameters:
+                self._send_data_port_kwarg = "portnum"
+        except (TypeError, ValueError):
+            pass
+        return self._send_data_port_kwarg
+
     def send_cot(self, cot_xml: str):
         """Send a CoT XML payload via Meshtastic data transport, with text fallback."""
         if not self.interface:
@@ -197,7 +217,8 @@ class MeshtasticGatewayService:
 
         if hasattr(self.interface, "sendData"):
             send_errors = []
-            kwarg_names = [self._send_data_port_kwarg] if self._send_data_port_kwarg else ["portNum", "portnum"]
+            resolved_kwarg = self._resolve_send_data_port_kwarg()
+            kwarg_names = [resolved_kwarg] if resolved_kwarg else ["portNum", "portnum"]
             for kwarg_name in kwarg_names:
                 if not kwarg_name:
                     continue

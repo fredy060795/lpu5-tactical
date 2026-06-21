@@ -8682,7 +8682,7 @@ async def gateway_send_message(data: dict = Body(...)):
                 and not cot_xml
                 and isinstance(text, str)
                 and MeshtasticGatewayService is not None
-                and MeshtasticGatewayService._is_probably_cot_xml(text)):
+                and MeshtasticGatewayService.is_probably_cot_xml(text)):
             logger.warning("gateway_send_message received mode='cot' without cot_xml; falling back to text payload detection")
             cot_xml = text
 
@@ -8694,13 +8694,13 @@ async def gateway_send_message(data: dict = Body(...)):
 
                 if websocket_manager:
                     try:
-                        asyncio.create_task(websocket_manager.broadcast({
+                        await websocket_manager.broadcast({
                             "type": "gateway_cot",
                             "direction": "outgoing",
                             "xml": cot_xml,
                             "transport": transport,
                             "timestamp": datetime.now(timezone.utc).isoformat()
-                        }))
+                        })
                     except Exception as e:
                         logger.warning(f"Failed to broadcast CoT send event: {e}")
 
@@ -8725,12 +8725,12 @@ async def gateway_send_message(data: dict = Body(...)):
             # Broadcast message via WebSocket
             if websocket_manager:
                 try:
-                    asyncio.create_task(websocket_manager.broadcast({
+                    await websocket_manager.broadcast({
                         "type": "gateway_message",
                         "direction": "outgoing",
                         "text": text,
                         "timestamp": datetime.now(timezone.utc).isoformat()
-                    }))
+                    })
                 except Exception as e:
                     logger.warning(f"Failed to broadcast message: {e}")
 
