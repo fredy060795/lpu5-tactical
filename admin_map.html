@@ -1118,7 +1118,7 @@
     <div class="icon-btn" data-flyout="fly-contacts" title="Contacts"><i class="fas fa-address-book"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
     <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
-    <!-- <div class="icon-btn" id="intelLayerToggleBtn" data-flyout="fly-intel" title="Intel Filter"><i class="fas fa-satellite-dish"></i></div> -->
+    <div class="icon-btn" id="intelLayerToggleBtn" data-flyout="fly-intel" title="Intel Filter"><i class="fas fa-satellite-dish"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
   </div>
 
@@ -1267,7 +1267,7 @@
     </div>
   </div>
 
-  <!-- Flyout: Intel Filter – disabled (system load reduction)
+  <!-- Flyout: Intel Filter
   <div id="fly-intel" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>Intel Filter</h4>
     <div style="font-size:.82rem;color:#888;margin-bottom:10px;"><i class="fas fa-info-circle"></i> Intel-Quellen ein-/ausblenden</div>
@@ -1388,7 +1388,7 @@
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <!-- MilSymbol: spatialillusions/milsymbol for dynamic military symbol SVG generation -->
   <script src="https://cdn.jsdelivr.net/npm/milsymbol@2.2.0/dist/milsymbol.js"></script>
-  <!-- <script src="intel-data.js"></script> -->
+  <script src="intel-data.js"></script>
 
   <script>
     // =====================================================================
@@ -4721,7 +4721,6 @@
           .replace(/'/g, "&#039;");
       }
 
-      /* ── Global Intel share receiver – disabled (system load reduction) ──────
       // ── Global Intel share receiver ──────────────────────────
       (function () {
         const ICON_MAP = {
@@ -4815,9 +4814,8 @@
           }
         });
       }());
-      /* ========== End disabled Global Intel share receiver ========== */
+      // ========== End Global Intel share receiver ==========
 
-      /* ── Intel Group Layer – disabled (system load reduction) ──────────────
       // ─── Intel Group Layer – lazy initialiser ────────────────────────────────────
       // Direct per-source fetching is handled by the Intel Filter Flyout IIFE below.
       // This block only exposes a helper that lazily creates the shared layer group.
@@ -4830,9 +4828,8 @@
           return window._intelGroupLayer;
         };
       }());
-      /* ========== End disabled Intel Group Layer ========== */
+      // ========== End Intel Group Layer ==========
 
-      /* ── Intel Filter Flyout – disabled (system load reduction) ────────────
       // ─── Intel Filter Flyout – per-source visibility ─────────────────────────────
       (function () {
         var INTEL_SOURCES = [
@@ -5114,7 +5111,7 @@
           }
         });
       }());
-      /* ========== End disabled Intel Filter Flyout ========== */
+      // ========== End Intel Filter Flyout ==========
 
       // ── Overlays flyout – layer visibility toggles ───────────────────────────────
       (function () {

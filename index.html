@@ -8166,7 +8166,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
     <div class="icon-btn" data-flyout="fly-layer-toggle" title="Overlays"><i class="fas fa-layer-group"></i></div>
     <div class="icon-btn" onclick="openStreamWindow()" title="Live Stream"><i class="fas fa-video"></i></div>
     <div class="icon-btn" id="chatToolbarBtn" onclick="openChatWindow()" title="Chat / Messages"><i class="fas fa-comments"></i></div>
-    <!-- <div class="icon-btn" id="intelLayerToggleBtn" data-flyout="fly-intel" title="Intel Filter"><i class="fas fa-satellite-dish"></i></div> -->
+    <div class="icon-btn" id="intelLayerToggleBtn" data-flyout="fly-intel" title="Intel Filter"><i class="fas fa-satellite-dish"></i></div>
     <div class="icon-btn" data-flyout="fly-settings" title="Settings"><i class="fas fa-cog"></i></div>
   </div>
 
@@ -8303,7 +8303,7 @@ td input.notes:focus { border-color: var(--accent); outline: none; }
     </div>
   </div>
 
-  <!-- Flyout: Intel Filter – disabled (system load reduction)
+  <!-- Flyout: Intel Filter
   <div id="fly-intel" class="icon-flyout" role="dialog" aria-hidden="true">
     <h4>Intel Filter</h4>
     <div style="font-size:.82rem;color:#888;margin-bottom:10px;"><i class="fas fa-info-circle"></i> Intel-Quellen ein-/ausblenden</div>
@@ -16908,7 +16908,6 @@ window.addEventListener('storage', (e) => {
         return '<div class="chat-message-text">' + escapeHtml(msg.text || '') + '</div>';
       }
 
-      /* ── Global Intel share receiver – disabled (system load reduction) ──────
       // ── Global Intel share receiver ──────────────────────────
       (function () {
         const ICON_MAP = {
@@ -17002,9 +17001,8 @@ window.addEventListener('storage', (e) => {
           }
         });
       }());
-      /* ========== End disabled Global Intel share receiver ========== */
+      // ========== End Global Intel share receiver ==========
 
-      /* ── Intel Group Layer – disabled (system load reduction) ──────────────
       // ─── Intel Group Layer – lazy initialiser ────────────────────────────────────
       // Direct per-source fetching is handled by the Intel Filter Flyout IIFE below.
       // This block only exposes a helper that lazily creates the shared layer group.
@@ -17017,9 +17015,8 @@ window.addEventListener('storage', (e) => {
           return window._intelGroupLayer;
         };
       }());
-      /* ========== End disabled Intel Group Layer ========== */
+      // ========== End Intel Group Layer ==========
 
-      /* ── Intel Filter Flyout – disabled (system load reduction) ────────────
       // ─── Intel Filter Flyout – per-source visibility ─────────────────────────────
       (function () {
         var INTEL_SOURCES = [
@@ -17301,7 +17298,7 @@ window.addEventListener('storage', (e) => {
           }
         });
       }());
-      /* ========== End disabled Intel Filter Flyout ========== */
+      // ========== End Intel Filter Flyout ==========
 
       // ── Overlays flyout – layer visibility toggles ───────────────────────────────
       (function () {
@@ -24365,8 +24362,7 @@ fedLoadAutoSyncStatus();
     <!-- #Anfang JS global_Intel.html -->
     <script>
     window._spaInit_global_intel = function() {
-        /* ── Global_Intel functions disabled – system load reduction ──────────────────
-// ─── Collapsible side-panel accordion ─────────────────────────
+        // ─── Collapsible side-panel accordion ─────────────────────────
 var _openPanel = null;
 function togglePanel(id) {
     if (_openPanel && _openPanel !== id) {
@@ -25028,7 +25024,7 @@ document.addEventListener('DOMContentLoaded', function() {
         _flLoadTimer = setTimeout(loadFlights, 600);
     });
 });
-/* ========== End of disabled Global_Intel functions ========== */
+// ========== End Global_Intel functions ==========
 
     // ─── Expose functions to global scope for inline onclick handlers ─
     window.togglePanel = togglePanel;
