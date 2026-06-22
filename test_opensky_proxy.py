@@ -3,6 +3,7 @@
 
 import ast
 import os
+from typing import Any, Dict, Optional
 import unittest
 from unittest.mock import Mock
 
@@ -25,9 +26,9 @@ def _load_opensky_namespace():
             selected.append(node)
     module = ast.Module(body=selected, type_ignores=[])
     namespace = {
-        "Dict": dict,
-        "Any": object,
-        "Optional": object,
+        "Dict": Dict,
+        "Any": Any,
+        "Optional": Optional,
         "requests": type("RequestsStub", (), {"get": Mock()})(),
     }
     exec(compile(module, API_PATH, "exec"), namespace)
