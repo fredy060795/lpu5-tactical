@@ -40,6 +40,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from opensky_proxy_utils import build_opensky_bbox_params
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 VERSION = "1.0.0"
@@ -335,27 +336,16 @@ def _send_json(handler, status: int, body) -> None:
 
 def _fetch_standalone_opensky_states(query_string: str) -> tuple[int, dict]:
     params = urllib.parse.parse_qs(query_string, keep_blank_values=False)
-    pairs = []
-    limits = {
-        "lamin": (-90.0, 90.0),
-        "lamax": (-90.0, 90.0),
-        "lomin": (-180.0, 180.0),
-        "lomax": (-180.0, 180.0),
-    }
-    for key, (lower, upper) in limits.items():
+    raw_bbox = {}
+    for key in ("lamin", "lomin", "lamax", "lomax"):
         values = params.get(key)
         if not values:
             continue
         try:
-            value = max(lower, min(upper, float(values[0])))
+            raw_bbox[key] = float(values[0])
         except (TypeError, ValueError):
             continue
-        pairs.append((key, f"{value:.4f}"))
-    bbox = dict(pairs)
-    if "lamin" in bbox and "lamax" in bbox and float(bbox["lamin"]) > float(bbox["lamax"]):
-        bbox["lamin"], bbox["lamax"] = bbox["lamax"], bbox["lamin"]
-    if "lomin" in bbox and "lomax" in bbox and float(bbox["lomin"]) > float(bbox["lomax"]):
-        bbox["lomin"], bbox["lomax"] = bbox["lomax"], bbox["lomin"]
+    bbox = build_opensky_bbox_params(**raw_bbox)
     url = "https://opensky-network.org/api/states/all"
     if bbox:
         url += "?" + urllib.parse.urlencode(bbox)
