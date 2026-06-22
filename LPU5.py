@@ -36,6 +36,9 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -330,6 +333,54 @@ def _send_json(handler, status: int, body) -> None:
     handler.wfile.write(payload)
 
 
+def _fetch_standalone_opensky_states(query_string: str) -> tuple[int, dict]:
+    params = urllib.parse.parse_qs(query_string, keep_blank_values=False)
+    pairs = []
+    limits = {
+        "lamin": (-90.0, 90.0),
+        "lamax": (-90.0, 90.0),
+        "lomin": (-180.0, 180.0),
+        "lomax": (-180.0, 180.0),
+    }
+    for key, (lower, upper) in limits.items():
+        values = params.get(key)
+        if not values:
+            continue
+        try:
+            value = max(lower, min(upper, float(values[0])))
+        except (TypeError, ValueError):
+            continue
+        pairs.append((key, f"{value:.4f}"))
+    bbox = dict(pairs)
+    if "lamin" in bbox and "lamax" in bbox and float(bbox["lamin"]) > float(bbox["lamax"]):
+        bbox["lamin"], bbox["lamax"] = bbox["lamax"], bbox["lamin"]
+    if "lomin" in bbox and "lomax" in bbox and float(bbox["lomin"]) > float(bbox["lomax"]):
+        bbox["lomin"], bbox["lomax"] = bbox["lomax"], bbox["lomin"]
+    url = "https://opensky-network.org/api/states/all"
+    if bbox:
+        url += "?" + urllib.parse.urlencode(bbox)
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "LPU5-Tactical/1.0 OpenSkyProxy",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("Invalid OpenSky response")
+        states = data.get("states")
+        if states is None:
+            data["states"] = []
+        elif not isinstance(states, list):
+            raise ValueError("Invalid OpenSky states payload")
+        return 200, data
+    except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return 502, {"detail": "OpenSky upstream unavailable", "states": []}
+
+
 class _LPU5Handler(SimpleHTTPRequestHandler):
     """Serve static files + return stubs for /api/* requests."""
 
@@ -344,7 +395,8 @@ class _LPU5Handler(SimpleHTTPRequestHandler):
     # ── GET ──────────────────────────────────────────────────────
 
     def do_GET(self):
-        path = self.path.split("?")[0]
+        parsed = urllib.parse.urlsplit(self.path)
+        path = parsed.path
 
         # /api/me – return logged-in user
         if path == "/api/me":
@@ -378,6 +430,11 @@ class _LPU5Handler(SimpleHTTPRequestHandler):
         # /api/standalone/server_status – backend server status
         if path == "/api/standalone/server_status":
             _send_json(self, 200, _backend_server_status())
+            return
+
+        if path == "/api/intel/flights":
+            status, body = _fetch_standalone_opensky_states(parsed.query)
+            _send_json(self, status, body)
             return
 
         if path in _API_STUBS:

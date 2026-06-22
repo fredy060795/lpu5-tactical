@@ -65,6 +65,9 @@ if sys.platform == 'win32':
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("lpu5-api")
 
+OPENSKY_STATES_URL = "https://opensky-network.org/api/states/all"
+OPENSKY_PROXY_TIMEOUT = 15
+
 # Global event loop reference for thread-safe broadcasts
 _MAIN_EVENT_LOOP = None
 # Set to True during application shutdown to suppress expected warnings
@@ -203,27 +206,22 @@ def get_local_ip():
     Returns tuple: (primary_ip, all_detected_ips)
     """
     detected_ips = []
-    
+
     # Method 1: Socket-based detection (most reliable for default route)
     try:
-        # Create a socket connection to detect the local IP
-        # Connect to a public IP (doesn't actually send data)
-        # Port 80 is used as a common outbound port
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(0.1)
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
-        # Verify it's not localhost
         if local_ip and local_ip != "127.0.0.1":
             detected_ips.append(local_ip)
     except Exception as e:
         logger.warning(f"Primary IP detection failed: {e}")
-    
+
     # Method 2: Hostname-based detection
     try:
         hostname = socket.gethostname()
-        # getaddrinfo returns all addresses for the hostname
         addr_info = socket.getaddrinfo(hostname, None, socket.AF_INET)
         for info in addr_info:
             ip = info[4][0]
@@ -231,7 +229,7 @@ def get_local_ip():
                 detected_ips.append(ip)
     except Exception as e:
         logger.warning(f"Hostname multi-address detection failed: {e}")
-    
+
     # Method 3: Fallback - simple hostname resolution
     try:
         hostname = socket.gethostname()
@@ -240,30 +238,25 @@ def get_local_ip():
             detected_ips.append(local_ip)
     except Exception as e:
         logger.warning(f"Hostname IP detection failed: {e}")
-    
-    # Filter and prioritize IPs with specific preference for 192.168.8.x WLAN subnet
+
     primary_ip = "127.0.0.1"
-    
+
     if detected_ips:
-        # HIGHEST PRIORITY: 192.168.8.x subnet (WLAN for mobile device access)
         wlan_ips = [ip for ip in detected_ips if ip.startswith("192.168.8.")]
         if wlan_ips:
             primary_ip = wlan_ips[0]
             return primary_ip, detected_ips
-        
-        # SECOND PRIORITY: Other 192.168.x.x addresses (common home/office networks)
+
         preferred = [ip for ip in detected_ips if ip.startswith("192.168.")]
         if preferred:
             primary_ip = preferred[0]
             return primary_ip, detected_ips
-        
-        # THIRD PRIORITY: 10.x.x.x (another common private range)
+
         preferred = [ip for ip in detected_ips if ip.startswith("10.")]
         if preferred:
             primary_ip = preferred[0]
             return primary_ip, detected_ips
-        
-        # FOURTH PRIORITY: 172.16-31.x.x
+
         preferred = []
         for ip in detected_ips:
             parts = ip.split('.')
@@ -277,14 +270,66 @@ def get_local_ip():
         if preferred:
             primary_ip = preferred[0]
             return primary_ip, detected_ips
-        
-        # Return first detected IP as last resort
+
         primary_ip = detected_ips[0]
         return primary_ip, detected_ips
-    
-    # Last resort: return localhost
+
     logger.warning("Could not detect local network IP, falling back to 127.0.0.1")
     return primary_ip, []
+
+
+def _build_opensky_bbox_params(
+    lamin: Optional[float] = None,
+    lomin: Optional[float] = None,
+    lamax: Optional[float] = None,
+    lomax: Optional[float] = None,
+) -> Dict[str, str]:
+    params: Dict[str, str] = {}
+    bounds = {
+        "lamin": (-90.0, 90.0, lamin),
+        "lamax": (-90.0, 90.0, lamax),
+        "lomin": (-180.0, 180.0, lomin),
+        "lomax": (-180.0, 180.0, lomax),
+    }
+    for key, (lower, upper, value) in bounds.items():
+        if value is None:
+            continue
+        params[key] = f"{max(lower, min(upper, float(value))):.4f}"
+    if "lamin" in params and "lamax" in params and float(params["lamin"]) > float(params["lamax"]):
+        params["lamin"], params["lamax"] = params["lamax"], params["lamin"]
+    if "lomin" in params and "lomax" in params and float(params["lomin"]) > float(params["lomax"]):
+        params["lomin"], params["lomax"] = params["lomax"], params["lomin"]
+    return params
+
+
+def _fetch_opensky_states(
+    lamin: Optional[float] = None,
+    lomin: Optional[float] = None,
+    lamax: Optional[float] = None,
+    lomax: Optional[float] = None,
+    requests_get=requests.get,
+) -> Dict[str, Any]:
+    params = _build_opensky_bbox_params(lamin=lamin, lomin=lomin, lamax=lamax, lomax=lomax)
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "LPU5-Tactical/1.0 OpenSkyProxy",
+    }
+    response = requests_get(
+        OPENSKY_STATES_URL,
+        params=params or None,
+        headers=headers,
+        timeout=OPENSKY_PROXY_TIMEOUT,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, dict):
+        raise ValueError("Invalid OpenSky response")
+    states = data.get("states")
+    if states is None:
+        data["states"] = []
+    elif not isinstance(states, list):
+        raise ValueError("Invalid OpenSky states payload")
+    return data
 
 # JWT settings (development use only)
 JWT_SECRET = "LPU5-TACTICAL-SECRET-KEY-2024"
@@ -6415,6 +6460,28 @@ def api_ingest_node(data: dict = Body(...)):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/intel/flights")
+def api_intel_flights(
+    lamin: Optional[float] = None,
+    lomin: Optional[float] = None,
+    lamax: Optional[float] = None,
+    lomax: Optional[float] = None,
+):
+    try:
+        return _fetch_opensky_states(lamin=lamin, lomin=lomin, lamax=lamax, lomax=lomax)
+    except requests.RequestException as exc:
+        logger.warning("OpenSky proxy request failed: %s", exc)
+        return JSONResponse(
+            status_code=502,
+            content={"detail": "OpenSky upstream unavailable", "states": []},
+        )
+    except ValueError as exc:
+        logger.warning("OpenSky proxy returned invalid payload: %s", exc)
+        return JSONResponse(
+            status_code=502,
+            content={"detail": "OpenSky upstream returned invalid data", "states": []},
+        )
 
 @app.get("/api/server_info")
 def get_server_info():

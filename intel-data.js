@@ -75,7 +75,7 @@
   // ── API configuration ─────────────────────────────────────────────────────────
   I.MIL_REGEX   = /^(REACH|SENTRY|DARK|DUKE|NAVY|GAF|RRR|FAF|NATO|BOXER|COBRA|VIPER|GHOST|HAWK|EAGLE|TALON|REAPER|RANGER|SHADOW|IRON|STEEL|ATLAS|TOPGUN|MAGIC|HAVOC|STORM|BLADE|NOBLE|ASCOT|TARTAN|RCH|CNV|VENUS|MULE)/i;
   I.EQ_URL      = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
-  I.FL_URL_BASE = 'https://opensky-network.org/api/states/all';
+  I.FL_URL_BASE = '/api/intel/flights';
   // Minimum map zoom level required to display civil flights.
   // Military aircraft (type: 'milaircraft') are always shown regardless of zoom.
   I.FL_MIN_ZOOM = 4;
@@ -115,7 +115,10 @@
   // onSuccess(civilMarkers [], milMarkers [])   onError(err) – both optional
   I.fetchFlights = function (onSuccess, onError) {
     fetch(I.FL_URL_BASE, { signal: AbortSignal.timeout(30000) })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('OpenSky proxy failed');
+        return r.json();
+      })
       .then(function (data) {
         var fl = [], mil = [];
         (data.states || []).forEach(function (s) {

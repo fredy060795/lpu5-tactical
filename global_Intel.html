@@ -659,7 +659,7 @@ function loadEarthquakes() {
     });
 }
 var MIL_REGEX = /^(REACH|SENTRY|DARK|DUKE|NAVY|GAF|RRR|FAF|NATO|BOXER|COBRA|VIPER|GHOST|HAWK|EAGLE|TALON|REAPER|RANGER|SHADOW|IRON|STEEL|ATLAS|TOPGUN|MAGIC|HAVOC|STORM|BLADE|NOBLE|ASCOT|TARTAN|RCH|CNV|VENUS|MULE)/i;
-var FL_URL_BASE = 'https://opensky-network.org/api/states/all';
+var FL_URL_BASE = '/api/intel/flights';
 var FL_MIN_ZOOM = 4;
 var _flMarkers = [], _milMarkers = [];
 var _flLoadTimer = null;
@@ -714,7 +714,7 @@ function loadFlights() {
     var east  = Math.min( 180, b.getEast()).toFixed(4);
     var FL_URL = FL_URL_BASE + '?lamin=' + south + '&lomin=' + west + '&lamax=' + north + '&lomax=' + east;
     flightLayer.clearLayers(); milLayer.clearLayers();
-    fetch(FL_URL, { signal: AbortSignal.timeout(12000) }).then(function(r) { return r.json(); }).then(function(data) {
+    fetch(FL_URL, { signal: AbortSignal.timeout(12000) }).then(function(r) { if (!r.ok) throw new Error('OpenSky proxy failed'); return r.json(); }).then(function(data) {
         var states = data.states || [];
         flightLayer.clearLayers(); milLayer.clearLayers();
         _flMarkers = []; _milMarkers = [];
@@ -770,7 +770,7 @@ function _loadMilFlightsGlobal() {
     document.getElementById('mil-count').textContent      = '&#8230;';
     document.getElementById('mil-badge-text').textContent = 'Mil AC: loading';
     document.getElementById('stat-mil').textContent       = '&#8230;';
-    fetch(FL_URL_BASE, { signal: AbortSignal.timeout(15000) }).then(function(r) { return r.json(); }).then(function(data) {
+    fetch(FL_URL_BASE, { signal: AbortSignal.timeout(15000) }).then(function(r) { if (!r.ok) throw new Error('OpenSky proxy failed'); return r.json(); }).then(function(data) {
         var states = data.states || [];
         milLayer.clearLayers();
         _milMarkers = [];
